@@ -1,0 +1,60 @@
+{
+  "name": "synapse-agent",
+  "version": "1.0.0",
+  "description": "A self-growing AI agent framework based on unified Bash abstraction",
+  "type": "module",
+  "bin": {
+    "synapse": "./dist/entrypoints/cli.js"
+  },
+  "scripts": {
+    "dev": "bun run src/entrypoints/cli.tsx",
+    "build": "bun build src/entrypoints/cli.tsx --outdir dist --target bun",
+    "start": "bun run dist/entrypoints/cli.js",
+    "test": "bun test",
+    "test:watch": "bun test --watch",
+    "test:coverage": "bun test --coverage",
+    "format": "prettier --write \"src/**/*.{ts,tsx}\"",
+    "lint": "eslint src --ext .ts,.tsx",
+    "lint:fix": "eslint src --ext .ts,.tsx --fix",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "ai",
+    "agent",
+    "llm",
+    "bash",
+    "tools",
+    "synapse"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@anthropic-ai/sdk": "latest",
+    "@commander-js/extra-typings": "latest",
+    "@inkjs/ui": "latest",
+    "chalk": "latest",
+    "cli-highlight": "latest",
+    "cli-table3": "latest",
+    "commander": "latest",
+    "dotenv": "latest",
+    "figures": "latest",
+    "glob": "latest",
+    "ink": "latest",
+    "js-yaml": "latest",
+    "marked": "latest",
+    "minimatch": "latest",
+    "nanoid": "latest",
+    "shell-quote": "latest",
+    "zod": "latest"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/js-yaml": "latest",
+    "@types/node": "latest",
+    "@typescript-eslint/eslint-plugin": "latest",
+    "@typescript-eslint/parser": "latest",
+    "eslint": "latest",
+    "prettier": "latest",
+    "typescript": "latest"
+  }
+}
