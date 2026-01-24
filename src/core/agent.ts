@@ -17,6 +17,7 @@ import { BashRouter } from '../tools/bash-router';
 import { BashSession, type BashSessionConfig } from '../tools/bash-session';
 import { ToolRegistry } from '../tools/registry';
 import type { BaseTool } from '../tools/base';
+import { getAllAgentTools } from '../tools/agent';
 import { DEFAULT_SYSTEM_PROMPT } from './prompts';
 
 /**
@@ -46,8 +47,12 @@ export class Agent {
     this.llm = llm;
     this.config = { ...DEFAULT_AGENT_CONFIG, ...config };
 
-    // Initialize tool registry
+    // Initialize tool registry with all agent tools
     this.registry = new ToolRegistry();
+    const agentTools = getAllAgentTools();
+    for (const tool of agentTools) {
+      this.registry.register(tool);
+    }
 
     // Initialize bash session and router
     const sessionConfig: BashSessionConfig = {
