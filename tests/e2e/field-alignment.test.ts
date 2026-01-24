@@ -117,13 +117,13 @@ describe('Field Alignment Verification', () => {
         content: 'test',
         steps: [],
         error: undefined,
-        iteration_count: 0,
+        iterations: 0,
       };
 
       expect(result).toHaveProperty('content');
       expect(result).toHaveProperty('steps');
       expect(result).toHaveProperty('error');
-      expect(result).toHaveProperty('iteration_count');
+      expect(result).toHaveProperty('iterations');
     });
 
     test('ToolCallStep interface should have correct fields', () => {

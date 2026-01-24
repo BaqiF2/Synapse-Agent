@@ -139,6 +139,7 @@ export class Agent {
       content: '',
       error: null,
       steps: [],
+      iterations: 0,
     };
 
     let iterations = 0;
@@ -164,6 +165,7 @@ export class Agent {
           // Extract text content
           const textBlocks = response.content.filter((block) => block.type === 'text');
           result.content = textBlocks.map((block: any) => block.text).join('\n');
+          result.iterations = iterations;
           this.state = AgentState.DONE;
           return result;
         }
@@ -243,10 +245,12 @@ export class Agent {
       // Max iterations reached
       this.state = AgentState.ERROR;
       result.error = `Maximum iterations (${this.config.max_iterations}) reached`;
+      result.iterations = iterations;
       return result;
     } catch (error) {
       this.state = AgentState.ERROR;
       result.error = error instanceof Error ? error.message : String(error);
+      result.iterations = iterations;
       return result;
     }
   }

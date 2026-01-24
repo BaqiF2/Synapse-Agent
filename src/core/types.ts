@@ -49,6 +49,9 @@ export interface AgentResult {
   /** List of tool call steps during execution */
   steps: ToolCallStep[];
 
+  /** Number of iterations used */
+  iterations: number;
+
   /** Detailed tool results (used for verbose mode) */
   tool_results?: Array<{
     name: string;
