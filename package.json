@@ -45,6 +45,7 @@
     "minimatch": "latest",
     "nanoid": "latest",
     "shell-quote": "latest",
+    "yaml": "^2.8.2",
     "zod": "latest"
   },
   "devDependencies": {
