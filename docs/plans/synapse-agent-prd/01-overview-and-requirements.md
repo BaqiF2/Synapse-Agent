@@ -82,11 +82,10 @@ Synapse Agent 的理念面向所有 Agent 用户。当前 CLI 交互只是验证
    - 用户手动安装完 MCP/工具后，启动 Agent 时自动检测并运行转换脚本
    - 技能强化 Agent 新增工具时
    - 外源技能导入包含新工具时
-2. 工具转 Bash Agent 自动识别工具来源并转换：
-   - MCP 工具 → 调用 Mcp2Bash 转换器
-   - FunctionCalling 工具（JSON Schema）→ 调用 Fc2Bash 转换器
-   - Skills 中定义的工具 → 调用 Skill2Bash 转换器
-3. 生成对应的 Field Bash 命令，保存到文件系统
-4. 更新 Agent 的工具索引，后续任务可直接通过 Bash 调用
+2. 工具转 Bash 转换器自动识别工具来源并转换：
+   - MCP 工具 → 调用 Mcp2Bash 转换器（启动时解析并缓存）
+   - Skill 脚本 → 调用 Skill2Bash 转换器（后台监听进程自动生成）
+3. 生成对应的 Field Bash 命令（mcp:* 和 skill:* 格式），安装到 PATH
+4. Agent 可通过 `tools search` 发现工具，通过 `-h/--help` 获取使用说明
 
 **价值验证**：证明"一切工具都是Bash"的可行性 - 统一抽象层的核心实现
