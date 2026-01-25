@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "test-server": {
+      "command": "bun",
+      "args": ["tests/fixtures/test-mcp-server.ts"]
+    }
+  }
+}
