@@ -1,8 +1,17 @@
 {
   "name": "synapse-agent",
+  "version": "0.1.0",
+  "description": "A self-growing AI agent framework based on unified Bash abstraction",
   "module": "index.ts",
   "type": "module",
   "private": true,
+  "scripts": {
+    "start": "bun run src/cli/index.ts",
+    "chat": "bun run src/cli/index.ts chat",
+    "test": "bun test",
+    "test:e2e": "bun test tests/e2e/",
+    "typecheck": "tsc --noEmit"
+  },
   "devDependencies": {
     "@types/bun": "latest"
   },
