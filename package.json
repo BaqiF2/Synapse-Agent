@@ -4,12 +4,12 @@
   "description": "A self-growing AI agent framework based on unified Bash abstraction",
   "type": "module",
   "bin": {
-    "synapse": "./dist/entrypoints/cli.js"
+    "synapse": "./dist/cli.js"
   },
   "scripts": {
-    "dev": "bun run src/entrypoints/cli.tsx",
-    "build": "bun build src/entrypoints/cli.tsx --outdir dist --target bun",
-    "start": "bun run dist/entrypoints/cli.js",
+    "dev": "bun run src/entrypoints/cli.ts",
+    "build": "bun build src/entrypoints/cli.ts --outdir dist --target bun",
+    "start": "bun run dist/cli.js",
     "test": "bun test",
     "test:watch": "bun test --watch",
     "test:coverage": "bun test --coverage",

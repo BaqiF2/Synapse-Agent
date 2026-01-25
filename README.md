@@ -34,7 +34,15 @@ bun install
 
 # 构建项目
 bun run build
+
+# 全局安装（推荐）
+npm install -g .
 ```
+
+**注意事项**：
+- 构建输出为 `dist/cli.js`（单文件打包）
+- 全局安装后可直接使用 `synapse` 命令
+- 开发模式下可使用 `bun run dev` 或 `bun run start`
 
 ### 配置
 
@@ -52,6 +60,8 @@ MODEL=MiniMax-M2
 
 ### 基础使用
 
+**全局安装后使用：**
+
 ```bash
 # 单次查询
 synapse "帮我分析这个项目的架构"
@@ -64,6 +74,21 @@ synapse tools
 
 # 管理技能
 synapse skills
+```
+
+**未全局安装的替代方式：**
+
+```bash
+# 方式 1: 使用 npm 脚本
+bun run start "你的问题"
+bun run start chat
+
+# 方式 2: 直接执行构建文件
+bun dist/cli.js "你的问题"
+bun dist/cli.js chat
+
+# 方式 3: 开发模式（无需构建）
+bun run dev "你的问题"
 ```
 
 ### 示例：Agent 执行流程
