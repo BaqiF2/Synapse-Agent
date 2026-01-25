@@ -81,10 +81,25 @@ function buildFieldBashSection(): string {
   return `
 ## 3. Field Bash (Domain Tools)
 
-Domain-specific tools organized by category:
-- Use \`field -h\` to list all available domains
-- Use \`field:<domain> -h\` to list tools in a domain
-- Use \`field:<domain>:<tool> -h\` to see tool usage`;
+Domain-specific tools for MCP servers and Skills:
+
+### Tool Discovery
+- \`tools search [pattern]\` - Search all available tools
+- \`tools search --type=mcp\` - List all MCP tools
+- \`tools search --type=skill\` - List all Skill tools
+- \`tools list\` - List all installed tools
+
+### MCP Tools
+Format: \`mcp:<server>:<tool> [args...]\`
+- Example: \`mcp:test-server:add 1 2\`
+- Use \`mcp:<server>:<tool> -h\` to see tool usage
+
+### Skill Tools
+Format: \`skill:<skill>:<tool> [args...]\`
+- Example: \`skill:example-skill:process_text "hello"\`
+- Use \`skill:<skill>:<tool> -h\` to see tool usage
+
+**IMPORTANT**: Always use \`tools search\` first to discover available tools before calling them.`;
 }
 
 /**

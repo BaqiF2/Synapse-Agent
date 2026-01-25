@@ -48,3 +48,12 @@ export {
   type SearchOptions,
   type SearchResult,
 } from './installer.js';
+
+export {
+  initializeMcpTools,
+  cleanupMcpTools,
+  refreshMcpTools,
+  type McpInitResult,
+  type McpServerInitResult,
+  type McpInitOptions,
+} from './mcp-initializer.js';

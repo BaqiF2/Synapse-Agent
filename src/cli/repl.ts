@@ -26,6 +26,7 @@ import { ToolExecutor, type ToolCallInput } from '../agent/tool-executor.ts';
 import { buildSystemPrompt } from '../agent/system-prompt.ts';
 import { ContextPersistence } from '../agent/context-persistence.ts';
 import { BashToolSchema } from '../tools/bash-tool-schema.ts';
+import { initializeMcpTools } from '../tools/converters/mcp/index.ts';
 import { createLogger } from '../utils/logger.ts';
 
 const cliLogger = createLogger('cli');
@@ -612,6 +613,28 @@ export async function startRepl(): Promise<void> {
     console.log(chalk.yellow(`\nAgent mode unavailable: ${message}`));
     console.log(chalk.yellow('Running in echo mode (responses will be echoed back).\n'));
     cliLogger.warn(`Agent initialization failed: ${message}`);
+  }
+
+  // Initialize MCP tools from configuration
+  try {
+    console.log(chalk.gray('Initializing MCP tools...'));
+    const mcpResult = await initializeMcpTools({ skipFailedServers: true });
+    if (mcpResult.totalToolsInstalled > 0) {
+      console.log(
+        chalk.green(
+          `✓ Loaded ${mcpResult.totalToolsInstalled} MCP tools from ${mcpResult.connectedServers} server(s)`
+        )
+      );
+    } else if (mcpResult.totalServers > 0) {
+      console.log(chalk.yellow(`⚠ No MCP tools loaded (${mcpResult.errors.length} errors)`));
+      for (const err of mcpResult.errors.slice(0, 3)) {
+        console.log(chalk.gray(`  - ${err}`));
+      }
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    cliLogger.warn(`MCP initialization failed: ${message}`);
+    console.log(chalk.yellow(`⚠ MCP tools unavailable: ${message}`));
   }
 
   // Initialize state
