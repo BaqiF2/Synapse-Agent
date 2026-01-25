@@ -1,3 +1,0 @@
-[install]
-# Use the default npm registry
-registry = "https://registry.npmjs.org"
