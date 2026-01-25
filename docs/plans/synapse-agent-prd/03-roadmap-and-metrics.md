@@ -312,7 +312,7 @@ Synapse Agent 的开发分为三个主要阶段，每个阶段都有明确的验
 **代码质量**：
 - 代码覆盖率：≥ 70%（核心模块）
 - 文档覆盖率：100%（公开 API 和配置）
-- 代码风格：遵循 PEP 8（Python）
+- 代码风格：遵循 ESLint 规范（TypeScript）
 
 **日志和监控**：
 - 日志级别：支持 DEBUG、INFO、WARN、ERROR
@@ -345,14 +345,20 @@ Synapse Agent 的开发分为三个主要阶段，每个阶段都有明确的验
 - 优先支持：macOS、Linux（Ubuntu 20.04+）
 - 未来支持：Windows（WSL2）
 
-**Python 版本**：
-- 最低要求：Python 3.13+
-- 推荐版本：Python 3.13
+**运行时环境**：
+- 运行时：Bun（最新稳定版）
+- 语言：TypeScript 5+
+- Node.js 兼容：支持 Node.js 18+ 环境运行
 
 **依赖管理**：
-- 使用标准库优先
-- 外部依赖：Anthropic SDK、PyYAML、其他必要库
-- 依赖版本锁定：通过 `pyproject.toml` 管理
+- 包管理器：Bun
+- 核心依赖：
+  - @anthropic-ai/sdk - LLM 集成
+  - commander - CLI 框架
+  - ink + @inkjs/ui - CLI 交互界面
+  - zod - Schema 验证
+  - yaml, js-yaml - YAML 处理
+- 依赖版本锁定：通过 `package.json` 和 `bun.lockb` 管理
 
 **模型兼容性**：
 - 主要模型：Minimax 2.1（Anthropic SDK 兼容）

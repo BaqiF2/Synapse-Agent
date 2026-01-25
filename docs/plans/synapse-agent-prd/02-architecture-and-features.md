@@ -269,32 +269,34 @@ Synapse Agent 的工具系统基于三层 Bash 架构设计，从底层到上层
 - **错误处理**：命令执行失败时显示退出码，但继续 REPL 循环
 
 **技术实现要点**：
-```python
-# 在 REPL.start() 主循环中的处理流程
-user_input = self._get_input()
+```typescript
+// 在 REPL.start() 主循环中的处理流程
+const userInput = await this.getInput();
 
-# 检查是否为 Shell 命令（在检查特殊命令之后、发送给 Agent 之前）
-if user_input.strip().startswith("!"):
-    shell_command = user_input.strip()[1:].strip()
-    self._execute_shell_command(shell_command)
-    continue
+// 检查是否为 Shell 命令（在检查特殊命令之后、发送给 Agent 之前）
+if (userInput.trim().startsWith("!")) {
+    const shellCommand = userInput.trim().slice(1).trim();
+    await this.executeShellCommand(shellCommand);
+    continue;
+}
 
-# _execute_shell_command 实现
-def _execute_shell_command(self, command: str) -> None:
-    """Execute a shell command directly."""
-    result = subprocess.run(
-        command,
-        shell=True,
-        cwd=os.getcwd(),  # 使用当前工作目录
-        stdout=None,      # 直接输出到终端
-        stderr=None       # 直接输出到终端
-    )
+// executeShellCommand 实现
+async executeShellCommand(command: string): Promise<void> {
+    // Execute a shell command directly
+    const proc = Bun.spawn(command, {
+        shell: true,
+        cwd: process.cwd(), // 使用当前工作目录
+        stdout: "inherit",  // 直接输出到终端
+        stderr: "inherit"   // 直接输出到终端
+    });
 
-    # 如果命令失败，显示退出码
-    if result.returncode != 0:
-        self._console.print(
-            f"[dim]Command exited with code {result.returncode}[/dim]"
-        )
+    const exitCode = await proc.exited;
+
+    // 如果命令失败，显示退出码
+    if (exitCode !== 0) {
+        console.log(chalk.dim(`Command exited with code ${exitCode}`));
+    }
+}
 ```
 
 **行为规范**：
