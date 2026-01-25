@@ -5,8 +5,11 @@
  *
  * 核心导出：
  * - buildSystemPrompt(): 构建完整的系统提示词
+ * - buildSkillSystemSection(): 构建技能系统说明
  * - SystemPromptOptions: 系统提示词配置选项
  */
+
+import type { SkillLevel1 } from '../skills/skill-loader.js';
 
 /**
  * Options for building the system prompt
@@ -16,6 +19,10 @@ export interface SystemPromptOptions {
   includeAgentBash?: boolean;
   /** Include Field Bash commands (MCP/Skill) */
   includeFieldBash?: boolean;
+  /** Include skill system instructions */
+  includeSkillSystem?: boolean;
+  /** Available skills to inject (Level 1 data) */
+  availableSkills?: SkillLevel1[];
   /** Custom instructions to append */
   customInstructions?: string;
   /** Current working directory */
@@ -228,12 +235,140 @@ function buildFieldBashSection(): string {
   return `
 # Field Bash（领域专用工具）
 
-**注意**：Field Bash 工具正在开发中，当前版本尚不可用。
+Field Bash 提供两类扩展工具：
 
-未来将支持：
-- \`mcp:*\` - MCP 协议工具
-- \`skill:*\` - 技能系统工具
-- \`tools search\` - 搜索可用工具`;
+## 工具搜索
+
+\`\`\`
+tools search [pattern] [--type mcp|skill]
+\`\`\`
+
+搜索已安装的 MCP 和 Skill 工具。
+
+**示例**：
+\`\`\`
+tools search git              # 搜索包含 "git" 的工具
+tools search --type mcp       # 只搜索 MCP 工具
+tools search --type skill     # 只搜索 Skill 工具
+tools list                    # 列出所有工具
+\`\`\`
+
+## MCP 工具
+
+格式：\`mcp:<server>:<tool> [args]\`
+
+MCP（Model Context Protocol）工具通过外部服务器提供。
+
+**示例**：
+\`\`\`
+mcp:filesystem:read_file /path/to/file
+mcp:git-tools:commit "message"
+\`\`\`
+
+## Skill 工具
+
+格式：\`skill:<skill>:<tool> [args]\`
+
+Skill 工具是本地脚本提供的能力。
+
+**示例**：
+\`\`\`
+skill:pdf-editor:extract_text /path/to/document.pdf
+skill:code-analyzer:check_quality ./src
+\`\`\`
+
+使用 \`-h\` 或 \`--help\` 查看任何工具的用法：
+\`\`\`
+mcp:filesystem:read_file --help
+skill:pdf-editor:extract_text -h
+\`\`\``;
+}
+
+/**
+ * Build skill system section
+ */
+function buildSkillSystemSection(availableSkills?: SkillLevel1[]): string {
+  let section = `
+# 技能系统
+
+技能是可复用的专业能力包，包含文档和工具脚本。
+
+## 技能搜索
+
+当任务需要特定领域能力时，先搜索相关技能：
+
+\`\`\`
+skill search <query> [--domain <domain>] [--tag <tag>]
+\`\`\`
+
+**参数**：
+- \`query\`: 搜索关键词（匹配名称、描述、标签）
+- \`--domain\`: 按领域过滤（programming, data, devops, finance, general, automation, ai, security）
+- \`--tag\`: 按标签过滤
+
+**示例**：
+\`\`\`
+skill search pdf                    # 搜索 PDF 相关技能
+skill search --domain data          # 搜索数据处理技能
+skill search --tag automation       # 搜索自动化技能
+skill search python --tools         # 搜索并显示可用工具
+\`\`\`
+
+## 技能使用流程
+
+1. **搜索技能**：\`skill search "<功能描述>"\`
+2. **加载文档**：\`read ~/.synapse/skills/<skill-name>/SKILL.md\`
+3. **理解用法**：阅读 SKILL.md 中的使用说明和示例
+4. **执行工具**：调用 \`skill:<name>:<tool>\` 命令
+
+## 技能目录结构
+
+\`\`\`
+~/.synapse/skills/
+  <skill-name>/
+    SKILL.md          # 技能文档（使用说明、执行流程）
+    scripts/          # 可执行脚本
+      tool1.py
+      tool2.sh
+\`\`\``;
+
+  // Add available skills summary if provided
+  if (availableSkills && availableSkills.length > 0) {
+    section += `
+
+## 当前可用技能
+
+`;
+    // Group by domain
+    const byDomain = new Map<string, SkillLevel1[]>();
+    for (const skill of availableSkills) {
+      const domain = skill.domain;
+      if (!byDomain.has(domain)) {
+        byDomain.set(domain, []);
+      }
+      byDomain.get(domain)!.push(skill);
+    }
+
+    for (const [domain, skills] of byDomain) {
+      section += `### ${domain}\n\n`;
+      for (const skill of skills) {
+        section += `- **${skill.name}**`;
+        if (skill.description) {
+          section += `: ${skill.description}`;
+        }
+        if (skill.tools.length > 0) {
+          section += `\n  工具: ${skill.tools.slice(0, 3).join(', ')}`;
+          if (skill.tools.length > 3) {
+            section += ` (+${skill.tools.length - 3} more)`;
+          }
+        }
+        section += '\n';
+      }
+      section += '\n';
+    }
+  }
+
+  return section;
 }
 
 /**
@@ -285,6 +420,11 @@ export function buildSystemPrompt(options?: SystemPromptOptions): string {
   // Field Bash (optional)
   if (options?.includeFieldBash) {
     parts.push(buildFieldBashSection());
+  }
+
+  // Skill System (optional)
+  if (options?.includeSkillSystem) {
+    parts.push(buildSkillSystemSection(options.availableSkills));
   }
 
   // Usage tips

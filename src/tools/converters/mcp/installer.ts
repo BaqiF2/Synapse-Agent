@@ -354,10 +354,30 @@ export class McpInstaller {
     const lines: string[] = [];
     lines.push(`Found ${result.total} tool${result.total > 1 ? 's' : ''}:\n`);
 
-    for (const tool of result.tools) {
-      lines.push(`  ${tool.commandName}`);
-      if (tool.description) {
-        lines.push(`    ${tool.description}`);
+    // Group by type
+    const mcpTools = result.tools.filter((t) => t.type === 'mcp');
+    const skillTools = result.tools.filter((t) => t.type === 'skill');
+
+    if (mcpTools.length > 0) {
+      lines.push('MCP Tools:');
+      for (const tool of mcpTools) {
+        lines.push(`  ${tool.commandName}`);
+        if (tool.description) {
+          lines.push(`    ${tool.description}`);
+        }
+      }
+      if (skillTools.length > 0) {
+        lines.push('');
+      }
+    }
+
+    if (skillTools.length > 0) {
+      lines.push('Skill Tools:');
+      for (const tool of skillTools) {
+        lines.push(`  ${tool.commandName}`);
+        if (tool.description) {
+          lines.push(`    ${tool.description}`);
+        }
       }
     }
 
