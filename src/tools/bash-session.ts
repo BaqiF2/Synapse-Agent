@@ -18,7 +18,8 @@ const COMMAND_END_MARKER = '___SYNAPSE_COMMAND_END___';
  */
 export class BashSession {
   private process: ChildProcess | null = null;
-  private outputBuffer: string = '';
+  private stdoutBuffer: string = '';
+  private stderrBuffer: string = '';
   private isReady: boolean = false;
 
   constructor() {
@@ -38,17 +39,24 @@ export class BashSession {
       throw new Error('Failed to create Bash process streams');
     }
 
-    // Set up output listeners
+    // Set up output listeners - separate stdout and stderr
     this.process.stdout.on('data', (data: Buffer) => {
-      this.outputBuffer += data.toString();
+      this.stdoutBuffer += data.toString();
     });
 
     this.process.stderr.on('data', (data: Buffer) => {
-      this.outputBuffer += data.toString();
+      this.stderrBuffer += data.toString();
     });
 
     this.process.on('exit', (code) => {
-      console.error(`Bash process exited with code ${code}`);
+      if (code !== null && code !== 0) {
+        console.error(`Bash process exited unexpectedly with code ${code}`);
+      }
+      this.isReady = false;
+    });
+
+    this.process.on('error', (error) => {
+      console.error('Bash process error:', error);
       this.isReady = false;
     });
 
@@ -67,27 +75,31 @@ export class BashSession {
       throw new Error('Bash stdin is not available');
     }
 
-    // Clear output buffer
-    this.outputBuffer = '';
+    // Clear output buffers
+    this.stdoutBuffer = '';
+    this.stderrBuffer = '';
 
     // Send command with end marker
     const commandWithMarker = `${command}\necho "${COMMAND_END_MARKER}"\n`;
     this.process.stdin.write(commandWithMarker);
 
     // Wait for command to complete
-    const output = await this.waitForCompletion();
+    const { stdout, stderr } = await this.waitForCompletion();
+
+    // Determine exit code based on stderr content
+    const exitCode = stderr.trim() ? 1 : 0;
 
     return {
-      stdout: output,
-      stderr: '',
-      exitCode: 0,
+      stdout,
+      stderr,
+      exitCode,
     };
   }
 
   /**
    * Wait for command completion
    */
-  private async waitForCompletion(): Promise<string> {
+  private async waitForCompletion(): Promise<{ stdout: string; stderr: string }> {
     const startTime = Date.now();
 
     return new Promise((resolve, reject) => {
@@ -95,22 +107,24 @@ export class BashSession {
         // Check timeout
         if (Date.now() - startTime > COMMAND_TIMEOUT) {
           clearInterval(checkInterval);
-          reject(new Error('Command execution timeout'));
+          reject(new Error(`Command execution timeout after ${COMMAND_TIMEOUT}ms`));
           return;
         }
 
-        // Check for end marker
-        if (this.outputBuffer.includes(COMMAND_END_MARKER)) {
+        // Check for end marker in stdout
+        if (this.stdoutBuffer.includes(COMMAND_END_MARKER)) {
           clearInterval(checkInterval);
 
           // Remove the end marker from output
-          const output = this.outputBuffer
+          const stdout = this.stdoutBuffer
             .split(COMMAND_END_MARKER)[0]
             ?.trim() || '';
 
-          resolve(output);
+          const stderr = this.stderrBuffer.trim();
+
+          resolve({ stdout, stderr });
         }
-      }, 100);
+      }, 50); // Check every 50ms for better responsiveness
     });
   }
 
@@ -119,15 +133,16 @@ export class BashSession {
    */
   async restart(): Promise<void> {
     if (this.process) {
-      this.process.kill();
+      this.process.kill('SIGTERM');
       this.process = null;
     }
 
-    this.outputBuffer = '';
+    this.stdoutBuffer = '';
+    this.stderrBuffer = '';
     this.isReady = false;
 
-    // Wait a bit before restarting
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    // Wait a bit before restarting to ensure process cleanup
+    await new Promise((resolve) => setTimeout(resolve, 200));
 
     this.start();
   }
@@ -137,7 +152,7 @@ export class BashSession {
    */
   cleanup(): void {
     if (this.process) {
-      this.process.kill();
+      this.process.kill('SIGTERM');
       this.process = null;
     }
     this.isReady = false;
