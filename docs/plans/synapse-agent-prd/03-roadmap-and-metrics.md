@@ -32,7 +32,7 @@ Synapse Agent 的开发分为三个主要阶段，每个阶段都有明确的验
 - ✓ 技能文件结构（SKILL.md + 可选资源）
 - ✓ 技能加载机制（三层渐进式加载）
 - ✓ 技能执行：LLM 读取 SKILL.md 并按指令执行
-- ✓ 技能存储：`~/.synapse/skills/<domain>/<skill-name>/`
+- ✓ 技能存储：`~/.synapse/skills/<skill-name>/`
 - ✓ 技能索引：维护 `index.json` 用于快速检索
 
 **5. 文件系统记忆**
@@ -53,7 +53,7 @@ Synapse Agent 的开发分为三个主要阶段，每个阶段都有明确的验
 - **Bash 会话状态在命令之间保持**（持久会话验证）
 - **支持 `restart: true` 参数重启会话**（会话重启验证）
 - **所有命令支持 `-h/--help` 自描述**（自描述能力验证）
-- 成功转换至少 3 种不同类型的工具为 Bash 命令（Anthropic/MCP/Skill）
+- 成功转换至少 3 种不同类型的工具为 Bash 命令（Agent Bash 内置工具/MCP 工具/Skill 工具）
 - 成功执行至少 2 个自定义技能（SKILL.md 格式）
 - 所有命令通过唯一的 Bash 工具执行
 

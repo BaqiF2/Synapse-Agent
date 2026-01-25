@@ -64,15 +64,14 @@ Synapse Agent 的工具系统基于三层 Bash 架构设计，从底层到上层
   - `glob <pattern>` - 文件模式匹配
   - `grep <pattern> [options]` - 代码搜索
   - `bash <command>` - 执行 Bash 命令
-  - `skill <action> [args]` - 技能管理（属于 sub agent is tool）
-  - `tools search <query>` - 工具搜索
 - **Phase 2 扩展工具**：
   - `web_search <query>` - 网页搜索
   - `web_fetch <url>` - 网页获取
 - **Phase 3 高级工具**：
+  - `tools search <query>` - 工具搜索
+  - `skill <action> [args]` - 技能管理（属于 sub agent is tool）
   - `task <agent_type> <prompt>` - 启动子 Agent
-  - `todo <action> [items]` - 任务管理
-  - `ask <question> [options]` - 询问用户
+  - `plan <action> [items]` - 任务管理
 
 **系统提示词注入格式**：
 ```markdown
@@ -246,6 +245,33 @@ $ skill:pdf-editor:extract_text --help
 #### 4.2.2 Mcp2Bash 转换器
 
 **输入**：MCP 工具定义（inputSchema 格式）
+
+**MCP 配置示例**：
+
+MCP 服务器通过配置文件定义，配置文件位置为当前目录的 `mcp_servers.json` 或 `~/.synapse/mcp/mcp_servers.json`：
+
+```json
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "."
+      ]
+    },
+    "deepwiki": {
+      "url": "https://mcp.deepwiki.com/mcp"
+    }
+  }
+}
+```
+
+**配置说明**：
+- **command 方式**：通过本地命令启动 MCP 服务器（如 `filesystem` 示例）
+- **url 方式**：连接远程 MCP 服务器（如 `deepwiki` 示例）
+- **服务器名称**：配置中的 key（如 `filesystem`, `deepwiki`）将作为 `<mcp_name>` 用于生成 Bash 命令
 
 **转换规则**：
 - MCP `name` → Bash 命令名称：`mcp:<mcp_name>:<tool>`

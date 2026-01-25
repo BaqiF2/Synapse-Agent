@@ -9,7 +9,7 @@
 ```
 code-quality-analyzer/
 ├── SKILL.md (必需，主要指导文档)
-├── REFERENCE.md (可选，详细参考资料)
+├── references (可选，详细参考资料)
 └── scripts/
     └── analyze.py (可选，可执行脚本)
 ```
@@ -51,7 +51,7 @@ field:programming:pylint src/main.py
 - 关注高复杂度函数和重复代码
 - 提供具体的改进建议和示例代码
 
-更多详细参考信息，请查看 [REFERENCE.md](REFERENCE.md)
+更多详细参考信息，请查看 [REFERENCE.md](./references/REFERENCE.md)
 ```
 
 **必需字段**：
@@ -175,10 +175,10 @@ field:programming:pylint src/main.py
 - 将元数据列表注入上下文（成本低，约 300 tokens）
 - LLM 开始任务执行，自行判断是否需要加载技能
 - LLM 决定: 需要 code-quality-analyzer 技能
-- LLM 执行: read ~/.synapse/skills/programming/code-quality-analyzer/SKILL.md
+- LLM 执行: read ~/.synapse/skills/code-quality-analyzer/SKILL.md
 - [SKILL.md 内容注入上下文，按指令执行]
 - LLM 判断: 需要 report-generator 生成报告
-- LLM 执行: read ~/.synapse/skills/general/report-generator/SKILL.md
+- LLM 执行: read ~/.synapse/skills/report-generator/SKILL.md
 - [继续按指令完成报告生成]
 ```
 
@@ -219,7 +219,7 @@ task skill-search "分析 Python 项目代码质量"
 技能搜索 Agent 返回: ["code-quality-analyzer"]
 
 主 Agent 执行:
-1. read ~/.synapse/skills/programming/code-quality-analyzer/SKILL.md
+1. read ~/.synapse/skills/code-quality-analyzer/SKILL.md
 2. [SKILL.md 内容注入上下文]
 3. 按照 SKILL.md 指令执行:
    - glob "**/*.py"

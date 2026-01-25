@@ -138,9 +138,9 @@
    - 领域定制：不同领域（programming/finance 等）可以有专门的技能生成策略
 
 5. **更新文件系统**：
-   - 保存/更新 SKILL.md 文件到 `~/.synapse/skills/<domain>/<skill-name>/`
+   - 保存/更新 SKILL.md 文件到 `~/.synapse/skills/<skill-name>/`
    - 更新技能索引文件 `index.json`
-   - 如有新工具，保存工具定义到 `~/.synapse/tools/field/<domain>/`
+   - 如有新工具，保存工具定义到技能的 `scripts/` 目录
    - 如有额外参考文件，保存到技能目录下（如 REFERENCE.md、EXAMPLES.md）
 
 #### 4.5.3 技能质量标准
@@ -197,7 +197,7 @@
 2. 决策：创建新技能 "analyzing-logs"
 
 3. 生成技能文件：
-   ~/.synapse/skills/general/analyzing-logs/SKILL.md
+   ~/.synapse/skills/analyzing-logs/SKILL.md
 
 4. 更新索引：
    {
