@@ -100,6 +100,7 @@ export class AgentRunner {
       cliLogger.debug(`Agent loop iteration ${iteration}`);
 
       const messages = this.contextManager.getMessages();
+      cliLogger.debug(`Sending ${messages.length} message(s) to LLM`);
 
       // Call LLM
       const response = await this.llmClient.sendMessage(messages, this.systemPrompt, [
@@ -592,6 +593,15 @@ export async function startRepl(): Promise<void> {
       persistence: persistence ?? undefined,
     });
 
+    // Load existing messages from persistence
+    if (persistence) {
+      contextManager.loadFromPersistence();
+      const messageCount = contextManager.getMessageCount();
+      if (messageCount > 0) {
+        cliLogger.info(`Loaded ${messageCount} messages from session: ${persistence.getSessionId()}`);
+      }
+    }
+
     // Build system prompt
     const systemPrompt = buildSystemPrompt({
       includeAgentBash: true,
@@ -638,8 +648,13 @@ export async function startRepl(): Promise<void> {
   }
 
   // Initialize state
+  // Calculate initial turn number based on loaded messages
+  const initialTurnNumber = agentRunner
+    ? Math.floor(agentRunner.getContextManager().getMessageCount() / 2) + 1
+    : 1;
+
   const state: ReplState = {
-    turnNumber: 1,
+    turnNumber: initialTurnNumber,
     conversationHistory: [],
     commandHistory: loadCommandHistory(),
     isProcessing: false,
@@ -654,6 +669,9 @@ export async function startRepl(): Promise<void> {
   console.log(chalk.gray('Use !<command> to execute shell commands directly'));
   if (persistence) {
     console.log(chalk.gray(`Session: ${persistence.getSessionId()}`));
+    if (initialTurnNumber > 1) {
+      console.log(chalk.green(`✓ Resumed with ${initialTurnNumber - 1} previous turn(s)`));
+    }
   }
   console.log();
 
