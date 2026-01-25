@@ -1,14 +1,16 @@
 /**
  * 上下文管理器
  *
- * 功能：维护对话历史，管理消息上下文窗口
+ * 功能：维护对话历史，管理消息上下文窗口，支持持久化
  *
  * 核心导出：
  * - ContextManager: 上下文管理器类，维护对话历史
  * - ConversationMessage: 对话消息类型
+ * - ContextManagerOptions: 配置选项类型
  */
 
 import type Anthropic from '@anthropic-ai/sdk';
+import type { ContextPersistence } from './context-persistence.ts';
 
 const DEFAULT_MAX_MESSAGES = parseInt(process.env.MAX_CONTEXT_MESSAGES || '50', 10);
 const DEFAULT_MAX_TOKENS = parseInt(process.env.MAX_CONTEXT_TOKENS || '100000', 10);
@@ -38,27 +40,74 @@ export interface ToolCall {
 }
 
 /**
+ * Context manager configuration options
+ */
+export interface ContextManagerOptions {
+  maxMessages?: number;
+  maxTokens?: number;
+  persistence?: ContextPersistence;
+}
+
+/**
  * Context Manager for maintaining conversation history
  */
 export class ContextManager {
   private messages: ConversationMessage[] = [];
   private maxMessages: number;
   private maxTokens: number;
+  private persistence?: ContextPersistence;
 
-  constructor(options?: { maxMessages?: number; maxTokens?: number }) {
+  constructor(options?: ContextManagerOptions) {
     this.maxMessages = options?.maxMessages ?? DEFAULT_MAX_MESSAGES;
     this.maxTokens = options?.maxTokens ?? DEFAULT_MAX_TOKENS;
+    this.persistence = options?.persistence;
+  }
+
+  /**
+   * Enable persistence for this context manager
+   */
+  enablePersistence(persistence: ContextPersistence): void {
+    this.persistence = persistence;
+  }
+
+  /**
+   * Disable persistence
+   */
+  disablePersistence(): void {
+    this.persistence = undefined;
+  }
+
+  /**
+   * Get the persistence instance
+   */
+  getPersistence(): ContextPersistence | undefined {
+    return this.persistence;
+  }
+
+  /**
+   * Load messages from persistence
+   */
+  loadFromPersistence(): void {
+    if (this.persistence) {
+      this.messages = this.persistence.loadMessages();
+    }
   }
 
   /**
    * Add a user message to the conversation
    */
   addUserMessage(content: string): void {
-    this.messages.push({
+    const message: ConversationMessage = {
       role: 'user',
       content,
-    });
+    };
+    this.messages.push(message);
     this.trimContext();
+
+    // Persist
+    if (this.persistence) {
+      this.persistence.appendMessage(message);
+    }
   }
 
   /**
@@ -67,11 +116,17 @@ export class ContextManager {
   addAssistantMessage(content: string): void {
     if (!content.trim()) return;
 
-    this.messages.push({
+    const message: ConversationMessage = {
       role: 'assistant',
       content,
-    });
+    };
+    this.messages.push(message);
     this.trimContext();
+
+    // Persist
+    if (this.persistence) {
+      this.persistence.appendMessage(message);
+    }
   }
 
   /**
@@ -99,10 +154,16 @@ export class ContextManager {
     }
 
     if (contentBlocks.length > 0) {
-      this.messages.push({
+      const message: ConversationMessage = {
         role: 'assistant',
         content: contentBlocks,
-      });
+      };
+      this.messages.push(message);
+
+      // Persist
+      if (this.persistence) {
+        this.persistence.appendMessage(message);
+      }
     }
     this.trimContext();
   }
@@ -113,10 +174,17 @@ export class ContextManager {
   addToolResults(results: ToolResultContent[]): void {
     if (results.length === 0) return;
 
-    this.messages.push({
+    const message: ConversationMessage = {
       role: 'user',
       content: results,
-    });
+    };
+    this.messages.push(message);
+
+    // Persist
+    if (this.persistence) {
+      this.persistence.appendMessage(message);
+    }
+
     this.trimContext();
   }
 

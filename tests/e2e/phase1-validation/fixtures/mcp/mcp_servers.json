@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "test-local-server": {
+      "command": "node",
+      "args": ["test-server.js"],
+      "env": {
+        "NODE_ENV": "test"
+      }
+    },
+    "test-remote-server": {
+      "url": "https://example.com/mcp"
+    },
+    "filesystem-mock": {
+      "command": "echo",
+      "args": ["mock filesystem server"]
+    }
+  }
+}

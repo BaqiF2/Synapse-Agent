@@ -3,11 +3,13 @@
  *
  * 功能：提供命令行交互式对话界面，支持用户输入和响应输出
  *       支持 Shell 命令直接执行（! 前缀）和特殊命令（/ 前缀）
+ *       集成 LLM 客户端实现完整的 Agent Loop
  *
  * 核心导出：
  * - startRepl(): 启动 REPL 循环
  * - executeShellCommand(): 执行 Shell 命令
  * - handleSpecialCommand(): 处理特殊命令
+ * - AgentRunner: Agent Loop 执行器
  */
 
 import * as readline from 'node:readline';
@@ -17,11 +19,25 @@ import * as path from 'node:path';
 import * as os from 'node:os';
 import chalk from 'chalk';
 
+// Agent imports
+import { LlmClient, type LlmToolCall } from '../agent/llm-client.ts';
+import { ContextManager } from '../agent/context-manager.ts';
+import { ToolExecutor, type ToolCallInput } from '../agent/tool-executor.ts';
+import { buildSystemPrompt } from '../agent/system-prompt.ts';
+import { ContextPersistence } from '../agent/context-persistence.ts';
+import { BashToolSchema } from '../tools/bash-tool-schema.ts';
+import { createLogger } from '../utils/logger.ts';
+
+const cliLogger = createLogger('cli');
+
 /**
  * Environment variable configuration
  */
-const HISTORY_FILE = process.env.SYNAPSE_HISTORY_FILE || path.join(os.homedir(), '.synapse', '.repl_history');
+const HISTORY_FILE =
+  process.env.SYNAPSE_HISTORY_FILE || path.join(os.homedir(), '.synapse', '.repl_history');
 const MAX_HISTORY_SIZE = parseInt(process.env.SYNAPSE_MAX_HISTORY || '1000', 10);
+const MAX_TOOL_ITERATIONS = parseInt(process.env.SYNAPSE_MAX_TOOL_ITERATIONS || '10', 10);
+const PERSISTENCE_ENABLED = process.env.SYNAPSE_PERSISTENCE_ENABLED !== 'false';
 
 /**
  * Conversation message for history display
@@ -40,6 +56,132 @@ export interface ReplState {
   turnNumber: number;
   conversationHistory: ConversationEntry[];
   commandHistory: string[];
+  isProcessing: boolean;
+}
+
+/**
+ * Agent Runner for handling LLM interaction loop
+ */
+export class AgentRunner {
+  private llmClient: LlmClient;
+  private contextManager: ContextManager;
+  private toolExecutor: ToolExecutor;
+  private systemPrompt: string;
+  private maxIterations: number;
+
+  constructor(options: {
+    llmClient: LlmClient;
+    contextManager: ContextManager;
+    toolExecutor: ToolExecutor;
+    systemPrompt: string;
+    maxIterations?: number;
+  }) {
+    this.llmClient = options.llmClient;
+    this.contextManager = options.contextManager;
+    this.toolExecutor = options.toolExecutor;
+    this.systemPrompt = options.systemPrompt;
+    this.maxIterations = options.maxIterations ?? MAX_TOOL_ITERATIONS;
+  }
+
+  /**
+   * Run the agent loop for a user message
+   * Returns the final text response
+   */
+  async run(userMessage: string): Promise<string> {
+    // Add user message to context
+    this.contextManager.addUserMessage(userMessage);
+
+    let iteration = 0;
+    let finalResponse = '';
+
+    while (iteration < this.maxIterations) {
+      iteration++;
+      cliLogger.debug(`Agent loop iteration ${iteration}`);
+
+      const messages = this.contextManager.getMessages();
+
+      // Call LLM
+      const response = await this.llmClient.sendMessage(messages, this.systemPrompt, [
+        BashToolSchema,
+      ]);
+
+      // Collect text content
+      if (response.content) {
+        finalResponse = response.content;
+        // Output text immediately
+        if (response.content.trim()) {
+          process.stdout.write(response.content);
+        }
+      }
+
+      // Check for tool calls
+      if (response.toolCalls.length === 0) {
+        // No tool calls, add assistant response and finish
+        this.contextManager.addAssistantMessage(response.content);
+        break;
+      }
+
+      // Add assistant response with tool calls
+      this.contextManager.addAssistantToolCall(response.content, response.toolCalls);
+
+      // Execute tools
+      console.log(); // Newline before tool execution
+      const toolInputs: ToolCallInput[] = response.toolCalls.map((call: LlmToolCall) => ({
+        id: call.id,
+        name: call.name,
+        input: call.input,
+      }));
+
+      const results = await this.toolExecutor.executeTools(toolInputs);
+      const toolResults = this.toolExecutor.formatResultsForLlm(results);
+
+      // Add tool results to context
+      this.contextManager.addToolResults(toolResults);
+
+      // Display tool execution info
+      for (const result of results) {
+        const status = result.success ? chalk.green('✓') : chalk.red('✗');
+        const cmd =
+          toolInputs.find((t) => t.id === result.toolUseId)?.input?.command?.toString() || '';
+        const shortCmd = cmd.length > 50 ? cmd.substring(0, 50) + '...' : cmd;
+        console.log(chalk.gray(`  ${status} ${shortCmd}`));
+
+        // Show error output for failed commands
+        if (!result.success && result.output) {
+          const errorPreview =
+            result.output.length > 200 ? result.output.substring(0, 200) + '...' : result.output;
+          console.log(chalk.red(`    ${errorPreview.split('\n')[0]}`));
+        }
+      }
+      console.log();
+
+      // Check if stop reason is end_turn
+      if (response.stopReason === 'end_turn') {
+        break;
+      }
+    }
+
+    if (iteration >= this.maxIterations) {
+      cliLogger.warn(`Agent loop reached maximum iterations: ${this.maxIterations}`);
+      console.log(chalk.yellow(`\n[Reached maximum tool iterations: ${this.maxIterations}]`));
+    }
+
+    return finalResponse;
+  }
+
+  /**
+   * Get the context manager (for external access)
+   */
+  getContextManager(): ContextManager {
+    return this.contextManager;
+  }
+
+  /**
+   * Get the tool executor (for cleanup)
+   */
+  getToolExecutor(): ToolExecutor {
+    return this.toolExecutor;
+  }
 }
 
 /**
@@ -78,6 +220,7 @@ export async function executeShellCommand(command: string): Promise<number> {
  * @param command - The command (with / prefix)
  * @param state - Current REPL state
  * @param rl - Readline interface
+ * @param agentRunner - Optional agent runner for context access
  * @param options - Optional settings for testing
  * @returns true if command was handled, false otherwise
  */
@@ -85,9 +228,11 @@ export function handleSpecialCommand(
   command: string,
   state: ReplState,
   rl: readline.Interface,
+  agentRunner?: AgentRunner | null,
   options?: { skipExit?: boolean }
 ): boolean {
   const cmd = command.toLowerCase().trim();
+  const parts = command.trim().split(/\s+/);
 
   switch (cmd) {
     case '/exit':
@@ -109,6 +254,10 @@ export function handleSpecialCommand(
     case '/clear':
       state.conversationHistory = [];
       state.turnNumber = 1;
+      // Also clear context manager if available
+      if (agentRunner) {
+        agentRunner.getContextManager().clear();
+      }
       console.log(chalk.green('\nConversation history cleared.\n'));
       return true;
 
@@ -124,7 +273,23 @@ export function handleSpecialCommand(
       showSkillsList();
       return true;
 
+    case '/sessions':
+      showSessionsList();
+      return true;
+
     default:
+      // Handle /resume <session-id>
+      if (parts[0]?.toLowerCase() === '/resume') {
+        const sessionId = parts[1];
+        if (sessionId) {
+          resumeSession(sessionId, state, agentRunner);
+        } else {
+          console.log(chalk.yellow('\nUsage: /resume <session-id>\n'));
+          console.log(chalk.gray('Use /sessions to see available sessions.\n'));
+        }
+        return true;
+      }
+
       if (cmd.startsWith('/')) {
         console.log(chalk.red(`\nUnknown command: ${cmd}`));
         console.log(chalk.gray('Type /help for available commands.\n'));
@@ -149,6 +314,8 @@ function showHelp(): void {
   console.log(chalk.gray('  /history         ') + chalk.white('Show conversation history'));
   console.log(chalk.gray('  /tools           ') + chalk.white('List all available tools'));
   console.log(chalk.gray('  /skills          ') + chalk.white('List all available skills'));
+  console.log(chalk.gray('  /sessions        ') + chalk.white('List saved sessions'));
+  console.log(chalk.gray('  /resume <id>     ') + chalk.white('Resume a saved session'));
   console.log();
   console.log(chalk.white.bold('Shell Commands:'));
   console.log(chalk.gray('  !<command>       ') + chalk.white('Execute a shell command directly'));
@@ -186,9 +353,8 @@ function showConversationHistory(history: ConversationEntry[]): void {
 
     // Truncate long messages
     const maxLen = 200;
-    const displayContent = entry.content.length > maxLen
-      ? entry.content.substring(0, maxLen) + '...'
-      : entry.content;
+    const displayContent =
+      entry.content.length > maxLen ? entry.content.substring(0, maxLen) + '...' : entry.content;
     console.log(chalk.white(`  ${displayContent}`));
     console.log();
   }
@@ -286,6 +452,80 @@ function showSkillsList(): void {
 }
 
 /**
+ * Show saved sessions list
+ */
+function showSessionsList(): void {
+  console.log();
+  console.log(chalk.cyan.bold('Saved Sessions'));
+  console.log(chalk.cyan('═'.repeat(50)));
+
+  const sessions = ContextPersistence.listSessions();
+
+  if (sessions.length === 0) {
+    console.log(chalk.gray('\n  No saved sessions.\n'));
+    return;
+  }
+
+  console.log();
+  for (const session of sessions.slice(0, 10)) {
+    const updatedDate = new Date(session.updatedAt).toLocaleString();
+    const title = session.title || '(Untitled)';
+
+    console.log(chalk.green(`  ${session.id}`));
+    console.log(chalk.white(`    ${title}`));
+    console.log(chalk.gray(`    ${session.messageCount} messages | ${updatedDate}`));
+    if (session.cwd) {
+      console.log(chalk.gray(`    ${session.cwd}`));
+    }
+    console.log();
+  }
+
+  if (sessions.length > 10) {
+    console.log(chalk.gray(`  ... and ${sessions.length - 10} more sessions\n`));
+  }
+
+  console.log(chalk.gray('Use /resume <session-id> to resume a session.\n'));
+}
+
+/**
+ * Resume a saved session
+ */
+function resumeSession(
+  sessionId: string,
+  state: ReplState,
+  agentRunner?: AgentRunner | null
+): void {
+  const session = ContextPersistence.getSession(sessionId);
+
+  if (!session) {
+    console.log(chalk.red(`\nSession not found: ${sessionId}\n`));
+    return;
+  }
+
+  if (!agentRunner) {
+    console.log(chalk.yellow('\nAgent not available. Cannot resume session.\n'));
+    return;
+  }
+
+  // Create new persistence with existing session ID
+  const persistence = new ContextPersistence(sessionId);
+  const messages = persistence.loadMessages();
+
+  // Clear and reload context manager
+  const contextManager = agentRunner.getContextManager();
+  contextManager.clear();
+  contextManager.enablePersistence(persistence);
+  contextManager.loadFromPersistence();
+
+  // Update state
+  state.turnNumber = Math.floor(messages.length / 2) + 1;
+  state.conversationHistory = [];
+
+  console.log(chalk.green(`\nResumed session: ${sessionId}`));
+  console.log(chalk.gray(`Loaded ${messages.length} messages\n`));
+}
+
+/**
  * Load command history from file
  */
 function loadCommandHistory(): string[] {
@@ -334,11 +574,52 @@ function addToHistory(command: string, history: string[]): void {
  * Start the REPL (Read-Eval-Print-Loop) interactive mode
  */
 export async function startRepl(): Promise<void> {
+  // Initialize Agent components
+  let agentRunner: AgentRunner | null = null;
+  let persistence: ContextPersistence | null = null;
+
+  try {
+    const llmClient = new LlmClient();
+    const toolExecutor = new ToolExecutor();
+
+    // Initialize persistence if enabled
+    if (PERSISTENCE_ENABLED) {
+      persistence = new ContextPersistence();
+    }
+
+    const contextManager = new ContextManager({
+      persistence: persistence ?? undefined,
+    });
+
+    // Build system prompt
+    const systemPrompt = buildSystemPrompt({
+      includeAgentBash: true,
+      includeFieldBash: true,
+      includeSkillSystem: true,
+      cwd: process.cwd(),
+    });
+
+    agentRunner = new AgentRunner({
+      llmClient,
+      contextManager,
+      toolExecutor,
+      systemPrompt,
+    });
+
+    cliLogger.info('Agent components initialized successfully');
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    console.log(chalk.yellow(`\nAgent mode unavailable: ${message}`));
+    console.log(chalk.yellow('Running in echo mode (responses will be echoed back).\n'));
+    cliLogger.warn(`Agent initialization failed: ${message}`);
+  }
+
   // Initialize state
   const state: ReplState = {
     turnNumber: 1,
     conversationHistory: [],
     commandHistory: loadCommandHistory(),
+    isProcessing: false,
   };
 
   // Display welcome message
@@ -348,6 +629,9 @@ export async function startRepl(): Promise<void> {
   console.log();
   console.log(chalk.gray('Type /help for commands, /exit to quit'));
   console.log(chalk.gray('Use !<command> to execute shell commands directly'));
+  if (persistence) {
+    console.log(chalk.gray(`Session: ${persistence.getSessionId()}`));
+  }
   console.log();
 
   const rl = readline.createInterface({
@@ -395,7 +679,7 @@ export async function startRepl(): Promise<void> {
 
     // Handle special commands (/ prefix)
     if (trimmedInput.startsWith('/')) {
-      handleSpecialCommand(trimmedInput, state, rl);
+      handleSpecialCommand(trimmedInput, state, rl, agentRunner);
       promptUser();
       return;
     }
@@ -408,25 +692,67 @@ export async function startRepl(): Promise<void> {
       timestamp: new Date(),
     });
 
-    // Echo user input (placeholder response)
-    // TODO: Replace with actual Agent response in future batches
-    console.log();
-    console.log(chalk.magenta(`Agent (${state.turnNumber})> `) + chalk.white(`You said: ${trimmedInput}`));
-    console.log();
+    // Check if agent mode is available
+    if (!agentRunner) {
+      // Fallback: echo mode
+      console.log();
+      console.log(
+        chalk.magenta(`Agent (${state.turnNumber})> `) + chalk.white(`You said: ${trimmedInput}`)
+      );
+      console.log();
 
-    // Add agent response to history
-    state.conversationHistory.push({
-      turn: state.turnNumber,
-      role: 'agent',
-      content: `You said: ${trimmedInput}`,
-      timestamp: new Date(),
-    });
+      state.conversationHistory.push({
+        turn: state.turnNumber,
+        role: 'agent',
+        content: `You said: ${trimmedInput}`,
+        timestamp: new Date(),
+      });
 
-    state.turnNumber++;
-    promptUser();
+      state.turnNumber++;
+      promptUser();
+      return;
+    }
+
+    // Prevent concurrent requests
+    if (state.isProcessing) {
+      console.log(chalk.yellow('\nPlease wait for the current request to complete.\n'));
+      promptUser();
+      return;
+    }
+
+    state.isProcessing = true;
+    console.log();
+    process.stdout.write(chalk.magenta(`Agent (${state.turnNumber})> `));
+
+    try {
+      const response = await agentRunner.run(trimmedInput);
+
+      console.log(); // Ensure newline after response
+      console.log();
+
+      // Add agent response to conversation history
+      state.conversationHistory.push({
+        turn: state.turnNumber,
+        role: 'agent',
+        content: response,
+        timestamp: new Date(),
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      console.log(chalk.red(`\nError: ${message}\n`));
+      cliLogger.error('Agent request failed', { error: message });
+    } finally {
+      state.isProcessing = false;
+      state.turnNumber++;
+      promptUser();
+    }
   });
 
   rl.on('close', () => {
+    // Cleanup Agent resources
+    if (agentRunner) {
+      agentRunner.getToolExecutor().cleanup();
+    }
     // Save history before exit
     saveCommandHistory(state.commandHistory);
     console.log(chalk.yellow('\nREPL session ended.\n'));
@@ -435,9 +761,21 @@ export async function startRepl(): Promise<void> {
 
   // Handle Ctrl+C
   rl.on('SIGINT', () => {
+    // If processing, show cancel message
+    if (state.isProcessing) {
+      console.log(chalk.yellow('\n\n[Request cancelled]\n'));
+      state.isProcessing = false;
+      promptUser();
+      return;
+    }
+
     console.log();
     rl.question(chalk.yellow('Do you want to exit? (y/n) '), (answer) => {
       if (answer.toLowerCase() === 'y' || answer.toLowerCase() === 'yes') {
+        // Cleanup
+        if (agentRunner) {
+          agentRunner.getToolExecutor().cleanup();
+        }
         saveCommandHistory(state.commandHistory);
         console.log(chalk.yellow('\nGoodbye!\n'));
         rl.close();

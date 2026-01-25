@@ -60,6 +60,7 @@ function createMockState(): ReplState {
     turnNumber: 1,
     conversationHistory: [],
     commandHistory: [],
+    isProcessing: false,
   };
 }
 
@@ -117,7 +118,7 @@ async function testSpecialCommands(): Promise<void> {
 
   // Test 2.1: /help command
   console.log('  Testing: /help');
-  const helpHandled = handleSpecialCommand('/help', mockState, mockRl, { skipExit: true });
+  const helpHandled = handleSpecialCommand('/help', mockState, mockRl, null, { skipExit: true });
   if (helpHandled) {
     console.log('  [PASS] /help command handled');
   } else {
@@ -126,7 +127,7 @@ async function testSpecialCommands(): Promise<void> {
 
   // Test 2.2: /h shortcut
   console.log('  Testing: /h');
-  const hHandled = handleSpecialCommand('/h', mockState, mockRl, { skipExit: true });
+  const hHandled = handleSpecialCommand('/h', mockState, mockRl, null, { skipExit: true });
   if (hHandled) {
     console.log('  [PASS] /h shortcut handled');
   } else {
@@ -143,7 +144,7 @@ async function testSpecialCommands(): Promise<void> {
   });
   mockState.turnNumber = 5;
 
-  const clearHandled = handleSpecialCommand('/clear', mockState, mockRl, { skipExit: true });
+  const clearHandled = handleSpecialCommand('/clear', mockState, mockRl, null, { skipExit: true });
   if (clearHandled && mockState.conversationHistory.length === 0 && mockState.turnNumber === 1) {
     console.log('  [PASS] /clear command handled and reset state');
   } else {
@@ -152,7 +153,7 @@ async function testSpecialCommands(): Promise<void> {
 
   // Test 2.4: /history command
   console.log('  Testing: /history');
-  const historyHandled = handleSpecialCommand('/history', mockState, mockRl, { skipExit: true });
+  const historyHandled = handleSpecialCommand('/history', mockState, mockRl, null, { skipExit: true });
   if (historyHandled) {
     console.log('  [PASS] /history command handled');
   } else {
@@ -161,7 +162,7 @@ async function testSpecialCommands(): Promise<void> {
 
   // Test 2.5: /tools command
   console.log('  Testing: /tools');
-  const toolsHandled = handleSpecialCommand('/tools', mockState, mockRl, { skipExit: true });
+  const toolsHandled = handleSpecialCommand('/tools', mockState, mockRl, null, { skipExit: true });
   if (toolsHandled) {
     console.log('  [PASS] /tools command handled');
   } else {
@@ -170,7 +171,7 @@ async function testSpecialCommands(): Promise<void> {
 
   // Test 2.6: /skills command
   console.log('  Testing: /skills');
-  const skillsHandled = handleSpecialCommand('/skills', mockState, mockRl, { skipExit: true });
+  const skillsHandled = handleSpecialCommand('/skills', mockState, mockRl, null, { skipExit: true });
   if (skillsHandled) {
     console.log('  [PASS] /skills command handled');
   } else {
@@ -179,7 +180,7 @@ async function testSpecialCommands(): Promise<void> {
 
   // Test 2.7: Unknown command
   console.log('  Testing: /unknown_cmd');
-  const unknownHandled = handleSpecialCommand('/unknown_cmd', mockState, mockRl, { skipExit: true });
+  const unknownHandled = handleSpecialCommand('/unknown_cmd', mockState, mockRl, null, { skipExit: true });
   if (unknownHandled) {
     console.log('  [PASS] Unknown command handled gracefully');
   } else {
@@ -188,7 +189,7 @@ async function testSpecialCommands(): Promise<void> {
 
   // Test 2.8: Non-command input
   console.log('  Testing: Regular input (should not be handled)');
-  const regularHandled = handleSpecialCommand('hello world', mockState, mockRl, { skipExit: true });
+  const regularHandled = handleSpecialCommand('hello world', mockState, mockRl, null, { skipExit: true });
   if (!regularHandled) {
     console.log('  [PASS] Regular input not treated as special command');
   } else {
@@ -209,7 +210,7 @@ async function testCommandCaseInsensitivity(): Promise<void> {
   const testCases = ['/HELP', '/Help', '/hElP', '/EXIT', '/Quit', '/Q'];
 
   for (const cmd of testCases) {
-    const handled = handleSpecialCommand(cmd, mockState, mockRl, { skipExit: true });
+    const handled = handleSpecialCommand(cmd, mockState, mockRl, null, { skipExit: true });
     if (handled) {
       console.log(`  [PASS] ${cmd} handled correctly`);
     } else {
@@ -275,13 +276,13 @@ async function testConversationHistory(): Promise<void> {
   console.log(`  [PASS] Added ${mockState.conversationHistory.length} entries to history`);
 
   // Test history display
-  const historyHandled = handleSpecialCommand('/history', mockState, mockRl, { skipExit: true });
+  const historyHandled = handleSpecialCommand('/history', mockState, mockRl, null, { skipExit: true });
   if (historyHandled) {
     console.log('  [PASS] History displayed successfully');
   }
 
   // Test clear
-  handleSpecialCommand('/clear', mockState, mockRl, { skipExit: true });
+  handleSpecialCommand('/clear', mockState, mockRl, null, { skipExit: true });
   if (mockState.conversationHistory.length === 0) {
     console.log('  [PASS] History cleared successfully');
   } else {

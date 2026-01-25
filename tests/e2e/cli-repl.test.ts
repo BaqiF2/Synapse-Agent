@@ -5,6 +5,7 @@
  * - REPL special commands
  * - Shell command execution (! prefix)
  * - Command history
+ * - New session commands
  *
  * @module tests/e2e/cli-repl
  */
@@ -35,6 +36,7 @@ function createMockState(): ReplState {
     turnNumber: 1,
     conversationHistory: [],
     commandHistory: [],
+    isProcessing: false,
   };
 }
 
@@ -66,7 +68,7 @@ describe('E2E: CLI/REPL Integration', () => {
       const state = createMockState();
       const rl = createMockReadline();
 
-      const handled = handleSpecialCommand('/help', state, rl, { skipExit: true });
+      const handled = handleSpecialCommand('/help', state, rl, null, { skipExit: true });
       expect(handled).toBe(true);
     });
 
@@ -74,7 +76,7 @@ describe('E2E: CLI/REPL Integration', () => {
       const state = createMockState();
       const rl = createMockReadline();
 
-      const handled = handleSpecialCommand('/h', state, rl, { skipExit: true });
+      const handled = handleSpecialCommand('/h', state, rl, null, { skipExit: true });
       expect(handled).toBe(true);
     });
 
@@ -82,7 +84,7 @@ describe('E2E: CLI/REPL Integration', () => {
       const state = createMockState();
       const rl = createMockReadline();
 
-      const handled = handleSpecialCommand('/?', state, rl, { skipExit: true });
+      const handled = handleSpecialCommand('/?', state, rl, null, { skipExit: true });
       expect(handled).toBe(true);
     });
 
@@ -97,7 +99,7 @@ describe('E2E: CLI/REPL Integration', () => {
       state.turnNumber = 5;
       const rl = createMockReadline();
 
-      handleSpecialCommand('/clear', state, rl, { skipExit: true });
+      handleSpecialCommand('/clear', state, rl, null, { skipExit: true });
 
       expect(state.conversationHistory.length).toBe(0);
       expect(state.turnNumber).toBe(1);
@@ -107,7 +109,7 @@ describe('E2E: CLI/REPL Integration', () => {
       const state = createMockState();
       const rl = createMockReadline();
 
-      const handled = handleSpecialCommand('/history', state, rl, { skipExit: true });
+      const handled = handleSpecialCommand('/history', state, rl, null, { skipExit: true });
       expect(handled).toBe(true);
     });
 
@@ -115,7 +117,7 @@ describe('E2E: CLI/REPL Integration', () => {
       const state = createMockState();
       const rl = createMockReadline();
 
-      const handled = handleSpecialCommand('/tools', state, rl, { skipExit: true });
+      const handled = handleSpecialCommand('/tools', state, rl, null, { skipExit: true });
       expect(handled).toBe(true);
     });
 
@@ -123,7 +125,33 @@ describe('E2E: CLI/REPL Integration', () => {
       const state = createMockState();
       const rl = createMockReadline();
 
-      const handled = handleSpecialCommand('/skills', state, rl, { skipExit: true });
+      const handled = handleSpecialCommand('/skills', state, rl, null, { skipExit: true });
+      expect(handled).toBe(true);
+    });
+
+    test('/sessions should be handled', () => {
+      const state = createMockState();
+      const rl = createMockReadline();
+
+      const handled = handleSpecialCommand('/sessions', state, rl, null, { skipExit: true });
+      expect(handled).toBe(true);
+    });
+
+    test('/resume without session id should show usage', () => {
+      const state = createMockState();
+      const rl = createMockReadline();
+
+      const handled = handleSpecialCommand('/resume', state, rl, null, { skipExit: true });
+      expect(handled).toBe(true);
+    });
+
+    test('/resume with invalid session id should be handled', () => {
+      const state = createMockState();
+      const rl = createMockReadline();
+
+      const handled = handleSpecialCommand('/resume invalid-id', state, rl, null, {
+        skipExit: true,
+      });
       expect(handled).toBe(true);
     });
 
@@ -131,7 +159,7 @@ describe('E2E: CLI/REPL Integration', () => {
       const state = createMockState();
       const rl = createMockReadline();
 
-      const handled = handleSpecialCommand('/exit', state, rl, { skipExit: true });
+      const handled = handleSpecialCommand('/exit', state, rl, null, { skipExit: true });
       expect(handled).toBe(true);
     });
 
@@ -139,7 +167,7 @@ describe('E2E: CLI/REPL Integration', () => {
       const state = createMockState();
       const rl = createMockReadline();
 
-      const handled = handleSpecialCommand('/quit', state, rl, { skipExit: true });
+      const handled = handleSpecialCommand('/quit', state, rl, null, { skipExit: true });
       expect(handled).toBe(true);
     });
 
@@ -147,7 +175,7 @@ describe('E2E: CLI/REPL Integration', () => {
       const state = createMockState();
       const rl = createMockReadline();
 
-      const handled = handleSpecialCommand('/q', state, rl, { skipExit: true });
+      const handled = handleSpecialCommand('/q', state, rl, null, { skipExit: true });
       expect(handled).toBe(true);
     });
 
@@ -155,7 +183,7 @@ describe('E2E: CLI/REPL Integration', () => {
       const state = createMockState();
       const rl = createMockReadline();
 
-      const handled = handleSpecialCommand('/unknown', state, rl, { skipExit: true });
+      const handled = handleSpecialCommand('/unknown', state, rl, null, { skipExit: true });
       expect(handled).toBe(true); // Still handled (shows error message)
     });
 
@@ -163,7 +191,7 @@ describe('E2E: CLI/REPL Integration', () => {
       const state = createMockState();
       const rl = createMockReadline();
 
-      const handled = handleSpecialCommand('hello world', state, rl, { skipExit: true });
+      const handled = handleSpecialCommand('hello world', state, rl, null, { skipExit: true });
       expect(handled).toBe(false);
     });
   });
@@ -173,10 +201,10 @@ describe('E2E: CLI/REPL Integration', () => {
       const state = createMockState();
       const rl = createMockReadline();
 
-      const testCases = ['/HELP', '/Help', '/hElP', '/EXIT', '/Quit', '/Q'];
+      const testCases = ['/HELP', '/Help', '/hElP', '/EXIT', '/Quit', '/Q', '/SESSIONS'];
 
       for (const cmd of testCases) {
-        const handled = handleSpecialCommand(cmd, state, rl, { skipExit: true });
+        const handled = handleSpecialCommand(cmd, state, rl, null, { skipExit: true });
         expect(handled).toBe(true);
       }
     });
@@ -217,9 +245,23 @@ describe('E2E: CLI/REPL Integration', () => {
         timestamp: new Date(),
       });
 
-      handleSpecialCommand('/clear', state, rl, { skipExit: true });
+      handleSpecialCommand('/clear', state, rl, null, { skipExit: true });
 
       expect(state.conversationHistory.length).toBe(0);
+    });
+  });
+
+  describe('Processing State', () => {
+    test('state should track processing status', () => {
+      const state = createMockState();
+
+      expect(state.isProcessing).toBe(false);
+
+      state.isProcessing = true;
+      expect(state.isProcessing).toBe(true);
+
+      state.isProcessing = false;
+      expect(state.isProcessing).toBe(false);
     });
   });
 });
