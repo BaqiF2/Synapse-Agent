@@ -123,7 +123,6 @@ Synapse Agent 的工具系统基于三层 Bash 架构设计，从底层到上层
 
 #### Layer 3: Extension Shell Command（扩展工具层）
 - **定义**：外部工具通过统一转换机制提供的命令集
-- **架构简化**：不再区分领域（programming/finance/medical），统一为两种来源
 
 **两种来源与命名格式**：
 
@@ -158,8 +157,6 @@ Synapse Agent 的工具系统基于三层 Bash 架构设计，从底层到上层
   5. 安装到 `~/.synapse/bin/`
 
 **工具发现机制**：
-
-**移除索引文件**：不再维护 `mcp-tools.json` 或 `skill-tools.json`，完全依赖工具自描述
 
 **tools search 工具**（Agent Shell Command Layer 2 提供）：
 ```bash

@@ -60,23 +60,23 @@ field:programming:pylint src/main.py
 
 #### 4.4.2 技能存储结构
 
+采用扁平存储结构，技能直接存放在 `skills/` 目录下，通过元数据中的 `domain` 字段标识所属领域：
+
 ```
 ~/.synapse/
 ├── skills/
-│   ├── programming/
-│   │   ├── code-quality-analyzer/
-│   │   │   ├── SKILL.md
-│   │   │   ├── REFERENCE.md
-│   │   │   └── scripts/
-│   │   │       └── analyze.py
-│   │   └── code-refactor/
-│   │       └── SKILL.md
-│   ├── finance/
-│   │   └── stock-analysis/
-│   │       └── SKILL.md
-│   ├── general/
-│   │   └── task-planning/
-│   │       └── SKILL.md
+│   ├── code-quality-analyzer/
+│   │   ├── SKILL.md
+│   │   ├── references/
+│   │   │   └── REFERENCE.md
+│   │   └── scripts/
+│   │       └── analyze.py
+│   ├── code-refactor/
+│   │   └── SKILL.md
+│   ├── stock-analysis/
+│   │   └── SKILL.md
+│   ├── task-planning/
+│   │   └── SKILL.md
 │   └── index.json
 └── tools/
     ├── agent/
@@ -86,46 +86,57 @@ field:programming:pylint src/main.py
 
 **技能索引文件** (`~/.synapse/skills/index.json`)：
 
-简化字段，只保留核心信息，便于维护和更新：
+采用扁平数组结构，包含完整的技能元数据，支持快速搜索和过滤：
 
 ```json
 {
-  "programming": {
-    "description": "编程相关技能，包括代码分析、重构、测试、文档生成等开发任务",
-    "skills": [
-      {
-        "name": "code-quality-analyzer",
-        "description": "分析代码质量并提供改进建议。当用户需要检查代码质量、寻找潜在问题或优化代码时使用此技能。",
-        "path": "programming/code-quality-analyzer/SKILL.md"
-      },
-      {
-        "name": "code-refactor",
-        "description": "重构代码以提升可读性和可维护性。当用户需要优化代码结构、消除重复或改进设计模式时使用此技能。",
-        "path": "programming/code-refactor/SKILL.md"
-      }
-    ]
-  },
-  "finance": {
-    "description": "金融相关技能，包括股票分析、财务报表处理、风险评估等金融业务",
-    "skills": [
-      {
-        "name": "stock-analysis",
-        "description": "分析股票市场数据并生成投资建议。当用户需要技术分析、基本面分析或市场趋势预测时使用此技能。",
-        "path": "finance/stock-analysis/SKILL.md"
-      }
-    ]
-  }
+  "version": "1.0.0",
+  "skills": [
+    {
+      "name": "code-quality-analyzer",
+      "title": "Code Quality Analyzer",
+      "domain": "programming",
+      "description": "分析代码质量并提供改进建议。当用户需要检查代码质量、寻找潜在问题或优化代码时使用此技能。",
+      "version": "1.0.0",
+      "tags": ["code", "analysis", "quality", "lint"],
+      "author": "Synapse Team",
+      "tools": ["skill:code-quality-analyzer:analyze"],
+      "scriptCount": 1,
+      "path": "/Users/user/.synapse/skills/code-quality-analyzer",
+      "hasSkillMd": true,
+      "lastModified": "2025-01-26T10:00:00.000Z"
+    },
+    {
+      "name": "stock-analysis",
+      "title": "Stock Analysis",
+      "domain": "finance",
+      "description": "分析股票市场数据并生成投资建议。当用户需要技术分析、基本面分析或市场趋势预测时使用此技能。",
+      "version": "1.0.0",
+      "tags": ["stock", "finance", "analysis"],
+      "tools": [],
+      "scriptCount": 0,
+      "path": "/Users/user/.synapse/skills/stock-analysis",
+      "hasSkillMd": true,
+      "lastModified": "2025-01-26T10:00:00.000Z"
+    }
+  ],
+  "totalSkills": 2,
+  "totalTools": 1,
+  "generatedAt": "2025-01-26T10:00:00.000Z",
+  "updatedAt": "2025-01-26T10:00:00.000Z"
 }
 ```
 
 **索引结构说明**：
-- **领域级别**：包含 `description`（领域描述）和 `skills`（技能数组）
-- **技能字段**：仅保留 `name`、`description`、`path` 三个核心字段
-- **简化维护**：新增/删除技能只需操作数组，无需维护复杂统计信息
+- **扁平数组**：所有技能存放在 `skills` 数组中，通过 `domain` 字段区分领域
+- **丰富元数据**：包含 `name`、`title`、`domain`、`description`、`version`、`tags`、`author`、`tools`、`scriptCount`、`path`、`hasSkillMd`、`lastModified` 等字段
+- **工具列表**：`tools` 数组包含技能提供的所有工具命令（格式：`skill:技能名:脚本名`）
+- **统计信息**：`totalSkills` 和 `totalTools` 提供快速统计，`generatedAt` 和 `updatedAt` 记录索引时间戳
+- **支持的领域**：`programming`、`data`、`devops`、`finance`、`general`、`automation`、`ai`、`security`、`other`
 
 #### 4.4.3 技能搜索 Agent（阶段 2 核心）
 
-技能搜索 Agent 是一个 Task 子 Agent，负责根据用户任务智能选择需要加载的技能元数据。
+技能搜索 Agent 是一个 子 Agent，负责根据用户任务智能选择需要加载的技能元数据。
 
 **触发时机**：
 - 用户任务进入 Agent Loop 后，主 Agent 根据任务复杂度判断是否需要调用技能搜索 Agent
@@ -156,18 +167,21 @@ field:programming:pylint src/main.py
 [
   {
     "name": "code-quality-analyzer",
+    "domain": "programming",
     "description": "分析代码质量并提供改进建议...",
-    "path": "programming/code-quality-analyzer/SKILL.md"
+    "path": "~/.synapse/skills/code-quality-analyzer"
   },
   {
     "name": "code-refactor",
+    "domain": "programming",
     "description": "重构代码以提升可读性和可维护性...",
-    "path": "programming/code-refactor/SKILL.md"
+    "path": "~/.synapse/skills/code-refactor"
   },
   {
     "name": "report-generator",
+    "domain": "general",
     "description": "生成结构化报告...",
-    "path": "general/report-generator/SKILL.md"
+    "path": "~/.synapse/skills/report-generator"
   }
 ]
 
@@ -191,14 +205,17 @@ field:programming:pylint src/main.py
 
 **渐进式加载**（三层架构）：
 
-- **Level 1 - 元数据加载（启动时）**：
-  - 读取技能索引文件 `index.json`，获取所有技能的元数据
+- **Level 1 - 元数据加载（技能搜索工具返回）**：
+  - 技能搜索 Agent 读取技能索引文件 `index.json`，获取所有技能的元数据
   - 将元数据注入系统提示词，成本约 100 tokens/技能
   - LLM 知道所有可用技能及其用途
+  - 根据用户搜索技能描述，匹配相关技能
+  - 解析SKILL.md,缓存技能结构数据,返回匹配的技能元数据列表
+  - 主 Agent 根据匹配的技能元数据列表，决定需要加载的技能
 
 - **Level 2 - 指令加载（任务匹配时）**：
   - 技能搜索 Agent 返回需要加载的技能列表
-  - 主 Agent 通过 `read` 命令读取对应的 SKILL.md 文件
+  - 主 Agent 通过 `skill load <name>` 命令或取对应的 SKILL.md 文件
   - SKILL.md 内容以 tool result 形式注入上下文（非系统提示词，保持缓存命中）
   - LLM 根据 SKILL.md 中的指令自主执行相应的 Bash 命令
 
@@ -219,7 +236,7 @@ task skill-search "分析 Python 项目代码质量"
 技能搜索 Agent 返回: ["code-quality-analyzer"]
 
 主 Agent 执行:
-1. read ~/.synapse/skills/code-quality-analyzer/SKILL.md
+1. skill load code-quality-analyzer
 2. [SKILL.md 内容注入上下文]
 3. 按照 SKILL.md 指令执行:
    - glob "**/*.py"
