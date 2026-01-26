@@ -163,6 +163,9 @@ skill enhance --conversation ~/.synapse/conversations/<session-id>.jsonl
 - 操作：新增技能
 - 名称：analyzing-logs
 - 包含工具：grep, read, glob
+- 技能内容：
+  - 分析日志文件
+  - 寻找错误信息
 ```
 
 **强化已有技能时**：
