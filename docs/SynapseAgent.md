@@ -25,21 +25,21 @@
 
 ### 需要证明的
 
-#### 一切工具都是Bash
+#### 一切工具都是 Shell Command
 
-所有工具都应该被封装为bash
+所有工具都应该被封装为 Shell Command
 
-- Base Bash
+- Native Shell Command
 
 Unix/Linux 自带指令
 
-- Agent Bash
+- Agent Shell Command
 
 agent需要的基本工具封装的指令 Read/Write/Task/Skill/.... 等
 
-- Field Bash
+- Extension Shell Command
 
-领域Bash，由专业领域生成的Bash。由工具转化，比如 Mcp2Bash Fc2Bash
+扩展 Shell Command，由专业领域生成的 Shell Command。由工具转化，比如 Mcp2Bash Fc2Bash
 
 #### 一切都是工具
 
@@ -65,8 +65,8 @@ agent需要的基本工具封装的指令 Read/Write/Task/Skill/.... 等
 
 #### 技能 + LLM + Bash = 通用智能体
 
-- 技能中使用的工具都将被转化为 Field bash
-- SKill Agent 生成的新技能,会将过程中新增工具转化为 Field Bash,同时将 工具和技能保存在文件系统
+- 技能中使用的工具都将被转化为 Extension Shell Command
+- SKill Agent 生成的新技能,会将过程中新增工具转化为 Extension Shell Command,同时将 工具和技能保存在文件系统
 
 ### 沙盒
 
@@ -106,7 +106,7 @@ https://github.com/anthropics/anthropic-sdk-typescript
 
 Json schema 2 Bash
 
-#### Field Bash
+#### Extension Shell Command
 
 [https://github.com/philschmid/mcp-cli](https://github.com/philschmid/mcp-cli)
 
@@ -136,7 +136,7 @@ Mcp 2 bash
 
 - 提示词 + 模型 + 工具
 
-强化工具自主保存为文件，并生成bash保存到文件
+强化工具自主保存为文件，并生成 Shell Command 保存到文件
 
 ### 扩展
 
@@ -149,4 +149,4 @@ Mcp 2 bash
 
 #### 沙盒（可选）
 
-- 将工具执行转移到沙盒中，避免造成环境的破坏。（Field Bash）
+- 将工具执行转移到沙盒中，避免造成环境的破坏。（Extension Shell Command）

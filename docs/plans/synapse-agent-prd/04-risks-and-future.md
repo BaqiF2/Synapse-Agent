@@ -199,8 +199,8 @@
 
 ### 术语表
 
-- **Agent Bash**：Agent 核心功能封装的命令集
-- **Field Bash**：领域专用工具封装的命令集
+- **Agent Shell Command**：Agent 核心功能封装的命令集
+- **Extension Shell Command**：领域专用工具封装的命令集
 - **SKILL.md**：技能的主要定义文件
 - **技能搜索 Agent**：负责根据任务匹配技能的子 Agent
 - **技能强化 Agent**：负责生成和优化技能的子 Agent

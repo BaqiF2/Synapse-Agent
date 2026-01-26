@@ -46,7 +46,7 @@
    **情况 C：任务未使用技能，但发现可复用模式**
    - 判断是否值得创建新技能（执行步骤 ≥ 3，有明确工作流）
    - 生成新技能：创建技能目录和 SKILL.md 文件
-   - 如果使用了新工具，调用工具转 Bash Agent 转换为 Field Bash
+   - 如果使用了新工具，调用工具转 Bash Agent 转换为 Extension Shell Command
    - 更新技能索引文件
 
 4. **生成/更新技能**：
@@ -173,11 +173,11 @@
 
 2. **调用工具转 Bash Agent**：
    ```
-   任务完成 → 技能强化 Agent → 发现新工具 → 调用工具转 Bash Agent → 生成 Field Bash → 更新工具索引
+   任务完成 → 技能强化 Agent → 发现新工具 → 调用工具转 Bash Agent → 生成 Extension Shell Command → 更新工具索引
    ```
 
 3. **在技能中引用**：
-   - SKILL.md 中使用新生成的 Field Bash 命令
+   - SKILL.md 中使用新生成的 Extension Shell Command 命令
    - 确保技能可以独立执行，无外部依赖
 
 #### 4.5.5 示例流程

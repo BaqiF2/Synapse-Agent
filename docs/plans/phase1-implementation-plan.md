@@ -24,8 +24,8 @@
 | 1 | 项目初始化 + 最小 CLI | 3 | 搭建项目基础结构 | CLI 能启动并接收输入 |
 | 2 | Minimax 集成 + 单一 Bash 工具 | 3 | 实现核心架构 | LLM 能通过 Bash 工具响应 |
 | 3 | 持久 Bash 会话 | 3 | 实现会话管理 | 会话状态在命令间保持 |
-| 4 | Agent Bash 核心工具 | 3 | read/write/edit | 能读写编辑文件 |
-| 5 | Agent Bash 扩展工具 | 3 | glob/grep/bash | 能搜索和执行命令 |
+| 4 | Agent Shell Command 核心工具 | 3 | read/write/edit | 能读写编辑文件 |
+| 5 | Agent Shell Command 扩展工具 | 3 | glob/grep/bash | 能搜索和执行命令 |
 | 6 | Agent Loop 完善 | 3 | 上下文管理 | 多轮对话正常工作 |
 | 7 | Mcp2Bash 转换器 Part 1 | 3 | MCP 工具发现 | 能解析 MCP 配置 |
 | 8 | Mcp2Bash 转换器 Part 2 | 3 | MCP 工具转换 | 能调用 mcp:* 命令 |
@@ -142,10 +142,10 @@
 6. **实现 Bash 命令路由器（BashRouter）**
    - 创建 `src/tools/bash-router.ts`
    - 实现命令解析和路由逻辑：
-     - 识别命令类型（Base Bash / Agent Bash / Field Bash）
+     - 识别命令类型（Native Shell Command / Agent Shell Command / Extension Shell Command）
      - 路由到对应的处理器
-   - 暂时只支持 Base Bash（直接执行系统命令）
-   - 创建 `src/tools/handlers/base-bash-handler.ts`
+   - 暂时只支持 Native Shell Command（直接执行系统命令）
+   - 创建 `src/tools/handlers/native-shell-handler.ts`
      - 将命令传递给持久 Bash 会话执行
 
 **验证标准**:
@@ -184,19 +184,19 @@
      - 重新初始化环境变量
    - 记录重启事件到日志
 
-9. **在系统提示词中引导 LLM 使用 Base Bash**
+9. **在系统提示词中引导 LLM 使用 Native Shell Command**
    - 创建 `src/agent/system-prompt.ts`
    - 编写系统提示词：
      ```markdown
-     你是 Synapse Agent，一个基于统一 Bash 抽象的通用智能助手。
+     你是 Synapse Agent，一个基于统一 Shell 抽象的通用智能助手。
 
-     所有操作通过 Bash 命令完成。你可以使用标准的 Unix 命令：
+     所有操作通过 Shell Command 完成。你可以使用标准的 Unix 命令：
      - ls / cd / pwd：目录操作
      - grep / find：文件搜索
      - git：版本控制
      - curl / wget：网络请求
 
-     Bash 会话是持久的，环境变量和工作目录在命令之间保持。
+     Shell 会话是持久的，环境变量和工作目录在命令之间保持。
      如需重启会话，使用 restart: true 参数。
      ```
    - 在 LLM 调用中注入系统提示词
@@ -210,14 +210,14 @@
 
 ---
 
-### 批次 4：Agent Bash Layer 2 核心工具
+### 批次 4：Agent Shell Command Layer 2 核心工具
 
-**目标**: 实现 Agent Bash 核心工具（read/write/edit）
+**目标**: 实现 Agent Shell Command 核心工具（read/write/edit）
 
 **任务列表**:
 
 10. **实现 read 工具**
-    - 创建 `src/tools/handlers/agent-bash/read.ts`
+    - 创建 `src/tools/handlers/agent-shell/read.ts`
     - 功能：读取文件内容
     - 参数：
       - `file_path` (必填): 文件绝对路径
@@ -230,7 +230,7 @@
     - 注册到 BashRouter（识别 `read ` 前缀）
 
 11. **实现 write 工具**
-    - 创建 `src/tools/handlers/agent-bash/write.ts`
+    - 创建 `src/tools/handlers/agent-shell/write.ts`
     - 功能：写入文件
     - 参数：
       - `file_path` (必填): 文件绝对路径
@@ -242,7 +242,7 @@
     - 注册到 BashRouter
 
 12. **实现 edit 工具**
-    - 创建 `src/tools/handlers/agent-bash/edit.ts`
+    - 创建 `src/tools/handlers/agent-shell/edit.ts`
     - 功能：替换文件中的字符串
     - 参数：
       - `file_path` (必填): 文件绝对路径
@@ -265,14 +265,14 @@
 
 ---
 
-### 批次 5：Agent Bash 扩展工具
+### 批次 5：Agent Shell Command 扩展工具
 
-**目标**: 实现 Agent Bash 扩展工具（glob/grep/bash）
+**目标**: 实现 Agent Shell Command 扩展工具（glob/grep/bash）
 
 **任务列表**:
 
 13. **实现 glob 工具**
-    - 创建 `src/tools/handlers/agent-bash/glob.ts`
+    - 创建 `src/tools/handlers/agent-shell/glob.ts`
     - 功能：文件模式匹配
     - 参数：
       - `pattern` (必填): glob 模式（如 `*.ts`, `src/**/*.js`）
@@ -284,7 +284,7 @@
     - 注册到 BashRouter
 
 14. **实现 grep 工具**
-    - 创建 `src/tools/handlers/agent-bash/grep.ts`
+    - 创建 `src/tools/handlers/agent-shell/grep.ts`
     - 功能：代码搜索
     - 参数：
       - `pattern` (必填): 搜索模式（支持正则）
@@ -297,8 +297,8 @@
     - 注册到 BashRouter
 
 15. **实现 bash 工具（包装器）**
-    - 创建 `src/tools/handlers/agent-bash/bash.ts`
-    - 功能：显式执行 Bash 命令（与 Base Bash 相同）
+    - 创建 `src/tools/handlers/agent-shell/bash.ts`
+    - 功能：显式执行 Bash 命令（与 Native Shell Command 相同）
     - 说明：这是一个显式的包装器，允许 LLM 明确表示要执行系统命令
     - 实现：直接调用 BashSession 执行命令
     - 注册到 BashRouter
@@ -332,8 +332,8 @@
     - 扩展 `src/agent/system-prompt.ts`
     - 实现动态提示词构建：
       - 基础角色定义
-      - Base Bash 命令说明
-      - Agent Bash 工具详细说明（read/write/edit/glob/grep）
+      - Native Shell Command 命令说明
+      - Agent Shell Command 工具详细说明（read/write/edit/glob/grep）
       - 工具使用规范
     - 在每次 LLM 调用时注入完整的系统提示词
 
@@ -601,7 +601,7 @@
     - 实现索引更新机制（手动 + 自动）
 
 33. **实现 skill search 工具**
-    - 创建 `src/tools/handlers/agent-bash/skill-search.ts`
+    - 创建 `src/tools/handlers/agent-shell/skill-search.ts`
     - 功能：在技能库中搜索匹配的技能
     - 搜索逻辑：
       - 关键词匹配：名称、描述、标签
@@ -731,8 +731,8 @@
 40. **端到端测试（完整对话流程）**
     - 创建 `tests/e2e/` 目录
     - 编写测试场景：
-      - 场景 1：基础对话和 Base Bash 命令
-      - 场景 2：Agent Bash 工具（read/write/edit）
+      - 场景 1：基础对话和 Native Shell Command 命令
+      - 场景 2：Agent Shell Command 工具（read/write/edit）
       - 场景 3：MCP 工具调用（mcp:*）
       - 场景 4：Skill 工具调用（skill:*）
       - 场景 5：技能搜索和加载
@@ -785,7 +785,7 @@
     - 内容包括：
       - 快速开始（安装和配置）
       - 基础使用（启动 REPL、执行命令）
-      - Agent Bash 工具参考
+      - Agent Shell Command 工具参考
       - MCP 工具配置和使用
       - Skill 工具开发指南
       - 常见问题 FAQ
@@ -795,7 +795,7 @@
     - 创建 `docs/architecture.md`
     - 内容包括：
       - 系统架构概览
-      - 三层 Bash 架构详解
+      - 三层 Shell Command 架构详解
       - Bash 命令路由机制
       - 持久会话实现
       - 工具转换机制（Mcp2Bash、Skill2Bash）
@@ -806,7 +806,7 @@
 45. **准备阶段 1 验收测试**
     - 创建验收测试清单（基于 PRD 验证标准）：
       - ✅ 用户可以通过 CLI 与 Agent 交互
-      - ✅ Agent 可以使用 Agent Bash 工具完成文件操作
+      - ✅ Agent 可以使用 Agent Shell Command 工具完成文件操作
       - ✅ LLM 只看到唯一的 Bash 工具
       - ✅ Bash 会话状态在命令之间保持
       - ✅ 支持 `restart: true` 参数重启会话
@@ -834,7 +834,7 @@
 ### 关键里程碑
 
 - **M1（第 2 周）**: 批次 1-3 完成 - 最小可运行 Agent
-- **M2（第 4 周）**: 批次 4-6 完成 - Agent Bash 工具完整
+- **M2（第 4 周）**: 批次 4-6 完成 - Agent Shell Command 工具完整
 - **M3（第 6 周）**: 批次 7-10 完成 - 工具转换系统完整
 - **M4（第 8 周）**: 批次 11-13 完成 - 技能系统和 CLI 完善
 - **M5（第 10-12 周）**: 批次 14-15 完成 - 阶段 1 验收通过

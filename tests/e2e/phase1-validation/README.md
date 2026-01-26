@@ -31,7 +31,7 @@ bun test tests/e2e/phase1-validation/phase1-e2e.test.ts
 
 # 运行特定测试（按名称过滤）
 bun test tests/e2e/phase1-validation/ -t "Three-Layer"
-bun test tests/e2e/phase1-validation/ -t "Agent Bash"
+bun test tests/e2e/phase1-validation/ -t "Agent Shell Command"
 bun test tests/e2e/phase1-validation/ -t "Skill System"
 ```
 
@@ -66,7 +66,7 @@ bun test tests/e2e/phase1-validation/ -t "Skill System"
 | TC-1.2 | 命令路由正确性 | `bun test -t "TC-1.2"` |
 | TC-1.3 | Bash 会话状态持久化 | `bun test -t "TC-1.3"` |
 | TC-1.4 | Bash 会话重启 | `bun test -t "TC-1.4"` |
-| TC-2.x | Agent Bash 工具 | `bun test -t "TC-2"` |
+| TC-2.x | Agent Shell Command 工具 | `bun test -t "TC-2"` |
 | TC-3.x | 工具转换系统 | `bun test -t "TC-3"` |
 | TC-4.2 | 特殊命令 | `bun test -t "TC-4.2"` |
 | TC-4.3 | Shell 命令执行 | `bun test -t "TC-4.3"` |
@@ -112,7 +112,7 @@ bun test tests/e2e/phase1-validation/ -t "Skill System"
 | PRD 验证标准 | 测试用例 | 类型 |
 |-------------|---------|------|
 | 用户可通过 CLI 与 Agent 交互 | TC-4.1 | MANUAL |
-| Agent 可使用 Agent Bash 工具 | TC-2.x | AUTO |
+| Agent 可使用 Agent Shell Command 工具 | TC-2.x | AUTO |
 | LLM 只看到唯一 Bash 工具 | TC-1.1 | AUTO |
 | Bash 会话状态保持 | TC-1.3 | AUTO |
 | restart: true 重启会话 | TC-1.4 | AUTO |

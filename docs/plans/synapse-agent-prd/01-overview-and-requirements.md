@@ -60,7 +60,7 @@ Synapse Agent 的理念面向所有 Agent 用户。当前 CLI 交互只是验证
 1. 用户多次执行类似任务（如数据处理、代码重构等）
 2. 技能强化 Agent 观察执行模式，优化技能中的工具调用顺序和参数
 3. 技能质量指标（成功率、执行时间）持续提升
-4. Agent 将优化后的工具组合封装为新的 Field Bash 命令
+4. Agent 将优化后的工具组合封装为新的 Extension Shell Command
 
 **价值验证**：证明"知识强化"能力 - 围绕技能+Bash的持续优化
 
@@ -85,7 +85,7 @@ Synapse Agent 的理念面向所有 Agent 用户。当前 CLI 交互只是验证
 2. 工具转 Bash 转换器自动识别工具来源并转换：
    - MCP 工具 → 调用 Mcp2Bash 转换器（启动时解析并缓存）
    - Skill 脚本 → 调用 Skill2Bash 转换器（后台监听进程自动生成）
-3. 生成对应的 Field Bash 命令（mcp:* 和 skill:* 格式），安装到 PATH
+3. 生成对应的 Extension Shell Command（mcp:* 和 skill:* 格式），安装到 PATH
 4. Agent 可通过 `tools search` 发现工具，通过 `-h/--help` 获取使用说明
 
 **价值验证**：证明"一切工具都是Bash"的可行性 - 统一抽象层的核心实现

@@ -63,25 +63,25 @@ cat src/tools/bash-tool-schema.ts
 - BashSession 实例可用
 
 **测试步骤**:
-1. 识别 Base Bash 命令 (ls, pwd, echo)
-2. 识别 Agent Bash 命令 (read, write, edit, glob, grep, skill search)
-3. 识别 Field Bash 命令 (mcp:*, skill:*, tools)
+1. 识别 Native Shell Command 命令 (ls, pwd, echo)
+2. 识别 Agent Shell Command 命令 (read, write, edit, glob, grep, skill search)
+3. 识别 Extension Shell Command 命令 (mcp:*, skill:*, tools)
 
 **测试数据**:
 | 命令 | 期望类型 |
 |------|---------|
-| `ls -la` | BASE_BASH |
-| `pwd` | BASE_BASH |
-| `echo "test"` | BASE_BASH |
-| `read /path/file.txt` | AGENT_BASH |
-| `write /path/file.txt "content"` | AGENT_BASH |
-| `edit /path/file.txt "old" "new"` | AGENT_BASH |
-| `glob "*.ts"` | AGENT_BASH |
-| `grep "pattern"` | AGENT_BASH |
-| `skill search "query"` | AGENT_BASH |
-| `tools search "query"` | FIELD_BASH |
-| `mcp:server:tool arg` | FIELD_BASH |
-| `skill:name:tool arg` | FIELD_BASH |
+| `ls -la` | NATIVE_SHELL |
+| `pwd` | NATIVE_SHELL |
+| `echo "test"` | NATIVE_SHELL |
+| `read /path/file.txt` | AGENT_SHELL |
+| `write /path/file.txt "content"` | AGENT_SHELL |
+| `edit /path/file.txt "old" "new"` | AGENT_SHELL |
+| `glob "*.ts"` | AGENT_SHELL |
+| `grep "pattern"` | AGENT_SHELL |
+| `skill search "query"` | AGENT_SHELL |
+| `tools search "query"` | EXTENSION_SHELL |
+| `mcp:server:tool arg` | EXTENSION_SHELL |
+| `skill:name:tool arg` | EXTENSION_SHELL |
 
 **预期结果**:
 - 所有命令被正确分类到对应层级
@@ -159,7 +159,7 @@ bun test tests/e2e/phase1-validation/phase1-e2e.test.ts -t "session restart"
 
 ---
 
-## 二、Agent Bash 工具验证
+## 二、Agent Shell Command 工具验证
 
 ### TC-2.1: read 工具 [AUTO]
 
@@ -725,9 +725,9 @@ skill search "text analyzer"
 
 **测试步骤**:
 
-**类型 1: Agent Bash 内置工具**
+**类型 1: Agent Shell Command 内置工具**
 ```bash
-# 通过 BashRouter 执行 Agent Bash 命令
+# 通过 BashRouter 执行 Agent Shell Command 命令
 read /tmp/test.txt
 write /tmp/test.txt "content"
 glob "*.ts"

@@ -11,9 +11,9 @@ Synapse Agent 的开发分为三个主要阶段，每个阶段都有明确的验
 **功能范围**：
 
 **1. 三层 Bash 架构**
-- ✓ Base Bash：直接使用系统命令
-- ✓ Agent Bash：实现核心工具（read、write、edit、glob、grep、bash、skill）
-- ✓ Field Bash：实现工具转换能力
+- ✓ Native Shell Command：直接使用系统命令
+- ✓ Agent Shell Command：实现核心工具（read、write、edit、glob、grep、bash、skill）
+- ✓ Extension Shell Command：实现工具转换能力
 
 **2. 工具转换系统**
 - ✓ Mcp2Bash 转换器：将 MCP 工具转换为 Bash 命令（启动时解析并缓存）
@@ -48,12 +48,12 @@ Synapse Agent 的开发分为三个主要阶段，每个阶段都有明确的验
 
 **验证标准**：
 - 用户可以通过 CLI 与 Agent 交互
-- Agent 可以使用 Agent Bash 工具完成文件操作等基本操作
+- Agent 可以使用 Agent Shell Command 工具完成文件操作等基本操作
 - **LLM 只看到唯一的 Bash 工具**（核心架构验证）
 - **Bash 会话状态在命令之间保持**（持久会话验证）
 - **支持 `restart: true` 参数重启会话**（会话重启验证）
 - **所有命令支持 `-h/--help` 自描述**（自描述能力验证）
-- 成功转换至少 3 种不同类型的工具为 Bash 命令（Agent Bash 内置工具/MCP 工具/Skill 工具）
+- 成功转换至少 3 种不同类型的工具为 Bash 命令（Agent Shell Command 内置工具/MCP 工具/Skill 工具）
 - 成功执行至少 2 个技能脚本（通过 `skill:*` 命令）
 - 所有命令通过唯一的 Bash 工具执行
 
@@ -164,7 +164,7 @@ Synapse Agent 的开发分为三个主要阶段，每个阶段都有明确的验
 
 **6. 沙盒隔离（可选）**
 - ✓ 工具执行环境隔离
-- ✓ Field Bash 工具在隔离环境中执行
+- ✓ Extension Shell Command 工具在隔离环境中执行
 - ✓ 文件系统访问控制
 - ✓ 网络访问控制
 - ✓ 安全策略配置
@@ -215,7 +215,7 @@ Synapse Agent 的开发分为三个主要阶段，每个阶段都有明确的验
 - **唯一 Bash 工具**：LLM 只看到一个 Bash 工具，100% 的工具调用通过 `{"name": "Bash", ...}` 执行
 - **工具转换覆盖率**：≥ 95% 的外部工具（MCP、Skills）能够成功转换为 Bash 命令
 - **命令解析正确率**：≥ 99% 的命令能被正确解析并路由到对应实现
-- **自描述完整性**：所有 Field Bash 命令都支持 `-h` 和 `--help` 参数
+- **自描述完整性**：所有 Extension Shell Command 命令都支持 `-h` 和 `--help` 参数
 - **工具发现效率**：通过 `tools search` 能够在 1 秒内找到相关工具
 
 **"技能 + LLM = 大脑"验证**：
@@ -332,14 +332,14 @@ Synapse Agent 的开发分为三个主要阶段，每个阶段都有明确的验
 
 **访问控制**：
 - 文件系统：仅访问 `~/.synapse/` 和用户指定的工作目录
-- 工具权限：Field Bash 工具需要明确授权才能执行
+- 工具权限：Extension Shell Command 工具需要明确授权才能执行
 
 **数据安全**：
 - 敏感信息：不记录用户输入中的密码、密钥等敏感信息
 - 技能审查：外源技能导入前进行安全扫描（检测恶意代码）
 
 **沙盒隔离**（可选）：
-- 环境隔离：Field Bash 工具在隔离环境中执行
+- 环境隔离：Extension Shell Command 工具在隔离环境中执行
 - 网络限制：可配置网络访问策略
 - 资源限制：CPU、内存、磁盘配额
 

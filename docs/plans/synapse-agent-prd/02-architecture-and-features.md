@@ -34,7 +34,7 @@ Synapse Agent 的工具系统基于三层 Bash 架构设计，从底层到上层
 ┌─────────────────────────────────────────────────────────┐
 │                  三层 Bash 命令                          │
 │  ┌──────────────┬──────────────┬──────────────────┐    │
-│  │  Base Bash   │  Agent Bash  │   Field Bash     │    │
+│  │ Native Shell │ Agent Shell  │ Extension Shell  │    │
 │  │  ls/grep/..  │  read/write  │  mcp_*/skill_*   │    │
 │  │              │  edit/glob   │                  │    │
 │  └──────────────┴──────────────┴──────────────────┘    │
@@ -54,7 +54,7 @@ Synapse Agent 的工具系统基于三层 Bash 架构设计，从底层到上层
   - curl / wget：网络请求
   ```
 
-#### Layer 2: Agent Bash（原生工具层）
+#### Layer 2: Agent Shell Command（原生工具层）
 - **定义**：Agent 核心功能封装的命令集，参考 Claude API Tool Use 设计
 - **实现方式**：**在系统提示词中直接注入详细的 command 使用信息**
 - **Phase 1 核心工具**：
@@ -119,9 +119,9 @@ Synapse Agent 的工具系统基于三层 Bash 架构设计，从底层到上层
 **关键实现点**：
 1. **静态注入**：工具说明在 Agent 启动时注入系统提示词，LLM 直接可见
 2. **完整文档**：每个工具包含用法、参数类型、默认值、示例
-3. **无需 -h/--help**：Agent Bash 工具的信息已在提示词中，不需要运行时查询
+3. **无需 -h/--help**：Agent Shell Command 工具的信息已在提示词中，不需要运行时查询
 
-#### Layer 3: Field Bash（扩展工具层）
+#### Layer 3: Extension Shell Command（扩展工具层）
 - **定义**：外部工具通过统一转换机制提供的命令集
 - **架构简化**：不再区分领域（programming/finance/medical），统一为两种来源
 
@@ -189,7 +189,7 @@ tools search "mcp:git-.*"
 - 使用 `<tool_name> --help` 获取完整文档
 
 **自描述能力**：
-所有 Field Bash 工具必须支持 `-h` 和 `--help` 参数：
+所有 Extension Shell Command 工具必须支持 `-h` 和 `--help` 参数：
 
 ```bash
 # MCP 工具示例
@@ -213,7 +213,7 @@ $ skill:pdf-editor:extract_text --help
 - **LLM 只看到唯一的 Bash 工具**：所有工具调用统一通过 `{"name": "Bash", "input": {"command": "..."}}`
 - **命令解析器正确路由**：Agent 内部解析命令字符串，路由到 Native/Agent/Field 三层实现
 - **工具发现机制**：通过 `tools search` 关键词/正则搜索，返回 `mcp:*` 和 `skill:*` 工具列表
-- **自描述能力**：所有 Field Bash 命令支持 `-h/--help` 参数，LLM 可自主探索工具详情
+- **自描述能力**：所有 Extension Shell Command 命令支持 `-h/--help` 参数，LLM 可自主探索工具详情
 - **持久会话状态**：环境变量和工作目录在命令之间保持
 - **会话重启**：支持 `restart: true` 参数重启 Bash 会话
 - **后台监听**：Skill 工具的自动发现和更新，无需手动干预
@@ -319,7 +319,7 @@ fi
 
 **输入**：Skill 目录中的 `scripts/` 子目录下的可执行脚本（Python、Shell 等）
 
-**职责**：将 Skill 内的脚本转换为可通过 Bash 命令调用的 Field Bash 工具
+**职责**：将 Skill 内的脚本转换为可通过 Bash 命令调用的 Extension Shell Command 工具
 
 **转换规则**：
 - 扫描 `~/.synapse/skills/*/scripts/` 目录
@@ -440,18 +440,18 @@ SKILLS 目录变化
 ```markdown
 所有操作通过 Bash 命令完成。工具分为三层：
 - Native Shell Command：标准 Unix 命令（ls, grep, git, curl 等）
-- Agent Bash：核心功能工具（read, write, edit, skill, tools search 等）
-- Field Bash：外部扩展工具（mcp:*, skill:* 格式）
+- Agent Shell Command：核心功能工具（read, write, edit, skill, tools search 等）
+- Extension Shell Command：外部扩展工具（mcp:*, skill:* 格式）
 
 使用 tools search 探索可用的 MCP 和 Skill 工具。
 使用 <tool> -h 获取简要信息，<tool> --help 获取完整文档。
 ```
 
-**3. Agent Bash 工具详细说明**
+**3. Agent Shell Command 工具详细说明**
 
-在系统提示词中完整注入所有 Agent Bash 工具的使用说明：
+在系统提示词中完整注入所有 Agent Shell Command 工具的使用说明：
 ```markdown
-## Agent Bash 工具
+## Agent Shell Command 工具
 
 ### read - 读取文件内容
 用法：read <file_path> [--offset <line>] [--limit <lines>]
@@ -482,7 +482,7 @@ SKILLS 目录变化
 ...（其他工具说明）
 ```
 
-**4. Field Bash 工具使用说明**
+**4. Extension Shell Command 工具使用说明**
 ```markdown
 ## 外部工具使用
 

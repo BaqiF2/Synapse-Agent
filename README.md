@@ -1,14 +1,14 @@
 # Synapse Agent
 
-基于统一 Bash 抽象的自我成长 AI 智能体框架。
+基于统一 Shell 抽象的自我成长 AI 智能体框架。
 
 ## 核心理念
 
-**一切工具都是 Bash** - 通过三层工具体系实现可扩展的智能体能力：
+**一切工具都是 Shell Command** - 通过三层工具体系实现可扩展的智能体能力：
 
-- **Layer 1 - Base Bash**: 标准 Unix 命令（ls, cd, git 等）
-- **Layer 2 - Agent Bash**: 内置 Agent 工具（read, write, edit, glob, grep）
-- **Layer 3 - Field Bash**: 领域工具（mcp:\*, skill:\*）
+- **Layer 1 - Native Shell Command**: 标准 Unix 命令（ls, cd, git 等）
+- **Layer 2 - Agent Shell Command**: 内置 Agent 工具（read, write, edit, glob, grep）
+- **Layer 3 - Extension Shell Command**: 领域工具（mcp:\*, skill:\*）
 
 ## 特性
 
@@ -62,7 +62,7 @@ bun run src/cli/index.ts chat
 !pwd
 ```
 
-## Agent Bash 工具
+## Agent Shell Command 工具
 
 ### read - 读取文件
 
