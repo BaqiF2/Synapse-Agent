@@ -124,7 +124,7 @@ skill enhance --conversation ~/.synapse/conversations/<session-id>.jsonl
     │
     ▼
 分析执行过程：
-  - 识别任务类型和领域
+  - 识别任务类型
   - 提取工具调用序列
   - 识别使用的技能及效果
   - 发现可复用模式
@@ -148,7 +148,8 @@ skill enhance --conversation ~/.synapse/conversations/<session-id>.jsonl
 **Skill 子 Agent 可用工具**：
 
 - `read` - 读取会话历史、已有技能文件
-- `write` - 创建/更新 SKILL.md、references、scripts
+- `write` - 创建新文件（SKILL.md、references、scripts）
+- `edit` - 编辑已有文件（强化技能时使用）
 - `glob` - 扫描技能目录
 - `grep` - 搜索技能内容
 
