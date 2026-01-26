@@ -1,5 +1,5 @@
 /**
- * Glob 工具 - Agent Bash Layer 2
+ * Glob 工具 - Agent Shell Command Layer 2
  *
  * 功能：文件模式匹配，支持 glob 模式搜索文件
  *

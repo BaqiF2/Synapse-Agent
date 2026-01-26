@@ -1,5 +1,5 @@
 /**
- * Edit 工具 - Agent Bash Layer 2
+ * Edit 工具 - Agent Shell Command Layer 2
  *
  * 功能：替换文件中的字符串，支持单次或全部替换
  *

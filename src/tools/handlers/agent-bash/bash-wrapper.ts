@@ -1,5 +1,5 @@
 /**
- * Bash 包装器工具 - Agent Bash Layer 2
+ * Bash 包装器工具 - Agent Shell Command Layer 2
  *
  * 功能：显式执行 Bash 命令，允许 LLM 明确表示要执行系统命令
  *

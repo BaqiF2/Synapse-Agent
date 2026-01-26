@@ -1,7 +1,7 @@
 /**
- * Agent Bash 处理器索引
+ * Agent Shell Command 处理器索引
  *
- * 功能：导出所有 Agent Bash Layer 2 工具处理器
+ * 功能：导出所有 Agent Shell Command Layer 2 工具处理器
  *
  * 核心导出：
  * - ReadHandler: 文件读取处理器

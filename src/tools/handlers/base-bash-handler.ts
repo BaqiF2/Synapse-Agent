@@ -1,10 +1,10 @@
 /**
- * Base Bash Handler
+ * Native Shell Command Handler
  *
  * 功能：处理标准 Unix 命令的执行，将命令传递给持久 Bash 会话
  *
  * 核心导出：
- * - BaseBashHandler: Base Bash 命令处理器类
+ * - NativeShellCommandHandler: Native Shell Command 命令处理器类
  */
 
 import type { BashSession } from '../bash-session.ts';
@@ -16,13 +16,13 @@ export interface CommandResult {
 }
 
 /**
- * Handler for Base Bash commands (standard Unix commands)
+ * Handler for Native Shell Command commands (standard Unix commands)
  */
-export class BaseBashHandler {
+export class NativeShellCommandHandler {
   constructor(private session: BashSession) {}
 
   /**
-   * Execute a Base Bash command
+   * Execute a Native Shell Command
    */
   async execute(command: string): Promise<CommandResult> {
     try {

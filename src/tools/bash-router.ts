@@ -1,7 +1,7 @@
 /**
  * Bash 命令路由器
  *
- * 功能：解析和路由 Bash 命令到不同的处理器（Base Bash / Agent Bash / Field Bash）
+ * 功能：解析和路由 Bash 命令到不同的处理器（Native Shell Command / Agent Shell Command / explosion Shell command）
  *
  * 核心导出：
  * - BashRouter: Bash 命令路由器类
@@ -9,7 +9,7 @@
  */
 
 import type { BashSession } from './bash-session.ts';
-import { BaseBashHandler, type CommandResult } from './handlers/base-bash-handler.ts';
+import { NativeShellCommandHandler, type CommandResult } from './handlers/base-bash-handler.ts';
 import { ReadHandler, WriteHandler, EditHandler, GlobHandler, GrepHandler, BashWrapperHandler } from './handlers/agent-bash/index.ts';
 import { ToolsHandler } from './handlers/field-bash/index.ts';
 import { McpConfigParser, McpClient, McpWrapperGenerator, McpInstaller } from './converters/mcp/index.ts';
@@ -19,16 +19,16 @@ import { SkillStructure, DocstringParser, SkillWrapperGenerator } from './conver
  * Command types in the three-layer Bash architecture
  */
 export enum CommandType {
-  BASE_BASH = 'base_bash',       // Standard Unix commands
-  AGENT_BASH = 'agent_bash',     // Built-in Agent commands (read, write, edit, etc.)
-  FIELD_BASH = 'field_bash',     // Domain-specific tools (mcp:*, skill:*, tools)
+  NATIVE_SHELL_COMMAND = 'native_shell_command',       // Standard Unix commands
+  AGENT_SHELL_COMMAND = 'agent_shell_command',         // Built-in Agent commands (read, write, edit, etc.)
+  EXPLOSION_SHELL_COMMAND = 'explosion_shell_command', // Domain-specific tools (mcp:*, skill:*, tools)
 }
 
 /**
  * Router for Bash commands - routes commands to appropriate handlers
  */
 export class BashRouter {
-  private baseBashHandler: BaseBashHandler;
+  private nativeShellCommandHandler: NativeShellCommandHandler;
   private readHandler: ReadHandler;
   private writeHandler: WriteHandler;
   private editHandler: EditHandler;
@@ -39,7 +39,7 @@ export class BashRouter {
   private mcpInstaller: McpInstaller;
 
   constructor(private session: BashSession) {
-    this.baseBashHandler = new BaseBashHandler(session);
+    this.nativeShellCommandHandler = new NativeShellCommandHandler(session);
     this.readHandler = new ReadHandler();
     this.writeHandler = new WriteHandler();
     this.editHandler = new EditHandler();
@@ -62,14 +62,14 @@ export class BashRouter {
     const commandType = this.identifyCommandType(command);
 
     switch (commandType) {
-      case CommandType.BASE_BASH:
-        return await this.baseBashHandler.execute(command);
+      case CommandType.NATIVE_SHELL_COMMAND:
+        return await this.nativeShellCommandHandler.execute(command);
 
-      case CommandType.AGENT_BASH:
-        return await this.executeAgentBash(command);
+      case CommandType.AGENT_SHELL_COMMAND:
+        return await this.executeAgentShellCommand(command);
 
-      case CommandType.FIELD_BASH:
-        return await this.executeFieldBash(command);
+      case CommandType.EXPLOSION_SHELL_COMMAND:
+        return await this.executeExplosionShellCommand(command);
 
       default:
         return {
@@ -86,29 +86,29 @@ export class BashRouter {
   private identifyCommandType(command: string): CommandType {
     const trimmed = command.trim();
 
-    // Agent Bash commands (Layer 2)
+    // Agent Shell Command commands (Layer 2)
     // Will be implemented in Batch 4-5
-    const agentBashCommands = ['read', 'write', 'edit', 'glob', 'grep', 'bash'];
-    for (const cmd of agentBashCommands) {
+    const agentShellCommandCommands = ['read', 'write', 'edit', 'glob', 'grep', 'bash'];
+    for (const cmd of agentShellCommandCommands) {
       if (trimmed.startsWith(cmd + ' ') || trimmed === cmd) {
-        return CommandType.AGENT_BASH;
+        return CommandType.AGENT_SHELL_COMMAND;
       }
     }
 
-    // Field Bash commands (Layer 3)
+    // explosion Shell command commands (Layer 3)
     // mcp:*, skill:*, tools
     if (trimmed.startsWith('mcp:') || trimmed.startsWith('skill:') || trimmed.startsWith('tools ')) {
-      return CommandType.FIELD_BASH;
+      return CommandType.EXPLOSION_SHELL_COMMAND;
     }
 
-    // Default to Base Bash (Layer 1)
-    return CommandType.BASE_BASH;
+    // Default to Native Shell Command (Layer 1)
+    return CommandType.NATIVE_SHELL_COMMAND;
   }
 
   /**
-   * Execute Agent Bash commands (Layer 2)
+   * Execute Agent Shell Command commands (Layer 2)
    */
-  private async executeAgentBash(command: string): Promise<CommandResult> {
+  private async executeAgentShellCommand(command: string): Promise<CommandResult> {
     const trimmed = command.trim();
 
     // Route to appropriate handler based on command prefix
@@ -139,16 +139,16 @@ export class BashRouter {
 
     return {
       stdout: '',
-      stderr: `Unknown Agent Bash command: ${command}`,
+      stderr: `Unknown Agent Shell Command: ${command}`,
       exitCode: 1,
     };
   }
 
   /**
-   * Execute Field Bash commands (Layer 3)
+   * Execute explosion Shell command commands (Layer 3)
    * Handles mcp:*, skill:*, and tools commands
    */
-  private async executeFieldBash(command: string): Promise<CommandResult> {
+  private async executeExplosionShellCommand(command: string): Promise<CommandResult> {
     const trimmed = command.trim();
 
     // Handle tools command
@@ -168,7 +168,7 @@ export class BashRouter {
 
     return {
       stdout: '',
-      stderr: `Unknown Field Bash command: ${command}`,
+      stderr: `Unknown explosion Shell command: ${command}`,
       exitCode: 1,
     };
   }

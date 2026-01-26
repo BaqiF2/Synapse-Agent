@@ -1,5 +1,5 @@
 /**
- * Skill Search 工具 - Agent Bash Layer 2
+ * Skill Search 工具 - Agent Shell Command Layer 2
  *
  * 功能：在技能库中搜索匹配的技能，支持关键词、领域和标签过滤
  *

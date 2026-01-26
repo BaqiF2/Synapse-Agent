@@ -1,5 +1,5 @@
 /**
- * Read 工具 - Agent Bash Layer 2
+ * Read 工具 - Agent Shell Command Layer 2
  *
  * 功能：读取文件内容，支持行偏移和行数限制
  *

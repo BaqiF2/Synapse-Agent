@@ -1,5 +1,5 @@
 /**
- * Write 工具 - Agent Bash Layer 2
+ * Write 工具 - Agent Shell Command Layer 2
  *
  * 功能：写入文件内容，支持自动创建父目录
  *

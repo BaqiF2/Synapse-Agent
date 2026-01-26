@@ -22,9 +22,9 @@ This is the ONLY tool available to you. All operations must be done through Bash
 The Bash session is persistent - environment variables and working directory are maintained across commands.
 
 You can use:
-- Base Bash: Standard Unix commands (ls, cd, pwd, grep, find, git, curl, etc.)
-- Agent Bash: Special built-in commands (read, write, edit, glob, grep, bash)
-- Field Bash: Domain-specific tools (mcp:*, skill:*, tools)
+- Native Shell Command: Standard Unix commands (ls, cd, pwd, grep, find, git, curl, etc.)
+- Agent Shell Command: Special built-in commands (read, write, edit, glob, grep, bash)
+- explosion Shell command: Domain-specific tools (mcp:*, skill:*, tools)
 
 All commands support -h (brief help) and --help (detailed documentation).`,
   input_schema: {
@@ -32,7 +32,7 @@ All commands support -h (brief help) and --help (detailed documentation).`,
     properties: {
       command: {
         type: 'string',
-        description: 'The bash command to execute. Can be any valid bash command or built-in Agent Bash command.',
+        description: 'The bash command to execute. Can be any valid bash command or built-in Agent Shell Command.',
       },
       restart: {
         type: 'boolean',

@@ -1,5 +1,5 @@
 /**
- * Grep 工具 - Agent Bash Layer 2
+ * Grep 工具 - Agent Shell Command Layer 2
  *
  * 功能：代码搜索，支持正则表达式和文件类型过滤
  *
