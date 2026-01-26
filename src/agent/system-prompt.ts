@@ -110,10 +110,15 @@ function buildSkillSystemSection(availableSkills?: SkillLevel1[]): string {
 ## Self-Description
 
 All commands support self-description:
-- \`-h\` - Brief help (name, usage, parameters)
-- \`--help\` - Detailed help (full description, all parameters, examples)
+- \`-h\` - Brief help: Shows name, usage, and parameter list. **Use this when you don't know what a tool does.**
+- \`--help\` - Detailed help: Shows full description, all parameters with types, and examples. **Use this when you don't know how to use a tool.**
 
-Use these to explore available commands and their capabilities.`;
+**CRITICAL: Query before calling.** When encountering an unfamiliar tool:
+1. First use \`<tool> -h\` to understand what the tool does
+2. If you need more details on usage, use \`<tool> --help\`
+3. Only then make the actual tool call with correct parameters
+
+Never call a tool directly without first understanding its purpose and parameters.`;
 
   // Add available skills summary if provided
   if (availableSkills && availableSkills.length > 0) {
@@ -171,13 +176,19 @@ function buildExecutionPrinciplesSection(): string {
    - Use \`grep\` instead of native \`grep\` for searching
    - Only fall back to Unix commands when Agent Bash tools cannot accomplish the task
 
-2. **Command Learning**: When using an unfamiliar Agent Bash command:
-   - ALWAYS check \`--help\` first to understand the exact parameter format
-   - Parse the help output to determine required vs optional parameters
-   - Use the exact parameter format shown in the help
-   - Example workflow:
-     * First: \`write --help\` (see the parameters)
-     * Then: \`write <file_path> <content>\` (use correct format)
+2. **Command Learning**: When encountering an unfamiliar command or tool:
+   - **Step 1**: Use \`-h\` to understand what the tool does (brief info)
+   - **Step 2**: If needed, use \`--help\` to learn how to use it (detailed usage)
+   - **Step 3**: Only then make the actual call with correct parameters
+   - This applies to ALL tools: Agent Bash, MCP tools, and Skill tools
+   - Example workflow for MCP tool:
+     * First: \`mcp:context7:resolve-library-id -h\` (what does it do?)
+     * Then: \`mcp:context7:resolve-library-id --help\` (how to use it?)
+     * Finally: \`mcp:context7:resolve-library-id --query "react" --libraryName "react"\` (actual call)
+   - Example workflow for Agent Bash:
+     * First: \`write -h\` (what does it do?)
+     * Then: \`write --help\` (see parameters)
+     * Finally: \`write /tmp/test.txt "Hello World"\` (actual call)
 
 3. **Single execution**: When a user makes a specific request, execute it ONCE and present the result. Do NOT:
    - Demonstrate multiple variations or parameter combinations
@@ -210,11 +221,21 @@ function buildExecutionPrinciplesSection(): string {
 
 8. **Example of correct learning**:
    - User: "Write 'Hello World' to /tmp/test.txt"
-   - If unfamiliar with write syntax:
-     * First: \`write --help\` (learn the format)
-     * Then: \`write /tmp/test.txt "Hello World"\` (execute once)
+   - If unfamiliar with write command:
+     * First: \`write -h\` (understand: "writes content to file")
+     * Then: \`write --help\` (learn: file_path and content parameters)
+     * Finally: \`write /tmp/test.txt "Hello World"\` (execute once)
+   - WRONG: Call \`write\` directly without understanding its parameters
    - WRONG: Try multiple incorrect formats without checking help first
-   - WRONG: Fall back to \`echo "Hello World" > /tmp/test.txt\` without trying Agent Bash`;
+   - WRONG: Fall back to \`echo "Hello World" > /tmp/test.txt\` without trying Agent Bash
+
+9. **Example of correct MCP tool learning**:
+   - User: "Search for react library documentation"
+   - If unfamiliar with mcp:context7:resolve-library-id:
+     * First: \`mcp:context7:resolve-library-id -h\` (understand what it does)
+     * Then: \`mcp:context7:resolve-library-id --help\` (learn the parameters)
+     * Finally: \`mcp:context7:resolve-library-id --query "react" --libraryName "react"\` (execute)
+   - WRONG: Call \`mcp:context7:resolve-library-id react\` directly without understanding parameters`;
 }
 
 /**
