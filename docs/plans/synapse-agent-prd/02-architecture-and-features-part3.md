@@ -288,23 +288,52 @@ grep "ERROR|WARN" error.log
 - **更新最佳实践**：记录本次任务中发现的新经验
 - **避免过度详细**：移除不必要的解释，保持简洁
 
-#### 4.5.8 工具集成
+#### 4.5.8 脚本转 Extension Shell Command
 
-技能强化过程中，如果发现新工具或工具组合：
+技能创建或强化时，如果在 `scripts/` 目录下添加了可执行脚本，系统会自动将其转换为 Extension Shell Command。
 
-1. **识别新工具**：
-   - 检查任务执行记录中使用的工具
-   - 对比已有的工具索引 (`~/.synapse/tools/index.json`)
-   - 识别尚未转换为 Bash 的工具
+**转换机制**（参考 4.2.3 Skill2Bash 转换器）：
 
-2. **调用工具转 Bash Agent**：
-   ```
-   任务完成 → Skill 子 Agent → 发现新工具 → 调用工具转 Bash Agent → 生成 Extension Shell Command → 更新工具索引
-   ```
+1. **后台监听进程**：监控 `~/.synapse/skills/` 目录变化
+2. **自动转换**：检测到 `scripts/` 目录中新增或修改的脚本时，自动调用 Skill2Bash 转换器
+3. **生成包装器**：为每个脚本生成 `skill:<skill_name>:<tool>` 命令包装器
+4. **安装到 PATH**：包装器安装到 `~/.synapse/bin/`，立即可用
 
-3. **在技能中引用**：
-   - SKILL.md 中使用新生成的 Extension Shell Command 命令
-   - 确保技能可以独立执行，无外部依赖
+**工作流程**：
+
+```
+Skill 子 Agent 创建/强化技能
+    │
+    ▼
+在 scripts/ 目录下写入脚本文件
+    │
+    ▼
+后台监听进程检测到变化
+    │
+    ▼
+Skill2Bash 转换器生成命令包装器
+    │
+    ▼
+skill:<skill_name>:<tool> 命令立即可用
+```
+
+**示例**：
+
+```
+技能强化创建了新脚本：
+~/.synapse/skills/analyzing-logs/scripts/parse_error.py
+
+后台进程自动生成：
+~/.synapse/bin/skill:analyzing-logs:parse_error
+
+SKILL.md 中可直接使用：
+skill:analyzing-logs:parse_error error.log --format json
+```
+
+**设计要点**：
+- **无需手动干预**：转换过程完全自动化
+- **即时生效**：脚本保存后立即可作为命令使用
+- **自描述支持**：生成的命令包装器支持 `-h` 和 `--help` 参数
 
 #### 4.5.9 完整执行流程示例
 

@@ -373,6 +373,74 @@ SkillEnhancer.execute(decision)
 
 ---
 
+#### Task 2.4: 配置 SkillSubAgent 的工具集
+
+**文件**: `src/skills/skill-sub-agent.ts`
+
+**功能**: 配置 SkillSubAgent 可用的工具列表
+
+**PRD 要求** (4.5.4 节):
+
+Skill 子 Agent 需要以下工具来执行强化操作：
+
+| 工具 | 用途 |
+|------|------|
+| `read` | 读取会话历史、已有技能文件 |
+| `write` | 创建新文件（SKILL.md、references、scripts） |
+| `edit` | 编辑已有文件（强化技能时使用） |
+| `glob` | 扫描技能目录 |
+| `grep` | 搜索技能内容 |
+
+**实现方式**:
+
+```typescript
+/**
+ * SkillSubAgent 可用的工具定义
+ */
+const SKILL_SUB_AGENT_TOOLS = [
+  'read',   // 读取文件
+  'write',  // 写入文件
+  'edit',   // 编辑文件
+  'glob',   // 文件模式匹配
+  'grep',   // 内容搜索
+] as const;
+
+/**
+ * SkillSubAgent 的系统提示词中注入工具使用说明
+ */
+const SKILL_SUB_AGENT_TOOL_INSTRUCTIONS = `
+## 可用工具
+
+你可以使用以下工具完成技能管理操作：
+
+### read - 读取文件
+用法：read <file_path>
+示例：read ~/.synapse/skills/code-review/SKILL.md
+
+### write - 创建/覆盖文件
+用法：write <file_path> <content>
+示例：write ~/.synapse/skills/new-skill/SKILL.md "---\\nname: new-skill\\n..."
+
+### edit - 编辑文件
+用法：edit <file_path> <old_content> <new_content>
+示例：edit ~/.synapse/skills/code-review/SKILL.md "旧内容" "新内容"
+
+### glob - 文件模式匹配
+用法：glob <pattern>
+示例：glob "~/.synapse/skills/*/SKILL.md"
+
+### grep - 搜索内容
+用法：grep <pattern> <path>
+示例：grep "analyzing" ~/.synapse/skills/
+`;
+```
+
+**验证方式**:
+- 单元测试：验证工具列表配置
+- 集成测试：验证 SkillSubAgent 可以正确调用这些工具
+
+---
+
 ### 批次 3：自动强化功能实现
 
 #### Task 3.1: 创建 AutoEnhanceManager 自动强化管理器
@@ -527,7 +595,10 @@ export class ConversationPersistence {
 
 ---
 
-### 批次 4：元技能与工具集成
+### 批次 4：元技能支持
+
+> **说明**：脚本转 Extension Shell Command 由后台监听进程自动处理（参考 PRD 4.2.4），无需在强化流程中额外实现。
+> 当 Skill 子 Agent 在 `scripts/` 目录下创建脚本文件后，后台进程会自动检测并调用 Skill2Bash 转换器生成 `skill:<skill_name>:<tool>` 命令包装器。
 
 #### Task 4.1: 创建 creating-skills 元技能
 
@@ -749,7 +820,7 @@ private async getEnhanceSystemPrompt(action: 'create' | 'update'): Promise<strin
 
 ### 修改文件
 - `src/tools/handlers/agent-bash/skill-command.ts` - 添加 enhance 命令
-- `src/skills/skill-sub-agent.ts` - 完善 enhance 方法
+- `src/skills/skill-sub-agent.ts` - 完善 enhance 方法，配置可用工具集（read/write/edit/glob/grep）
 - `src/skills/index.ts` - 更新导出
 - `src/agent/index.ts` - 更新导出
 - 主 Agent 文件 - 集成自动强化
@@ -791,6 +862,7 @@ ConversationPersistence (独立模块)
 - [ ] 创建新技能时生成正确的目录结构
 - [ ] 更新技能时保留原有内容并追加新内容
 - [ ] 强化报告格式正确
+- [ ] SkillSubAgent 可正确使用 read/write/edit/glob/grep 工具
 - [ ] 所有单元测试通过
 - [ ] 集成测试通过
 
@@ -801,3 +873,4 @@ ConversationPersistence (独立模块)
 3. **并发安全**: 确保文件操作的原子性，避免并发写入问题
 4. **错误恢复**: 强化过程中出错时不应影响主任务的完成
 5. **元技能初始化**: 首次使用时需要自动创建元技能文件
+6. **脚本自动转换**: 当 Skill 子 Agent 在 `scripts/` 目录下创建脚本时，后台监听进程会自动调用 Skill2Bash 转换器生成 Extension Shell Command，无需在强化流程中额外处理
