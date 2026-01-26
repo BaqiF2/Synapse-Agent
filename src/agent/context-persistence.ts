@@ -25,6 +25,17 @@ const SESSION_INDEX_FILE = 'sessions.json';
 const logger = createLogger('persistence');
 
 /**
+ * Create an empty sessions index
+ */
+function createEmptyIndex(): SessionsIndex {
+  return {
+    version: '1.0.0',
+    sessions: [],
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+/**
  * Schema for persistent message
  * Note: toolCalls and toolResults are stored within content field (ContentBlockParam[])
  * to avoid data redundancy
@@ -184,24 +195,15 @@ export class ContextPersistence {
    */
   private loadIndex(): SessionsIndex {
     if (!fs.existsSync(this.indexPath)) {
-      return {
-        version: '1.0.0',
-        sessions: [],
-        updatedAt: new Date().toISOString(),
-      };
+      return createEmptyIndex();
     }
 
     try {
       const content = fs.readFileSync(this.indexPath, 'utf-8');
-      const data = JSON.parse(content);
-      return SessionsIndexSchema.parse(data);
-    } catch (error) {
+      return SessionsIndexSchema.parse(JSON.parse(content));
+    } catch {
       logger.warn('Failed to load sessions index, creating new one');
-      return {
-        version: '1.0.0',
-        sessions: [],
-        updatedAt: new Date().toISOString(),
-      };
+      return createEmptyIndex();
     }
   }
 
@@ -292,19 +294,17 @@ export class ContextPersistence {
 
       for (const line of lines) {
         try {
-          const parsed = JSON.parse(line);
-          const persistent = PersistentMessageSchema.parse(parsed);
-
-          // Convert back to ConversationMessage
+          const persistent = PersistentMessageSchema.parse(JSON.parse(line));
           messages.push({
             role: persistent.role,
             content: persistent.content as string | Anthropic.ContentBlockParam[],
           });
-          this.messageCount++;
         } catch {
           logger.warn('Failed to parse message line, skipping');
         }
       }
+
+      this.messageCount = messages.length;
     } catch (error) {
       logger.error('Failed to load messages', { error });
     }

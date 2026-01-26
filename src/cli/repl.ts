@@ -33,6 +33,22 @@ import { createLogger } from '../utils/logger.ts';
 const cliLogger = createLogger('cli');
 
 /**
+ * Extract error message from unknown error
+ */
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : 'Unknown error';
+}
+
+/**
+ * Print a section header with consistent formatting
+ */
+function printSectionHeader(title: string): void {
+  console.log();
+  console.log(chalk.cyan.bold(title));
+  console.log(chalk.cyan('═'.repeat(50)));
+}
+
+/**
  * Environment variable configuration
  */
 const HISTORY_FILE =
@@ -306,9 +322,7 @@ export function handleSpecialCommand(
  * Show help information
  */
 function showHelp(): void {
-  console.log();
-  console.log(chalk.cyan.bold('Synapse Agent - Help'));
-  console.log(chalk.cyan('═'.repeat(50)));
+  printSectionHeader('Synapse Agent - Help');
   console.log();
   console.log(chalk.white.bold('Special Commands:'));
   console.log(chalk.gray('  /help, /h, /?    ') + chalk.white('Show this help message'));
@@ -337,9 +351,7 @@ function showHelp(): void {
  * Show conversation history
  */
 function showConversationHistory(history: ConversationEntry[]): void {
-  console.log();
-  console.log(chalk.cyan.bold('Conversation History'));
-  console.log(chalk.cyan('═'.repeat(50)));
+  printSectionHeader('Conversation History');
 
   if (history.length === 0) {
     console.log(chalk.gray('\n  No conversation history.\n'));
@@ -367,9 +379,7 @@ function showConversationHistory(history: ConversationEntry[]): void {
  * Show available tools list
  */
 function showToolsList(): void {
-  console.log();
-  console.log(chalk.cyan.bold('Available Tools'));
-  console.log(chalk.cyan('═'.repeat(50)));
+  printSectionHeader('Available Tools');
   console.log();
   console.log(chalk.white.bold('Agent Bash Tools (Layer 2):'));
   console.log(chalk.gray('  read <file>      ') + chalk.white('Read file contents'));
@@ -393,10 +403,7 @@ function showToolsList(): void {
  * Show available skills list
  */
 function showSkillsList(): void {
-  console.log();
-  console.log(chalk.cyan.bold('Available Skills'));
-  console.log(chalk.cyan('═'.repeat(50)));
-  console.log();
+  printSectionHeader('Available Skills');
 
   // Check if skills directory exists
   const skillsDir = path.join(os.homedir(), '.synapse', 'skills');
@@ -448,7 +455,7 @@ function showSkillsList(): void {
     console.log(chalk.gray('Use "skill search <query>" for detailed information.'));
     console.log();
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
+    const message = getErrorMessage(error);
     console.log(chalk.red(`  Error reading skills: ${message}`));
     console.log();
   }
@@ -458,9 +465,7 @@ function showSkillsList(): void {
  * Show saved sessions list
  */
 function showSessionsList(): void {
-  console.log();
-  console.log(chalk.cyan.bold('Saved Sessions'));
-  console.log(chalk.cyan('═'.repeat(50)));
+  printSectionHeader('Saved Sessions');
 
   const sessions = ContextPersistence.listSessions();
 
@@ -620,7 +625,7 @@ export async function startRepl(): Promise<void> {
 
     cliLogger.info('Agent components initialized successfully');
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
+    const message = getErrorMessage(error);
     console.log(chalk.yellow(`\nAgent mode unavailable: ${message}`));
     console.log(chalk.yellow('Running in echo mode (responses will be echoed back).\n'));
     cliLogger.warn(`Agent initialization failed: ${message}`);
@@ -643,7 +648,7 @@ export async function startRepl(): Promise<void> {
       }
     }
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
+    const message = getErrorMessage(error);
     cliLogger.warn(`MCP initialization failed: ${message}`);
     console.log(chalk.yellow(`⚠ MCP tools unavailable: ${message}`));
   }
@@ -661,7 +666,7 @@ export async function startRepl(): Promise<void> {
       console.log(chalk.gray(`  No skill tools to load (${skillResult.totalSkills} skill(s) found)`));
     }
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
+    const message = getErrorMessage(error);
     cliLogger.warn(`Skill initialization failed: ${message}`);
     console.log(chalk.yellow(`⚠ Skill tools unavailable: ${message}`));
   }
@@ -798,7 +803,7 @@ export async function startRepl(): Promise<void> {
         timestamp: new Date(),
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
+      const message = getErrorMessage(error);
       console.log(chalk.red(`\nError: ${message}\n`));
       cliLogger.error('Agent request failed', { error: message });
     } finally {

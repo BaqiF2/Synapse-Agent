@@ -21,6 +21,47 @@ import { createLogger } from '../../../utils/logger.js';
 const logger = createLogger('skill-init');
 
 /**
+ * Extract error message from unknown error
+ */
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * Clean up orphaned skill tools that no longer have corresponding skill directories
+ */
+function cleanupOrphanedTools(binDir: string, activeSkills: SkillEntry[]): void {
+  if (!fs.existsSync(binDir)) {
+    return;
+  }
+
+  const activeSkillNames = new Set(activeSkills.map((s) => s.name));
+  const existingFiles = fs.readdirSync(binDir);
+  let removedCount = 0;
+
+  for (const file of existingFiles) {
+    if (!file.startsWith('skill:')) {
+      continue;
+    }
+
+    const skillName = file.split(':')[1];
+    if (skillName && !activeSkillNames.has(skillName)) {
+      try {
+        fs.unlinkSync(path.join(binDir, file));
+        removedCount++;
+        logger.debug(`Removed orphaned skill tool: ${file}`);
+      } catch (error) {
+        logger.warn(`Failed to remove orphaned tool ${file}: ${error}`);
+      }
+    }
+  }
+
+  if (removedCount > 0) {
+    logger.info(`Cleaned up ${removedCount} orphaned skill tool(s)`);
+  }
+}
+
+/**
  * Result of Skill tool initialization for a single skill
  */
 export interface SkillInitResult {
@@ -81,7 +122,7 @@ export async function initializeSkillTools(options: SkillInitOptions = {}): Prom
   try {
     skills = structure.listSkills();
   } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
+    const msg = getErrorMessage(error);
     result.errors.push(`Failed to list skills: ${msg}`);
     result.success = false;
     logger.error(`Failed to list skills: ${msg}`);
@@ -98,35 +139,7 @@ export async function initializeSkillTools(options: SkillInitOptions = {}): Prom
   logger.info(`Found ${skills.length} skill(s) in skills directory`);
 
   // Step 2: Clean up orphaned skill tools
-  const binDir = generator.getBinDir();
-  const configuredSkillNames = new Set(skills.map((s) => s.name));
-
-  if (fs.existsSync(binDir)) {
-    const existingFiles = fs.readdirSync(binDir);
-    let removedCount = 0;
-
-    for (const file of existingFiles) {
-      // Only process skill:* files
-      if (file.startsWith('skill:')) {
-        const parts = file.split(':');
-        const skillName = parts[1];
-        if (parts.length >= 2 && skillName && !configuredSkillNames.has(skillName)) {
-          const filePath = path.join(binDir, file);
-          try {
-            fs.unlinkSync(filePath);
-            removedCount++;
-            logger.debug(`Removed orphaned skill tool: ${file}`);
-          } catch (error) {
-            logger.warn(`Failed to remove orphaned tool ${file}: ${error}`);
-          }
-        }
-      }
-    }
-
-    if (removedCount > 0) {
-      logger.info(`Cleaned up ${removedCount} orphaned skill tool(s)`);
-    }
-  }
+  cleanupOrphanedTools(generator.getBinDir(), skills);
 
   // Step 3: Process each skill
   for (const skill of skills) {
@@ -185,7 +198,7 @@ function processSkill(skill: SkillEntry, generator: SkillWrapperGenerator): Skil
       }
     }
   } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
+    const msg = getErrorMessage(error);
     result.errors.push(`Error processing skill: ${msg}`);
     logger.error(`Error processing skill ${skill.name}: ${msg}`);
   }
