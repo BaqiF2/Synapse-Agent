@@ -24,7 +24,7 @@ The Bash session is persistent - environment variables and working directory are
 You can use:
 - Native Shell Command: Standard Unix commands (ls, cd, pwd, grep, find, git, curl, etc.)
 - Agent Shell Command: Special built-in commands (read, write, edit, glob, grep, bash)
-- explosion Shell command: Domain-specific tools (mcp:*, skill:*, tools)
+- extend Shell command: Domain-specific tools (mcp:*, skill:*, tools)
 
 All commands support -h (brief help) and --help (detailed documentation).`,
   input_schema: {

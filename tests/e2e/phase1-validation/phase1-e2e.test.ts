@@ -327,7 +327,7 @@ describe('Phase 1 E2E: TC-1 Three-Layer Bash Architecture', () => {
       expect(globHelpResult.stdout.toLowerCase()).toMatch(/usage|glob/i);
     });
 
-    test('should execute explosion Shell command commands (tools)', async () => {
+    test('should execute extend Shell command commands (tools)', async () => {
       // Test that tools commands are routed correctly
       const toolsHelpResult = await router.route('tools help');
       expect(toolsHelpResult.exitCode).toBe(0);
@@ -1069,13 +1069,13 @@ describe('Phase 1 E2E: TC-6 Tool Type Conversion', () => {
     test('Type 2: MCP tools are routed correctly', async () => {
       // Verify MCP command is identified as FIELD_BASH
       const type = router.identifyCommandType('mcp:test-server:tool arg');
-      expect(type).toBe(CommandType.EXPLOSION_SHELL_COMMAND);
+      expect(type).toBe(CommandType.EXTEND_SHELL_COMMAND);
     });
 
     test('Type 3: Skill tools are routed correctly', async () => {
       // Verify Skill command is identified as FIELD_BASH
       const type = router.identifyCommandType('skill:test-skill:tool arg');
-      expect(type).toBe(CommandType.EXPLOSION_SHELL_COMMAND);
+      expect(type).toBe(CommandType.EXTEND_SHELL_COMMAND);
     });
 
     test('All tool types use consistent command format', () => {

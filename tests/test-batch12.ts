@@ -255,7 +255,7 @@ async function testSystemPromptSkillSystem(): Promise<void> {
 
   const promptWithSkills = buildSystemPrompt({
     includeSkillSystem: true,
-    includeExplosionShellCommand: true,
+    includeExtendShellCommand: true,
     availableSkills: skills,
   });
 
@@ -267,9 +267,9 @@ async function testSystemPromptSkillSystem(): Promise<void> {
     console.log('  [WARN] Available skills section may not be included');
   }
 
-  // Test explosion Shell command section
-  if (promptWithSkills.includes('explosion Shell command') && promptWithSkills.includes('mcp:')) {
-    console.log('  [PASS] explosion Shell command section included');
+  // Test extend Shell command section
+  if (promptWithSkills.includes('extend Shell command') && promptWithSkills.includes('mcp:')) {
+    console.log('  [PASS] extend Shell command section included');
   }
 
   // Test prompt sections

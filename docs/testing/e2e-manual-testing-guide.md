@@ -156,7 +156,7 @@ You (1)> /tools
 **预期输出**: 显示所有可用的工具列表，包括:
 - Native Shell Command 工具
 - Agent Shell Command 工具 (read, write, edit, glob, grep, bash)
-- explosion Shell command 工具 (mcp:*, skill:*, tools)
+- extend Shell command 工具 (mcp:*, skill:*, tools)
 
 **验证结果**:
 - [x] 显示工具列表

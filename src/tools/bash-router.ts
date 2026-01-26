@@ -1,7 +1,7 @@
 /**
  * Bash 命令路由器
  *
- * 功能：解析和路由 Bash 命令到不同的处理器（Native Shell Command / Agent Shell Command / explosion Shell command）
+ * 功能：解析和路由 Bash 命令到不同的处理器（Native Shell Command / Agent Shell Command / extend Shell command）
  *
  * 核心导出：
  * - BashRouter: Bash 命令路由器类
@@ -21,7 +21,7 @@ import { SkillStructure, DocstringParser, SkillWrapperGenerator } from './conver
 export enum CommandType {
   NATIVE_SHELL_COMMAND = 'native_shell_command',       // Standard Unix commands
   AGENT_SHELL_COMMAND = 'agent_shell_command',         // Built-in Agent commands (read, write, edit, etc.)
-  EXPLOSION_SHELL_COMMAND = 'explosion_shell_command', // Domain-specific tools (mcp:*, skill:*, tools)
+  EXTEND_SHELL_COMMAND = 'extend_shell_command', // Domain-specific tools (mcp:*, skill:*, tools)
 }
 
 /**
@@ -68,8 +68,8 @@ export class BashRouter {
       case CommandType.AGENT_SHELL_COMMAND:
         return await this.executeAgentShellCommand(command);
 
-      case CommandType.EXPLOSION_SHELL_COMMAND:
-        return await this.executeExplosionShellCommand(command);
+      case CommandType.EXTEND_SHELL_COMMAND:
+        return await this.executeExtendShellCommand(command);
 
       default:
         return {
@@ -95,10 +95,10 @@ export class BashRouter {
       }
     }
 
-    // explosion Shell command commands (Layer 3)
+    // extend Shell command commands (Layer 3)
     // mcp:*, skill:*, tools
     if (trimmed.startsWith('mcp:') || trimmed.startsWith('skill:') || trimmed.startsWith('tools ')) {
-      return CommandType.EXPLOSION_SHELL_COMMAND;
+      return CommandType.EXTEND_SHELL_COMMAND;
     }
 
     // Default to Native Shell Command (Layer 1)
@@ -145,10 +145,10 @@ export class BashRouter {
   }
 
   /**
-   * Execute explosion Shell command commands (Layer 3)
+   * Execute extend Shell command commands (Layer 3)
    * Handles mcp:*, skill:*, and tools commands
    */
-  private async executeExplosionShellCommand(command: string): Promise<CommandResult> {
+  private async executeExtendShellCommand(command: string): Promise<CommandResult> {
     const trimmed = command.trim();
 
     // Handle tools command
@@ -168,7 +168,7 @@ export class BashRouter {
 
     return {
       stdout: '',
-      stderr: `Unknown explosion Shell command: ${command}`,
+      stderr: `Unknown extend Shell command: ${command}`,
       exitCode: 1,
     };
   }

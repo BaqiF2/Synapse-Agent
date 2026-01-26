@@ -17,8 +17,8 @@ import type { SkillLevel1 } from '../skills/skill-loader.js';
 export interface SystemPromptOptions {
   /** Include Agent Shell Command commands */
   includeAgentShellCommand?: boolean;
-  /** Include explosion Shell command commands (MCP/Skill) */
-  includeExplosionShellCommand?: boolean;
+  /** Include extend Shell command commands (MCP/Skill) */
+  includeExtendShellCommand?: boolean;
   /** Include skill system instructions */
   includeSkillSystem?: boolean;
   /** Available skills to inject (Level 1 data) */
@@ -75,11 +75,11 @@ Built-in commands for file and skill operations:
 }
 
 /**
- * Build explosion Shell command commands section
+ * Build extend Shell command commands section
  */
-function buildExplosionShellCommandSection(): string {
+function buildExtendShellCommandSection(): string {
   return `
-## 3. explosion Shell command (Domain Tools)
+## 3. extend Shell command (Domain Tools)
 
 Domain-specific tools for MCP servers and Skills:
 
@@ -265,9 +265,9 @@ export function buildSystemPrompt(options?: SystemPromptOptions): string {
     parts.push(buildAgentShellCommandSection());
   }
 
-  // explosion Shell command (optional)
-  if (options?.includeExplosionShellCommand) {
-    parts.push(buildExplosionShellCommandSection());
+  // extend Shell command (optional)
+  if (options?.includeExtendShellCommand) {
+    parts.push(buildExtendShellCommandSection());
   }
 
   // Skill System (optional)

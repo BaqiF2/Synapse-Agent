@@ -1,7 +1,7 @@
 /**
- * E2E Tests - explosion Shell command Tools Integration
+ * E2E Tests - extend Shell command Tools Integration
  *
- * Tests the complete flow of explosion Shell command tools including:
+ * Tests the complete flow of extend Shell command tools including:
  * - Tools search command
  * - MCP configuration parsing
  * - Skill wrapper generation
@@ -23,7 +23,7 @@ const TEST_HOME = path.join(os.tmpdir(), `synapse-field-e2e-${Date.now()}`);
 const TEST_BIN_DIR = path.join(TEST_HOME, '.synapse', 'bin');
 const TEST_CONFIG_DIR = path.join(TEST_HOME, '.synapse', 'mcp');
 
-describe('E2E: explosion Shell command Tools Integration', () => {
+describe('E2E: extend Shell command Tools Integration', () => {
   beforeAll(() => {
     // Create test directories
     fs.mkdirSync(TEST_BIN_DIR, { recursive: true });

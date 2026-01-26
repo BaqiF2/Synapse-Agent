@@ -389,7 +389,7 @@ function showToolsList(): void {
   console.log(chalk.gray('  grep <pattern>   ') + chalk.white('Search file contents'));
   console.log(chalk.gray('  bash <cmd>       ') + chalk.white('Execute bash command'));
   console.log();
-  console.log(chalk.white.bold('explosion Shell command Tools (Layer 3):'));
+  console.log(chalk.white.bold('extend Shell command Tools (Layer 3):'));
   console.log(chalk.gray('  tools search     ') + chalk.white('Search installed tools'));
   console.log(chalk.gray('  skill search     ') + chalk.white('Search available skills'));
   console.log(chalk.gray('  mcp:*            ') + chalk.white('MCP server tools'));
@@ -611,7 +611,7 @@ export async function startRepl(): Promise<void> {
     // Build system prompt
     const systemPrompt = buildSystemPrompt({
       includeAgentShellCommand: true,
-      includeExplosionShellCommand: true,
+      includeExtendShellCommand: true,
       includeSkillSystem: true,
       cwd: process.cwd(),
     });
