@@ -254,7 +254,7 @@ describe('E2E: Context Persistence', () => {
   });
 
   describe('Tool Calls Persistence', () => {
-    test('should persist tool use messages', () => {
+    test('should persist tool use messages in content field', () => {
       const persistence = new ContextPersistence(undefined, testDir);
       const sessionId = persistence.getSessionId();
 
@@ -270,16 +270,19 @@ describe('E2E: Context Persistence', () => {
         },
       ]);
 
-      // Verify persistence
-      const content = fs.readFileSync(persistence.getSessionPath(), 'utf-8');
-      const line = JSON.parse(content.trim());
+      // Verify persistence - toolCalls are now stored in content field
+      const fileContent = fs.readFileSync(persistence.getSessionPath(), 'utf-8');
+      const line = JSON.parse(fileContent.trim());
 
-      expect(line.toolCalls).toBeDefined();
-      expect(line.toolCalls.length).toBe(1);
-      expect(line.toolCalls[0].name).toBe('Bash');
+      expect(line.content).toBeDefined();
+      expect(Array.isArray(line.content)).toBe(true);
+      const toolUseBlock = line.content.find((block: { type: string }) => block.type === 'tool_use');
+      expect(toolUseBlock).toBeDefined();
+      expect(toolUseBlock.name).toBe('Bash');
+      expect(toolUseBlock.id).toBe('tool_1');
     });
 
-    test('should persist tool result messages', () => {
+    test('should persist tool result messages in content field', () => {
       const persistence = new ContextPersistence(undefined, testDir);
 
       const contextManager = new ContextManager({
@@ -295,13 +298,15 @@ describe('E2E: Context Persistence', () => {
         },
       ]);
 
-      // Verify persistence
-      const content = fs.readFileSync(persistence.getSessionPath(), 'utf-8');
-      const line = JSON.parse(content.trim());
+      // Verify persistence - toolResults are now stored in content field
+      const fileContent = fs.readFileSync(persistence.getSessionPath(), 'utf-8');
+      const line = JSON.parse(fileContent.trim());
 
-      expect(line.toolResults).toBeDefined();
-      expect(line.toolResults.length).toBe(1);
-      expect(line.toolResults[0].tool_use_id).toBe('tool_1');
+      expect(line.content).toBeDefined();
+      expect(Array.isArray(line.content)).toBe(true);
+      const toolResultBlock = line.content.find((block: { type: string }) => block.type === 'tool_result');
+      expect(toolResultBlock).toBeDefined();
+      expect(toolResultBlock.tool_use_id).toBe('tool_1');
     });
   });
 

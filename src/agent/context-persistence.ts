@@ -26,30 +26,14 @@ const logger = createLogger('persistence');
 
 /**
  * Schema for persistent message
+ * Note: toolCalls and toolResults are stored within content field (ContentBlockParam[])
+ * to avoid data redundancy
  */
 export const PersistentMessageSchema = z.object({
   id: z.string(),
   timestamp: z.string(),
   role: z.enum(['user', 'assistant']),
-  content: z.unknown(), // Can be string or ContentBlockParam[]
-  toolCalls: z
-    .array(
-      z.object({
-        id: z.string(),
-        name: z.string(),
-        input: z.record(z.string(), z.unknown()),
-      })
-    )
-    .optional(),
-  toolResults: z
-    .array(
-      z.object({
-        tool_use_id: z.string(),
-        content: z.string(),
-        is_error: z.boolean().optional(),
-      })
-    )
-    .optional(),
+  content: z.unknown(), // Can be string or ContentBlockParam[] (includes tool_use and tool_result)
 });
 
 export type PersistentMessage = z.infer<typeof PersistentMessageSchema>;
@@ -254,45 +238,6 @@ export class ContextPersistence {
       role: message.role,
       content: message.content,
     };
-
-    // Handle tool_use in content
-    if (Array.isArray(message.content)) {
-      const toolUses = message.content.filter(
-        (
-          block
-        ): block is { type: 'tool_use'; id: string; name: string; input: Record<string, unknown> } =>
-          typeof block === 'object' && block !== null && 'type' in block && block.type === 'tool_use'
-      );
-      if (toolUses.length > 0) {
-        persistentMsg.toolCalls = toolUses.map((tu) => ({
-          id: tu.id,
-          name: tu.name,
-          input: tu.input,
-        }));
-      }
-
-      const toolResults = message.content.filter(
-        (
-          block
-        ): block is {
-          type: 'tool_result';
-          tool_use_id: string;
-          content: string;
-          is_error?: boolean;
-        } =>
-          typeof block === 'object' &&
-          block !== null &&
-          'type' in block &&
-          block.type === 'tool_result'
-      );
-      if (toolResults.length > 0) {
-        persistentMsg.toolResults = toolResults.map((tr) => ({
-          tool_use_id: tr.tool_use_id,
-          content: typeof tr.content === 'string' ? tr.content : JSON.stringify(tr.content),
-          is_error: tr.is_error,
-        }));
-      }
-    }
 
     try {
       const line = JSON.stringify(persistentMsg) + '\n';
