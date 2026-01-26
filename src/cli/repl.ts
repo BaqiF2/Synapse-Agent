@@ -27,6 +27,7 @@ import { buildSystemPrompt } from '../agent/system-prompt.ts';
 import { ContextPersistence } from '../agent/context-persistence.ts';
 import { BashToolSchema } from '../tools/bash-tool-schema.ts';
 import { initializeMcpTools } from '../tools/converters/mcp/index.ts';
+import { initializeSkillTools } from '../tools/converters/skill/index.ts';
 import { createLogger } from '../utils/logger.ts';
 
 const cliLogger = createLogger('cli');
@@ -645,6 +646,24 @@ export async function startRepl(): Promise<void> {
     const message = error instanceof Error ? error.message : 'Unknown error';
     cliLogger.warn(`MCP initialization failed: ${message}`);
     console.log(chalk.yellow(`⚠ MCP tools unavailable: ${message}`));
+  }
+
+  // Initialize Skill tools from skills directory
+  try {
+    const skillResult = await initializeSkillTools();
+    if (skillResult.totalToolsInstalled > 0) {
+      console.log(
+        chalk.green(
+          `✓ Loaded ${skillResult.totalToolsInstalled} skill tool(s) from ${skillResult.totalSkills} skill(s)`
+        )
+      );
+    } else if (skillResult.totalSkills > 0) {
+      console.log(chalk.gray(`  No skill tools to load (${skillResult.totalSkills} skill(s) found)`));
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    cliLogger.warn(`Skill initialization failed: ${message}`);
+    console.log(chalk.yellow(`⚠ Skill tools unavailable: ${message}`));
   }
 
   // Initialize state

@@ -54,3 +54,12 @@ export {
   type AutoUpdaterConfig,
   type UpdateEventHandler,
 } from './auto-updater.js';
+
+export {
+  initializeSkillTools,
+  cleanupSkillTools,
+  refreshSkillTools,
+  type SkillInitResult,
+  type SkillsInitResult,
+  type SkillInitOptions,
+} from './skill-initializer.js';

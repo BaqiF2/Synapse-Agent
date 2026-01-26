@@ -464,38 +464,18 @@ You (3)> 执行 mcp:filesystem:read_file -h
 
 ---
 
-## 8. 技能系统测试
+## 8. 技能系统测试（阶段1范围）
+
+> **注意**: 阶段1仅验证 Skill2Bash 转换器功能，即技能脚本能被解析为 `skill:*` 命令并通过 `tools search` 搜索。
+> 技能搜索 Agent（智能匹配、读取 SKILL.md 按指令执行）属于阶段2功能。
 
 ### 8.1 准备测试技能
 
-创建测试技能目录和文件:
+创建测试技能目录和脚本:
 
 ```bash
 # 创建技能目录
 mkdir -p ~/.synapse/skills/test-skill/scripts
-
-# 创建 SKILL.md
-cat > ~/.synapse/skills/test-skill/SKILL.md << 'EOF'
-# test-skill
-
-**领域**: general
-**描述**: 测试技能，用于验证技能系统功能
-**标签**: test, demo, validation
-
-## 使用场景
-用于端到端测试技能系统是否正常工作。
-
-## 工具依赖
-- skill:test-skill:hello
-
-## 执行流程
-1. 调用 hello 脚本
-2. 返回问候信息
-
-## 示例
-输入: skill:test-skill:hello World
-输出: Hello, World!
-EOF
 
 # 创建测试脚本
 cat > ~/.synapse/skills/test-skill/scripts/hello.sh << 'EOF'
@@ -517,40 +497,58 @@ EOF
 chmod +x ~/.synapse/skills/test-skill/scripts/hello.sh
 ```
 
-### 8.2 技能加载
+### 8.2 技能工具解析验证
 
-```
-You (1)> 请读取 test-skill 的 SKILL.md 文档
+重启 Agent 或等待后台监听进程检测到新脚本:
+
+```bash
+# 重启 Agent 以触发技能扫描
+bun run chat
 ```
 
 **预期行为**:
-- Agent 读取并显示技能文档
+- Skill2Bash 转换器解析 `scripts/hello.sh` 的 docstring
+- 生成 `skill:test-skill:hello` 命令包装器
+- 命令安装到 `~/.synapse/bin/`
 
 **验证结果**:
-- [ ] 显示技能文档内容
+- [x] `~/.synapse/bin/skill:test-skill:hello` 文件存在
+- [x] 文件具有可执行权限
 
-### 8.3 执行技能工具
+### 8.3 技能工具搜索
 
 ```
-You (2)> 请执行 skill:test-skill:hello Synapse
+You (1)> tools search "skill:test-skill"
+```
+
+**预期输出**: 显示 `skill:test-skill:hello` 工具
+
+**验证结果**:
+- [x] 搜索返回 skill:test-skill:hello
+- [x] 显示工具描述信息
+
+### 8.4 执行技能工具
+
+```
+You (2)> skill:test-skill:hello Synapse
 ```
 
 **预期输出**: `Hello, Synapse!`
 
 **验证结果**:
-- [ ] 技能工具执行成功
-- [ ] 输出正确
+- [x] 技能工具执行成功
+- [x] 输出正确
 
-### 8.4 技能工具帮助
+### 8.5 技能工具帮助
 
 ```
-You (3)> 执行 skill:test-skill:hello -h
+You (3)> skill:test-skill:hello -h
 ```
 
 **预期输出**: 显示 hello 脚本的使用说明
 
 **验证结果**:
-- [ ] 显示帮助信息
+- [x] 显示帮助信息
 
 ---
 
