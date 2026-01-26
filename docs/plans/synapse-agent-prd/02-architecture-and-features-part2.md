@@ -136,92 +136,206 @@ field:programming:pylint src/main.py
 
 #### 4.4.3 技能搜索 Agent（阶段 2 核心）
 
-技能搜索 Agent 是一个 子 Agent，负责根据用户任务智能选择需要加载的技能元数据。
+技能搜索 Agent 是一个**持久化子 Agent**，拥有独立的 LLM 会话，负责技能的搜索与加载。
 
-**触发时机**：
-- 用户任务进入 Agent Loop 后，主 Agent 根据任务复杂度判断是否需要调用技能搜索 Agent
-- 简单任务（如文件读写、简单计算）无需技能，直接执行
-- 复杂任务（如代码分析、数据处理、领域特定操作）调用技能搜索 Agent
+**架构特点**：
+- **独立上下文**：拥有自己的系统提示词和对话历史，与主 Agent 隔离
+- **持久化运行**：首次 `skill` 命令时启动，在当前 session 后台持续运行
+- **会话复用**：后续所有 `skill search` 命令复用同一个子 Agent 会话
+- **生命周期**：主 session 结束时，子 Agent 随之结束
 
-**工作流程**：
-1. 接收用户任务描述和当前上下文
-2. 读取技能索引文件 (`~/.synapse/skills/index.json`)
-3. 根据任务关键词、领域描述、技能描述等因素，匹配相关技能
-4. **返回所有匹配的技能元数据**（不限制数量，因为只是元数据加载）
-5. 将技能元数据列表注入系统提示词或上下文
-6. **LLM 自主判断**：在后续执行过程中，LLM 根据任务需要，通过 `read` 命令加载具体的 SKILL.md 文件
+**内存数据结构**（Skill 子 Agent 内部维护）：
 
-**示例**：
+```typescript
+interface SkillMetadata {
+  name: string;        // 技能名称
+  description: string; // 技能描述
+  body: string;        // SKILL.md 正文（按需加载）
+  path: string;        // SKILL.md 完整路径
+  dir: string;         // 技能目录路径
+}
+
+// 内存映射：name → SkillMetadata
+skills: Map<string, SkillMetadata>
+```
+
+**阶段 2 命令集**：
+
+| 命令 | 功能 | 路由方式 |
+|------|------|----------|
+| `skill search "<描述>"` | 搜索匹配的技能，返回元数据列表 | 经过 Skill 子 Agent（LLM 语义匹配） |
+| `skill load <name>` | 加载技能完整 SKILL.md 内容 | 直接从内存映射读取（纯代码逻辑） |
+
+**`skill search` 命令**：
+
+```
+用法：skill search "<功能描述>"
+功能：使用 LLM 语义匹配，在技能库中搜索相关技能
+返回：JSON 格式的技能元数据列表
+```
+
+返回格式（JSON）：
+```json
+{
+  "matched_skills": [
+    {
+      "name": "code-quality-analyzer",
+      "description": "分析代码质量并提供改进建议"
+    },
+    {
+      "name": "code-refactor",
+      "description": "重构代码以提升可读性和可维护性"
+    }
+  ]
+}
+```
+
+主 Agent 处理流程：
+1. 解析 JSON 返回结果
+2. 将技能元数据转换为 XML 标签格式注入 LLM 上下文
+
+注入 LLM 的格式（XML）：
+```xml
+<available-skills>
+  <skill name="code-quality-analyzer">
+    分析代码质量并提供改进建议
+  </skill>
+  <skill name="code-refactor">
+    重构代码以提升可读性和可维护性
+  </skill>
+</available-skills>
+```
+
+**`skill load` 命令**：
+
+```
+用法：skill load <skill_name>
+功能：根据 name 从内存映射中定位 SKILL.md，返回完整内容
+前提：技能必须已被 search 命令加载到内存
+```
+
+**完整执行流程示例**：
+
 ```
 用户任务: "帮我分析这个 Python 项目的代码质量并生成报告"
 
-技能搜索 Agent 分析:
-- 关键词: "分析", "Python", "代码质量", "报告"
-- 匹配领域: programming (编程相关技能)
-- 匹配技能:
-  1. code-quality-analyzer (描述匹配 "代码质量分析")
-  2. code-refactor (可能相关 "代码优化")
-  3. report-generator (描述匹配 "生成报告")
-
-返回技能元数据列表（所有匹配的技能）:
-[
-  {
-    "name": "code-quality-analyzer",
-    "domain": "programming",
-    "description": "分析代码质量并提供改进建议...",
-    "path": "~/.synapse/skills/code-quality-analyzer"
-  },
-  {
-    "name": "code-refactor",
-    "domain": "programming",
-    "description": "重构代码以提升可读性和可维护性...",
-    "path": "~/.synapse/skills/code-refactor"
-  },
-  {
-    "name": "report-generator",
-    "domain": "general",
-    "description": "生成结构化报告...",
-    "path": "~/.synapse/skills/report-generator"
-  }
-]
-
-主 Agent 执行:
-- 将元数据列表注入上下文（成本低，约 300 tokens）
-- LLM 开始任务执行，自行判断是否需要加载技能
-- LLM 决定: 需要 code-quality-analyzer 技能
-- LLM 执行: read ~/.synapse/skills/code-quality-analyzer/SKILL.md
-- [SKILL.md 内容注入上下文，按指令执行]
-- LLM 判断: 需要 report-generator 生成报告
-- LLM 执行: read ~/.synapse/skills/report-generator/SKILL.md
-- [继续按指令完成报告生成]
+┌─────────────────────────────────────────────────────────────┐
+│ 1. 主 Agent 判断需要技能支持，执行 skill search             │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│ 2. Skill 子 Agent（首次调用，启动并持久化运行）              │
+│    - 初始化 SkillLoader，加载技能索引到内存                  │
+│    - LLM 语义分析任务描述                                    │
+│    - 匹配相关技能，返回 JSON                                 │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│ 3. 主 Agent 处理返回结果                                     │
+│    - 解析 JSON                                               │
+│    - 转换为 XML 标签格式注入 LLM 上下文                      │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│ 4. LLM 根据 <available-skills> 选择技能                     │
+│    - 决定使用 code-quality-analyzer                          │
+│    - 执行: skill load code-quality-analyzer                  │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│ 5. Shell Command 解析器处理 skill load（不经过子 Agent）     │
+│    - 解析参数获取 skill name                                 │
+│    - 从系统内存映射中查找路径                                │
+│    - 读取 SKILL.md 完整内容并返回                            │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│ 6. 主 Agent 将 SKILL.md 内容注入上下文                       │
+│    - LLM 按照技能指令执行任务                                │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-**关键改进**：
-- **不限制搜索数量**：返回所有匹配的技能元数据，由 LLM 自主选择
-- **渐进式加载**：技能搜索只加载元数据（Level 1），SKILL.md 加载（Level 2）由 LLM 在执行过程中自主决定
-- **灵活性**：LLM 可以根据任务进展动态加载所需技能，无需预先确定
+**核心实现参考**（SkillLoader 类，Skill 子 Agent 内部组件）：
+
+```typescript
+class SkillLoader {
+  private skills: Map<string, SkillMetadata> = new Map();
+  private skillsDir: string;
+
+  constructor(skillsDir: string) {
+    this.skillsDir = skillsDir;
+    this.loadSkills();  // 子 Agent 初始化时调用
+  }
+
+  /**
+   * 解析 SKILL.md 文件，提取 YAML frontmatter 和正文
+   * 返回 {name, description, body, path, dir}
+   */
+  parseSkillMd(path: string): SkillMetadata | null { /* ... */ }
+
+  /**
+   * 扫描技能目录，加载所有有效的 SKILL.md 元数据
+   * 启动时调用，只加载元数据，body 按需加载
+   */
+  loadSkills(): void { /* ... */ }
+
+  /**
+   * 生成技能描述列表（用于 skill search 的 LLM 上下文）
+   */
+  getDescriptions(): string { /* ... */ }
+
+  /**
+   * 获取技能完整内容（用于 skill load）
+   */
+  getSkillContent(name: string): string | null {
+    const skill = this.skills.get(name);
+    if (!skill) return null;
+    return `# Skill: ${name}\n\n${skill.body}`;
+  }
+}
+```
+
+**关键设计点**：
+- **启动时加载元数据**：`loadSkills()` 在子 Agent 初始化时调用
+- **按需读取正文**：`body` 字段在首次 `skill load` 时才从文件读取
+- **内存映射共享**：SkillLoader 实例作为共享组件，主 Agent 和子 Agent 都可访问
+
+**设计优势**：
+- **上下文精简**：元数据加载成本低，body 按需加载
+- **会话复用**：子 Agent 持久化避免重复初始化
+- **路径解耦**：LLM 无需知道 SKILL.md 具体路径，通过 name 访问
+- **格式统一**：JSON 返回 + XML 注入，结构清晰
 
 #### 4.4.4 技能加载与执行机制
 
 **渐进式加载**（三层架构）：
 
-- **Level 1 - 元数据加载（技能搜索工具返回）**：
-  - 技能搜索 Agent 读取技能索引文件 `index.json`，获取所有技能的元数据
-  - 将元数据注入系统提示词，成本约 100 tokens/技能
-  - LLM 知道所有可用技能及其用途
-  - 根据用户搜索技能描述，匹配相关技能
-  - 解析SKILL.md,缓存技能结构数据,返回匹配的技能元数据列表
-  - 主 Agent 根据匹配的技能元数据列表，决定需要加载的技能
+- **Level 1 - 元数据加载（子 Agent 初始化时）**：
+  - Skill 子 Agent 首次启动时，通过 `loadSkills()` 扫描技能目录
+  - 解析所有 SKILL.md 文件的 YAML frontmatter，提取元数据（name、description）
+  - 元数据缓存到内存映射 `skills: Map<string, SkillMetadata>`
+  - body 字段暂不加载，保持初始化轻量
 
-- **Level 2 - 指令加载（任务匹配时）**：
-  - 技能搜索 Agent 返回需要加载的技能列表
-  - 主 Agent 通过 `skill load <name>` 命令或取对应的 SKILL.md 文件
-  - SKILL.md 内容以 tool result 形式注入上下文（非系统提示词，保持缓存命中）
-  - LLM 根据 SKILL.md 中的指令自主执行相应的 Bash 命令
+- **Level 2 - 搜索与选择（任务匹配时）**：
+  - 主 Agent 执行 `skill search "<功能描述>"` 命令
+  - Skill 子 Agent 使用 LLM 语义匹配，返回 JSON 格式的匹配结果
+  - 主 Agent 解析 JSON，转换为 XML 标签格式注入 LLM 上下文
+  - LLM 根据 `<available-skills>` 自主选择需要的技能
 
-- **Level 3 - 资源加载（按需）**：
+- **Level 3 - 内容加载（按需）**：
+  - LLM 执行 `skill load <name>` 命令加载具体技能
+  - Shell Command 解析器从内存映射中读取 SKILL.md 完整内容（不经过子 Agent）
+  - SKILL.md 内容以 tool result 形式注入上下文
+  - LLM 根据 SKILL.md 中的指令自主执行相应的 Shell 命令
+
+- **Level 4 - 资源加载（深度按需）**：
   - 仅在 SKILL.md 引用时，LLM 通过 `read` 命令读取额外文件
-  - 脚本通过 Bash 执行，只有输出进入上下文
+  - 脚本通过 Shell 执行，只有输出进入上下文
 
 **执行示例**：
 
@@ -230,22 +344,33 @@ field:programming:pylint src/main.py
 
 主 Agent 判断: 任务复杂，需要技能支持
 
-主 Agent → 技能搜索 Agent:
-task skill-search "分析 Python 项目代码质量"
-
-技能搜索 Agent 返回: ["code-quality-analyzer"]
-
 主 Agent 执行:
+skill search "分析 Python 项目代码质量"
+
+Skill 子 Agent 返回 (JSON):
+{
+  "matched_skills": [
+    {"name": "code-quality-analyzer", "description": "分析代码质量并提供改进建议"}
+  ]
+}
+
+主 Agent 处理:
+- 解析 JSON，转换为 XML 注入 LLM 上下文:
+  <available-skills>
+    <skill name="code-quality-analyzer">分析代码质量并提供改进建议</skill>
+  </available-skills>
+
+LLM 决策并执行:
 1. skill load code-quality-analyzer
 2. [SKILL.md 内容注入上下文]
 3. 按照 SKILL.md 指令执行:
    - glob "**/*.py"
    - read src/main.py
-   - field:programming:pylint src/main.py
+   - skill:code-quality-analyzer:pylint src/main.py
 4. 根据执行结果生成分析报告
 ```
 
 **记忆与技能的关系**：
 - 根据已知定律："文件系统是一种记忆" 和 "技能 = 文件系统 + 工具"
 - 技能保存在文件系统中，即实现了知识的持久化记忆
-- 技能强化 Agent 保存/更新技能 = 更新记忆
+- 技能强化 Agent 保存/更新技能 = 更新记忆（阶段 3 实现）
