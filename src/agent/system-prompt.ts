@@ -202,11 +202,60 @@ Examples:
 
 ### skill search - Search for skills in the skill library
 \`\`\`
-Usage: skill search [query]
+Usage: skill search [query] [OPTIONS]
 
 Arguments:
-  [query]        Search query (What abilities are required to complete the current task?)
+  [query]        Search query (matches name, description, tags, tools)
 
+Options:
+  --domain <d>   Filter by domain: workflow, data, code, automation, integration
+  --tag <tag>    Filter by tag (can be used multiple times)
+  --max <n>      Maximum number of results (default: 20)
+  --tools        Show tool commands in output
+  --rebuild      Rebuild the skill index before searching
+
+Search Behavior:
+  - Query matches skill name, title, description, tags, and tools
+  - Results are ranked by relevance score
+  - Domain and tag filters are applied before query matching
+
+Examples:
+  skill search pdf              # Search for skills related to PDF
+  skill search --domain data    # List all data-related skills
+  skill search --tag automation # Find skills tagged with "automation"
+  skill search git --tools      # Search for git skills, show tool commands
+\`\`\`
+
+### tools - Search and manage installed MCP and Skill tools
+\`\`\`
+Usage: tools <subcommand> [options]
+
+Subcommands:
+  search [pattern]   Search for tools by pattern
+  list               List all installed tools
+  help               Show help message
+
+Options:
+  --type=mcp         Only search MCP tools (mcp:* commands)
+  --type=skill       Only search Skill tools (skill:* commands)
+
+Pattern Syntax:
+  *     Match any characters
+  ?     Match a single character
+
+Tool Types:
+  mcp:*    MCP server tools (e.g., mcp:git-tools:commit)
+  skill:*  Skill script tools (e.g., skill:pdf-editor:extract_text)
+
+Tool Locations:
+  Installed tools: ~/.synapse/bin/
+  Skills source:   ~/.synapse/skills/
+
+Examples:
+  tools search git          # Search for tools containing "git"
+  tools search --type=mcp   # List all MCP tools
+  tools search --type=skill # List all Skill tools
+  tools list                # List all installed tools
 \`\`\``;
 }
 
@@ -218,12 +267,6 @@ function buildFieldBashSection(): string {
 ## 3. Field Bash (Domain Tools)
 
 Domain-specific tools for MCP servers and Skills:
-
-### Tool Discovery
-- \`tools search [pattern]\` - Search all available tools
-- \`tools search --type=mcp\` - List all MCP tools
-- \`tools search --type=skill\` - List all Skill tools
-- \`tools list\` - List all installed tools
 
 ### MCP Tools
 Format: \`mcp:<server>:<tool> [args...]\`
