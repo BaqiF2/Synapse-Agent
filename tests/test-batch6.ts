@@ -58,19 +58,19 @@ async function testBatch6() {
   // 默认提示词
   const defaultPrompt = buildSystemPrompt();
   console.log('默认提示词长度:', defaultPrompt.length, '字符');
-  console.log('包含 Agent Bash:', defaultPrompt.includes('Agent Bash'));
+  console.log('包含 Agent Shell Command:', defaultPrompt.includes('Agent Shell Command'));
   console.log('包含 read 命令:', defaultPrompt.includes('read <file_path>'));
   console.log('包含 glob 命令:', defaultPrompt.includes('glob <pattern>'));
 
   // 带选项的提示词
   const customPrompt = buildSystemPrompt({
     cwd: '/home/user/project',
-    includeFieldBash: true,
+    includeExplosionShellCommand: true,
     customInstructions: '请用中文回复。',
   });
   console.log('自定义提示词长度:', customPrompt.length, '字符');
   console.log('包含工作目录:', customPrompt.includes('/home/user/project'));
-  console.log('包含 Field Bash:', customPrompt.includes('Field Bash'));
+  console.log('包含 explosion Shell command:', customPrompt.includes('explosion Shell command'));
   console.log('包含附加指令:', customPrompt.includes('请用中文回复'));
 
   // 最小提示词

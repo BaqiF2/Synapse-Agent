@@ -381,7 +381,7 @@ function showConversationHistory(history: ConversationEntry[]): void {
 function showToolsList(): void {
   printSectionHeader('Available Tools');
   console.log();
-  console.log(chalk.white.bold('Agent Bash Tools (Layer 2):'));
+  console.log(chalk.white.bold('Agent Shell Command Tools (Layer 2):'));
   console.log(chalk.gray('  read <file>      ') + chalk.white('Read file contents'));
   console.log(chalk.gray('  write <file>     ') + chalk.white('Write content to file'));
   console.log(chalk.gray('  edit <file>      ') + chalk.white('Edit file (string replacement)'));
@@ -389,7 +389,7 @@ function showToolsList(): void {
   console.log(chalk.gray('  grep <pattern>   ') + chalk.white('Search file contents'));
   console.log(chalk.gray('  bash <cmd>       ') + chalk.white('Execute bash command'));
   console.log();
-  console.log(chalk.white.bold('Field Bash Tools (Layer 3):'));
+  console.log(chalk.white.bold('explosion Shell command Tools (Layer 3):'));
   console.log(chalk.gray('  tools search     ') + chalk.white('Search installed tools'));
   console.log(chalk.gray('  skill search     ') + chalk.white('Search available skills'));
   console.log(chalk.gray('  mcp:*            ') + chalk.white('MCP server tools'));
@@ -610,8 +610,8 @@ export async function startRepl(): Promise<void> {
 
     // Build system prompt
     const systemPrompt = buildSystemPrompt({
-      includeAgentBash: true,
-      includeFieldBash: true,
+      includeAgentShellCommand: true,
+      includeExplosionShellCommand: true,
       includeSkillSystem: true,
       cwd: process.cwd(),
     });

@@ -74,7 +74,7 @@ async function testBatch3() {
     const systemPrompt = buildSystemPrompt();
 
     if (systemPrompt.includes('Synapse Agent') &&
-        systemPrompt.includes('Base Bash') &&
+        systemPrompt.includes('Native Shell Command') &&
         systemPrompt.includes('持久会话')) {
       console.log('  ✅ System prompt contains required content');
       console.log(`  ✅ System prompt length: ${systemPrompt.length} characters`);

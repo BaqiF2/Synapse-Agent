@@ -15,10 +15,10 @@ import type { SkillLevel1 } from '../skills/skill-loader.js';
  * Options for building the system prompt
  */
 export interface SystemPromptOptions {
-  /** Include Agent Bash commands */
-  includeAgentBash?: boolean;
-  /** Include Field Bash commands (MCP/Skill) */
-  includeFieldBash?: boolean;
+  /** Include Agent Shell Command commands */
+  includeAgentShellCommand?: boolean;
+  /** Include explosion Shell command commands (MCP/Skill) */
+  includeExplosionShellCommand?: boolean;
   /** Include skill system instructions */
   includeSkillSystem?: boolean;
   /** Available skills to inject (Level 1 data) */
@@ -49,21 +49,21 @@ All operations are performed through the single **Bash** tool. You execute comma
 }
 
 /**
- * Build Base Bash commands section
+ * Build Native Shell Command commands section
  */
-function buildBaseBashSection(): string {
+function buildNativeShellCommandSection(): string {
   return `
-## 1. Base Bash (System Commands)
+## 1. Native Shell Command (System Commands)
 
 Standard Unix/Linux commands: \`ls\`, \`grep\`, \`cat\`, \`curl\`, \`git\`, etc.`;
 }
 
 /**
- * Build Agent Bash commands section
+ * Build Agent Shell Command commands section
  */
-function buildAgentBashSection(): string {
+function buildAgentShellCommandSection(): string {
   return `
-## 2. Agent Bash (Core Tools)
+## 2. Agent Shell Command (Core Tools)
 
 Built-in commands for file and skill operations:
 - \`read <file_path> [--offset N] [--limit N]\` - Read file contents
@@ -75,11 +75,11 @@ Built-in commands for file and skill operations:
 }
 
 /**
- * Build Field Bash commands section
+ * Build explosion Shell command commands section
  */
-function buildFieldBashSection(): string {
+function buildExplosionShellCommandSection(): string {
   return `
-## 3. Field Bash (Domain Tools)
+## 3. explosion Shell command (Domain Tools)
 
 Domain-specific tools for MCP servers and Skills:
 
@@ -168,24 +168,24 @@ function buildExecutionPrinciplesSection(): string {
 
 **CRITICAL: Execute exactly what is requested, nothing more.**
 
-1. **Tool Priority**: Always use Agent Bash tools for file operations when available:
+1. **Tool Priority**: Always use Agent Shell Command tools for file operations when available:
    - Use \`read\` instead of \`cat\` for reading files
    - Use \`write\` instead of \`echo >\` for writing files
    - Use \`edit\` instead of \`sed\` for editing files
    - Use \`glob\` instead of \`find\` for finding files
    - Use \`grep\` instead of native \`grep\` for searching
-   - Only fall back to Unix commands when Agent Bash tools cannot accomplish the task
+   - Only fall back to Unix commands when Agent Shell Command tools cannot accomplish the task
 
 2. **Command Learning**: When encountering an unfamiliar command or tool:
    - **Step 1**: Use \`-h\` to understand what the tool does (brief info)
    - **Step 2**: If needed, use \`--help\` to learn how to use it (detailed usage)
    - **Step 3**: Only then make the actual call with correct parameters
-   - This applies to ALL tools: Agent Bash, MCP tools, and Skill tools
+   - This applies to ALL tools: Agent Shell Command, MCP tools, and Skill tools
    - Example workflow for MCP tool:
      * First: \`mcp:context7:resolve-library-id -h\` (what does it do?)
      * Then: \`mcp:context7:resolve-library-id --help\` (how to use it?)
      * Finally: \`mcp:context7:resolve-library-id --query "react" --libraryName "react"\` (actual call)
-   - Example workflow for Agent Bash:
+   - Example workflow for Agent Shell Command:
      * First: \`write -h\` (what does it do?)
      * Then: \`write --help\` (see parameters)
      * Finally: \`write /tmp/test.txt "Hello World"\` (actual call)
@@ -227,7 +227,7 @@ function buildExecutionPrinciplesSection(): string {
      * Finally: \`write /tmp/test.txt "Hello World"\` (execute once)
    - WRONG: Call \`write\` directly without understanding its parameters
    - WRONG: Try multiple incorrect formats without checking help first
-   - WRONG: Fall back to \`echo "Hello World" > /tmp/test.txt\` without trying Agent Bash
+   - WRONG: Fall back to \`echo "Hello World" > /tmp/test.txt\` without trying Agent Shell Command
 
 9. **Example of correct MCP tool learning**:
    - User: "Search for react library documentation"
@@ -257,17 +257,17 @@ export function buildSystemPrompt(options?: SystemPromptOptions): string {
 
 ## Three-Layer Bash Architecture`);
 
-  // Base Bash
-  parts.push(buildBaseBashSection());
+  // Native Shell Command
+  parts.push(buildNativeShellCommandSection());
 
-  // Agent Bash (enabled by default)
-  if (options?.includeAgentBash !== false) {
-    parts.push(buildAgentBashSection());
+  // Agent Shell Command (enabled by default)
+  if (options?.includeAgentShellCommand !== false) {
+    parts.push(buildAgentShellCommandSection());
   }
 
-  // Field Bash (optional)
-  if (options?.includeFieldBash) {
-    parts.push(buildFieldBashSection());
+  // explosion Shell command (optional)
+  if (options?.includeExplosionShellCommand) {
+    parts.push(buildExplosionShellCommandSection());
   }
 
   // Skill System (optional)
@@ -302,5 +302,5 @@ Available commands:
 
 Use --help to see command details.
 
-CRITICAL: Use Agent Bash tools (read, write, edit, glob, grep) instead of Unix equivalents when available.`;
+CRITICAL: Use Agent Shell Command tools (read, write, edit, glob, grep) instead of Unix equivalents when available.`;
 }

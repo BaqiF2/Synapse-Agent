@@ -255,7 +255,7 @@ async function testSystemPromptSkillSystem(): Promise<void> {
 
   const promptWithSkills = buildSystemPrompt({
     includeSkillSystem: true,
-    includeFieldBash: true,
+    includeExplosionShellCommand: true,
     availableSkills: skills,
   });
 
@@ -267,9 +267,9 @@ async function testSystemPromptSkillSystem(): Promise<void> {
     console.log('  [WARN] Available skills section may not be included');
   }
 
-  // Test Field Bash section
-  if (promptWithSkills.includes('Field Bash') && promptWithSkills.includes('mcp:')) {
-    console.log('  [PASS] Field Bash section included');
+  // Test explosion Shell command section
+  if (promptWithSkills.includes('explosion Shell command') && promptWithSkills.includes('mcp:')) {
+    console.log('  [PASS] explosion Shell command section included');
   }
 
   // Test prompt sections
