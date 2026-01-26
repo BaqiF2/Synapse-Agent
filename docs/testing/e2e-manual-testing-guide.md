@@ -11,8 +11,8 @@
 1. [环境准备](#1-环境准备)
 2. [CLI 启动和基础命令](#2-cli-启动和基础命令)
 3. [REPL 特殊命令](#3-repl-特殊命令)
-4. [Base Bash 工具测试](#4-base-bash-工具测试)
-5. [Agent Bash 工具测试](#5-agent-bash-工具测试)
+4. [Native Shell Command 工具测试](#4-native-shell-command-工具测试)
+5. [Agent Shell Command 工具测试](#5-agent-shell-command-工具测试)
 6. [持久 Bash 会话测试](#6-持久-bash-会话测试)
 7. [MCP 工具测试](#7-mcp-工具测试)
 8. [技能系统测试](#8-技能系统测试)
@@ -154,9 +154,9 @@ You (1)> /tools
 ```
 
 **预期输出**: 显示所有可用的工具列表，包括:
-- Base Bash 工具
-- Agent Bash 工具 (read, write, edit, glob, grep, bash)
-- Field Bash 工具 (mcp:*, skill:*, tools)
+- Native Shell Command 工具
+- Agent Shell Command 工具 (read, write, edit, glob, grep, bash)
+- explosion Shell command 工具 (mcp:*, skill:*, tools)
 
 **验证结果**:
 - [x] 显示工具列表
@@ -214,7 +214,7 @@ You (1)> /exit
 
 ---
 
-## 4. Base Bash 工具测试
+## 4. Native Shell Command 工具测试
 
 > 以下测试验证 LLM 能够通过 Bash 工具执行标准 Unix 命令
 
@@ -261,7 +261,7 @@ You (3)> 请查看 git 状态
 
 ---
 
-## 5. Agent Bash 工具测试
+## 5. Agent Shell Command 工具测试
 
 ### 5.1 read 工具测试
 
@@ -678,7 +678,7 @@ cat ~/.synapse/logs/agent.log | tail -50
 | 验证项 | 状态 | 备注 |
 |--------|------|------|
 | 用户可以通过 CLI 与 Agent 交互 | ☐ | |
-| Agent 可以使用 Agent Bash 工具完成文件操作 | ☐ | |
+| Agent 可以使用 Agent Shell Command 工具完成文件操作 | ☐ | |
 | LLM 只看到唯一的 Bash 工具 | ☐ | |
 | Bash 会话状态在命令之间保持 | ☐ | |
 | 支持 `restart: true` 参数重启会话 | ☐ | |

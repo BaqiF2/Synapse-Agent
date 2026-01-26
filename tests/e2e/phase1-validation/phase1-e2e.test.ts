@@ -63,7 +63,7 @@ function setupTestEnvironment(): void {
 When you need to analyze text files for statistics or patterns.
 
 ## Tool Dependencies
-- read (Agent Bash)
+- read (Agent Shell Command)
 
 ## Execution Steps
 1. Read the target file using read command
@@ -140,8 +140,8 @@ if __name__ == "__main__":
 When you need to perform batch file operations or gather file statistics.
 
 ## Tool Dependencies
-- glob (Agent Bash)
-- bash (Base Bash)
+- glob (Agent Shell Command)
+- bash (Native Shell Command)
 
 ## Execution Steps
 1. Use glob to find matching files
@@ -298,7 +298,7 @@ describe('Phase 1 E2E: TC-1 Three-Layer Bash Architecture', () => {
   });
 
   describe('TC-1.2: Command Routing Correctness', () => {
-    test('should execute Base Bash commands (ls, pwd, echo)', async () => {
+    test('should execute Native Shell Command commands (ls, pwd, echo)', async () => {
       // Test that base bash commands execute successfully
       const pwdResult = await router.route('pwd');
       expect(pwdResult.exitCode).toBe(0);
@@ -309,7 +309,7 @@ describe('Phase 1 E2E: TC-1 Three-Layer Bash Architecture', () => {
       expect(echoResult.stdout).toContain('routing test');
     });
 
-    test('should execute Agent Bash commands (read, write, edit)', async () => {
+    test('should execute Agent Shell Command commands (read, write, edit)', async () => {
       // Test that agent bash commands are routed correctly
       // read -h should show help (indicates read handler is active)
       const readHelpResult = await router.route('read -h');
@@ -327,7 +327,7 @@ describe('Phase 1 E2E: TC-1 Three-Layer Bash Architecture', () => {
       expect(globHelpResult.stdout.toLowerCase()).toMatch(/usage|glob/i);
     });
 
-    test('should execute Field Bash commands (tools)', async () => {
+    test('should execute explosion Shell command commands (tools)', async () => {
       // Test that tools commands are routed correctly
       const toolsHelpResult = await router.route('tools help');
       expect(toolsHelpResult.exitCode).toBe(0);
@@ -385,10 +385,10 @@ describe('Phase 1 E2E: TC-1 Three-Layer Bash Architecture', () => {
 });
 
 // =============================================================================
-// TEST SUITE 2: Agent Bash Tools (TC-2.x)
+// TEST SUITE 2: Agent Shell Command Tools (TC-2.x)
 // =============================================================================
 
-describe('Phase 1 E2E: TC-2 Agent Bash Tools', () => {
+describe('Phase 1 E2E: TC-2 Agent Shell Command Tools', () => {
   let session: BashSession;
   let router: BashRouter;
   const testFile = path.join(TEST_WORK_DIR, 'agent-bash-test.txt');
@@ -976,7 +976,7 @@ describe('Phase 1 E2E: TC-5 Skill System', () => {
       const skill = loader.loadLevel2('text-analyzer');
 
       expect(skill?.toolDependencies).toBeDefined();
-      // Tool dependencies might include annotation like "read (Agent Bash)"
+      // Tool dependencies might include annotation like "read (Agent Shell Command)"
       const hasReadDep = skill?.toolDependencies.some((dep) => dep.includes('read'));
       expect(hasReadDep).toBe(true);
     });
@@ -1055,13 +1055,13 @@ describe('Phase 1 E2E: TC-6 Tool Type Conversion', () => {
   });
 
   describe('TC-6.1: Three Tool Types via Unified Bash Interface', () => {
-    test('Type 1: Agent Bash tools work through router', async () => {
+    test('Type 1: Agent Shell Command tools work through router', async () => {
       const testFile = path.join(TEST_WORK_DIR, 'type1-test.txt');
-      fs.writeFileSync(testFile, 'Agent Bash test content');
+      fs.writeFileSync(testFile, 'Agent Shell Command test content');
 
       const result = await router.route(`read ${testFile}`);
       expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain('Agent Bash test content');
+      expect(result.stdout).toContain('Agent Shell Command test content');
 
       fs.unlinkSync(testFile);
     });
@@ -1069,13 +1069,13 @@ describe('Phase 1 E2E: TC-6 Tool Type Conversion', () => {
     test('Type 2: MCP tools are routed correctly', async () => {
       // Verify MCP command is identified as FIELD_BASH
       const type = router.identifyCommandType('mcp:test-server:tool arg');
-      expect(type).toBe(CommandType.FIELD_BASH);
+      expect(type).toBe(CommandType.EXPLOSION_SHELL_COMMAND);
     });
 
     test('Type 3: Skill tools are routed correctly', async () => {
       // Verify Skill command is identified as FIELD_BASH
       const type = router.identifyCommandType('skill:test-skill:tool arg');
-      expect(type).toBe(CommandType.FIELD_BASH);
+      expect(type).toBe(CommandType.EXPLOSION_SHELL_COMMAND);
     });
 
     test('All tool types use consistent command format', () => {
@@ -1150,7 +1150,7 @@ describe('Phase 1 E2E: PRD Validation Summary', () => {
   test('Summary: All PRD Phase 1 validation criteria are testable', () => {
     const validationCriteria = [
       'User can interact with Agent via CLI',
-      'Agent can use Agent Bash tools for file operations',
+      'Agent can use Agent Shell Command tools for file operations',
       'LLM only sees single Bash tool',
       'Bash session state persists between commands',
       'Support restart: true parameter to restart session',

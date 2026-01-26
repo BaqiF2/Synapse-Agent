@@ -45,7 +45,7 @@ async function testBatch2() {
     console.log('Exit code:', result.exitCode);
 
     if (result.exitCode === 0 && result.stdout.includes('Hello from Synapse Agent')) {
-      console.log('✅ Base Bash command executed successfully\n');
+      console.log('✅ Native Shell Command command executed successfully\n');
     } else {
       console.log('❌ Command execution failed\n');
     }

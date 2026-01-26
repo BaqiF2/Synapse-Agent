@@ -2,8 +2,8 @@
  * E2E Tests - Bash Tools Integration
  *
  * Tests the complete flow of Bash tool execution including:
- * - Base Bash commands (Layer 1)
- * - Agent Bash tools (Layer 2): read, write, edit, glob, grep
+ * - Native Shell Command commands (Layer 1)
+ * - Agent Shell Command tools (Layer 2): read, write, edit, glob, grep
  * - Bash session persistence
  *
  * @module tests/e2e/bash-tools
@@ -42,7 +42,7 @@ describe('E2E: Bash Tools Integration', () => {
     }
   });
 
-  describe('Scenario 1: Base Bash Commands', () => {
+  describe('Scenario 1: Native Shell Command Commands', () => {
     test('should execute pwd command', async () => {
       const result = await router.route('pwd');
       expect(result.exitCode).toBe(0);
@@ -74,7 +74,7 @@ describe('E2E: Bash Tools Integration', () => {
     });
   });
 
-  describe('Scenario 2: Agent Bash - Read Tool', () => {
+  describe('Scenario 2: Agent Shell Command - Read Tool', () => {
     beforeAll(() => {
       // Create test file
       fs.writeFileSync(TEST_FILE, 'Line 1\nLine 2\nLine 3\nLine 4\nLine 5\n');
@@ -107,7 +107,7 @@ describe('E2E: Bash Tools Integration', () => {
     });
   });
 
-  describe('Scenario 2: Agent Bash - Write Tool', () => {
+  describe('Scenario 2: Agent Shell Command - Write Tool', () => {
     const writeTestFile = path.join(TEST_DIR, 'write-test.txt');
 
     test('should write content to new file', async () => {
@@ -136,7 +136,7 @@ describe('E2E: Bash Tools Integration', () => {
     });
   });
 
-  describe('Scenario 2: Agent Bash - Edit Tool', () => {
+  describe('Scenario 2: Agent Shell Command - Edit Tool', () => {
     const editTestFile = path.join(TEST_DIR, 'edit-test.txt');
 
     beforeAll(() => {
@@ -166,7 +166,7 @@ describe('E2E: Bash Tools Integration', () => {
     });
   });
 
-  describe('Scenario 2: Agent Bash - Glob Tool', () => {
+  describe('Scenario 2: Agent Shell Command - Glob Tool', () => {
     beforeAll(() => {
       // Create test files
       fs.writeFileSync(path.join(TEST_DIR, 'file1.ts'), '');
@@ -190,7 +190,7 @@ describe('E2E: Bash Tools Integration', () => {
     });
   });
 
-  describe('Scenario 2: Agent Bash - Grep Tool', () => {
+  describe('Scenario 2: Agent Shell Command - Grep Tool', () => {
     beforeAll(() => {
       // Create a subdirectory with a test file for grep
       const grepDir = path.join(TEST_DIR, 'grep-test-dir');

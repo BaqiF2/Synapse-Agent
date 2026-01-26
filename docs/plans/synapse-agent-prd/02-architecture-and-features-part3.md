@@ -60,7 +60,7 @@
      - `creating-skills`：指导如何创建新技能的技能（元技能）
      - `enhancing-skills`：指导如何强化已有技能的技能
      - `evaluating-skills`：评估技能质量和适用性的技能
-   - **可用工具**：write、read、glob、grep 等 Agent Bash 工具
+   - **可用工具**：write、read、glob、grep 等 Agent Shell Command 工具
 
    **元循环设计的优势**：
    - **可进化**：通过更新 `creating-skills` 技能，改进技能生成能力本身

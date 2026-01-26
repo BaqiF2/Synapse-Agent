@@ -9,7 +9,7 @@
 When you need to analyze text files for statistics or patterns.
 
 ## Tool Dependencies
-- read (Agent Bash)
+- read (Agent Shell Command)
 
 ## Execution Steps
 1. Read the target file using read command

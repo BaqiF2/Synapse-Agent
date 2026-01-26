@@ -161,7 +161,7 @@ Synapse Agent 的工具系统基于三层 Bash 架构设计，从底层到上层
 
 **移除索引文件**：不再维护 `mcp-tools.json` 或 `skill-tools.json`，完全依赖工具自描述
 
-**tools search 工具**（Agent Bash Layer 2 提供）：
+**tools search 工具**（Agent Shell Command Layer 2 提供）：
 ```bash
 # 关键词匹配
 tools search "pdf"
