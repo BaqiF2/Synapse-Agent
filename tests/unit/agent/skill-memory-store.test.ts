@@ -134,4 +134,71 @@ This is a meta skill body.
       expect(skill?.type).toBeUndefined();
     });
   });
+
+  describe('getMetaSkillContents', () => {
+    beforeEach(() => {
+      // Create two meta skills
+      const metaSkill1Dir = path.join(skillsDir, 'skill-creator');
+      fs.mkdirSync(metaSkill1Dir, { recursive: true });
+      fs.writeFileSync(
+        path.join(metaSkill1Dir, 'SKILL.md'),
+        `---
+name: skill-creator
+description: Guide for creating skills
+type: meta
+---
+
+# Skill Creator
+
+Content for skill creator.
+`
+      );
+
+      const metaSkill2Dir = path.join(skillsDir, 'enhancing-skills');
+      fs.mkdirSync(metaSkill2Dir, { recursive: true });
+      fs.writeFileSync(
+        path.join(metaSkill2Dir, 'SKILL.md'),
+        `---
+name: enhancing-skills
+description: Guide for enhancing skills
+type: meta
+---
+
+# Enhancing Skills
+
+Content for enhancing skills.
+`
+      );
+    });
+
+    it('should return concatenated content of all meta skills', () => {
+      store.loadAll();
+      const content = store.getMetaSkillContents();
+
+      expect(content).toContain('### skill-creator');
+      expect(content).toContain('# Skill Creator');
+      expect(content).toContain('### enhancing-skills');
+      expect(content).toContain('# Enhancing Skills');
+    });
+
+    it('should not include regular skills', () => {
+      store.loadAll();
+      const content = store.getMetaSkillContents();
+
+      expect(content).not.toContain('test-skill');
+    });
+
+    it('should return empty string when no meta skills exist', () => {
+      // Create store with only regular skill
+      const emptyStore = new SkillMemoryStore(skillsDir);
+      // Remove meta skills
+      fs.rmSync(path.join(skillsDir, 'skill-creator'), { recursive: true });
+      fs.rmSync(path.join(skillsDir, 'enhancing-skills'), { recursive: true });
+
+      emptyStore.loadAll();
+      const content = emptyStore.getMetaSkillContents();
+
+      expect(content).toBe('');
+    });
+  });
 });

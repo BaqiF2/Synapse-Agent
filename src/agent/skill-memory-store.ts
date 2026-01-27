@@ -191,6 +191,26 @@ export class SkillMemoryStore {
   }
 
   /**
+   * Get concatenated content of all meta skills (type: meta)
+   *
+   * @returns Formatted string with all meta skill bodies
+   */
+  getMetaSkillContents(): string {
+    const metaSkills = this.getAll().filter(s => s.type === 'meta');
+
+    if (metaSkills.length === 0) {
+      return '';
+    }
+
+    return metaSkills
+      .map(skill => {
+        const body = this.getBody(skill.name);
+        return `### ${skill.name}\n\n${body}`;
+      })
+      .join('\n\n---\n\n');
+  }
+
+  /**
    * Get all skills as array
    */
   getAll(): SkillMetadata[] {
