@@ -103,4 +103,35 @@ This is the skill body content.
       expect(descriptions).toContain('A test skill for unit testing');
     });
   });
+
+  describe('meta skill support', () => {
+    it('should parse type field from frontmatter', () => {
+      // Create a meta skill
+      const metaSkillDir = path.join(skillsDir, 'meta-skill');
+      fs.mkdirSync(metaSkillDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(metaSkillDir, 'SKILL.md'),
+        `---
+name: meta-skill
+description: A meta skill for testing
+type: meta
+---
+
+# Meta Skill
+
+This is a meta skill body.
+`
+      );
+
+      store.loadAll();
+      const skill = store.get('meta-skill');
+      expect(skill?.type).toBe('meta');
+    });
+
+    it('should return undefined type for regular skills', () => {
+      store.loadAll();
+      const skill = store.get('test-skill');
+      expect(skill?.type).toBeUndefined();
+    });
+  });
 });

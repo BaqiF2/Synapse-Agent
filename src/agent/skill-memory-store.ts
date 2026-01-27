@@ -131,6 +131,7 @@ export class SkillMemoryStore {
 
     const name = metadata.name || path.basename(skillDir);
     const description = metadata.description || '';
+    const type = metadata.type || undefined;
 
     return {
       name,
@@ -138,6 +139,7 @@ export class SkillMemoryStore {
       body: '', // Lazy loaded
       path: skillMdPath,
       dir: skillDir,
+      type,
     };
   }
 

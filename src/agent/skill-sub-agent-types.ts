@@ -27,6 +27,8 @@ export const SkillMetadataSchema = z.object({
   path: z.string(),
   /** Skill directory path */
   dir: z.string(),
+  /** Skill type (e.g., 'meta' for meta skills) */
+  type: z.string().optional(),
 });
 
 export type SkillMetadata = z.infer<typeof SkillMetadataSchema>;
