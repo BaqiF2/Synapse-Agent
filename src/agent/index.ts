@@ -56,11 +56,13 @@ export {
   type SkillMatch,
   type SkillSearchResult,
   type SkillEnhanceResult,
+  type SkillEvaluateResult,
   type SkillSubAgentCommand,
   type SkillSubAgentResponse,
   SkillMetadataSchema,
   SkillSearchResultSchema,
   SkillEnhanceResultSchema,
+  SkillEvaluateResultSchema,
   SkillSubAgentCommandSchema,
 } from './skill-sub-agent-types.ts';
 

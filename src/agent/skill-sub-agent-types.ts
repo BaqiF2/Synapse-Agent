@@ -65,6 +65,25 @@ export const SkillEnhanceResultSchema = z.object({
 export type SkillEnhanceResult = z.infer<typeof SkillEnhanceResultSchema>;
 
 /**
+ * Evaluate result returned by sub-agent
+ */
+export const SkillEvaluateResultSchema = z.object({
+  action: z.enum(['evaluated', 'none']),
+  skillName: z.string().optional(),
+  message: z.string(),
+  scores: z.object({
+    clarity: z.number(),
+    completeness: z.number(),
+    usability: z.number(),
+    accuracy: z.number(),
+    efficiency: z.number(),
+  }).optional(),
+  overallScore: z.number().optional(),
+});
+
+export type SkillEvaluateResult = z.infer<typeof SkillEvaluateResultSchema>;
+
+/**
  * Command types for sub-agent
  */
 export const SkillSubAgentCommandSchema = z.discriminatedUnion('type', [

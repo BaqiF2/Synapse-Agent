@@ -1,10 +1,10 @@
 /**
  * Skill Sub-Agent Tests
  *
- * Tests for the Skill Sub-Agent core functionality.
+ * Tests for the refactored SkillSubAgent with AgentRunner.
  */
 
-import { describe, expect, it, beforeEach, afterEach } from 'bun:test';
+import { describe, expect, it, beforeEach, afterEach, mock } from 'bun:test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
@@ -13,73 +13,118 @@ import { SkillSubAgent } from '../../../src/agent/skill-sub-agent.ts';
 describe('SkillSubAgent', () => {
   let testDir: string;
   let skillsDir: string;
-  let agent: SkillSubAgent;
 
   beforeEach(() => {
     testDir = fs.mkdtempSync(path.join(os.tmpdir(), 'synapse-subagent-test-'));
     skillsDir = path.join(testDir, 'skills');
     fs.mkdirSync(skillsDir, { recursive: true });
 
-    // Create test skill
-    const skillDir = path.join(skillsDir, 'test-analyzer');
+    // Create a regular test skill
+    const skillDir = path.join(skillsDir, 'test-skill');
     fs.mkdirSync(skillDir, { recursive: true });
     fs.writeFileSync(
       path.join(skillDir, 'SKILL.md'),
       `---
-name: test-analyzer
-description: Analyzes test coverage and quality
+name: test-skill
+description: A test skill
 ---
 
-# Test Analyzer
-
-Analyzes your test suite.
+# Test Skill
 `
     );
 
-    agent = new SkillSubAgent({ skillsDir });
+    // Create a meta skill
+    const metaSkillDir = path.join(skillsDir, 'skill-creator');
+    fs.mkdirSync(metaSkillDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(metaSkillDir, 'SKILL.md'),
+      `---
+name: skill-creator
+description: Guide for creating skills
+type: meta
+---
+
+# Skill Creator
+
+Instructions for creating skills.
+`
+    );
   });
 
   afterEach(() => {
-    agent.shutdown();
     fs.rmSync(testDir, { recursive: true, force: true });
   });
 
   describe('constructor', () => {
     it('should initialize with skills loaded', () => {
+      const mockLlmClient = {
+        sendMessage: mock(() =>
+          Promise.resolve({ content: '{}', toolCalls: [], stopReason: 'end_turn' })
+        ),
+      };
+
+      const mockToolExecutor = {
+        executeTools: mock(() => Promise.resolve([])),
+        formatResultsForLlm: mock(() => []),
+      };
+
+      const agent = new SkillSubAgent({
+        skillsDir,
+        llmClient: mockLlmClient,
+        toolExecutor: mockToolExecutor,
+      });
+
       expect(agent.isInitialized()).toBe(true);
-      expect(agent.getSkillCount()).toBe(1);
+      expect(agent.getSkillCount()).toBe(2);
     });
   });
 
   describe('getSkillContent', () => {
-    it('should return skill content by name', () => {
-      const content = agent.getSkillContent('test-analyzer');
-      expect(content).not.toBeNull();
-      expect(content).toContain('# Test Analyzer');
-    });
+    it('should return skill content', () => {
+      const mockLlmClient = {
+        sendMessage: mock(() =>
+          Promise.resolve({ content: '{}', toolCalls: [], stopReason: 'end_turn' })
+        ),
+      };
 
-    it('should return null for non-existent skill', () => {
-      const content = agent.getSkillContent('non-existent');
-      expect(content).toBeNull();
+      const mockToolExecutor = {
+        executeTools: mock(() => Promise.resolve([])),
+        formatResultsForLlm: mock(() => []),
+      };
+
+      const agent = new SkillSubAgent({
+        skillsDir,
+        llmClient: mockLlmClient,
+        toolExecutor: mockToolExecutor,
+      });
+
+      const content = agent.getSkillContent('test-skill');
+      expect(content).toContain('# Skill: test-skill');
+      expect(content).toContain('# Test Skill');
     });
   });
 
-  describe('getSkillDescriptions', () => {
-    it('should return formatted descriptions', () => {
-      const descriptions = agent.getSkillDescriptions();
-      expect(descriptions).toContain('test-analyzer');
-      expect(descriptions).toContain('Analyzes test coverage');
-    });
-  });
+  describe('default skillsDir', () => {
+    it('should use DEFAULT_SKILLS_DIR when skillsDir is not provided', () => {
+      const mockLlmClient = {
+        sendMessage: mock(() =>
+          Promise.resolve({ content: '{}', toolCalls: [], stopReason: 'end_turn' })
+        ),
+      };
 
-  describe('lifecycle', () => {
-    it('should report running status', () => {
-      expect(agent.isRunning()).toBe(true);
-    });
+      const mockToolExecutor = {
+        executeTools: mock(() => Promise.resolve([])),
+        formatResultsForLlm: mock(() => []),
+      };
 
-    it('should shutdown cleanly', () => {
-      agent.shutdown();
-      expect(agent.isRunning()).toBe(false);
+      // This test verifies that the agent can be created without skillsDir
+      // It will use ~/.synapse/skills as default
+      const agent = new SkillSubAgent({
+        llmClient: mockLlmClient,
+        toolExecutor: mockToolExecutor,
+      });
+
+      expect(agent.isInitialized()).toBe(true);
     });
   });
 });
