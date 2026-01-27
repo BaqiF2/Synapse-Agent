@@ -260,6 +260,40 @@ export class SkillSubAgent {
   }
 
   /**
+   * Local keyword-based search (no LLM required)
+   *
+   * Performs simple keyword matching against skill names and descriptions.
+   * Use this for `skill search` command when LLM is not available.
+   *
+   * @param query - Search query
+   * @returns Array of matching skills
+   */
+  searchLocal(query: string): { name: string; description: string }[] {
+    const results: { name: string; description: string }[] = [];
+    const queryLower = query.toLowerCase();
+    const queryTerms = queryLower.split(/\s+/).filter((t) => t.length > 0);
+
+    for (const skill of this.memoryStore.getAll()) {
+      const nameLower = skill.name.toLowerCase();
+      const descLower = (skill.description || '').toLowerCase();
+
+      // Check if any query term matches name or description
+      const matches = queryTerms.some(
+        (term) => nameLower.includes(term) || descLower.includes(term)
+      );
+
+      if (matches) {
+        results.push({
+          name: skill.name,
+          description: skill.description || '',
+        });
+      }
+    }
+
+    return results;
+  }
+
+  /**
    * Refresh skill metadata
    *
    * @param name - Skill name to refresh
