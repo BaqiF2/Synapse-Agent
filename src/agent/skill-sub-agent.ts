@@ -11,6 +11,7 @@
  * - SkillSubAgentOptions: Configuration options
  */
 
+import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
 import type Anthropic from '@anthropic-ai/sdk';
@@ -191,7 +192,36 @@ export class SkillSubAgent {
       };
     }
 
-    const prompt = `Analyze the conversation at "${conversationPath}" and determine if a skill should be created or enhanced.\n\nRespond with JSON in the format: {"action": "created"|"enhanced"|"none", "skillName": "...", "message": "..."}`;
+    // Read conversation file content
+    let conversationContent: string;
+    try {
+      conversationContent = fs.readFileSync(conversationPath, 'utf-8');
+    } catch (error) {
+      logger.error('Failed to read conversation file', { path: conversationPath, error });
+      return {
+        action: 'none',
+        message: `Failed to read conversation file: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      };
+    }
+
+    // Truncate if too long (keep last 50KB to focus on recent context)
+    const MAX_CONTENT_LENGTH = 50000;
+    if (conversationContent.length > MAX_CONTENT_LENGTH) {
+      conversationContent = '...(truncated)...\n' + conversationContent.slice(-MAX_CONTENT_LENGTH);
+    }
+
+    const prompt = `Analyze the following conversation and determine if a skill should be created or enhanced.
+
+<conversation>
+${conversationContent}
+</conversation>
+
+Based on the conversation above, determine:
+1. Is there a repeatable pattern or workflow that would benefit from being captured as a skill?
+2. Does an existing skill need to be enhanced with new capabilities?
+
+Respond ONLY with a JSON object in this exact format (no other text):
+{"action": "created"|"enhanced"|"none", "skillName": "skill-name-if-applicable", "message": "brief explanation"}`;
 
     try {
       const result = await this.callLlmAndParseJson<SkillEnhanceResult>(prompt);
@@ -241,12 +271,73 @@ export class SkillSubAgent {
     };
     this.conversationHistory.push(assistantMessage);
 
-    const jsonMatch = response.content.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
+    // Extract first complete JSON object by tracking brace pairs
+    const jsonString = this.extractFirstJsonObject(response.content);
+    if (!jsonString) {
+      logger.warn('No JSON found in LLM response', { content: response.content.substring(0, 200) });
       return null;
     }
 
-    return JSON.parse(jsonMatch[0]) as T;
+    try {
+      return JSON.parse(jsonString) as T;
+    } catch (error) {
+      logger.warn('Failed to parse JSON from LLM response', {
+        matched: jsonString.substring(0, 200),
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      return null;
+    }
+  }
+
+  /**
+   * Extract first complete JSON object from text by tracking brace pairs
+   *
+   * @param text - Text containing JSON
+   * @returns First complete JSON object string or null
+   */
+  private extractFirstJsonObject(text: string): string | null {
+    const startIndex = text.indexOf('{');
+    if (startIndex === -1) {
+      return null;
+    }
+
+    let depth = 0;
+    let inString = false;
+    let escapeNext = false;
+
+    for (let i = startIndex; i < text.length; i++) {
+      const char = text[i];
+
+      if (escapeNext) {
+        escapeNext = false;
+        continue;
+      }
+
+      if (char === '\\' && inString) {
+        escapeNext = true;
+        continue;
+      }
+
+      if (char === '"') {
+        inString = !inString;
+        continue;
+      }
+
+      if (inString) {
+        continue;
+      }
+
+      if (char === '{') {
+        depth++;
+      } else if (char === '}') {
+        depth--;
+        if (depth === 0) {
+          return text.substring(startIndex, i + 1);
+        }
+      }
+    }
+
+    return null;
   }
 
   /**

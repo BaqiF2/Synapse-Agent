@@ -182,7 +182,7 @@ You (2)> skill search "不存在的技能xyz123"
 - 提示未找到匹配的技能
 
 **验证结果**:
-- [ ] 正确处理无结果情况
+- [x] 正确处理无结果情况
 
 ---
 
@@ -225,8 +225,8 @@ You (3)> 请加载 enhancing-skills 技能，我想了解如何强化技能
 - 返回技能内容摘要
 
 **验证结果**:
-- [ ] Agent 正确加载技能
-- [ ] 返回有用的信息
+- [x] Agent 正确加载技能
+- [x] 返回有用的信息
 
 ---
 
@@ -243,7 +243,7 @@ You (1)> skill enhance --status
 - 显示相关配置
 
 **验证结果**:
-- [ ] 显示状态信息
+- [x] 显示状态信息
 
 ### 6.2 启用自动强化
 
@@ -263,8 +263,8 @@ cat ~/.synapse/settings.json
 **预期**: `"autoEnhance": true`
 
 **验证结果**:
-- [ ] 命令执行成功
-- [ ] 设置已持久化
+- [x] 命令执行成功
+- [x] 设置已持久化
 
 ### 6.3 禁用自动强化
 
@@ -283,8 +283,8 @@ cat ~/.synapse/settings.json
 **预期**: `"autoEnhance": false`
 
 **验证结果**:
-- [ ] 命令执行成功
-- [ ] 设置已持久化
+- [x] 命令执行成功
+- [x] 设置已持久化
 
 ### 6.4 手动触发强化（需要对话文件）
 
@@ -308,7 +308,7 @@ EOF
 然后在 REPL 中：
 
 ```
-You (4)> skill enhance --conversation ~/.synapse/conversations/test-conversation.jsonl
+You (4)> /skill enhance --conversation ~/.synapse/conversations/test-conversation.jsonl
 ```
 
 **预期输出**:

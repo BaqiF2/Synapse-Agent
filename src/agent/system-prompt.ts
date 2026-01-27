@@ -37,7 +37,24 @@ function buildBaseRole(): string {
 
 ## Core Principle
 
-All operations are performed through the single **Bash** tool. You execute commands in a persistent bash session where:
+**CRITICAL: You have ONLY ONE tool available - the \`Bash\` tool.**
+
+All operations MUST be performed by calling the \`Bash\` tool with the command as a parameter. The commands documented below (read, write, edit, glob, grep, skill, tools, etc.) are NOT separate tools - they are bash commands that you execute through the single Bash tool.
+
+**Correct usage example:**
+\`\`\`
+Tool: Bash
+Input: { "command": "skill search pdf" }
+\`\`\`
+
+**WRONG - This will fail:**
+\`\`\`
+Tool: skill search    ← ERROR: This tool does not exist!
+Tool: read            ← ERROR: This tool does not exist!
+Tool: tools search    ← ERROR: This tool does not exist!
+\`\`\`
+
+The bash session is persistent:
 - Environment variables persist between commands
 - Working directory changes via \`cd\` persist
 - Created files remain accessible
@@ -66,6 +83,12 @@ function buildAgentShellCommandSection(): string {
 ## 2. Agent Shell Command (Core Tools)
 
 Built-in commands for file and skill operations.
+
+**REMINDER: These are bash commands, NOT tools. Always call them through the Bash tool:**
+\`\`\`
+Tool: Bash
+Input: { "command": "read /path/to/file.txt" }
+\`\`\`
 
 ### read - Read file contents
 \`\`\`
@@ -226,6 +249,40 @@ Examples:
   skill search git --tools      # Search for git skills, show tool commands
 \`\`\`
 
+### skill load - Load a skill's content into context
+\`\`\`
+Usage: skill load <skill-name>
+
+Arguments:
+  <skill-name>   Name of the skill to load (required)
+
+Output:
+  Full skill content (SKILL.md) ready for use
+
+Description:
+  Loads the complete content of a skill into the conversation context.
+  Use this when you need to follow a skill's instructions or workflow.
+
+  **Use skill load when user asks to "load", "use", or "apply" a skill.**
+  **Use skill search when user asks to "find" or "search" for skills.**
+
+Examples:
+  skill load code-analyzer      # Load the code-analyzer skill
+  skill load enhancing-skills   # Load the enhancing-skills skill
+  skill load my-custom-skill    # Load a custom skill
+\`\`\`
+
+### skill list - List all available skills
+\`\`\`
+Usage: skill list
+
+Output:
+  List of all skills with names and descriptions
+
+Examples:
+  skill list                    # Show all available skills
+\`\`\`
+
 ### tools - Search and manage installed MCP and Skill tools
 \`\`\`
 Usage: tools <subcommand> [options]
@@ -266,7 +323,13 @@ function buildExtendShellCommandSection(): string {
   return `
 ## 3. extend Shell command (Domain Tools)
 
-Domain-specific tools for MCP servers and Skills:
+Domain-specific tools for MCP servers and Skills.
+
+**REMINDER: These are bash commands, NOT tools. Always call them through the Bash tool:**
+\`\`\`
+Tool: Bash
+Input: { "command": "mcp:server:tool arg1 arg2" }
+\`\`\`
 
 ### MCP Tools
 Format: \`mcp:<server>:<tool> [args...]\`
@@ -346,6 +409,10 @@ function buildExecutionPrinciplesSection(): string {
 ## Execution Principles
 
 **CRITICAL: Execute exactly what is requested, nothing more.**
+
+0. **Tool Calling**: You have ONLY the \`Bash\` tool. All commands (read, write, skill search, etc.) must be executed through it:
+   - CORRECT: \`Tool: Bash, Input: { "command": "skill search pdf" }\`
+   - WRONG: \`Tool: skill search\` ← This tool does not exist and will fail!
 
 1. **Tool Priority**: Always use Agent Shell Command tools for file operations when available:
    - Use \`read\` instead of \`cat\` for reading files

@@ -29,6 +29,8 @@ import { BashToolSchema } from '../tools/bash-tool-schema.ts';
 import { initializeMcpTools } from '../tools/converters/mcp/index.ts';
 import { initializeSkillTools } from '../tools/converters/skill/index.ts';
 import { createLogger } from '../utils/logger.ts';
+import { SettingsManager } from '../config/settings-manager.ts';
+import { SkillSubAgent } from '../agent/skill-sub-agent.ts';
 
 const cliLogger = createLogger('cli');
 
@@ -201,6 +203,13 @@ export class AgentRunner {
   getToolExecutor(): ToolExecutor {
     return this.toolExecutor;
   }
+
+  /**
+   * Get the LLM client (for skill enhancement)
+   */
+  getLlmClient(): LlmClient {
+    return this.llmClient;
+  }
 }
 
 /**
@@ -309,6 +318,12 @@ export function handleSpecialCommand(
         return true;
       }
 
+      // Handle /skill enhance commands
+      if (parts[0]?.toLowerCase() === '/skill') {
+        handleSkillEnhanceCommand(parts.slice(1), agentRunner);
+        return true;
+      }
+
       if (cmd.startsWith('/')) {
         console.log(chalk.red(`\nUnknown command: ${cmd}`));
         console.log(chalk.gray('Type /help for available commands.\n'));
@@ -316,6 +331,148 @@ export function handleSpecialCommand(
       }
       return false;
   }
+}
+
+/**
+ * Handle /skill enhance commands
+ *
+ * @param args - Command arguments (after '/skill')
+ * @param agentRunner - Optional agent runner for enhance operations
+ */
+function handleSkillEnhanceCommand(args: string[], agentRunner?: AgentRunner | null): void {
+  const subcommand = args[0]?.toLowerCase();
+
+  // Only support 'enhance' subcommand for user slash commands
+  if (subcommand !== 'enhance') {
+    console.log(chalk.red(`\nUnknown skill command: ${subcommand || '(none)'}`));
+    console.log(chalk.gray('Available commands:'));
+    console.log(chalk.gray('  /skill enhance         Show auto-enhance status'));
+    console.log(chalk.gray('  /skill enhance --on    Enable auto-enhance'));
+    console.log(chalk.gray('  /skill enhance --off   Disable auto-enhance'));
+    console.log(chalk.gray('  /skill enhance -h      Show help\n'));
+    return;
+  }
+
+  const enhanceArgs = args.slice(1);
+  const settingsManager = new SettingsManager();
+
+  // Check for help flag
+  if (enhanceArgs.includes('-h') || enhanceArgs.includes('--help')) {
+    showSkillEnhanceHelp();
+    return;
+  }
+
+  // Check for --on flag
+  if (enhanceArgs.includes('--on')) {
+    settingsManager.setAutoEnhance(true);
+    console.log(chalk.green('\nAuto skill enhance enabled.'));
+    console.log(chalk.gray('Skills will be automatically enhanced after task completion.'));
+    console.log(chalk.gray('Note: This will consume additional tokens.\n'));
+    console.log(chalk.gray('Use /skill enhance --off to disable.\n'));
+    return;
+  }
+
+  // Check for --off flag
+  if (enhanceArgs.includes('--off')) {
+    settingsManager.setAutoEnhance(false);
+    console.log(chalk.yellow('\nAuto skill enhance disabled.\n'));
+    return;
+  }
+
+  // Check for --conversation flag
+  const convIndex = enhanceArgs.indexOf('--conversation');
+  if (convIndex !== -1) {
+    const conversationPath = enhanceArgs[convIndex + 1];
+    if (!conversationPath) {
+      console.log(chalk.red('\nError: --conversation requires a path argument.'));
+      console.log(chalk.gray('Usage: /skill enhance --conversation <path>\n'));
+      return;
+    }
+
+    // Expand ~ to home directory
+    const expandedPath = conversationPath.startsWith('~')
+      ? path.join(os.homedir(), conversationPath.slice(1))
+      : conversationPath;
+
+    if (!fs.existsSync(expandedPath)) {
+      console.log(chalk.red(`\nError: Conversation file not found: ${expandedPath}\n`));
+      return;
+    }
+
+    // Manual enhance requires LLM client from agentRunner
+    if (!agentRunner) {
+      console.log(chalk.yellow('\nAgent not available. Cannot perform manual enhance.\n'));
+      return;
+    }
+
+    console.log(chalk.gray(`\nTriggering manual enhance from: ${expandedPath}`));
+    console.log(chalk.gray('This feature requires LLM processing...\n'));
+
+    // Create SkillSubAgent with LLM client and trigger enhance
+    const llmClient = agentRunner.getLlmClient();
+    const subAgent = new SkillSubAgent({ llmClient });
+    subAgent
+      .enhance(expandedPath)
+      .then((result) => {
+        if (result.action === 'none') {
+          console.log(chalk.gray('No enhancement needed.'));
+        } else if (result.action === 'created') {
+          console.log(chalk.green(`Created new skill: ${result.skillName}`));
+        } else if (result.action === 'enhanced') {
+          console.log(chalk.green(`Enhanced skill: ${result.skillName}`));
+        }
+        console.log(chalk.gray(`Message: ${result.message}\n`));
+      })
+      .catch((error: Error) => {
+        console.log(chalk.red(`\nEnhance failed: ${error.message}\n`));
+      });
+    return;
+  }
+
+  // No flags - show current status
+  const isEnabled = settingsManager.isAutoEnhanceEnabled();
+  printSectionHeader('Skill Auto-Enhance Status');
+  console.log();
+  console.log(
+    chalk.white('  Status: ') +
+      (isEnabled ? chalk.green('Enabled') : chalk.yellow('Disabled'))
+  );
+  console.log();
+  console.log(chalk.gray('Commands:'));
+  console.log(chalk.gray('  /skill enhance --on              Enable auto-enhance'));
+  console.log(chalk.gray('  /skill enhance --off             Disable auto-enhance'));
+  console.log(chalk.gray('  /skill enhance --conversation <path>  Manual enhance'));
+  console.log(chalk.gray('  /skill enhance -h                Show help'));
+  console.log();
+}
+
+/**
+ * Show skill enhance help
+ */
+function showSkillEnhanceHelp(): void {
+  printSectionHeader('Skill Enhance - Help');
+  console.log();
+  console.log(chalk.white.bold('Description:'));
+  console.log(chalk.white('  Manage automatic skill enhancement based on conversation history.'));
+  console.log(chalk.white('  When enabled, the system analyzes completed tasks and may'));
+  console.log(chalk.white('  create or enhance skills to improve future performance.'));
+  console.log();
+  console.log(chalk.white.bold('Usage:'));
+  console.log(chalk.gray('  /skill enhance                   ') + chalk.white('Show current status'));
+  console.log(chalk.gray('  /skill enhance --on              ') + chalk.white('Enable auto-enhance'));
+  console.log(chalk.gray('  /skill enhance --off             ') + chalk.white('Disable auto-enhance'));
+  console.log(
+    chalk.gray('  /skill enhance --conversation <path>  ') + chalk.white('Manual enhance from file')
+  );
+  console.log(chalk.gray('  /skill enhance -h, --help        ') + chalk.white('Show this help'));
+  console.log();
+  console.log(chalk.white.bold('Examples:'));
+  console.log(chalk.gray('  /skill enhance --on'));
+  console.log(chalk.gray('  /skill enhance --conversation ~/.synapse/conversations/session.jsonl'));
+  console.log();
+  console.log(chalk.white.bold('Note:'));
+  console.log(chalk.yellow('  Auto-enhance consumes additional tokens for LLM analysis.'));
+  console.log();
 }
 
 /**
@@ -333,6 +490,12 @@ function showHelp(): void {
   console.log(chalk.gray('  /skills          ') + chalk.white('List all available skills'));
   console.log(chalk.gray('  /sessions        ') + chalk.white('List saved sessions'));
   console.log(chalk.gray('  /resume <id>     ') + chalk.white('Resume a saved session'));
+  console.log();
+  console.log(chalk.white.bold('Skill Commands:'));
+  console.log(chalk.gray('  /skill enhance       ') + chalk.white('Show auto-enhance status'));
+  console.log(chalk.gray('  /skill enhance --on  ') + chalk.white('Enable auto skill enhance'));
+  console.log(chalk.gray('  /skill enhance --off ') + chalk.white('Disable auto skill enhance'));
+  console.log(chalk.gray('  /skill enhance -h    ') + chalk.white('Show skill enhance help'));
   console.log();
   console.log(chalk.white.bold('Shell Commands:'));
   console.log(chalk.gray('  !<command>       ') + chalk.white('Execute a shell command directly'));
