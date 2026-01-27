@@ -275,9 +275,10 @@ function handleSkillEnhanceCommand(args: string[], agentRunner?: AgentRunner | n
     console.log(chalk.gray(`\nTriggering manual enhance from: ${expandedPath}`));
     console.log(chalk.gray('This feature requires LLM processing...\n'));
 
-    // Create SkillSubAgent with LLM client and trigger enhance
+    // Create SkillSubAgent with LLM client and tool executor
     const llmClient = agentRunner.getLlmClient();
-    const subAgent = new SkillSubAgent({ llmClient });
+    const toolExecutor = agentRunner.getToolExecutor();
+    const subAgent = new SkillSubAgent({ llmClient, toolExecutor });
     subAgent
       .enhance(expandedPath)
       .then((result) => {
