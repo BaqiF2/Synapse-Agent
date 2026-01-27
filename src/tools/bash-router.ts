@@ -10,7 +10,7 @@
 
 import type { BashSession } from './bash-session.ts';
 import { NativeShellCommandHandler, type CommandResult } from './handlers/base-bash-handler.ts';
-import { ReadHandler, WriteHandler, EditHandler, GlobHandler, GrepHandler, BashWrapperHandler } from './handlers/agent-bash/index.ts';
+import { ReadHandler, WriteHandler, EditHandler, GlobHandler, GrepHandler, BashWrapperHandler, SkillCommandHandler } from './handlers/agent-bash/index.ts';
 import { ToolsHandler } from './handlers/field-bash/index.ts';
 import { McpConfigParser, McpClient, McpWrapperGenerator, McpInstaller } from './converters/mcp/index.ts';
 import { SkillStructure, DocstringParser, SkillWrapperGenerator } from './converters/skill/index.ts';
@@ -35,6 +35,7 @@ export class BashRouter {
   private globHandler: GlobHandler;
   private grepHandler: GrepHandler;
   private bashWrapperHandler: BashWrapperHandler;
+  private skillCommandHandler: SkillCommandHandler;
   private toolsHandler: ToolsHandler;
   private mcpInstaller: McpInstaller;
 
@@ -46,6 +47,7 @@ export class BashRouter {
     this.globHandler = new GlobHandler();
     this.grepHandler = new GrepHandler();
     this.bashWrapperHandler = new BashWrapperHandler(session);
+    this.skillCommandHandler = new SkillCommandHandler();
     this.toolsHandler = new ToolsHandler();
     this.mcpInstaller = new McpInstaller();
   }
@@ -88,7 +90,7 @@ export class BashRouter {
 
     // Agent Shell Command commands (Layer 2)
     // Will be implemented in Batch 4-5
-    const agentShellCommandCommands = ['read', 'write', 'edit', 'glob', 'grep', 'bash'];
+    const agentShellCommandCommands = ['read', 'write', 'edit', 'glob', 'grep', 'bash', 'skill'];
     for (const cmd of agentShellCommandCommands) {
       if (trimmed.startsWith(cmd + ' ') || trimmed === cmd) {
         return CommandType.AGENT_SHELL_COMMAND;
@@ -135,6 +137,10 @@ export class BashRouter {
 
     if (trimmed.startsWith('bash ') || trimmed === 'bash') {
       return await this.bashWrapperHandler.execute(command);
+    }
+
+    if (trimmed.startsWith('skill ') || trimmed === 'skill') {
+      return await this.skillCommandHandler.execute(command);
     }
 
     return {

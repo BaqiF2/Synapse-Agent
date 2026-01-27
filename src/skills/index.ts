@@ -13,6 +13,8 @@
  * - SkillIndexer: Scans skills and generates index
  * - SkillIndex: Index data structure
  * - SkillLoader: Progressive skill loader with caching
+ * - SkillSubAgent: LLM-based skill search agent
+ * - SkillSubAgentManager: Singleton manager for SkillSubAgent
  */
 
 export {
@@ -37,3 +39,13 @@ export {
   type SkillLevel1,
   type SkillLevel2,
 } from './skill-loader.js';
+
+export {
+  SkillSubAgent,
+  type SkillSearchResult,
+  type SkillMatch,
+} from './skill-sub-agent.js';
+
+export {
+  SkillSubAgentManager,
+} from './skill-sub-agent-manager.js';
