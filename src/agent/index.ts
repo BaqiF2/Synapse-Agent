@@ -9,6 +9,8 @@
  * - ContextPersistence: 对话历史持久化
  * - ToolExecutor: 工具执行器
  * - buildSystemPrompt: 系统提示词构建函数
+ * - SkillSubAgent: 技能子代理
+ * - SkillMemoryStore: 技能内存存储
  */
 
 export { LlmClient, type LlmMessage, type LlmResponse, type LlmToolCall } from './llm-client.ts';
@@ -31,3 +33,24 @@ export {
   buildMinimalSystemPrompt,
   type SystemPromptOptions,
 } from './system-prompt.ts';
+
+// Skill Sub-Agent
+export { SkillSubAgent, type SkillSubAgentOptions } from './skill-sub-agent.ts';
+export { SkillMemoryStore } from './skill-memory-store.ts';
+export {
+  buildSkillSubAgentPrompt,
+  SKILL_SEARCH_INSTRUCTIONS,
+  SKILL_ENHANCE_INSTRUCTIONS,
+} from './skill-sub-agent-prompt.ts';
+export {
+  type SkillMetadata,
+  type SkillMatch,
+  type SkillSearchResult,
+  type SkillEnhanceResult,
+  type SkillSubAgentCommand,
+  type SkillSubAgentResponse,
+  SkillMetadataSchema,
+  SkillSearchResultSchema,
+  SkillEnhanceResultSchema,
+  SkillSubAgentCommandSchema,
+} from './skill-sub-agent-types.ts';
