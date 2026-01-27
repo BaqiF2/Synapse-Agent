@@ -16,6 +16,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { SkillStructure, type SkillEntry } from './skill-structure.js';
 import { SkillWrapperGenerator, type GeneratedSkillWrapper } from './wrapper-generator.js';
+import { MetaSkillInstaller } from '../../../skills/meta-skill-installer.js';
 import { createLogger } from '../../../utils/logger.js';
 
 const logger = createLogger('skill-init');
@@ -110,6 +111,21 @@ export async function initializeSkillTools(options: SkillInitOptions = {}): Prom
     skillResults: [],
     errors: [],
   };
+
+  // Install meta skills if missing
+  try {
+    const metaInstaller = new MetaSkillInstaller();
+    const metaResult = metaInstaller.installIfMissing();
+    if (metaResult.installed.length > 0) {
+      logger.info(`Installed ${metaResult.installed.length} meta skill(s)`, {
+        skills: metaResult.installed,
+      });
+    }
+  } catch (error) {
+    const msg = getErrorMessage(error);
+    logger.warn('Failed to install meta skills', { error: msg });
+    // Don't fail initialization if meta skills can't be installed
+  }
 
   const structure = new SkillStructure();
   const generator = new SkillWrapperGenerator();
