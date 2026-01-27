@@ -271,38 +271,31 @@ export class AutoEnhanceTrigger {
     }>,
     skillsUsed: string[] = []
   ): TaskContext {
-    let toolCallCount = 0;
     const toolSet = new Set<string>();
+    let toolCallCount = 0;
     let userClarifications = 0;
     let scriptsGenerated = 0;
+
+    const clarificationPatterns = ['clarif', 'mean', 'actually', 'instead'];
 
     for (const turn of turns) {
       if (turn.toolCalls) {
         toolCallCount += turn.toolCalls.length;
-        for (const call of turn.toolCalls) {
-          toolSet.add(call.name);
+        turn.toolCalls.forEach((call) => toolSet.add(call.name));
+
+        // Count script generation from assistant tool calls
+        if (turn.role === 'assistant') {
+          scriptsGenerated += turn.toolCalls.filter(
+            (call) => call.name === 'write' || call.name === 'edit'
+          ).length;
         }
       }
 
-      // Count clarification patterns
+      // Count clarification patterns from user messages
       if (turn.role === 'user' && turn.content) {
-        const content = turn.content.toLowerCase();
-        if (
-          content.includes('clarif') ||
-          content.includes('mean') ||
-          content.includes('actually') ||
-          content.includes('instead')
-        ) {
+        const contentLower = turn.content.toLowerCase();
+        if (clarificationPatterns.some((pattern) => contentLower.includes(pattern))) {
           userClarifications++;
-        }
-      }
-
-      // Count script generation
-      if (turn.role === 'assistant' && turn.toolCalls) {
-        for (const call of turn.toolCalls) {
-          if (call.name === 'write' || call.name === 'edit') {
-            scriptsGenerated++;
-          }
         }
       }
     }

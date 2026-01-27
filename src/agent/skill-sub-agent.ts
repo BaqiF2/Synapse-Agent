@@ -166,42 +166,15 @@ export class SkillSubAgent {
       throw new Error('LLM client is required for skill search. Skill search must use LLM reasoning, not keyword matching.');
     }
 
-    try {
-      // Add search request to conversation
-      const userMessage: Anthropic.MessageParam = {
-        role: 'user',
-        content: `Search for skills matching: "${query}"\n\nRespond with JSON in the format: {"matched_skills": [{"name": "...", "description": "..."}]}`,
-      };
+    const prompt = `Search for skills matching: "${query}"\n\nRespond with JSON in the format: {"matched_skills": [{"name": "...", "description": "..."}]}`;
+    const result = await this.callLlmAndParseJson<SkillSearchResult>(prompt);
 
-      this.conversationHistory.push(userMessage);
-
-      // Call LLM
-      const response = await this.llmClient.sendMessage(
-        this.conversationHistory,
-        this.systemPrompt
-      );
-
-      // Add response to history
-      const assistantMessage: Anthropic.MessageParam = {
-        role: 'assistant',
-        content: response.content,
-      };
-      this.conversationHistory.push(assistantMessage);
-
-      // Parse JSON response
-      const jsonMatch = response.content.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        const result = JSON.parse(jsonMatch[0]) as SkillSearchResult;
-        return result;
-      }
-
-      // If LLM response is not valid JSON, return empty result
-      logger.warn('LLM response is not valid JSON', { content: response.content });
+    if (!result) {
+      logger.warn('LLM response is not valid JSON');
       return { matched_skills: [] };
-    } catch (error) {
-      logger.error('Semantic search failed', { error });
-      throw error;
     }
+
+    return result;
   }
 
   /**
@@ -218,38 +191,19 @@ export class SkillSubAgent {
       };
     }
 
+    const prompt = `Analyze the conversation at "${conversationPath}" and determine if a skill should be created or enhanced.\n\nRespond with JSON in the format: {"action": "created"|"enhanced"|"none", "skillName": "...", "message": "..."}`;
+
     try {
-      // Add enhance request to conversation
-      const userMessage: Anthropic.MessageParam = {
-        role: 'user',
-        content: `Analyze the conversation at "${conversationPath}" and determine if a skill should be created or enhanced.\n\nRespond with JSON in the format: {"action": "created"|"enhanced"|"none", "skillName": "...", "message": "..."}`,
-      };
+      const result = await this.callLlmAndParseJson<SkillEnhanceResult>(prompt);
 
-      this.conversationHistory.push(userMessage);
-
-      // Call LLM
-      const response = await this.llmClient.sendMessage(
-        this.conversationHistory,
-        this.systemPrompt
-      );
-
-      // Add response to history
-      const assistantMessage: Anthropic.MessageParam = {
-        role: 'assistant',
-        content: response.content,
-      };
-      this.conversationHistory.push(assistantMessage);
-
-      // Parse JSON response
-      const jsonMatch = response.content.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        return JSON.parse(jsonMatch[0]) as SkillEnhanceResult;
+      if (!result) {
+        return {
+          action: 'none',
+          message: 'Could not parse enhancement result',
+        };
       }
 
-      return {
-        action: 'none',
-        message: 'Could not parse enhancement result',
-      };
+      return result;
     } catch (error) {
       logger.error('Enhancement failed', { error });
       return {
@@ -257,6 +211,42 @@ export class SkillSubAgent {
         message: `Enhancement failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
       };
     }
+  }
+
+  /**
+   * Call LLM and parse JSON response
+   *
+   * @param userPrompt - User prompt to send
+   * @returns Parsed JSON or null if parsing fails
+   */
+  private async callLlmAndParseJson<T>(userPrompt: string): Promise<T | null> {
+    if (!this.llmClient) {
+      throw new Error('LLM client is required');
+    }
+
+    const userMessage: Anthropic.MessageParam = {
+      role: 'user',
+      content: userPrompt,
+    };
+    this.conversationHistory.push(userMessage);
+
+    const response = await this.llmClient.sendMessage(
+      this.conversationHistory,
+      this.systemPrompt
+    );
+
+    const assistantMessage: Anthropic.MessageParam = {
+      role: 'assistant',
+      content: response.content,
+    };
+    this.conversationHistory.push(assistantMessage);
+
+    const jsonMatch = response.content.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      return null;
+    }
+
+    return JSON.parse(jsonMatch[0]) as T;
   }
 
   /**

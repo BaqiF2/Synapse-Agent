@@ -197,9 +197,6 @@ export class SkillCommandHandler {
       switch (parsed.subcommand) {
         case 'help':
         case null:
-          if (parsed.options.help) {
-            return this.showHelp();
-          }
           return this.showHelp();
 
         case 'list':
@@ -294,7 +291,6 @@ export class SkillCommandHandler {
    */
   private async handleSearch(query: string): Promise<CommandResult> {
     if (!query) {
-      // List all skills if no query
       return this.handleList();
     }
 
@@ -303,31 +299,8 @@ export class SkillCommandHandler {
       try {
         logger.debug('Using LLM semantic search', { query });
         const result = await this.subAgent.search(query);
-
-        if (result.matched_skills.length === 0) {
-          return {
-            stdout: `No skills found matching: "${query}"`,
-            stderr: '',
-            exitCode: 0,
-          };
-        }
-
-        // Format results
-        const lines = [`Found ${result.matched_skills.length} matching skill(s):\n`];
-        for (const skill of result.matched_skills) {
-          lines.push(`- ${skill.name}: ${skill.description}`);
-        }
-
-        // Also include JSON for programmatic use
-        const json = JSON.stringify(result, null, 2);
-
-        return {
-          stdout: lines.join('\n') + '\n\n' + json,
-          stderr: '',
-          exitCode: 0,
-        };
+        return this.formatSearchResults(query, result.matched_skills);
       } catch (error) {
-        // Fall back to local search on error
         logger.warn('LLM semantic search failed, falling back to local search', { error });
       }
     }
@@ -335,8 +308,17 @@ export class SkillCommandHandler {
     // Fallback: Use local keyword search
     logger.debug('Using local keyword search', { query });
     const results = this.subAgent.searchLocal(query);
+    return this.formatSearchResults(query, results);
+  }
 
-    if (results.length === 0) {
+  /**
+   * Format search results into CommandResult
+   */
+  private formatSearchResults(
+    query: string,
+    skills: Array<{ name: string; description: string }>
+  ): CommandResult {
+    if (skills.length === 0) {
       return {
         stdout: `No skills found matching: "${query}"`,
         stderr: '',
@@ -344,14 +326,12 @@ export class SkillCommandHandler {
       };
     }
 
-    // Format results as JSON for main agent to parse
-    const json = JSON.stringify({ matched_skills: results }, null, 2);
-
-    // Also format as human-readable
-    const lines = [`Found ${results.length} matching skill(s):\n`];
-    for (const skill of results) {
+    const lines = [`Found ${skills.length} matching skill(s):\n`];
+    for (const skill of skills) {
       lines.push(`- ${skill.name}: ${skill.description}`);
     }
+
+    const json = JSON.stringify({ matched_skills: skills }, null, 2);
 
     return {
       stdout: lines.join('\n') + '\n\n' + json,

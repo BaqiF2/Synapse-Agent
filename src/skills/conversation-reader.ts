@@ -194,17 +194,7 @@ export class ConversationReader {
    * @returns Array of tool names in order
    */
   extractToolSequence(turns: ConversationTurn[]): string[] {
-    const tools: string[] = [];
-
-    for (const turn of turns) {
-      if (turn.toolCalls) {
-        for (const call of turn.toolCalls) {
-          tools.push(call.name);
-        }
-      }
-    }
-
-    return tools;
+    return turns.flatMap((turn) => turn.toolCalls?.map((call) => call.name) ?? []);
   }
 
   /**
@@ -214,24 +204,15 @@ export class ConversationReader {
    * @returns Summary statistics
    */
   summarize(turns: ConversationTurn[]): ConversationSummary {
-    let userTurns = 0;
-    let assistantTurns = 0;
-    let toolCalls = 0;
+    const userTurns = turns.filter((t) => t.role === 'user').length;
     const toolSet = new Set<string>();
+    let toolCalls = 0;
     let estimatedTokens = 0;
 
     for (const turn of turns) {
-      if (turn.role === 'user') {
-        userTurns++;
-      } else {
-        assistantTurns++;
-      }
-
       if (turn.toolCalls) {
         toolCalls += turn.toolCalls.length;
-        for (const call of turn.toolCalls) {
-          toolSet.add(call.name);
-        }
+        turn.toolCalls.forEach((call) => toolSet.add(call.name));
       }
 
       estimatedTokens += Math.ceil(
@@ -242,7 +223,7 @@ export class ConversationReader {
     return {
       totalTurns: turns.length,
       userTurns,
-      assistantTurns,
+      assistantTurns: turns.length - userTurns,
       toolCalls,
       uniqueTools: Array.from(toolSet),
       estimatedTokens,

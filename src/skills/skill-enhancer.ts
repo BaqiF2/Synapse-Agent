@@ -231,54 +231,56 @@ export class SkillEnhancer {
    */
   enhance(analysis: ConversationAnalysis, decision: EnhanceDecision): EnhanceResult {
     if (!decision.shouldEnhance || decision.suggestedAction === 'none') {
-      return {
-        action: 'none',
-        message: decision.reason,
-      };
+      return { action: 'none', message: decision.reason };
     }
 
     if (decision.suggestedAction === 'create' && decision.suggestedSkillName) {
-      const spec = this.generateSkillSpec(analysis, decision.suggestedSkillName);
-      const result = this.generator.createSkill(spec);
-
-      if (result.success) {
-        return {
-          action: 'created',
-          skillName: decision.suggestedSkillName,
-          message: `Created new skill: ${decision.suggestedSkillName}`,
-          path: result.path,
-        };
-      } else {
-        return {
-          action: 'none',
-          message: `Failed to create skill: ${result.error}`,
-        };
-      }
+      return this.createNewSkill(analysis, decision.suggestedSkillName);
     }
 
     if (decision.suggestedAction === 'enhance' && decision.existingSkill) {
-      const updates = this.generateUpdates(analysis, decision.existingSkill);
-      const result = this.generator.updateSkill(decision.existingSkill, updates);
-
-      if (result.success) {
-        return {
-          action: 'enhanced',
-          skillName: decision.existingSkill,
-          message: `Enhanced skill: ${decision.existingSkill}`,
-          path: result.path,
-        };
-      } else {
-        return {
-          action: 'none',
-          message: `Failed to enhance skill: ${result.error}`,
-        };
-      }
+      return this.enhanceExistingSkill(analysis, decision.existingSkill);
     }
 
-    return {
-      action: 'none',
-      message: 'No action taken',
-    };
+    return { action: 'none', message: 'No action taken' };
+  }
+
+  /**
+   * Create a new skill from analysis
+   */
+  private createNewSkill(analysis: ConversationAnalysis, skillName: string): EnhanceResult {
+    const spec = this.generateSkillSpec(analysis, skillName);
+    const result = this.generator.createSkill(spec);
+
+    if (result.success) {
+      return {
+        action: 'created',
+        skillName,
+        message: `Created new skill: ${skillName}`,
+        path: result.path,
+      };
+    }
+
+    return { action: 'none', message: `Failed to create skill: ${result.error}` };
+  }
+
+  /**
+   * Enhance an existing skill
+   */
+  private enhanceExistingSkill(analysis: ConversationAnalysis, skillName: string): EnhanceResult {
+    const updates = this.generateUpdates(analysis, skillName);
+    const result = this.generator.updateSkill(skillName, updates);
+
+    if (result.success) {
+      return {
+        action: 'enhanced',
+        skillName,
+        message: `Enhanced skill: ${skillName}`,
+        path: result.path,
+      };
+    }
+
+    return { action: 'none', message: `Failed to enhance skill: ${result.error}` };
   }
 
   /**
