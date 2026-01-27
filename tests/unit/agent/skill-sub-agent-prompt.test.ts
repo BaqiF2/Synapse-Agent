@@ -5,46 +5,53 @@
  */
 
 import { describe, expect, it } from 'bun:test';
-import {
-  buildSkillSubAgentPrompt,
-  SKILL_SEARCH_INSTRUCTIONS,
-  SKILL_ENHANCE_INSTRUCTIONS,
-} from '../../../src/agent/skill-sub-agent-prompt.ts';
+import { buildSkillSubAgentPrompt } from '../../../src/agent/skill-sub-agent-prompt.ts';
 
 describe('buildSkillSubAgentPrompt', () => {
-  it('should include skill descriptions', () => {
-    const descriptions = '- skill-1: Description 1\n- skill-2: Description 2';
-    const prompt = buildSkillSubAgentPrompt(descriptions);
+  it('should include role definition first', () => {
+    const prompt = buildSkillSubAgentPrompt('test metadata', 'test meta content');
 
-    expect(prompt).toContain('skill-1');
-    expect(prompt).toContain('skill-2');
+    const roleIndex = prompt.indexOf('## 1. Your Role');
+    expect(roleIndex).toBeGreaterThan(-1);
+    expect(roleIndex).toBeLessThan(200); // Should be near the start
   });
 
-  it('should include search instructions', () => {
-    const prompt = buildSkillSubAgentPrompt('');
-    expect(prompt).toContain('semantic');
-    expect(prompt).toContain('JSON');
+  it('should include tools section second', () => {
+    const prompt = buildSkillSubAgentPrompt('test metadata', 'test meta content');
+
+    const roleIndex = prompt.indexOf('## 1. Your Role');
+    const toolsIndex = prompt.indexOf('## 2. Tools');
+    expect(toolsIndex).toBeGreaterThan(roleIndex);
   });
 
-  it('should include enhance instructions', () => {
-    const prompt = buildSkillSubAgentPrompt('');
-    expect(prompt).toContain('enhance');
-    expect(prompt).toContain('SKILL.md');
-  });
-});
+  it('should include meta skills section third', () => {
+    const prompt = buildSkillSubAgentPrompt('test metadata', 'test meta content');
 
-describe('SKILL_SEARCH_INSTRUCTIONS', () => {
-  it('should define search output format', () => {
-    expect(SKILL_SEARCH_INSTRUCTIONS).toContain('matched_skills');
-    expect(SKILL_SEARCH_INSTRUCTIONS).toContain('name');
-    expect(SKILL_SEARCH_INSTRUCTIONS).toContain('description');
+    const toolsIndex = prompt.indexOf('## 2. Tools');
+    const metaIndex = prompt.indexOf('## 3. Meta Skills');
+    expect(metaIndex).toBeGreaterThan(toolsIndex);
   });
-});
 
-describe('SKILL_ENHANCE_INSTRUCTIONS', () => {
-  it('should define enhance output format', () => {
-    expect(SKILL_ENHANCE_INSTRUCTIONS).toContain('action');
-    expect(SKILL_ENHANCE_INSTRUCTIONS).toContain('created');
-    expect(SKILL_ENHANCE_INSTRUCTIONS).toContain('enhanced');
+  it('should include available skills section fourth', () => {
+    const prompt = buildSkillSubAgentPrompt('test metadata', 'test meta content');
+
+    const metaIndex = prompt.indexOf('## 3. Meta Skills');
+    const availableIndex = prompt.indexOf('## 4. Available Skills');
+    expect(availableIndex).toBeGreaterThan(metaIndex);
+  });
+
+  it('should include meta skill contents', () => {
+    const metaContent = '### skill-creator\n\nSkill creator content here.';
+    const prompt = buildSkillSubAgentPrompt('test metadata', metaContent);
+
+    expect(prompt).toContain('### skill-creator');
+    expect(prompt).toContain('Skill creator content here.');
+  });
+
+  it('should include skill metadata', () => {
+    const metadata = '- test-skill: A test skill';
+    const prompt = buildSkillSubAgentPrompt(metadata, 'meta content');
+
+    expect(prompt).toContain('- test-skill: A test skill');
   });
 });

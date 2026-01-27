@@ -1,18 +1,18 @@
 /**
  * Skill Sub-Agent System Prompt
  *
- * Defines the system prompt and instructions for the Skill Sub-Agent.
+ * Defines the system prompt for the Skill Sub-Agent.
  *
  * @module skill-sub-agent-prompt
  *
  * Core Exports:
- * - buildSkillSubAgentPrompt: Builds the system prompt with skill descriptions
- * - SKILL_SEARCH_INSTRUCTIONS: Instructions for skill search
- * - SKILL_ENHANCE_INSTRUCTIONS: Instructions for skill enhancement
+ * - buildSkillSubAgentPrompt: Builds the system prompt
+ * - SKILL_SEARCH_INSTRUCTIONS: Instructions for skill search (deprecated)
+ * - SKILL_ENHANCE_INSTRUCTIONS: Instructions for skill enhancement (deprecated)
  */
 
 /**
- * Instructions for skill search command
+ * Instructions for skill search command (deprecated - now in meta skills)
  */
 export const SKILL_SEARCH_INSTRUCTIONS = `
 ## Skill Search Instructions
@@ -44,7 +44,7 @@ When processing a search request, analyze the user's query and find matching ski
 `;
 
 /**
- * Instructions for skill enhancement command
+ * Instructions for skill enhancement command (deprecated - now in meta skills)
  */
 export const SKILL_ENHANCE_INSTRUCTIONS = `
 ## Skill Enhancement Instructions
@@ -102,42 +102,59 @@ description: Brief description of what the skill does and when to use it
 /**
  * Build the full system prompt for Skill Sub-Agent
  *
- * @param skillDescriptions - Formatted skill descriptions
+ * @param skillMetadata - Formatted skill descriptions (name + description)
+ * @param metaSkillContents - Full SKILL.md content of meta skills
  * @returns Complete system prompt
  */
-export function buildSkillSubAgentPrompt(skillDescriptions: string): string {
-  return `You are the Skill Sub-Agent for Synapse Agent. Your role is to manage the skill library through search and enhancement operations.
+export function buildSkillSubAgentPrompt(
+  skillMetadata: string,
+  metaSkillContents: string
+): string {
+  return `You are the Skill Sub-Agent for Synapse Agent.
 
-## Your Capabilities
+## 1. Your Role
 
-1. **Skill Search**: Find relevant skills based on semantic understanding of user queries
-2. **Skill Enhancement**: Analyze conversations and create or improve skills
+Manage the skill library through these operations:
+- **Search**: Find relevant skills based on semantic understanding
+- **Create**: Create new skills using the skill-creator meta skill
+- **Enhance**: Improve existing skills using the enhancing-skills meta skill
+- **Evaluate**: Assess skill quality using the evaluating-skills meta skill
 
-## Available Skills
+## 2. Tools
 
-${skillDescriptions || '(No skills loaded yet)'}
+You have access to the Bash tool for file operations:
+- Read files: \`cat <path>\`
+- Write files: \`cat > <path> << 'EOF'\\n...\\nEOF\`
+- Edit files: Use sed or create new version
+- List files: \`ls <path>\`
+- Create directories: \`mkdir -p <path>\`
 
-${SKILL_SEARCH_INSTRUCTIONS}
+## 3. Meta Skills (Full Content)
 
-${SKILL_ENHANCE_INSTRUCTIONS}
+Use these skills to perform your tasks:
+- To **CREATE** a new skill: Follow the skill-creator skill
+- To **ENHANCE** an existing skill: Follow the enhancing-skills skill
+- To **EVALUATE** a skill: Follow the evaluating-skills skill
+
+${metaSkillContents}
+
+## 4. Available Skills (Metadata)
+
+For skill search, match query against these skills semantically:
+
+${skillMetadata}
 
 ## Response Guidelines
 
-- Always respond with valid JSON
-- Be concise and accurate
-- Focus on the most relevant matches
-- When enhancing, follow the SKILL.md format strictly
-
-## Tools Available
-
-You have access to:
-- read: Read files
-- write: Write files
-- edit: Edit files
-- glob: Find files by pattern
-- grep: Search file contents
+When completing a task, respond with a JSON summary:
+\`\`\`json
+{
+  "action": "created" | "enhanced" | "evaluated" | "searched" | "none",
+  "skillName": "skill-name-if-applicable",
+  "message": "Brief description of what was done"
+}
+\`\`\`
 `;
 }
 
-// Default export
 export default buildSkillSubAgentPrompt;
