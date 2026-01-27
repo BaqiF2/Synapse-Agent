@@ -307,6 +307,7 @@ type: meta
 | 文件 | 操作 | 说明 |
 |------|------|------|
 | `src/agent/agent-runner.ts` | **新建** | 从 repl.ts 提取通用 AgentRunner |
+| `src/agent/index.ts` | 修改 | 导出 AgentRunner 相关类型 |
 | `src/cli/repl.ts` | 修改 | 移除 AgentRunner 类，引用新模块 |
 | `src/agent/skill-sub-agent.ts` | 修改 | 重构为使用 AgentRunner |
 | `src/agent/skill-sub-agent-prompt.ts` | 修改 | 更新提示词构建逻辑 |

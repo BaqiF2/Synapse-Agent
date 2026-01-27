@@ -352,6 +352,7 @@ Create `tests/unit/agent/agent-runner.test.ts`:
 import { describe, expect, it, beforeEach, mock } from 'bun:test';
 import { AgentRunner, type AgentRunnerOptions, type OutputMode } from '../../../src/agent/agent-runner.ts';
 import { ContextManager } from '../../../src/agent/context-manager.ts';
+import { BashToolSchema } from '../../../src/tools/bash-tool-schema.ts';
 
 describe('AgentRunner', () => {
   let mockLlmClient: AgentRunnerOptions['llmClient'];
@@ -384,6 +385,7 @@ describe('AgentRunner', () => {
         contextManager,
         toolExecutor: mockToolExecutor,
         systemPrompt: 'Test prompt',
+        tools: [BashToolSchema],
         outputMode: 'streaming',
       });
 
@@ -397,11 +399,27 @@ describe('AgentRunner', () => {
         contextManager,
         toolExecutor: mockToolExecutor,
         systemPrompt: 'Test prompt',
+        tools: [BashToolSchema],
         outputMode: 'silent',
       });
 
       expect(runner).toBeDefined();
       expect(runner.getOutputMode()).toBe('silent');
+    });
+
+    it('should expose getLlmClient and getToolExecutor', () => {
+      const runner = new AgentRunner({
+        llmClient: mockLlmClient,
+        contextManager,
+        toolExecutor: mockToolExecutor,
+        systemPrompt: 'Test prompt',
+        tools: [BashToolSchema],
+        outputMode: 'silent',
+      });
+
+      expect(runner.getLlmClient()).toBe(mockLlmClient);
+      expect(runner.getToolExecutor()).toBe(mockToolExecutor);
+      expect(runner.getTools()).toEqual([BashToolSchema]);
     });
   });
 });
@@ -435,7 +453,6 @@ import type { ContextManager } from './context-manager.ts';
 import type { ToolCallInput, ToolExecutionResult } from './tool-executor.ts';
 import type { ToolResultContent } from './context-manager.ts';
 import type Anthropic from '@anthropic-ai/sdk';
-import { BashToolSchema } from '../tools/bash-tool-schema.ts';
 import { createLogger } from '../utils/logger.ts';
 
 const logger = createLogger('agent-runner');
@@ -481,6 +498,8 @@ export interface AgentRunnerOptions {
   toolExecutor: AgentRunnerToolExecutor;
   /** System prompt */
   systemPrompt: string;
+  /** Tools available to the agent */
+  tools: Anthropic.Tool[];
   /** Maximum iterations for Agent Loop */
   maxIterations?: number;
   /** Output mode: streaming or silent */
@@ -513,6 +532,7 @@ export class AgentRunner {
   private contextManager: ContextManager;
   private toolExecutor: AgentRunnerToolExecutor;
   private systemPrompt: string;
+  private tools: Anthropic.Tool[];
   private maxIterations: number;
   private outputMode: OutputMode;
   private onText?: (text: string) => void;
@@ -523,6 +543,7 @@ export class AgentRunner {
     this.contextManager = options.contextManager;
     this.toolExecutor = options.toolExecutor;
     this.systemPrompt = options.systemPrompt;
+    this.tools = options.tools;
     this.maxIterations = options.maxIterations ?? DEFAULT_MAX_ITERATIONS;
     this.outputMode = options.outputMode;
     this.onText = options.onText;
@@ -541,6 +562,27 @@ export class AgentRunner {
    */
   getContextManager(): ContextManager {
     return this.contextManager;
+  }
+
+  /**
+   * Get the LLM client
+   */
+  getLlmClient(): AgentRunnerLlmClient {
+    return this.llmClient;
+  }
+
+  /**
+   * Get the tool executor
+   */
+  getToolExecutor(): AgentRunnerToolExecutor {
+    return this.toolExecutor;
+  }
+
+  /**
+   * Get the tools
+   */
+  getTools(): Anthropic.Tool[] {
+    return this.tools;
   }
 
   /**
@@ -597,6 +639,7 @@ describe('run', () => {
       contextManager,
       toolExecutor: mockToolExecutor,
       systemPrompt: 'Test prompt',
+      tools: [BashToolSchema],
       outputMode: 'silent',
     });
 
@@ -635,6 +678,7 @@ describe('run', () => {
       contextManager,
       toolExecutor,
       systemPrompt: 'Test prompt',
+      tools: [BashToolSchema],
       outputMode: 'silent',
     });
 
@@ -652,6 +696,7 @@ describe('run', () => {
       contextManager,
       toolExecutor: mockToolExecutor,
       systemPrompt: 'Test prompt',
+      tools: [BashToolSchema],
       outputMode: 'streaming',
       onText: (text) => textOutput.push(text),
     });
@@ -669,6 +714,7 @@ describe('run', () => {
       contextManager,
       toolExecutor: mockToolExecutor,
       systemPrompt: 'Test prompt',
+      tools: [BashToolSchema],
       outputMode: 'silent',
       onText: (text) => textOutput.push(text),
     });
@@ -714,7 +760,7 @@ async run(userMessage: string): Promise<string> {
     const response = await this.llmClient.sendMessage(
       messages,
       this.systemPrompt,
-      [BashToolSchema]
+      this.tools
     );
 
     // Collect text content
@@ -827,6 +873,7 @@ const agentRunner = new AgentRunner({
   contextManager,
   toolExecutor,
   systemPrompt,
+  tools: [BashToolSchema],
   outputMode: 'streaming',
   onText: (text) => {
     if (text.trim()) {
@@ -1205,6 +1252,30 @@ Instructions for creating skills.
       expect(content).toContain('# Test Skill');
     });
   });
+
+  describe('default skillsDir', () => {
+    it('should use DEFAULT_SKILLS_DIR when skillsDir is not provided', () => {
+      const mockLlmClient = {
+        sendMessage: mock(() =>
+          Promise.resolve({ content: '{}', toolCalls: [], stopReason: 'end_turn' })
+        ),
+      };
+
+      const mockToolExecutor = {
+        executeTools: mock(() => Promise.resolve([])),
+        formatResultsForLlm: mock(() => []),
+      };
+
+      // This test verifies that the agent can be created without skillsDir
+      // It will use ~/.synapse/skills as default
+      const agent = new SkillSubAgent({
+        llmClient: mockLlmClient,
+        toolExecutor: mockToolExecutor,
+      });
+
+      expect(agent.isInitialized()).toBe(true);
+    });
+  });
 });
 ```
 
@@ -1238,6 +1309,7 @@ import { SkillMemoryStore } from './skill-memory-store.ts';
 import { buildSkillSubAgentPrompt } from './skill-sub-agent-prompt.ts';
 import { AgentRunner, type AgentRunnerLlmClient, type AgentRunnerToolExecutor } from './agent-runner.ts';
 import { ContextManager } from './context-manager.ts';
+import { BashToolSchema } from '../tools/bash-tool-schema.ts';
 import type {
   SkillSearchResult,
   SkillEnhanceResult,
@@ -1314,6 +1386,7 @@ export class SkillSubAgent {
       contextManager: this.contextManager,
       toolExecutor: options.toolExecutor,
       systemPrompt,
+      tools: [BashToolSchema],
       outputMode: 'silent',
     });
 
@@ -1534,38 +1607,18 @@ const subAgent = new SkillSubAgent({
 });
 ```
 
-Note: You may need to add `getLlmClient()` and `getToolExecutor()` methods to AgentRunner if they don't exist.
+Note: The `getLlmClient()` and `getToolExecutor()` methods were added to AgentRunner in Task 4.
 
-**Step 2: Add getter methods to AgentRunner if needed**
-
-Add to `src/agent/agent-runner.ts`:
-
-```typescript
-/**
- * Get the LLM client
- */
-getLlmClient(): AgentRunnerLlmClient {
-  return this.llmClient;
-}
-
-/**
- * Get the tool executor
- */
-getToolExecutor(): AgentRunnerToolExecutor {
-  return this.toolExecutor;
-}
-```
-
-**Step 3: Run the application to verify**
+**Step 2: Run the application to verify**
 
 Run: `bun run src/cli/repl.ts`
 Test: `/skill enhance --conversation ~/.synapse/conversations/test-conversation.jsonl`
 Expected: Should execute enhancement with actual tool calls
 
-**Step 4: Commit**
+**Step 3: Commit**
 
 ```bash
-git add src/cli/repl.ts src/agent/agent-runner.ts
+git add src/cli/repl.ts
 git commit -m "$(cat <<'EOF'
 fix(repl): update SkillSubAgent instantiation
 
