@@ -588,7 +588,7 @@ export async function startRepl(): Promise<void> {
 
   try {
     const llmClient = new LlmClient();
-    const toolExecutor = new ToolExecutor();
+    const toolExecutor = new ToolExecutor({ llmClient });
 
     // Initialize persistence if enabled
     if (PERSISTENCE_ENABLED) {

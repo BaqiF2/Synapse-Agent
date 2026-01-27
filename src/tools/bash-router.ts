@@ -16,7 +16,7 @@ import { ReadHandler, WriteHandler, EditHandler, GlobHandler, GrepHandler, BashW
 import { ToolsHandler } from './handlers/field-bash/index.ts';
 import { McpConfigParser, McpClient, McpWrapperGenerator, McpInstaller } from './converters/mcp/index.ts';
 import { SkillStructure, DocstringParser, SkillWrapperGenerator } from './converters/skill/index.ts';
-import { SkillCommandHandler } from './handlers/skill-command-handler.ts';
+import { SkillCommandHandler, type SkillSearchLlmClient } from './handlers/skill-command-handler.ts';
 
 /**
  * Command types in the three-layer Bash architecture
@@ -38,6 +38,8 @@ const DEFAULT_SYNAPSE_DIR = path.join(os.homedir(), '.synapse');
 export interface BashRouterOptions {
   skillsDir?: string;
   synapseDir?: string;
+  /** LLM client for semantic skill search */
+  llmClient?: SkillSearchLlmClient;
 }
 
 /**
@@ -56,10 +58,12 @@ export class BashRouter {
   private skillCommandHandler: SkillCommandHandler | null = null;
   private skillsDir: string;
   private synapseDir: string;
+  private llmClient: SkillSearchLlmClient | undefined;
 
   constructor(private session: BashSession, options: BashRouterOptions = {}) {
     this.synapseDir = options.synapseDir ?? DEFAULT_SYNAPSE_DIR;
     this.skillsDir = options.skillsDir ?? path.join(this.synapseDir, 'skills');
+    this.llmClient = options.llmClient;
 
     this.nativeShellCommandHandler = new NativeShellCommandHandler(session);
     this.readHandler = new ReadHandler();
@@ -193,6 +197,7 @@ export class BashRouter {
       this.skillCommandHandler = new SkillCommandHandler({
         skillsDir: this.skillsDir,
         synapseDir: this.synapseDir,
+        llmClient: this.llmClient,
       });
     }
 

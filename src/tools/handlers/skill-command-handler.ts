@@ -16,6 +16,7 @@
 
 import * as path from 'node:path';
 import * as os from 'node:os';
+import type Anthropic from '@anthropic-ai/sdk';
 import type { CommandResult } from './base-bash-handler.ts';
 import { SkillSubAgent } from '../../agent/skill-sub-agent.ts';
 import { SettingsManager } from '../../config/settings-manager.ts';
@@ -131,11 +132,24 @@ export function parseSkillCommand(command: string): ParsedSkillCommand {
 }
 
 /**
+ * LLM Client interface for semantic search
+ */
+export interface SkillSearchLlmClient {
+  sendMessage: (
+    messages: Anthropic.MessageParam[],
+    systemPrompt: string,
+    tools?: Anthropic.Tool[]
+  ) => Promise<{ content: string; toolCalls: unknown[]; stopReason: string | null }>;
+}
+
+/**
  * Options for SkillCommandHandler
  */
 export interface SkillCommandHandlerOptions {
   skillsDir?: string;
   synapseDir?: string;
+  /** LLM client for semantic skill search */
+  llmClient?: SkillSearchLlmClient;
 }
 
 /**
@@ -151,6 +165,7 @@ export class SkillCommandHandler {
   private subAgent: SkillSubAgent;
   private settings: SettingsManager;
   private skillsDir: string;
+  private llmClient: SkillSearchLlmClient | undefined;
 
   /**
    * Creates a new SkillCommandHandler
@@ -160,8 +175,12 @@ export class SkillCommandHandler {
   constructor(options: SkillCommandHandlerOptions = {}) {
     const synapseDir = options.synapseDir ?? DEFAULT_SYNAPSE_DIR;
     this.skillsDir = options.skillsDir ?? path.join(synapseDir, 'skills');
+    this.llmClient = options.llmClient;
 
-    this.subAgent = new SkillSubAgent({ skillsDir: this.skillsDir });
+    this.subAgent = new SkillSubAgent({
+      skillsDir: this.skillsDir,
+      llmClient: this.llmClient,
+    });
     this.settings = new SettingsManager(synapseDir);
   }
 
@@ -279,7 +298,42 @@ export class SkillCommandHandler {
       return this.handleList();
     }
 
-    // Use local search (semantic search requires LLM integration)
+    // Use LLM-based semantic search if available
+    if (this.llmClient) {
+      try {
+        logger.debug('Using LLM semantic search', { query });
+        const result = await this.subAgent.search(query);
+
+        if (result.matched_skills.length === 0) {
+          return {
+            stdout: `No skills found matching: "${query}"`,
+            stderr: '',
+            exitCode: 0,
+          };
+        }
+
+        // Format results
+        const lines = [`Found ${result.matched_skills.length} matching skill(s):\n`];
+        for (const skill of result.matched_skills) {
+          lines.push(`- ${skill.name}: ${skill.description}`);
+        }
+
+        // Also include JSON for programmatic use
+        const json = JSON.stringify(result, null, 2);
+
+        return {
+          stdout: lines.join('\n') + '\n\n' + json,
+          stderr: '',
+          exitCode: 0,
+        };
+      } catch (error) {
+        // Fall back to local search on error
+        logger.warn('LLM semantic search failed, falling back to local search', { error });
+      }
+    }
+
+    // Fallback: Use local keyword search
+    logger.debug('Using local keyword search', { query });
     const results = this.subAgent.searchLocal(query);
 
     if (results.length === 0) {

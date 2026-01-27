@@ -8,7 +8,7 @@ import { describe, expect, it, beforeEach, afterEach } from 'bun:test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
-import { SkillCommandHandler, parseSkillCommand } from '../../../../src/tools/handlers/skill-command-handler.ts';
+import { SkillCommandHandler, parseSkillCommand, type SkillSearchLlmClient } from '../../../../src/tools/handlers/skill-command-handler.ts';
 
 describe('parseSkillCommand', () => {
   it('should parse skill search command', () => {
@@ -126,6 +126,95 @@ Content here.
       const result = await handler.execute('skill enhance --off');
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain('disabled');
+    });
+  });
+
+  describe('semantic search with llmClient', () => {
+    let testDirWithLlm: string;
+    let skillsDirWithLlm: string;
+    let handlerWithLlm: SkillCommandHandler;
+    let searchCallCount: number;
+
+    beforeEach(() => {
+      testDirWithLlm = fs.mkdtempSync(path.join(os.tmpdir(), 'synapse-skill-llm-test-'));
+      skillsDirWithLlm = path.join(testDirWithLlm, 'skills');
+      fs.mkdirSync(skillsDirWithLlm, { recursive: true });
+
+      // Create test skill (skill-creator)
+      const skillCreatorDir = path.join(skillsDirWithLlm, 'skill-creator');
+      fs.mkdirSync(skillCreatorDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(skillCreatorDir, 'SKILL.md'),
+        `---
+name: skill-creator
+description: Guide for creating effective skills
+---
+
+# Skill Creator
+
+This skill helps you create new skills.
+`
+      );
+
+      searchCallCount = 0;
+
+      // Create mock LLM client that returns semantic search results
+      const mockLlmClient: SkillSearchLlmClient = {
+        sendMessage: async (messages, _systemPrompt, _tools) => {
+          searchCallCount++;
+          // Simulate LLM understanding "创建新技能" means "create skill"
+          const lastMessage = messages[messages.length - 1];
+          const query = typeof lastMessage.content === 'string'
+            ? lastMessage.content
+            : '';
+
+          // If query contains Chinese for "create skill", return skill-creator
+          if (query.includes('创建新技能') || query.includes('create skill')) {
+            return {
+              content: JSON.stringify({
+                matched_skills: [
+                  { name: 'skill-creator', description: 'Guide for creating effective skills' }
+                ]
+              }),
+              toolCalls: [],
+              stopReason: 'end_turn',
+            };
+          }
+
+          return {
+            content: JSON.stringify({ matched_skills: [] }),
+            toolCalls: [],
+            stopReason: 'end_turn',
+          };
+        }
+      };
+
+      handlerWithLlm = new SkillCommandHandler({
+        skillsDir: skillsDirWithLlm,
+        synapseDir: testDirWithLlm,
+        llmClient: mockLlmClient,
+      });
+    });
+
+    afterEach(() => {
+      handlerWithLlm.shutdown();
+      fs.rmSync(testDirWithLlm, { recursive: true, force: true });
+    });
+
+    it('should use LLM semantic search when llmClient is provided', async () => {
+      const result = await handlerWithLlm.execute('skill search "创建新技能"');
+
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('skill-creator');
+      expect(searchCallCount).toBe(1); // LLM was called
+    });
+
+    it('should find skill-creator with Chinese query via LLM', async () => {
+      const result = await handlerWithLlm.execute('skill search "创建新技能"');
+
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('skill-creator');
+      expect(result.stdout).toContain('Guide for creating effective skills');
     });
   });
 });

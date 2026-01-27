@@ -6,11 +6,13 @@
  * 核心导出：
  * - ToolExecutor: 工具执行器类
  * - ToolExecutionResult: 工具执行结果类型
+ * - ToolExecutorOptions: 工具执行器选项类型
  */
 
-import { BashRouter } from '../tools/bash-router.ts';
+import { BashRouter, type BashRouterOptions } from '../tools/bash-router.ts';
 import { BashSession } from '../tools/bash-session.ts';
 import type { ToolResultContent } from './context-manager.ts';
+import type { SkillSearchLlmClient } from '../tools/handlers/skill-command-handler.ts';
 
 const MAX_OUTPUT_LENGTH = parseInt(process.env.MAX_TOOL_OUTPUT_LENGTH || '10000', 10);
 const MAX_RETRIES = parseInt(process.env.MAX_TOOL_RETRIES || '3', 10);
@@ -39,15 +41,25 @@ export interface ToolExecutionResult {
 }
 
 /**
+ * Tool executor options
+ */
+export interface ToolExecutorOptions {
+  /** LLM client for semantic skill search */
+  llmClient?: SkillSearchLlmClient;
+}
+
+/**
  * Tool Executor for handling LLM tool calls
  */
 export class ToolExecutor {
   private session: BashSession;
   private router: BashRouter;
 
-  constructor() {
+  constructor(options: ToolExecutorOptions = {}) {
     this.session = new BashSession();
-    this.router = new BashRouter(this.session);
+    this.router = new BashRouter(this.session, {
+      llmClient: options.llmClient,
+    });
   }
 
   /**

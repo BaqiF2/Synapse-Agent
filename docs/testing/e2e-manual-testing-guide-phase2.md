@@ -54,7 +54,7 @@ rm -rf ~/.synapse/skills/evaluating-skills
 ```
 
 **验证结果**:
-- [ ] 元技能目录已删除
+- [x] 元技能目录已删除
 
 ---
 
@@ -90,10 +90,10 @@ cat ~/.synapse/skills/evaluating-skills/SKILL.md | head -20
 ```
 
 **验证结果**:
-- [ ] skill-creator 已安装
-- [ ] enhancing-skills 已安装
-- [ ] evaluating-skills 已安装
-- [ ] 每个技能都有 SKILL.md 文件
+- [x] skill-creator 已安装
+- [x] enhancing-skills 已安装
+- [x] evaluating-skills 已安装
+- [x] 每个技能都有 SKILL.md 文件
 
 ### 2.3 验证不覆盖现有技能
 
@@ -113,7 +113,7 @@ cat ~/.synapse/skills/skill-creator/custom.md
 **预期输出**: `# Custom content`
 
 **验证结果**:
-- [ ] 自定义内容未被覆盖
+- [x] 自定义内容未被覆盖
 
 ---
 
@@ -133,10 +133,10 @@ You (1)> skill list
 - 至少包含三个元技能
 
 **验证结果**:
-- [ ] 显示技能列表
-- [ ] 包含 skill-creator
-- [ ] 包含 enhancing-skills
-- [ ] 包含 evaluating-skills
+- [x] 显示技能列表
+- [x] 包含 skill-creator
+- [x] 包含 enhancing-skills
+- [x] 包含 evaluating-skills
 
 ### 3.2 通过 Agent 请求列出技能
 
@@ -149,8 +149,8 @@ You (2)> 请列出所有可用的技能
 - 返回技能列表摘要
 
 **验证结果**:
-- [ ] Agent 正确调用命令
-- [ ] 返回技能信息
+- [x] Agent 正确调用命令
+- [x] 返回技能信息
 
 ---
 
@@ -159,16 +159,18 @@ You (2)> 请列出所有可用的技能
 ### 4.1 关键词搜索
 
 ```
-You (1)> skill search "创建"
+You (1)> skill search "创建新技能"
 ```
 
 **预期输出**:
 - 返回与"创建"相关的技能
 - 应包含 skill-creator
+- 日志显示 `[DEBUG] [skill-command-handler] Using LLM semantic search`（语义搜索模式）
 
 **验证结果**:
 - [ ] 搜索成功返回结果
 - [ ] 结果包含相关技能
+- [ ] 日志确认使用了 LLM 语义搜索（而非关键词匹配）
 
 ### 4.2 按领域搜索
 
