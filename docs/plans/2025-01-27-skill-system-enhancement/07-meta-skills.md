@@ -1,130 +1,153 @@
-# Batch 7: 元技能模板生成
+# Batch 7: 元技能资源安装
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** 在 `~/.synapse/skills/` 下生成三个元技能模板，供开发者参考和定制。
+**Goal:** 在项目安装/启动时将 `src/resource/meta-skill/` 下的元技能复制到 `~/.synapse/skills/` 目录下。
 
-**Architecture:** 元技能与普通技能同级，不写死到代码中。首次启动时检测并生成模板，开发者可自行修改完善。
+**Architecture:** 元技能作为项目的静态资源文件存放在 `src/resource/meta-skill/` 目录下，启动时检测并复制到用户的 skills 目录。不覆盖已存在的同名技能，保护用户自定义内容。
 
-**Tech Stack:** TypeScript, Bun
+**Tech Stack:** TypeScript, Bun, Node.js fs
 
 ---
 
-## Task 1: 创建元技能生成器
+## Task 1: 创建元技能安装器
 
 **Files:**
-- Create: `src/skills/meta-skill-generator.ts`
-- Test: `tests/unit/skills/meta-skill-generator.test.ts`
+- Create: `src/skills/meta-skill-installer.ts`
+- Test: `tests/unit/skills/meta-skill-installer.test.ts`
 
 **Step 1: Write the failing test**
 
 ```typescript
-// tests/unit/skills/meta-skill-generator.test.ts
+// tests/unit/skills/meta-skill-installer.test.ts
 /**
- * Meta Skill Generator Tests
+ * Meta Skill Installer Tests
  *
- * Tests for meta skill template generation.
+ * Tests for copying meta skills from resource directory to user skills directory.
  */
 
 import { describe, expect, it, beforeEach, afterEach } from 'bun:test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
-import { MetaSkillGenerator } from '../../../src/skills/meta-skill-generator.ts';
+import { MetaSkillInstaller } from '../../../src/skills/meta-skill-installer.ts';
 
-describe('MetaSkillGenerator', () => {
+describe('MetaSkillInstaller', () => {
   let testDir: string;
+  let resourceDir: string;
   let skillsDir: string;
-  let generator: MetaSkillGenerator;
+  let installer: MetaSkillInstaller;
 
   beforeEach(() => {
     testDir = fs.mkdtempSync(path.join(os.tmpdir(), 'synapse-meta-skill-test-'));
+    resourceDir = path.join(testDir, 'resource', 'meta-skill');
     skillsDir = path.join(testDir, 'skills');
-    fs.mkdirSync(skillsDir, { recursive: true });
 
-    generator = new MetaSkillGenerator(skillsDir);
+    // Create resource directory with a test meta skill
+    fs.mkdirSync(path.join(resourceDir, 'test-skill', 'references'), { recursive: true });
+    fs.mkdirSync(path.join(resourceDir, 'test-skill', 'scripts'), { recursive: true });
+    fs.writeFileSync(
+      path.join(resourceDir, 'test-skill', 'SKILL.md'),
+      '---\nname: test-skill\ndescription: Test meta skill\n---\n\n# Test Skill\n'
+    );
+    fs.writeFileSync(
+      path.join(resourceDir, 'test-skill', 'references', 'guide.md'),
+      '# Guide\n'
+    );
+    fs.writeFileSync(
+      path.join(resourceDir, 'test-skill', 'scripts', 'init.py'),
+      '#!/usr/bin/env python3\nprint("hello")\n'
+    );
+
+    fs.mkdirSync(skillsDir, { recursive: true });
+    installer = new MetaSkillInstaller(resourceDir, skillsDir);
   });
 
   afterEach(() => {
     fs.rmSync(testDir, { recursive: true, force: true });
   });
 
-  describe('generateAll', () => {
-    it('should generate all three meta skills', () => {
-      generator.generateAll();
+  describe('install', () => {
+    it('should copy all meta skills to skills directory', () => {
+      const result = installer.install();
 
-      expect(fs.existsSync(path.join(skillsDir, 'creating-skills', 'SKILL.md'))).toBe(true);
-      expect(fs.existsSync(path.join(skillsDir, 'enhancing-skills', 'SKILL.md'))).toBe(true);
-      expect(fs.existsSync(path.join(skillsDir, 'evaluating-skills', 'SKILL.md'))).toBe(true);
+      expect(result.installed).toContain('test-skill');
+      expect(fs.existsSync(path.join(skillsDir, 'test-skill', 'SKILL.md'))).toBe(true);
+      expect(fs.existsSync(path.join(skillsDir, 'test-skill', 'references', 'guide.md'))).toBe(true);
+      expect(fs.existsSync(path.join(skillsDir, 'test-skill', 'scripts', 'init.py'))).toBe(true);
     });
 
-    it('should not overwrite existing meta skills', () => {
-      // Create existing skill
-      const existingDir = path.join(skillsDir, 'creating-skills');
+    it('should not overwrite existing skills', () => {
+      // Create existing skill with custom content
+      const existingDir = path.join(skillsDir, 'test-skill');
       fs.mkdirSync(existingDir, { recursive: true });
       fs.writeFileSync(path.join(existingDir, 'SKILL.md'), 'custom content');
 
-      generator.generateAll();
+      const result = installer.install();
 
+      expect(result.skipped).toContain('test-skill');
       const content = fs.readFileSync(path.join(existingDir, 'SKILL.md'), 'utf-8');
       expect(content).toBe('custom content');
     });
+
+    it('should preserve file permissions for scripts', () => {
+      const result = installer.install();
+
+      const scriptPath = path.join(skillsDir, 'test-skill', 'scripts', 'init.py');
+      const stats = fs.statSync(scriptPath);
+      // Check executable bit (owner execute)
+      expect((stats.mode & 0o100) !== 0).toBe(true);
+    });
   });
 
-  describe('generateIfMissing', () => {
-    it('should generate only missing meta skills', () => {
-      // Create one existing skill
-      const existingDir = path.join(skillsDir, 'creating-skills');
+  describe('installIfMissing', () => {
+    it('should only install missing meta skills', () => {
+      // Create second meta skill in resource
+      fs.mkdirSync(path.join(resourceDir, 'another-skill'), { recursive: true });
+      fs.writeFileSync(
+        path.join(resourceDir, 'another-skill', 'SKILL.md'),
+        '---\nname: another-skill\ndescription: Another skill\n---\n'
+      );
+
+      // Pre-create one skill
+      const existingDir = path.join(skillsDir, 'test-skill');
       fs.mkdirSync(existingDir, { recursive: true });
-      fs.writeFileSync(path.join(existingDir, 'SKILL.md'), 'custom content');
+      fs.writeFileSync(path.join(existingDir, 'SKILL.md'), 'custom');
 
-      generator.generateIfMissing();
+      const result = installer.installIfMissing();
 
-      // Should not overwrite existing
-      const existingContent = fs.readFileSync(path.join(existingDir, 'SKILL.md'), 'utf-8');
-      expect(existingContent).toBe('custom content');
-
-      // Should create missing ones
-      expect(fs.existsSync(path.join(skillsDir, 'enhancing-skills', 'SKILL.md'))).toBe(true);
-      expect(fs.existsSync(path.join(skillsDir, 'evaluating-skills', 'SKILL.md'))).toBe(true);
+      expect(result.installed).toContain('another-skill');
+      expect(result.skipped).toContain('test-skill');
     });
   });
 
-  describe('meta skill content', () => {
-    it('should have valid frontmatter in creating-skills', () => {
-      generator.generateAll();
+  describe('getAvailableMetaSkills', () => {
+    it('should list all meta skills in resource directory', () => {
+      const skills = installer.getAvailableMetaSkills();
 
-      const content = fs.readFileSync(
-        path.join(skillsDir, 'creating-skills', 'SKILL.md'),
-        'utf-8'
-      );
-
-      expect(content).toContain('name: creating-skills');
-      expect(content).toContain('description:');
+      expect(skills).toContain('test-skill');
     });
 
-    it('should have valid frontmatter in enhancing-skills', () => {
-      generator.generateAll();
+    it('should only include directories with SKILL.md', () => {
+      // Create directory without SKILL.md
+      fs.mkdirSync(path.join(resourceDir, 'invalid-skill'), { recursive: true });
 
-      const content = fs.readFileSync(
-        path.join(skillsDir, 'enhancing-skills', 'SKILL.md'),
-        'utf-8'
-      );
+      const skills = installer.getAvailableMetaSkills();
 
-      expect(content).toContain('name: enhancing-skills');
-      expect(content).toContain('description:');
+      expect(skills).not.toContain('invalid-skill');
+    });
+  });
+
+  describe('isInstalled', () => {
+    it('should return true if skill exists in skills directory', () => {
+      fs.mkdirSync(path.join(skillsDir, 'test-skill'), { recursive: true });
+      fs.writeFileSync(path.join(skillsDir, 'test-skill', 'SKILL.md'), 'content');
+
+      expect(installer.isInstalled('test-skill')).toBe(true);
     });
 
-    it('should have valid frontmatter in evaluating-skills', () => {
-      generator.generateAll();
-
-      const content = fs.readFileSync(
-        path.join(skillsDir, 'evaluating-skills', 'SKILL.md'),
-        'utf-8'
-      );
-
-      expect(content).toContain('name: evaluating-skills');
-      expect(content).toContain('description:');
+    it('should return false if skill does not exist', () => {
+      expect(installer.isInstalled('nonexistent')).toBe(false);
     });
   });
 });
@@ -132,327 +155,224 @@ describe('MetaSkillGenerator', () => {
 
 **Step 2: Run test to verify it fails**
 
-Run: `bun test tests/unit/skills/meta-skill-generator.test.ts`
+Run: `bun test tests/unit/skills/meta-skill-installer.test.ts`
 Expected: FAIL with "Cannot find module"
 
 **Step 3: Write minimal implementation**
 
 ```typescript
-// src/skills/meta-skill-generator.ts
+// src/skills/meta-skill-installer.ts
 /**
- * Meta Skill Generator
+ * Meta Skill Installer
  *
- * Generates template meta skills for skill creation, enhancement, and evaluation.
- * These meta skills are regular skills that guide the Skill Sub-Agent.
+ * Copies meta skill templates from resource directory to user skills directory.
+ * Meta skills are pre-built skills bundled with the project that provide
+ * guidance for skill creation, enhancement, and evaluation.
  *
- * @module meta-skill-generator
+ * @module meta-skill-installer
  *
  * Core Exports:
- * - MetaSkillGenerator: Generates meta skill templates
- * - META_SKILL_NAMES: List of meta skill names
+ * - MetaSkillInstaller: Copies meta skills to user directory
+ * - getDefaultResourceDir: Gets the default resource directory path
+ * - InstallResult: Result of installation operation
  */
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
-import { createLogger } from '../utils/logger.ts';
+import { createLogger } from '../utils/logger.js';
 
-const logger = createLogger('meta-skill-generator');
+const logger = createLogger('meta-skill-installer');
 
 /**
- * Default skills directory
+ * Default skills directory under user home
  */
 const DEFAULT_SKILLS_DIR = path.join(os.homedir(), '.synapse', 'skills');
 
 /**
- * Meta skill names
+ * Get the default resource directory path
+ * This is relative to the package installation location
  */
-export const META_SKILL_NAMES = [
-  'creating-skills',
-  'enhancing-skills',
-  'evaluating-skills',
-] as const;
-
-/**
- * Meta skill template content
- */
-const META_SKILL_TEMPLATES: Record<string, string> = {
-  'creating-skills': `---
-name: creating-skills
-description: Guides the creation of new skills from conversation patterns and reusable workflows. Use when the Skill Sub-Agent needs to generate a new skill.
----
-
-# Creating Skills
-
-This meta skill provides guidance for creating new skills based on conversation analysis.
-
-## When to Create a New Skill
-
-1. **Reusable Pattern Detected**: The conversation contains a workflow that could be reused
-2. **No Existing Coverage**: No existing skill covers this functionality
-3. **Clear Structure**: The pattern has clear inputs, steps, and outputs
-
-## Skill File Structure
-
-\`\`\`
-~/.synapse/skills/<skill-name>/
-├── SKILL.md           # Main skill definition (required)
-├── references/        # Reference documents (optional)
-│   └── *.md
-└── scripts/           # Executable scripts (optional)
-    └── *.py|*.ts|*.sh
-\`\`\`
-
-## SKILL.md Format
-
-\`\`\`markdown
----
-name: skill-name
-description: Brief description (what it does and when to use it)
----
-
-# Skill Title
-
-## Quick Start
-[Most common usage pattern with examples]
-
-## Execution Steps
-1. Step 1
-2. Step 2
-
-## Best Practices
-- Practice 1
-- Practice 2
-
-## Examples
-[Input/output examples]
-\`\`\`
-
-## Creation Checklist
-
-- [ ] Clear, descriptive name (lowercase, hyphens)
-- [ ] Concise description (under 1024 characters)
-- [ ] Well-defined execution steps
-- [ ] At least one example
-- [ ] Tags for discoverability
-
-## Tips
-
-- Keep skills focused on one task
-- Use clear, imperative language
-- Include error handling guidance
-- Reference related skills if applicable
-`,
-
-  'enhancing-skills': `---
-name: enhancing-skills
-description: Guides the enhancement and improvement of existing skills based on usage feedback and new patterns. Use when the Skill Sub-Agent needs to update a skill.
----
-
-# Enhancing Skills
-
-This meta skill provides guidance for enhancing existing skills.
-
-## When to Enhance a Skill
-
-1. **New Pattern Discovered**: Found a better approach or additional use case
-2. **Feedback Integration**: User feedback suggests improvements
-3. **Error Correction**: Skill has incorrect or outdated information
-4. **Completeness**: Missing steps or examples that should be added
-
-## Enhancement Process
-
-1. **Read Current Skill**: Load the existing SKILL.md content
-2. **Identify Gaps**: Compare with new information/patterns
-3. **Plan Changes**: Determine what to add/modify/remove
-4. **Apply Updates**: Edit the skill file
-5. **Verify**: Ensure the skill is still coherent
-
-## Types of Enhancements
-
-### Adding New Sections
-- New execution paths
-- Additional examples
-- Best practices
-
-### Improving Existing Content
-- Clearer explanations
-- Better examples
-- Updated references
-
-### Structural Changes
-- Reorganizing sections
-- Adding subsections
-- Improving flow
-
-## Enhancement Checklist
-
-- [ ] Preserve existing working content
-- [ ] Add clear version notes if significant change
-- [ ] Update description if scope changed
-- [ ] Verify all examples still work
-- [ ] Check for consistency
-
-## Tips
-
-- Make incremental changes
-- Don't remove working content without reason
-- Add comments for non-obvious changes
-- Test enhanced skills when possible
-`,
-
-  'evaluating-skills': `---
-name: evaluating-skills
-description: Guides the evaluation and quality assessment of skills to determine their effectiveness and areas for improvement. Use when assessing skill quality.
----
-
-# Evaluating Skills
-
-This meta skill provides guidance for evaluating skill quality and effectiveness.
-
-## Evaluation Criteria
-
-### 1. Clarity (1-5)
-- Is the description clear?
-- Are execution steps unambiguous?
-- Are examples helpful?
-
-### 2. Completeness (1-5)
-- Are all necessary steps included?
-- Are edge cases covered?
-- Are prerequisites documented?
-
-### 3. Usability (1-5)
-- Is the skill easy to follow?
-- Is the structure logical?
-- Are best practices included?
-
-### 4. Accuracy (1-5)
-- Is the information correct?
-- Are examples valid?
-- Are references up to date?
-
-## Evaluation Process
-
-1. **Read the Skill**: Load and understand the SKILL.md
-2. **Score Each Criterion**: Rate 1-5 for each criterion
-3. **Identify Issues**: List specific problems found
-4. **Suggest Improvements**: Provide actionable recommendations
-5. **Calculate Overall Score**: Average of all criteria
-
-## Evaluation Output Format
-
-\`\`\`json
-{
-  "skillName": "skill-name",
-  "scores": {
-    "clarity": 4,
-    "completeness": 3,
-    "usability": 4,
-    "accuracy": 5
-  },
-  "overallScore": 4.0,
-  "issues": [
-    "Missing edge case handling",
-    "Example output not shown"
-  ],
-  "recommendations": [
-    "Add error handling section",
-    "Include expected output in examples"
-  ]
+export function getDefaultResourceDir(): string {
+  // In production, resources are in the package's resource directory
+  // __dirname points to dist/skills, so we go up to find resource
+  const distDir = path.dirname(new URL(import.meta.url).pathname);
+  return path.join(distDir, '..', 'resource', 'meta-skill');
 }
-\`\`\`
-
-## Quality Thresholds
-
-- **Excellent**: 4.5-5.0
-- **Good**: 3.5-4.4
-- **Needs Improvement**: 2.5-3.4
-- **Poor**: Below 2.5
-
-## Tips
-
-- Be objective and consistent
-- Focus on actionable feedback
-- Consider the skill's intended audience
-- Check for outdated information
-`,
-};
 
 /**
- * MetaSkillGenerator - Generates meta skill templates
+ * Result of meta skill installation
+ */
+export interface InstallResult {
+  /** Skills that were successfully installed */
+  installed: string[];
+  /** Skills that were skipped (already exist) */
+  skipped: string[];
+  /** Skills that failed to install */
+  errors: Array<{ skill: string; error: string }>;
+}
+
+/**
+ * MetaSkillInstaller
+ *
+ * Copies meta skill templates from the project's resource directory
+ * to the user's ~/.synapse/skills/ directory.
  *
  * Usage:
  * ```typescript
- * const generator = new MetaSkillGenerator();
- * generator.generateIfMissing();
+ * const installer = new MetaSkillInstaller();
+ * const result = installer.installIfMissing();
+ * console.log(`Installed: ${result.installed.join(', ')}`);
  * ```
  */
-export class MetaSkillGenerator {
+export class MetaSkillInstaller {
+  private resourceDir: string;
   private skillsDir: string;
 
   /**
-   * Creates a new MetaSkillGenerator
+   * Creates a new MetaSkillInstaller
    *
-   * @param skillsDir - Skills directory (defaults to ~/.synapse/skills)
+   * @param resourceDir - Source directory containing meta skills (defaults to package resource)
+   * @param skillsDir - Target skills directory (defaults to ~/.synapse/skills)
    */
-  constructor(skillsDir: string = DEFAULT_SKILLS_DIR) {
+  constructor(
+    resourceDir: string = getDefaultResourceDir(),
+    skillsDir: string = DEFAULT_SKILLS_DIR
+  ) {
+    this.resourceDir = resourceDir;
     this.skillsDir = skillsDir;
   }
 
   /**
-   * Generate all meta skill templates
-   * Does not overwrite existing skills
-   */
-  generateAll(): void {
-    this.ensureSkillsDir();
-
-    for (const name of META_SKILL_NAMES) {
-      this.generateSkill(name, false);
-    }
-  }
-
-  /**
-   * Generate only missing meta skills
-   */
-  generateIfMissing(): void {
-    this.ensureSkillsDir();
-
-    for (const name of META_SKILL_NAMES) {
-      this.generateSkill(name, true);
-    }
-  }
-
-  /**
-   * Generate a single meta skill
+   * Install all meta skills, skipping those that already exist
    *
-   * @param name - Skill name
-   * @param skipExisting - Skip if already exists
+   * @returns Installation result
    */
-  private generateSkill(name: string, skipExisting: boolean): void {
-    const skillDir = path.join(this.skillsDir, name);
-    const skillMdPath = path.join(skillDir, 'SKILL.md');
+  install(): InstallResult {
+    return this.installIfMissing();
+  }
 
-    if (skipExisting && fs.existsSync(skillMdPath)) {
-      logger.debug('Meta skill already exists, skipping', { name });
-      return;
+  /**
+   * Install only missing meta skills
+   *
+   * @returns Installation result
+   */
+  installIfMissing(): InstallResult {
+    const result: InstallResult = {
+      installed: [],
+      skipped: [],
+      errors: [],
+    };
+
+    // Ensure skills directory exists
+    this.ensureSkillsDir();
+
+    // Get available meta skills
+    const metaSkills = this.getAvailableMetaSkills();
+
+    if (metaSkills.length === 0) {
+      logger.debug('No meta skills found in resource directory', { dir: this.resourceDir });
+      return result;
     }
 
-    const template = META_SKILL_TEMPLATES[name];
-    if (!template) {
-      logger.warn('No template found for meta skill', { name });
-      return;
+    logger.info(`Found ${metaSkills.length} meta skill(s) to check`);
+
+    for (const skillName of metaSkills) {
+      if (this.isInstalled(skillName)) {
+        result.skipped.push(skillName);
+        logger.debug('Meta skill already installed, skipping', { skill: skillName });
+        continue;
+      }
+
+      try {
+        this.copySkill(skillName);
+        result.installed.push(skillName);
+        logger.info('Installed meta skill', { skill: skillName });
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        result.errors.push({ skill: skillName, error: errorMsg });
+        logger.error('Failed to install meta skill', { skill: skillName, error: errorMsg });
+      }
     }
 
-    // Create directory
-    if (!fs.existsSync(skillDir)) {
-      fs.mkdirSync(skillDir, { recursive: true });
+    return result;
+  }
+
+  /**
+   * Get list of available meta skills in resource directory
+   *
+   * @returns Array of meta skill names
+   */
+  getAvailableMetaSkills(): string[] {
+    if (!fs.existsSync(this.resourceDir)) {
+      return [];
     }
 
-    // Write skill file (only if doesn't exist or not skipping)
-    if (!fs.existsSync(skillMdPath)) {
-      fs.writeFileSync(skillMdPath, template, 'utf-8');
-      logger.info('Generated meta skill', { name, path: skillMdPath });
+    const entries = fs.readdirSync(this.resourceDir, { withFileTypes: true });
+    const skills: string[] = [];
+
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+
+      // Check if it has SKILL.md
+      const skillMdPath = path.join(this.resourceDir, entry.name, 'SKILL.md');
+      if (fs.existsSync(skillMdPath)) {
+        skills.push(entry.name);
+      }
+    }
+
+    return skills.sort();
+  }
+
+  /**
+   * Check if a skill is already installed
+   *
+   * @param skillName - Name of the skill to check
+   * @returns true if skill exists in skills directory
+   */
+  isInstalled(skillName: string): boolean {
+    const skillMdPath = path.join(this.skillsDir, skillName, 'SKILL.md');
+    return fs.existsSync(skillMdPath);
+  }
+
+  /**
+   * Copy a single skill from resource to skills directory
+   *
+   * @param skillName - Name of the skill to copy
+   */
+  private copySkill(skillName: string): void {
+    const srcDir = path.join(this.resourceDir, skillName);
+    const destDir = path.join(this.skillsDir, skillName);
+
+    this.copyDirectoryRecursive(srcDir, destDir);
+  }
+
+  /**
+   * Recursively copy a directory
+   *
+   * @param src - Source directory
+   * @param dest - Destination directory
+   */
+  private copyDirectoryRecursive(src: string, dest: string): void {
+    // Create destination directory
+    fs.mkdirSync(dest, { recursive: true });
+
+    const entries = fs.readdirSync(src, { withFileTypes: true });
+
+    for (const entry of entries) {
+      const srcPath = path.join(src, entry.name);
+      const destPath = path.join(dest, entry.name);
+
+      if (entry.isDirectory()) {
+        this.copyDirectoryRecursive(srcPath, destPath);
+      } else {
+        // Copy file
+        fs.copyFileSync(srcPath, destPath);
+
+        // Preserve permissions for scripts
+        const srcStats = fs.statSync(srcPath);
+        fs.chmodSync(destPath, srcStats.mode);
+      }
     }
   }
 
@@ -465,50 +385,26 @@ export class MetaSkillGenerator {
       logger.info('Created skills directory', { dir: this.skillsDir });
     }
   }
-
-  /**
-   * Check if a meta skill exists
-   *
-   * @param name - Skill name
-   * @returns true if skill exists
-   */
-  exists(name: string): boolean {
-    const skillMdPath = path.join(this.skillsDir, name, 'SKILL.md');
-    return fs.existsSync(skillMdPath);
-  }
-
-  /**
-   * Get list of missing meta skills
-   *
-   * @returns Array of missing meta skill names
-   */
-  getMissing(): string[] {
-    return META_SKILL_NAMES.filter((name) => !this.exists(name));
-  }
 }
 
 // Default export
-export default MetaSkillGenerator;
+export default MetaSkillInstaller;
 ```
 
 **Step 4: Run test to verify it passes**
 
-Run: `bun test tests/unit/skills/meta-skill-generator.test.ts`
+Run: `bun test tests/unit/skills/meta-skill-installer.test.ts`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-git add src/skills/meta-skill-generator.ts tests/unit/skills/meta-skill-generator.test.ts
+git add src/skills/meta-skill-installer.ts tests/unit/skills/meta-skill-installer.test.ts
 git commit -m "$(cat <<'EOF'
-feat(skills): add meta skill generator
+feat(skills): add meta skill installer
 
-Generates three meta skill templates:
-- creating-skills: guides new skill creation
-- enhancing-skills: guides skill enhancement
-- evaluating-skills: guides skill evaluation
-
-Meta skills are regular skills stored in ~/.synapse/skills/
+Copies meta skills from src/resource/meta-skill/ to ~/.synapse/skills/
+on startup. Does not overwrite existing skills to preserve user customizations.
 
 Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
 EOF
@@ -520,35 +416,47 @@ EOF
 ## Task 2: 集成到启动流程
 
 **Files:**
-- Modify: `src/agent/agent.ts` (or main entry point)
+- Modify: `src/tools/converters/skill/skill-initializer.ts`
 
-**Step 1: Add meta skill generation on startup**
+**Step 1: Add meta skill installation on startup**
 
-在 Agent 初始化时调用 `MetaSkillGenerator.generateIfMissing()`，确保元技能模板已生成。
+在 `initializeSkillTools` 函数开始时调用 `MetaSkillInstaller.installIfMissing()`。
 
 ```typescript
-// Add to agent initialization
-import { MetaSkillGenerator } from '../skills/meta-skill-generator.ts';
+// Add import at top of skill-initializer.ts
+import { MetaSkillInstaller } from '../../../skills/meta-skill-installer.js';
 
-// In constructor or initialize method
-const metaSkillGenerator = new MetaSkillGenerator();
-metaSkillGenerator.generateIfMissing();
+// Add at the beginning of initializeSkillTools function, after creating result object:
+  // Install meta skills if missing
+  try {
+    const metaInstaller = new MetaSkillInstaller();
+    const metaResult = metaInstaller.installIfMissing();
+    if (metaResult.installed.length > 0) {
+      logger.info(`Installed ${metaResult.installed.length} meta skill(s)`, {
+        skills: metaResult.installed,
+      });
+    }
+  } catch (error) {
+    const msg = getErrorMessage(error);
+    logger.warn('Failed to install meta skills', { error: msg });
+    // Don't fail initialization if meta skills can't be installed
+  }
 ```
 
 **Step 2: Run full test suite**
 
-Run: `bun test`
+Run: `bun test tests/unit/skills/`
 Expected: All PASS
 
 **Step 3: Commit**
 
 ```bash
-git add src/agent/agent.ts
+git add src/tools/converters/skill/skill-initializer.ts
 git commit -m "$(cat <<'EOF'
-feat(agent): generate meta skills on startup
+feat(skills): install meta skills on startup
 
-Ensures meta skill templates exist when agent starts.
-Does not overwrite user-customized meta skills.
+Automatically installs bundled meta skills when agent starts.
+Does not overwrite user-customized skills.
 
 Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
 EOF
@@ -566,10 +474,13 @@ EOF
 
 ```typescript
 // Add to src/skills/index.ts
+
+// Meta Skill Installer
 export {
-  MetaSkillGenerator,
-  META_SKILL_NAMES,
-} from './meta-skill-generator.ts';
+  MetaSkillInstaller,
+  getDefaultResourceDir,
+  type InstallResult,
+} from './meta-skill-installer.js';
 ```
 
 **Step 2: Run tests**
@@ -582,9 +493,56 @@ Expected: All PASS
 ```bash
 git add src/skills/index.ts
 git commit -m "$(cat <<'EOF'
-feat(skills): export meta skill generator
+feat(skills): export meta skill installer
 
-Adds MetaSkillGenerator and META_SKILL_NAMES to skills module exports.
+Adds MetaSkillInstaller and related types to skills module exports.
+
+Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
+EOF
+)"
+```
+
+---
+
+## Task 4: 确保资源目录在构建中包含
+
+**Files:**
+- Check/Modify: `package.json` (files field)
+- Check/Modify: `tsconfig.json` (if needed)
+
+**Step 1: Verify resource directory is included in package**
+
+检查 `package.json` 的 `files` 字段是否包含 `src/resource`：
+
+```bash
+grep -A 10 '"files"' package.json
+```
+
+如果没有包含，需要添加：
+
+```json
+{
+  "files": [
+    "dist",
+    "src/resource"
+  ]
+}
+```
+
+**Step 2: Test packaging**
+
+```bash
+bun run build
+```
+
+**Step 3: Commit if changes were made**
+
+```bash
+git add package.json
+git commit -m "$(cat <<'EOF'
+chore: include resource directory in package
+
+Ensures meta skill resources are included in npm package.
 
 Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
 EOF
@@ -595,15 +553,16 @@ EOF
 
 ## Batch 7 完成检查
 
-- [ ] `src/skills/meta-skill-generator.ts` 创建并测试通过
+- [ ] `src/skills/meta-skill-installer.ts` 创建并测试通过
 - [ ] 启动流程集成完成
 - [ ] `src/skills/index.ts` 更新
+- [ ] 资源目录在构建中包含
 - [ ] 所有提交完成
 
 **验证命令:**
 
 ```bash
-bun test tests/unit/skills/meta-skill-generator.test.ts
+bun test tests/unit/skills/meta-skill-installer.test.ts
 ```
 
 Expected: All tests PASS
@@ -612,10 +571,10 @@ Expected: All tests PASS
 
 ```bash
 # 删除已有元技能（如果存在）
-rm -rf ~/.synapse/skills/creating-skills
-rm -rf ~/.synapse/skills/enhancing-skills
-rm -rf ~/.synapse/skills/evaluating-skills
+rm -rf ~/.synapse/skills/skill-creator
 
-# 启动 Agent，检查元技能是否生成
+# 运行项目，检查元技能是否安装
 ls -la ~/.synapse/skills/
+
+# 应该看到 skill-creator 目录
 ```
