@@ -98,23 +98,70 @@ grep "pattern" --path /path/to/dir --type ts
 
 ## 技能系统
 
+Synapse Agent 支持可扩展的技能系统，允许 Agent 学习和复用知识。
+
+### 技能管理命令
+
+```bash
+# 列出所有可用技能
+skill list
+
+# 搜索技能
+skill search "代码分析"
+skill search --domain programming
+skill search --tag automation
+
+# 加载技能到上下文
+skill load <skill-name>
+
+# 启用自动技能强化
+skill enhance --on
+
+# 禁用自动技能强化
+skill enhance --off
+
+# 手动触发技能强化
+skill enhance --conversation <path>
+```
+
+### 技能目录结构
+
 技能存储在 `~/.synapse/skills/` 目录下：
 
 ```
 ~/.synapse/skills/
-  example-skill/
-    SKILL.md           # 技能文档
-    scripts/           # 可执行脚本
-      tool.py
-      helper.sh
+├── <skill-name>/
+│   ├── SKILL.md           # 技能定义（必需）
+│   ├── references/        # 参考文档（可选）
+│   │   └── *.md
+│   └── scripts/           # 可执行脚本（可选）
+│       └── *.py|*.ts|*.sh
+└── index.json             # 技能索引
 ```
 
-### 搜索技能
+### SKILL.md 格式
 
-```bash
-skill search "关键词"
-skill search --domain programming
-skill search --tag automation
+```markdown
+---
+name: skill-name
+description: 技能描述（用于搜索匹配）
+---
+
+# 技能标题
+
+## Quick Start
+[快速开始示例]
+
+## Execution Steps
+1. 步骤 1
+2. 步骤 2
+
+## Best Practices
+- 最佳实践 1
+- 最佳实践 2
+
+## Examples
+[使用示例]
 ```
 
 ### 执行技能工具
@@ -122,6 +169,20 @@ skill search --tag automation
 ```bash
 skill:example-skill:tool arg1 arg2
 ```
+
+### 自动技能强化
+
+启用自动强化后，Agent 会在任务完成后分析执行过程：
+- 检测可复用的工具使用模式
+- 自动生成新技能或增强现有技能
+- 维护技能索引
+
+### 元技能
+
+系统内置三个元技能，指导技能的创建和维护：
+- `skill-creator`: 指导新技能创建
+- `enhancing-skills`: 指导技能强化
+- `evaluating-skills`: 评估技能质量
 
 ## MCP 工具
 
