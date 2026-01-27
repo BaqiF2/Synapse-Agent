@@ -60,7 +60,7 @@ field:programming:pylint src/main.py
 
 #### 4.4.2 技能存储结构
 
-采用扁平存储结构，技能直接存放在 `skills/` 目录下，通过元数据中的 `domain` 字段标识所属领域：
+采用扁平存储结构，技能直接存放在 `skills/` 目录下：
 
 ```
 ~/.synapse/
@@ -95,7 +95,6 @@ field:programming:pylint src/main.py
     {
       "name": "code-quality-analyzer",
       "title": "Code Quality Analyzer",
-      "domain": "programming",
       "description": "分析代码质量并提供改进建议。当用户需要检查代码质量、寻找潜在问题或优化代码时使用此技能。",
       "version": "1.0.0",
       "tags": ["code", "analysis", "quality", "lint"],
@@ -109,7 +108,6 @@ field:programming:pylint src/main.py
     {
       "name": "stock-analysis",
       "title": "Stock Analysis",
-      "domain": "finance",
       "description": "分析股票市场数据并生成投资建议。当用户需要技术分析、基本面分析或市场趋势预测时使用此技能。",
       "version": "1.0.0",
       "tags": ["stock", "finance", "analysis"],
@@ -128,11 +126,10 @@ field:programming:pylint src/main.py
 ```
 
 **索引结构说明**：
-- **扁平数组**：所有技能存放在 `skills` 数组中，通过 `domain` 字段区分领域
-- **丰富元数据**：包含 `name`、`title`、`domain`、`description`、`version`、`tags`、`author`、`tools`、`scriptCount`、`path`、`hasSkillMd`、`lastModified` 等字段
+- **扁平数组**：所有技能存放在 `skills` 数组中
+- **丰富元数据**：包含 `name`、`title`、`description`、`version`、`tags`、`author`、`tools`、`scriptCount`、`path`、`hasSkillMd`、`lastModified` 等字段
 - **工具列表**：`tools` 数组包含技能提供的所有工具命令（格式：`skill:技能名:脚本名`）
 - **统计信息**：`totalSkills` 和 `totalTools` 提供快速统计，`generatedAt` 和 `updatedAt` 记录索引时间戳
-- **支持的领域**：`programming`、`data`、`devops`、`finance`、`general`、`automation`、`ai`、`security`、`other`
 
 #### 4.4.3 技能搜索 Agent（阶段 2 核心）
 
