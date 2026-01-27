@@ -16,6 +16,7 @@
  * - ConversationReader: Reads conversation history
  * - SkillGenerator: Creates and updates skills
  * - SkillEnhancer: Analyzes conversations and generates skills
+ * - MetaSkillInstaller: Copies bundled meta skills to user directory
  */
 
 export {
@@ -71,3 +72,10 @@ export {
 export {
   SkillIndexUpdater,
 } from './index-updater.js';
+
+// Meta Skill Installer
+export {
+  MetaSkillInstaller,
+  getDefaultResourceDir,
+  type InstallResult,
+} from './meta-skill-installer.js';
