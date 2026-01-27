@@ -38,10 +38,10 @@ const DEFAULT_SKILLS_DIR = path.join(os.homedir(), '.synapse', 'skills');
 export interface SkillSubAgentOptions {
   /** Skills directory path */
   skillsDir?: string;
-  /** LLM client */
-  llmClient: AgentRunnerLlmClient;
-  /** Tool executor */
-  toolExecutor: AgentRunnerToolExecutor;
+  /** LLM client (optional - required for LLM-based operations) */
+  llmClient?: AgentRunnerLlmClient;
+  /** Tool executor (optional - required for LLM-based operations) */
+  toolExecutor?: AgentRunnerToolExecutor;
 }
 
 /**
@@ -64,9 +64,11 @@ export interface SkillSubAgentOptions {
  */
 export class SkillSubAgent {
   private memoryStore: SkillMemoryStore;
-  private agentRunner: AgentRunner;
+  private agentRunner: AgentRunner | null = null;
+  private llmClient: AgentRunnerLlmClient | null = null;
   private contextManager: ContextManager;
   private initialized: boolean = false;
+  private running: boolean = false;
 
   /**
    * Creates a new SkillSubAgent
@@ -83,23 +85,29 @@ export class SkillSubAgent {
     // Create persistent context manager
     this.contextManager = new ContextManager();
 
+    // Save llmClient for direct use (semantic search)
+    this.llmClient = options.llmClient ?? null;
+
     // Build system prompt with meta skills
     const systemPrompt = buildSkillSubAgentPrompt(
       this.memoryStore.getDescriptions(),
       this.memoryStore.getMetaSkillContents()
     );
 
-    // Create AgentRunner in silent mode
-    this.agentRunner = new AgentRunner({
-      llmClient: options.llmClient,
-      contextManager: this.contextManager,
-      toolExecutor: options.toolExecutor,
-      systemPrompt,
-      tools: [BashToolSchema],
-      outputMode: 'silent',
-    });
+    // Create AgentRunner in silent mode (only if llmClient and toolExecutor provided)
+    if (options.llmClient && options.toolExecutor) {
+      this.agentRunner = new AgentRunner({
+        llmClient: options.llmClient,
+        contextManager: this.contextManager,
+        toolExecutor: options.toolExecutor,
+        systemPrompt,
+        tools: [BashToolSchema],
+        outputMode: 'silent',
+      });
+    }
 
     this.initialized = true;
+    this.running = true;
 
     logger.info('Skill Sub-Agent initialized', {
       skillCount: this.memoryStore.size(),
@@ -118,6 +126,7 @@ export class SkillSubAgent {
    * Get number of loaded skills
    */
   getSkillCount(): number {
+    if (!this.running) return 0;
     return this.memoryStore.size();
   }
 
@@ -125,9 +134,10 @@ export class SkillSubAgent {
    * Get skill content by name
    *
    * @param name - Skill name
-   * @returns Skill content or null if not found
+   * @returns Skill content or null if not found or shutdown
    */
   getSkillContent(name: string): string | null {
+    if (!this.running) return null;
     const body = this.memoryStore.getBody(name);
     if (!body) return null;
 
@@ -148,13 +158,39 @@ export class SkillSubAgent {
    * @returns Search result with matched skills
    */
   async search(query: string): Promise<SkillSearchResult> {
-    const prompt = `Search for skills matching: "${query}"
+    // Use AgentRunner if available (full Agent Loop)
+    if (this.agentRunner) {
+      const prompt = `Search for skills matching: "${query}"
 
 Analyze the available skills and return those that best match the query.
 Respond with JSON only.`;
 
-    const result = await this.agentRunner.run(prompt);
-    return this.parseJsonResult<SkillSearchResult>(result, { matched_skills: [] });
+      const result = await this.agentRunner.run(prompt);
+      return this.parseJsonResult<SkillSearchResult>(result, { matched_skills: [] });
+    }
+
+    // Fallback to direct LLM call for semantic search (no tools needed)
+    if (this.llmClient) {
+      const systemPrompt = `You are a skill search assistant. Find skills that match the user's query.
+Available skills:
+${this.memoryStore.getDescriptions()}
+
+Respond with JSON only in this format:
+{"matched_skills": [{"name": "skill-name", "description": "description"}]}`;
+
+      const messages = [{ role: 'user' as const, content: `Search for skills matching: "${query}"` }];
+
+      try {
+        const response = await this.llmClient.sendMessage(messages, systemPrompt);
+        return this.parseJsonResult<SkillSearchResult>(response.content, { matched_skills: [] });
+      } catch (error) {
+        logger.warn('Semantic search failed', { error });
+        return { matched_skills: [] };
+      }
+    }
+
+    logger.warn('No LLM client available for search');
+    return { matched_skills: [] };
   }
 
   /**
@@ -164,6 +200,11 @@ Respond with JSON only.`;
    * @returns Enhancement result
    */
   async enhance(conversationPath: string): Promise<SkillEnhanceResult> {
+    if (!this.agentRunner) {
+      logger.warn('AgentRunner not available for enhance');
+      return { action: 'none', message: 'AgentRunner not available' };
+    }
+
     const prompt = `Analyze the conversation at "${conversationPath}" and determine if a skill should be created or enhanced.
 
 1. Read the conversation file
@@ -187,6 +228,11 @@ After completing the task, respond with JSON only.`;
    * @returns Evaluation result
    */
   async evaluate(skillName: string): Promise<SkillEvaluateResult> {
+    if (!this.agentRunner) {
+      logger.warn('AgentRunner not available for evaluate');
+      return { action: 'none', message: 'AgentRunner not available' };
+    }
+
     const prompt = `Evaluate the skill "${skillName}" following the evaluating-skills meta skill.
 
 1. Read the skill's SKILL.md file
@@ -206,8 +252,28 @@ After completing the evaluation, respond with JSON only.`;
    * Reload all skills
    */
   reloadAll(): void {
+    if (!this.running) return;
     this.memoryStore.loadAll();
     logger.info('Skills reloaded', { count: this.memoryStore.size() });
+  }
+
+  /**
+   * Refresh a specific skill
+   *
+   * @param skillName - Name of the skill to refresh
+   */
+  refresh(skillName: string): void {
+    if (!this.running) return;
+    // Reload all skills (simple implementation)
+    this.memoryStore.loadAll();
+    logger.info('Skill refreshed', { skillName });
+  }
+
+  /**
+   * Check if the sub-agent is running
+   */
+  isRunning(): boolean {
+    return this.running;
   }
 
   /**
@@ -237,9 +303,12 @@ After completing the evaluation, respond with JSON only.`;
   }
 
   /**
-   * Shutdown the sub-agent (no-op for AgentRunner-based implementation)
+   * Shutdown the sub-agent
    */
   shutdown(): void {
+    this.running = false;
+    this.agentRunner = null;
+    this.llmClient = null;
     logger.info('Skill Sub-Agent shutdown');
   }
 
