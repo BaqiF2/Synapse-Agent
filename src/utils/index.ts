@@ -6,6 +6,7 @@
  * 核心导出：
  * - Logger: 日志系统
  * - PerformanceMonitor: 性能监控
+ * - formatSkillsAsXml: XML formatter for skills
  */
 
 export {
@@ -30,3 +31,8 @@ export {
   measureTime,
   type PerformanceMetrics,
 } from './performance.js';
+
+export {
+  formatSkillsAsXml,
+  type SkillMatch,
+} from './skill-xml-formatter.js';
