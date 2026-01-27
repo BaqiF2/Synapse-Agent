@@ -155,8 +155,79 @@ export class AgentRunner {
    * @returns Final text response
    */
   async run(userMessage: string): Promise<string> {
-    // Implementation in next task
-    return '';
+    // Add user message to context
+    this.contextManager.addUserMessage(userMessage);
+
+    let iteration = 0;
+    let finalResponse = '';
+
+    while (iteration < this.maxIterations) {
+      iteration++;
+      logger.debug(`Agent loop iteration ${iteration}`);
+
+      const messages = this.contextManager.getMessages();
+      logger.debug(`Sending ${messages.length} message(s) to LLM`);
+
+      // Call LLM
+      const response = await this.llmClient.sendMessage(
+        messages,
+        this.systemPrompt,
+        this.tools
+      );
+
+      // Collect text content
+      if (response.content) {
+        finalResponse = response.content;
+
+        // Output text in streaming mode
+        if (this.outputMode === 'streaming' && response.content.trim() && this.onText) {
+          this.onText(response.content);
+        }
+      }
+
+      // Check for tool calls
+      if (response.toolCalls.length === 0) {
+        // No tool calls, add assistant response and finish
+        this.contextManager.addAssistantMessage(response.content);
+        break;
+      }
+
+      // Add assistant response with tool calls
+      this.contextManager.addAssistantToolCall(response.content, response.toolCalls);
+
+      // Execute tools
+      const toolInputs: ToolCallInput[] = response.toolCalls.map((call: LlmToolCall) => ({
+        id: call.id,
+        name: call.name,
+        input: call.input,
+      }));
+
+      const results = await this.toolExecutor.executeTools(toolInputs);
+      const toolResults = this.toolExecutor.formatResultsForLlm(results);
+
+      // Add tool results to context
+      this.contextManager.addToolResults(toolResults);
+
+      // Call onToolExecution callback in streaming mode
+      if (this.outputMode === 'streaming' && this.onToolExecution) {
+        for (const result of results) {
+          const toolInput = toolInputs.find(t => t.id === result.toolUseId);
+          const toolName = toolInput?.input?.command?.toString() || 'unknown';
+          this.onToolExecution(toolName, result.success, result.output);
+        }
+      }
+
+      // Check if stop reason is end_turn
+      if (response.stopReason === 'end_turn') {
+        break;
+      }
+    }
+
+    if (iteration >= this.maxIterations) {
+      logger.warn(`Agent loop reached maximum iterations: ${this.maxIterations}`);
+    }
+
+    return finalResponse;
   }
 }
 

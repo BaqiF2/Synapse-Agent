@@ -77,4 +77,97 @@ describe('AgentRunner', () => {
       expect(runner.getTools()).toEqual([BashToolSchema]);
     });
   });
+
+  describe('run', () => {
+    it('should process user message and return response (no tools)', async () => {
+      const runner = new AgentRunner({
+        llmClient: mockLlmClient,
+        contextManager,
+        toolExecutor: mockToolExecutor,
+        systemPrompt: 'Test prompt',
+        tools: [BashToolSchema],
+        outputMode: 'silent',
+      });
+
+      const response = await runner.run('Hello');
+
+      expect(response).toBe('Test response');
+      expect(mockLlmClient.sendMessage).toHaveBeenCalled();
+    });
+
+    it('should execute tools when LLM returns tool calls', async () => {
+      const toolCallLlmClient = {
+        sendMessage: mock()
+          .mockResolvedValueOnce({
+            content: 'Let me run that',
+            toolCalls: [{ id: 'call1', name: 'Bash', input: { command: 'echo hi' } }],
+            stopReason: 'tool_use',
+          })
+          .mockResolvedValueOnce({
+            content: 'Done!',
+            toolCalls: [],
+            stopReason: 'end_turn',
+          }),
+      };
+
+      const toolExecutor = {
+        executeTools: mock(() =>
+          Promise.resolve([{ toolUseId: 'call1', success: true, output: 'hi', isError: false }])
+        ),
+        formatResultsForLlm: mock(() => [
+          { type: 'tool_result' as const, tool_use_id: 'call1', content: 'hi', is_error: false },
+        ]),
+      };
+
+      const runner = new AgentRunner({
+        llmClient: toolCallLlmClient,
+        contextManager,
+        toolExecutor,
+        systemPrompt: 'Test prompt',
+        tools: [BashToolSchema],
+        outputMode: 'silent',
+      });
+
+      const response = await runner.run('Run echo hi');
+
+      expect(response).toBe('Done!');
+      expect(toolExecutor.executeTools).toHaveBeenCalled();
+    });
+
+    it('should call onText callback in streaming mode', async () => {
+      const textOutput: string[] = [];
+
+      const runner = new AgentRunner({
+        llmClient: mockLlmClient,
+        contextManager,
+        toolExecutor: mockToolExecutor,
+        systemPrompt: 'Test prompt',
+        tools: [BashToolSchema],
+        outputMode: 'streaming',
+        onText: (text) => textOutput.push(text),
+      });
+
+      await runner.run('Hello');
+
+      expect(textOutput).toContain('Test response');
+    });
+
+    it('should not call onText callback in silent mode', async () => {
+      const textOutput: string[] = [];
+
+      const runner = new AgentRunner({
+        llmClient: mockLlmClient,
+        contextManager,
+        toolExecutor: mockToolExecutor,
+        systemPrompt: 'Test prompt',
+        tools: [BashToolSchema],
+        outputMode: 'silent',
+        onText: (text) => textOutput.push(text),
+      });
+
+      await runner.run('Hello');
+
+      expect(textOutput).toHaveLength(0);
+    });
+  });
 });
