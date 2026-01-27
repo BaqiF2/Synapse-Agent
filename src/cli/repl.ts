@@ -9,7 +9,6 @@
  * - startRepl(): 启动 REPL 循环
  * - executeShellCommand(): 执行 Shell 命令
  * - handleSpecialCommand(): 处理特殊命令
- * - AgentRunner: Agent Loop 执行器
  */
 
 import * as readline from 'node:readline';
@@ -20,11 +19,12 @@ import * as os from 'node:os';
 import chalk from 'chalk';
 
 // Agent imports
-import { LlmClient, type LlmToolCall } from '../agent/llm-client.ts';
+import { LlmClient } from '../agent/llm-client.ts';
 import { ContextManager } from '../agent/context-manager.ts';
-import { ToolExecutor, type ToolCallInput } from '../agent/tool-executor.ts';
+import { ToolExecutor } from '../agent/tool-executor.ts';
 import { buildSystemPrompt } from '../agent/system-prompt.ts';
 import { ContextPersistence } from '../agent/context-persistence.ts';
+import { AgentRunner } from '../agent/agent-runner.ts';
 import { BashToolSchema } from '../tools/bash-tool-schema.ts';
 import { initializeMcpTools } from '../tools/converters/mcp/index.ts';
 import { initializeSkillTools } from '../tools/converters/skill/index.ts';
@@ -77,139 +77,6 @@ export interface ReplState {
   conversationHistory: ConversationEntry[];
   commandHistory: string[];
   isProcessing: boolean;
-}
-
-/**
- * Agent Runner for handling LLM interaction loop
- */
-export class AgentRunner {
-  private llmClient: LlmClient;
-  private contextManager: ContextManager;
-  private toolExecutor: ToolExecutor;
-  private systemPrompt: string;
-  private maxIterations: number;
-
-  constructor(options: {
-    llmClient: LlmClient;
-    contextManager: ContextManager;
-    toolExecutor: ToolExecutor;
-    systemPrompt: string;
-    maxIterations?: number;
-  }) {
-    this.llmClient = options.llmClient;
-    this.contextManager = options.contextManager;
-    this.toolExecutor = options.toolExecutor;
-    this.systemPrompt = options.systemPrompt;
-    this.maxIterations = options.maxIterations ?? MAX_TOOL_ITERATIONS;
-  }
-
-  /**
-   * Run the agent loop for a user message
-   * Returns the final text response
-   */
-  async run(userMessage: string): Promise<string> {
-    // Add user message to context
-    this.contextManager.addUserMessage(userMessage);
-
-    let iteration = 0;
-    let finalResponse = '';
-
-    while (iteration < this.maxIterations) {
-      iteration++;
-      cliLogger.debug(`Agent loop iteration ${iteration}`);
-
-      const messages = this.contextManager.getMessages();
-      cliLogger.debug(`Sending ${messages.length} message(s) to LLM`);
-
-      // Call LLM
-      const response = await this.llmClient.sendMessage(messages, this.systemPrompt, [
-        BashToolSchema,
-      ]);
-
-      // Collect text content
-      if (response.content) {
-        finalResponse = response.content;
-        // Output text immediately
-        if (response.content.trim()) {
-          process.stdout.write(response.content);
-        }
-      }
-
-      // Check for tool calls
-      if (response.toolCalls.length === 0) {
-        // No tool calls, add assistant response and finish
-        this.contextManager.addAssistantMessage(response.content);
-        break;
-      }
-
-      // Add assistant response with tool calls
-      this.contextManager.addAssistantToolCall(response.content, response.toolCalls);
-
-      // Execute tools
-      console.log(); // Newline before tool execution
-      const toolInputs: ToolCallInput[] = response.toolCalls.map((call: LlmToolCall) => ({
-        id: call.id,
-        name: call.name,
-        input: call.input,
-      }));
-
-      const results = await this.toolExecutor.executeTools(toolInputs);
-      const toolResults = this.toolExecutor.formatResultsForLlm(results);
-
-      // Add tool results to context
-      this.contextManager.addToolResults(toolResults);
-
-      // Display tool execution info
-      for (const result of results) {
-        const status = result.success ? chalk.green('✓') : chalk.red('✗');
-        const cmd =
-          toolInputs.find((t) => t.id === result.toolUseId)?.input?.command?.toString() || '';
-        const shortCmd = cmd.length > 50 ? cmd.substring(0, 50) + '...' : cmd;
-        console.log(chalk.gray(`  ${status} ${shortCmd}`));
-
-        // Show error output for failed commands
-        if (!result.success && result.output) {
-          const errorPreview =
-            result.output.length > 200 ? result.output.substring(0, 200) + '...' : result.output;
-          console.log(chalk.red(`    ${errorPreview.split('\n')[0]}`));
-        }
-      }
-      console.log();
-
-      // Check if stop reason is end_turn
-      if (response.stopReason === 'end_turn') {
-        break;
-      }
-    }
-
-    if (iteration >= this.maxIterations) {
-      cliLogger.warn(`Agent loop reached maximum iterations: ${this.maxIterations}`);
-      console.log(chalk.yellow(`\n[Reached maximum tool iterations: ${this.maxIterations}]`));
-    }
-
-    return finalResponse;
-  }
-
-  /**
-   * Get the context manager (for external access)
-   */
-  getContextManager(): ContextManager {
-    return this.contextManager;
-  }
-
-  /**
-   * Get the tool executor (for cleanup)
-   */
-  getToolExecutor(): ToolExecutor {
-    return this.toolExecutor;
-  }
-
-  /**
-   * Get the LLM client (for skill enhancement)
-   */
-  getLlmClient(): LlmClient {
-    return this.llmClient;
-  }
 }
 
 /**
@@ -784,6 +651,26 @@ export async function startRepl(): Promise<void> {
       contextManager,
       toolExecutor,
       systemPrompt,
+      tools: [BashToolSchema],
+      outputMode: 'streaming',
+      maxIterations: MAX_TOOL_ITERATIONS,
+      onText: (text) => {
+        if (text.trim()) {
+          process.stdout.write(text);
+        }
+      },
+      onToolExecution: (toolName, success, output) => {
+        const status = success ? chalk.green('✓') : chalk.red('✗');
+        const shortCmd = toolName.length > 50 ? toolName.substring(0, 50) + '...' : toolName;
+        console.log(chalk.gray(`  ${status} ${shortCmd}`));
+
+        // Show error output for failed commands
+        if (!success && output) {
+          const errorPreview =
+            output.length > 200 ? output.substring(0, 200) + '...' : output;
+          console.log(chalk.red(`    ${errorPreview.split('\n')[0]}`));
+        }
+      },
     });
 
     cliLogger.info('Agent components initialized successfully');

@@ -34,6 +34,15 @@ export {
   type SystemPromptOptions,
 } from './system-prompt.ts';
 
+// Agent Runner
+export {
+  AgentRunner,
+  type AgentRunnerOptions,
+  type OutputMode,
+  type AgentRunnerLlmClient,
+  type AgentRunnerToolExecutor,
+} from './agent-runner.ts';
+
 // Skill Sub-Agent
 export { SkillSubAgent, type SkillSubAgentOptions } from './skill-sub-agent.ts';
 export { SkillMemoryStore } from './skill-memory-store.ts';
