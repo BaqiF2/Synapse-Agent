@@ -66,3 +66,8 @@ export {
   type EnhanceResult,
   type SkillEnhancerOptions,
 } from './skill-enhancer.js';
+
+// Skill Index Updater
+export {
+  SkillIndexUpdater,
+} from './index-updater.js';

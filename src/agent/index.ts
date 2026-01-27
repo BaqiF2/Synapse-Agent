@@ -54,3 +54,11 @@ export {
   SkillEnhanceResultSchema,
   SkillSubAgentCommandSchema,
 } from './skill-sub-agent-types.ts';
+
+// Auto Enhance Trigger
+export {
+  AutoEnhanceTrigger,
+  type TaskContext,
+  type TriggerDecision,
+  type AutoEnhanceTriggerOptions,
+} from './auto-enhance-trigger.ts';
