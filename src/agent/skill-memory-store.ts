@@ -211,6 +211,17 @@ export class SkillMemoryStore {
   }
 
   /**
+   * Check if a skill is a meta skill
+   *
+   * @param name - Skill name
+   * @returns true if skill exists and has type: meta
+   */
+  isMetaSkill(name: string): boolean {
+    const skill = this.skills.get(name);
+    return skill?.type === 'meta';
+  }
+
+  /**
    * Get all skills as array
    */
   getAll(): SkillMetadata[] {

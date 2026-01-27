@@ -201,4 +201,37 @@ Content for enhancing skills.
       expect(content).toBe('');
     });
   });
+
+  describe('isMetaSkill', () => {
+    beforeEach(() => {
+      const metaSkillDir = path.join(skillsDir, 'meta-test');
+      fs.mkdirSync(metaSkillDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(metaSkillDir, 'SKILL.md'),
+        `---
+name: meta-test
+description: A meta skill
+type: meta
+---
+
+# Meta Test
+`
+      );
+    });
+
+    it('should return true for meta skills', () => {
+      store.loadAll();
+      expect(store.isMetaSkill('meta-test')).toBe(true);
+    });
+
+    it('should return false for regular skills', () => {
+      store.loadAll();
+      expect(store.isMetaSkill('test-skill')).toBe(false);
+    });
+
+    it('should return false for non-existent skills', () => {
+      store.loadAll();
+      expect(store.isMetaSkill('non-existent')).toBe(false);
+    });
+  });
 });
