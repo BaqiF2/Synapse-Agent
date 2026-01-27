@@ -40,6 +40,18 @@ describe('parseSkillCommand', () => {
     expect(result.options.help).toBe(true);
   });
 
+  it('should handle help flag with subcommand', () => {
+    const result = parseSkillCommand('skill load --help');
+    expect(result.subcommand).toBe('load');
+    expect(result.options.help).toBe(true);
+  });
+
+  it('should handle short help flag with subcommand', () => {
+    const result = parseSkillCommand('skill search -h');
+    expect(result.subcommand).toBe('search');
+    expect(result.options.help).toBe(true);
+  });
+
   it('should handle skill list command', () => {
     const result = parseSkillCommand('skill list');
     expect(result.subcommand).toBe('list');
@@ -126,6 +138,38 @@ Content here.
       const result = await handler.execute('skill enhance --off');
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain('disabled');
+    });
+
+    it('should handle skill load --help command', async () => {
+      const result = await handler.execute('skill load --help');
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('USAGE');
+      expect(result.stdout).toContain('skill load <skill-name>');
+      expect(result.stdout).toContain('ARGUMENTS');
+    });
+
+    it('should handle skill search -h command', async () => {
+      const result = await handler.execute('skill search -h');
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('USAGE');
+      expect(result.stdout).toContain('skill search <query>');
+      expect(result.stdout).toContain('semantic search');
+    });
+
+    it('should handle skill list --help command', async () => {
+      const result = await handler.execute('skill list --help');
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('USAGE');
+      expect(result.stdout).toContain('skill list');
+    });
+
+    it('should handle skill enhance --help command', async () => {
+      const result = await handler.execute('skill enhance --help');
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('USAGE');
+      expect(result.stdout).toContain('skill enhance');
+      expect(result.stdout).toContain('--on');
+      expect(result.stdout).toContain('--off');
     });
   });
 

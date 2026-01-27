@@ -1,7 +1,7 @@
 /**
  * Skill Search 工具 - Agent Shell Command Layer 2
  *
- * 功能：在技能库中搜索匹配的技能，支持关键词、领域和标签过滤
+ * 功能：在技能库中搜索匹配的技能
  *
  * 核心导出：
  * - SkillSearchHandler: 技能搜索处理器类
@@ -11,7 +11,6 @@
 import * as os from 'node:os';
 import type { CommandResult } from '../base-bash-handler.ts';
 import { SkillIndexer, type SkillIndexEntry, type SkillIndex } from '../../../skills/indexer.js';
-import { SKILL_DOMAINS, type SkillDomain } from '../../../skills/skill-schema.js';
 
 /**
  * Default maximum search results
@@ -23,11 +22,7 @@ const DEFAULT_MAX_RESULTS = parseInt(process.env.SKILL_SEARCH_MAX_RESULTS || '20
  */
 interface SkillSearchArgs {
   query?: string;
-  domain?: SkillDomain;
-  tags?: string[];
   maxResults: number;
-  showTools: boolean;
-  rebuild: boolean;
 }
 
 /**
@@ -41,7 +36,7 @@ interface ScoredResult {
 
 /**
  * Parse the skill search command arguments
- * Syntax: skill search [query] [--domain <domain>] [--tag <tag>] [--max <n>] [--tools] [--rebuild]
+ * Syntax: skill search [query] [--max <n>]
  */
 export function parseSkillSearchCommand(command: string): SkillSearchArgs {
   const parts = command.trim().split(/\s+/);
@@ -55,33 +50,13 @@ export function parseSkillSearchCommand(command: string): SkillSearchArgs {
   }
 
   let query: string | undefined;
-  let domain: SkillDomain | undefined;
-  const tags: string[] = [];
   let maxResults = DEFAULT_MAX_RESULTS;
-  let showTools = false;
-  let rebuild = false;
 
   let i = 0;
   while (i < parts.length) {
     const part = parts[i];
 
-    if (part === '--domain') {
-      i++;
-      if (i >= parts.length) {
-        throw new Error('--domain requires a domain argument');
-      }
-      const domainVal = parts[i] as SkillDomain;
-      if (!SKILL_DOMAINS.includes(domainVal)) {
-        throw new Error(`Invalid domain: ${domainVal}. Valid domains: ${SKILL_DOMAINS.join(', ')}`);
-      }
-      domain = domainVal;
-    } else if (part === '--tag') {
-      i++;
-      if (i >= parts.length) {
-        throw new Error('--tag requires a tag argument');
-      }
-      tags.push(parts[i] ?? '');
-    } else if (part === '--max') {
+    if (part === '--max') {
       i++;
       if (i >= parts.length) {
         throw new Error('--max requires a number argument');
@@ -91,10 +66,6 @@ export function parseSkillSearchCommand(command: string): SkillSearchArgs {
         throw new Error('--max must be a positive number');
       }
       maxResults = val;
-    } else if (part === '--tools') {
-      showTools = true;
-    } else if (part === '--rebuild') {
-      rebuild = true;
     } else if (part === '-h' || part === '--help') {
       // Help flag will be handled in execute()
     } else if (!part?.startsWith('--') && !query) {
@@ -116,7 +87,7 @@ export function parseSkillSearchCommand(command: string): SkillSearchArgs {
     i++;
   }
 
-  return { query, domain, tags, maxResults, showTools, rebuild };
+  return { query, maxResults };
 }
 
 /**
@@ -145,11 +116,6 @@ export class SkillSearchHandler {
       }
 
       const args = parseSkillSearchCommand(command);
-
-      // Rebuild index if requested
-      if (args.rebuild) {
-        this.indexer.rebuild();
-      }
 
       const result = await this.search(args);
 
@@ -197,28 +163,12 @@ export class SkillSearchHandler {
    * Filter skills and calculate relevance scores
    */
   private filterAndScore(index: SkillIndex, args: SkillSearchArgs): ScoredResult[] {
-    const { query, domain, tags } = args;
+    const { query } = args;
     const results: ScoredResult[] = [];
 
     for (const entry of index.skills) {
       let score = 0;
       const matches: string[] = [];
-
-      // Domain filter (required if specified)
-      if (domain && entry.domain !== domain) {
-        continue;
-      }
-
-      // Tags filter (all specified tags must match)
-      if (tags.length > 0) {
-        const entryTags = entry.tags.map((t) => t.toLowerCase());
-        const allTagsMatch = tags.every((t) => entryTags.includes(t.toLowerCase()));
-        if (!allTagsMatch) {
-          continue;
-        }
-        score += tags.length * 2;
-        matches.push(`tags: ${tags.join(', ')}`);
-      }
 
       // Query matching
       if (query) {
@@ -281,7 +231,7 @@ export class SkillSearchHandler {
           continue;
         }
       } else {
-        // No query, include all (after domain/tag filters)
+        // No query, include all
         score = 1;
       }
 
@@ -324,11 +274,6 @@ export class SkillSearchHandler {
         lines.push(`   Tags: ${entry.tags.join(', ')}`);
       }
 
-      // Tools (if requested)
-      if (args.showTools && entry.tools.length > 0) {
-        lines.push(`   Tools: ${entry.tools.join(', ')}`);
-      }
-
       // Script count
       lines.push(`   Scripts: ${entry.scriptCount}`);
 
@@ -346,20 +291,8 @@ export class SkillSearchHandler {
    * Format no results message
    */
   private formatNoResults(args: SkillSearchArgs): string {
-    const filters: string[] = [];
-
     if (args.query) {
-      filters.push(`query "${args.query}"`);
-    }
-    if (args.domain) {
-      filters.push(`domain "${args.domain}"`);
-    }
-    if (args.tags.length > 0) {
-      filters.push(`tags "${args.tags.join(', ')}"`);
-    }
-
-    if (filters.length > 0) {
-      return `No skills found matching: ${filters.join(', ')}`;
+      return `No skills found matching: query "${args.query}"`;
     }
 
     return 'No skills found.';
@@ -370,7 +303,6 @@ export class SkillSearchHandler {
    */
   private showHelp(verbose: boolean): CommandResult {
     if (verbose) {
-      const domains = SKILL_DOMAINS.join(', ');
       const help = `skill search - Search for skills in the skill library
 
 USAGE:
@@ -380,18 +312,13 @@ ARGUMENTS:
     [query]        Search query (matches name, description, tags, tools)
 
 OPTIONS:
-    --domain <d>   Filter by domain (${domains})
-    --tag <tag>    Filter by tag (can be used multiple times)
     --max <n>      Maximum number of results (default: ${DEFAULT_MAX_RESULTS})
-    --tools        Show tool commands in output
-    --rebuild      Rebuild the skill index before searching
     -h             Show brief help
     --help         Show detailed help
 
 SEARCH BEHAVIOR:
     - Query matches skill name, title, description, tags, and tools
     - Results are ranked by relevance score
-    - Domain and tag filters are applied before query matching
 
 OUTPUT FORMAT:
     1. skill-name (domain)
@@ -401,10 +328,8 @@ OUTPUT FORMAT:
 
 EXAMPLES:
     skill search pdf              Search for skills related to PDF
-    skill search --domain data    List all data-related skills
-    skill search --tag automation Find skills tagged with "automation"
-    skill search git --tools      Search for git skills, show tool commands
-    skill search --rebuild        Rebuild index and list all skills
+    skill search git              Search for git skills
+    skill search --max 5          List first 5 skills
 
 SKILL LOCATIONS:
     Skills directory: ~/.synapse/skills/
@@ -413,7 +338,7 @@ SKILL LOCATIONS:
       return { stdout: help, stderr: '', exitCode: 0 };
     }
 
-    const brief = 'Usage: skill search [query] [--domain <d>] [--tag <tag>] [--max <n>] [--tools]';
+    const brief = 'Usage: skill search [query] [--max <n>]';
     return { stdout: brief, stderr: '', exitCode: 0 };
   }
 }

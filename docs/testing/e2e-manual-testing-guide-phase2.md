@@ -168,39 +168,14 @@ You (1)> skill search "创建新技能"
 - 日志显示 `[DEBUG] [skill-command-handler] Using LLM semantic search`（语义搜索模式）
 
 **验证结果**:
-- [ ] 搜索成功返回结果
-- [ ] 结果包含相关技能
-- [ ] 日志确认使用了 LLM 语义搜索（而非关键词匹配）
+- [x] 搜索成功返回结果
+- [x] 结果包含相关技能
+- [x] 日志确认使用了 LLM 语义搜索（而非关键词匹配）
 
-### 4.2 按领域搜索
-
-```
-You (2)> skill search --domain meta
-```
-
-**预期输出**:
-- 返回 meta 领域的技能
-- 应包含元技能
-
-**验证结果**:
-- [ ] 按领域搜索成功
-
-### 4.3 按标签搜索
+### 4.2 无结果搜索
 
 ```
-You (3)> skill search --tag skill-development
-```
-
-**预期输出**:
-- 返回带有相关标签的技能
-
-**验证结果**:
-- [ ] 按标签搜索成功
-
-### 4.4 无结果搜索
-
-```
-You (4)> skill search "不存在的技能xyz123"
+You (2)> skill search "不存在的技能xyz123"
 ```
 
 **预期输出**:
@@ -224,8 +199,8 @@ You (1)> skill load skill-creator
 - 包含 SKILL.md 的正文
 
 **验证结果**:
-- [ ] 技能内容正确加载
-- [ ] 显示技能定义
+- [x] 技能内容正确加载
+- [x] 显示技能定义
 
 ### 5.2 加载不存在的技能
 
@@ -237,7 +212,7 @@ You (2)> skill load nonexistent-skill
 - 错误提示：技能不存在
 
 **验证结果**:
-- [ ] 正确处理错误情况
+- [x] 正确处理错误情况
 
 ### 5.3 通过 Agent 加载技能
 
@@ -517,8 +492,6 @@ You (3)> 请先评估现有技能的质量，然后告诉我如何改进
 |--------|------|------|
 | `skill list` 列出所有技能 | ☐ | |
 | `skill search <query>` 搜索技能 | ☐ | |
-| `skill search --domain <domain>` 按领域搜索 | ☐ | |
-| `skill search --tag <tag>` 按标签搜索 | ☐ | |
 | `skill load <name>` 加载技能 | ☐ | |
 | `skill enhance --on` 启用自动强化 | ☐ | |
 | `skill enhance --off` 禁用自动强化 | ☐ | |

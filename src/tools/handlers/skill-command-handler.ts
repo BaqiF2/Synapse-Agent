@@ -194,6 +194,11 @@ export class SkillCommandHandler {
     try {
       const parsed = parseSkillCommand(command);
 
+      // Check if help is requested for a subcommand
+      if (parsed.options.help && parsed.subcommand) {
+        return this.showSubcommandHelp(parsed.subcommand);
+      }
+
       switch (parsed.subcommand) {
         case 'help':
         case null:
@@ -423,6 +428,99 @@ Usage:
   }
 
   /**
+   * Show help message for a specific subcommand
+   */
+  private showSubcommandHelp(subcommand: string): CommandResult {
+    const helpMessages: Record<string, string> = {
+      list: `skill list - List all available skills
+
+USAGE:
+    skill list [options]
+
+OPTIONS:
+    -h, --help    Show this help message
+
+DESCRIPTION:
+    Lists all available skills in the skills directory with their descriptions.
+
+EXAMPLES:
+    skill list              Show all skills`,
+
+      search: `skill search - Search for skills by keyword
+
+USAGE:
+    skill search <query> [options]
+
+ARGUMENTS:
+    <query>       Search keywords (supports multiple words in quotes)
+
+OPTIONS:
+    -h, --help    Show this help message
+
+DESCRIPTION:
+    Searches for skills matching the given query. Uses LLM semantic search
+    when available, otherwise falls back to local keyword matching.
+
+EXAMPLES:
+    skill search pdf              Find PDF-related skills
+    skill search "code analysis"  Search with multiple words`,
+
+      load: `skill load - Load a skill's content
+
+USAGE:
+    skill load <skill-name> [options]
+
+ARGUMENTS:
+    <skill-name>  Name of the skill to load (required)
+
+OPTIONS:
+    -h, --help    Show this help message
+
+DESCRIPTION:
+    Loads the content of a specific skill into context. The skill content
+    is read directly from memory without using LLM.
+
+EXAMPLES:
+    skill load code-analyzer      Load the code-analyzer skill
+    skill load my-custom-skill    Load a custom skill`,
+
+      enhance: `skill enhance - Manage skill enhancement
+
+USAGE:
+    skill enhance [options]
+
+OPTIONS:
+    --on                          Enable auto skill enhancement
+    --off                         Disable auto skill enhancement
+    --conversation <path>         Manually trigger enhancement from conversation
+    -h, --help                    Show this help message
+
+DESCRIPTION:
+    Manages the skill enhancement feature. Auto-enhance analyzes task
+    completions for skill improvement opportunities. Manual enhance
+    processes a specific conversation file.
+
+EXAMPLES:
+    skill enhance                 Show current status
+    skill enhance --on            Enable auto-enhance
+    skill enhance --off           Disable auto-enhance
+    skill enhance --conversation /path/to/conversation.jsonl
+                                  Manually trigger enhancement`,
+    };
+
+    const help = helpMessages[subcommand];
+    if (!help) {
+      return this.showHelp();
+    }
+
+    return {
+      stdout: help,
+      stderr: '',
+      exitCode: 0,
+    };
+  }
+
+  /**
    * Show help message
    */
   private showHelp(): CommandResult {
@@ -437,6 +535,9 @@ SUBCOMMANDS:
     load <name>             Load a skill's content
     enhance                 Manage skill enhancement
 
+GLOBAL OPTIONS:
+    -h, --help              Show help (use with subcommand for detailed help)
+
 ENHANCE OPTIONS:
     skill enhance --on      Enable auto skill enhancement
     skill enhance --off     Disable auto skill enhancement
@@ -449,6 +550,7 @@ EXAMPLES:
     skill load code-analyzer
                             Load the code-analyzer skill
     skill enhance --on      Enable auto-enhance after tasks
+    skill load --help       Show help for load subcommand
 
 SKILL LOCATION:
     Skills directory: ~/.synapse/skills/
