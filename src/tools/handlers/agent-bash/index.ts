@@ -11,7 +11,6 @@
  * - GrepHandler: 代码搜索处理器
  * - BashWrapperHandler: Bash 命令包装器处理器
  * - SkillSearchHandler: 技能搜索处理器
- * - SkillCommandHandler: 统一技能命令处理器
  */
 
 export { ReadHandler, parseReadCommand } from './read.ts';
@@ -21,4 +20,3 @@ export { GlobHandler, parseGlobCommand } from './glob.ts';
 export { GrepHandler, parseGrepCommand } from './grep.ts';
 export { BashWrapperHandler, parseBashCommand } from './bash-wrapper.ts';
 export { SkillSearchHandler, parseSkillSearchCommand } from './skill-search.ts';
-export { SkillCommandHandler, parseSkillCommand, type SkillCommandArgs } from './skill-command.ts';
