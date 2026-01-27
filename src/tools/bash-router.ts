@@ -8,12 +8,15 @@
  * - CommandType: 命令类型枚举
  */
 
+import * as path from 'node:path';
+import * as os from 'node:os';
 import type { BashSession } from './bash-session.ts';
 import { NativeShellCommandHandler, type CommandResult } from './handlers/base-bash-handler.ts';
 import { ReadHandler, WriteHandler, EditHandler, GlobHandler, GrepHandler, BashWrapperHandler } from './handlers/agent-bash/index.ts';
 import { ToolsHandler } from './handlers/field-bash/index.ts';
 import { McpConfigParser, McpClient, McpWrapperGenerator, McpInstaller } from './converters/mcp/index.ts';
 import { SkillStructure, DocstringParser, SkillWrapperGenerator } from './converters/skill/index.ts';
+import { SkillCommandHandler } from './handlers/skill-command-handler.ts';
 
 /**
  * Command types in the three-layer Bash architecture
@@ -22,6 +25,19 @@ export enum CommandType {
   NATIVE_SHELL_COMMAND = 'native_shell_command',       // Standard Unix commands
   AGENT_SHELL_COMMAND = 'agent_shell_command',         // Built-in Agent commands (read, write, edit, etc.)
   EXTEND_SHELL_COMMAND = 'extend_shell_command', // Domain-specific tools (mcp:*, skill:*, tools)
+}
+
+/**
+ * Default Synapse directory
+ */
+const DEFAULT_SYNAPSE_DIR = path.join(os.homedir(), '.synapse');
+
+/**
+ * BashRouter options
+ */
+export interface BashRouterOptions {
+  skillsDir?: string;
+  synapseDir?: string;
 }
 
 /**
@@ -37,8 +53,14 @@ export class BashRouter {
   private bashWrapperHandler: BashWrapperHandler;
   private toolsHandler: ToolsHandler;
   private mcpInstaller: McpInstaller;
+  private skillCommandHandler: SkillCommandHandler | null = null;
+  private skillsDir: string;
+  private synapseDir: string;
 
-  constructor(private session: BashSession) {
+  constructor(private session: BashSession, options: BashRouterOptions = {}) {
+    this.synapseDir = options.synapseDir ?? DEFAULT_SYNAPSE_DIR;
+    this.skillsDir = options.skillsDir ?? path.join(this.synapseDir, 'skills');
+
     this.nativeShellCommandHandler = new NativeShellCommandHandler(session);
     this.readHandler = new ReadHandler();
     this.writeHandler = new WriteHandler();
@@ -81,18 +103,26 @@ export class BashRouter {
   }
 
   /**
-   * Identify the type of command
+   * Identify the type of command (public for testing)
    */
-  private identifyCommandType(command: string): CommandType {
+  identifyCommandType(command: string): CommandType {
     const trimmed = command.trim();
 
     // Agent Shell Command commands (Layer 2)
-    // Will be implemented in Batch 4-5
     const agentShellCommandCommands = ['read', 'write', 'edit', 'glob', 'grep', 'bash'];
     for (const cmd of agentShellCommandCommands) {
       if (trimmed.startsWith(cmd + ' ') || trimmed === cmd) {
         return CommandType.AGENT_SHELL_COMMAND;
       }
+    }
+
+    // Skill management commands (not skill:*:* which is Extension)
+    // skill list, skill search, skill load, skill enhance, skill --help
+    if (trimmed.startsWith('skill ') && !trimmed.startsWith('skill:')) {
+      return CommandType.AGENT_SHELL_COMMAND;
+    }
+    if (trimmed === 'skill' || trimmed === 'skill --help' || trimmed === 'skill -h') {
+      return CommandType.AGENT_SHELL_COMMAND;
     }
 
     // extend Shell command commands (Layer 3)
@@ -137,11 +167,36 @@ export class BashRouter {
       return await this.bashWrapperHandler.execute(command);
     }
 
+    // Skill management commands
+    if (
+      trimmed.startsWith('skill ') ||
+      trimmed === 'skill' ||
+      trimmed === 'skill --help' ||
+      trimmed === 'skill -h'
+    ) {
+      return await this.executeSkillManagementCommand(command);
+    }
+
     return {
       stdout: '',
       stderr: `Unknown Agent Shell Command: ${command}`,
       exitCode: 1,
     };
+  }
+
+  /**
+   * Execute skill management command
+   */
+  private async executeSkillManagementCommand(command: string): Promise<CommandResult> {
+    // Lazy initialize skill command handler
+    if (!this.skillCommandHandler) {
+      this.skillCommandHandler = new SkillCommandHandler({
+        skillsDir: this.skillsDir,
+        synapseDir: this.synapseDir,
+      });
+    }
+
+    return await this.skillCommandHandler.execute(command);
   }
 
   /**
@@ -488,6 +543,16 @@ export class BashRouter {
         stderr: `Skill command failed: ${errorMessage}`,
         exitCode: 1,
       };
+    }
+  }
+
+  /**
+   * Shutdown and cleanup resources
+   */
+  shutdown(): void {
+    if (this.skillCommandHandler) {
+      this.skillCommandHandler.shutdown();
+      this.skillCommandHandler = null;
     }
   }
 }
