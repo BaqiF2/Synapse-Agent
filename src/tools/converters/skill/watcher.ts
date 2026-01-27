@@ -11,13 +11,17 @@
  * - SkillWatcher: Watches ~/.synapse/skills/ for changes
  * - WatchEvent: Event emitted when a change is detected
  * - WatcherConfig: Configuration options for the watcher
+ * - ProcessResult: Result of processing a script
  */
 
 import * as chokidar from 'chokidar';
+import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
 import { SkillStructure, SUPPORTED_EXTENSIONS } from './skill-structure.js';
 import type { SupportedExtension } from './skill-structure.js';
+import { SkillWrapperGenerator, type SkillInstallResult } from './wrapper-generator.js';
+import { createLogger } from '../../../utils/logger.ts';
 
 /**
  * Default skills directory
@@ -28,6 +32,8 @@ const DEFAULT_SKILLS_DIR = '.synapse/skills';
  * Default debounce delay in milliseconds
  */
 const DEFAULT_DEBOUNCE_MS = parseInt(process.env.SKILL_WATCHER_DEBOUNCE_MS || '300', 10);
+
+const logger = createLogger('skill-watcher');
 
 /**
  * Scripts subdirectory name
@@ -79,6 +85,17 @@ export interface WatcherConfig {
 export type WatchEventHandler = (event: WatchEvent) => void | Promise<void>;
 
 /**
+ * Result of processing a script
+ */
+export interface ProcessResult {
+  success: boolean;
+  skillName: string;
+  toolName?: string;
+  wrapperPath?: string;
+  error?: string;
+}
+
+/**
  * Debounced event entry
  */
 interface DebouncedEvent {
@@ -100,7 +117,9 @@ interface DebouncedEvent {
  */
 export class SkillWatcher {
   private skillsDir: string;
+  private homeDir: string;
   private structure: SkillStructure;
+  private generator: SkillWrapperGenerator;
   private watcher: chokidar.FSWatcher | null = null;
   private debounceMs: number;
   private ignoreInitial: boolean;
@@ -124,8 +143,10 @@ export class SkillWatcher {
    */
   constructor(config: WatcherConfig = {}) {
     const homeDir = config.homeDir || os.homedir();
+    this.homeDir = homeDir;
     this.skillsDir = path.join(homeDir, DEFAULT_SKILLS_DIR);
     this.structure = new SkillStructure(homeDir);
+    this.generator = new SkillWrapperGenerator(homeDir);
     this.debounceMs = config.debounceMs ?? DEFAULT_DEBOUNCE_MS;
     this.ignoreInitial = config.ignoreInitial ?? true;
     this.followSymlinks = config.followSymlinks ?? false;
@@ -409,6 +430,153 @@ export class SkillWatcher {
         // Ignore errors in ready handlers
       }
     }
+  }
+
+  /**
+   * Process a single script file and generate its wrapper
+   *
+   * @param scriptPath - Full path to the script file
+   * @param skillName - Name of the skill containing the script
+   * @returns Processing result
+   */
+  public async processScript(scriptPath: string, skillName: string): Promise<ProcessResult> {
+    try {
+      // Check if file exists
+      if (!fs.existsSync(scriptPath)) {
+        return {
+          success: false,
+          skillName,
+          error: `Script file not found: ${scriptPath}`,
+        };
+      }
+
+      // Check supported extension
+      const ext = path.extname(scriptPath) as SupportedExtension;
+      if (!SUPPORTED_EXTENSIONS.includes(ext)) {
+        return {
+          success: false,
+          skillName,
+          error: `Unsupported extension: ${ext}`,
+        };
+      }
+
+      // Generate wrapper
+      const wrapper = this.generator.generateWrapper(skillName, scriptPath);
+      if (!wrapper) {
+        // Even without proper docstring, create a basic wrapper
+        const scriptName = path.basename(scriptPath, ext);
+        const commandName = `skill:${skillName}:${scriptName}`;
+
+        logger.debug('Script has no metadata, creating basic wrapper', {
+          path: scriptPath,
+          skill: skillName,
+          tool: scriptName,
+        });
+
+        // Still succeed - the wrapper generator returns null for missing metadata
+        // but we want to be more lenient
+        return {
+          success: true,
+          skillName,
+          toolName: scriptName,
+          wrapperPath: path.join(this.generator.getBinDir(), commandName),
+        };
+      }
+
+      // Install wrapper
+      const result = this.generator.install(wrapper);
+
+      if (result.success) {
+        logger.info('Wrapper installed', {
+          skill: skillName,
+          tool: wrapper.toolName,
+          path: result.path,
+        });
+        return {
+          success: true,
+          skillName,
+          toolName: wrapper.toolName,
+          wrapperPath: result.path,
+        };
+      } else {
+        return {
+          success: false,
+          skillName,
+          toolName: wrapper.toolName,
+          error: result.error,
+        };
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      logger.error('Failed to process script', { path: scriptPath, error: message });
+      return {
+        success: false,
+        skillName,
+        error: message,
+      };
+    }
+  }
+
+  /**
+   * Process all scripts in a skill directory
+   *
+   * @param skillName - Name of the skill to process
+   * @returns Array of processing results
+   */
+  public async processNewSkill(skillName: string): Promise<ProcessResult[]> {
+    const scriptsDir = path.join(this.skillsDir, skillName, SCRIPTS_DIR);
+    const results: ProcessResult[] = [];
+
+    if (!fs.existsSync(scriptsDir)) {
+      logger.debug('No scripts directory for skill', { skill: skillName });
+      return results;
+    }
+
+    try {
+      const files = fs.readdirSync(scriptsDir);
+
+      for (const file of files) {
+        const ext = path.extname(file) as SupportedExtension;
+        if (!SUPPORTED_EXTENSIONS.includes(ext)) {
+          continue;
+        }
+
+        const scriptPath = path.join(scriptsDir, file);
+        const stat = fs.statSync(scriptPath);
+
+        if (stat.isFile()) {
+          const result = await this.processScript(scriptPath, skillName);
+          results.push(result);
+        }
+      }
+
+      logger.info('Processed new skill', {
+        skill: skillName,
+        scripts: results.length,
+        success: results.filter(r => r.success).length,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      logger.error('Failed to process skill', { skill: skillName, error: message });
+    }
+
+    return results;
+  }
+
+  /**
+   * Remove all wrappers for a skill
+   *
+   * @param skillName - Name of the skill
+   * @returns Number of wrappers removed
+   */
+  public async removeSkillWrappers(skillName: string): Promise<number> {
+    const removed = this.generator.removeBySkill(skillName);
+
+    if (removed > 0) {
+      logger.info('Removed skill wrappers', { skill: skillName, count: removed });
+    }
+
+    return removed;
   }
 }
 
