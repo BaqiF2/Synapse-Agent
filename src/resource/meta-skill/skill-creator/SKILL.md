@@ -1,6 +1,7 @@
 ---
 name: skill-creator
 description: Guide for creating effective skills. This skill should be used when users want to create a new skill (or update an existing skill) that extends Claude's capabilities with specialized knowledge, workflows, or tool integrations.
+type: meta
 license: Complete terms in LICENSE.txt
 ---
 
@@ -265,6 +266,12 @@ Usage:
 
 ```bash
 scripts/init_skill.py <skill-name> --path <output-directory>
+```
+
+**Default Skills Directory:** When creating skills for the Synapse Agent system, always use `~/.synapse/skills` as the output directory:
+
+```bash
+scripts/init_skill.py <skill-name> --path ~/.synapse/skills
 ```
 
 The script:

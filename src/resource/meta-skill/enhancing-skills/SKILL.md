@@ -1,6 +1,7 @@
 ---
 name: enhancing-skills
 description: Guide for enhancing and improving existing skills based on conversation analysis and usage feedback. This skill should be used when the Skill Sub-Agent needs to update or strengthen an existing skill by adding new patterns, fixing issues, or improving content quality based on observed usage.
+type: meta
 ---
 
 # Enhancing Skills

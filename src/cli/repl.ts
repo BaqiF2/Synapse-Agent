@@ -35,8 +35,11 @@ import { SkillSubAgent } from '../agent/skill-sub-agent.ts';
 const cliLogger = createLogger('cli');
 
 /**
- * Extract error message from unknown error
+ * Truncate text to specified length with ellipsis
  */
+function truncateText(text: string, maxLength: number): string {
+  return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
+}
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'Unknown error';
 }
@@ -278,7 +281,19 @@ function handleSkillEnhanceCommand(args: string[], agentRunner?: AgentRunner | n
     // Create SkillSubAgent with LLM client and tool executor
     const llmClient = agentRunner.getLlmClient();
     const toolExecutor = agentRunner.getToolExecutor();
-    const subAgent = new SkillSubAgent({ llmClient, toolExecutor });
+    const subAgent = new SkillSubAgent({
+      llmClient,
+      toolExecutor,
+      onToolCall: (info) => {
+        const tag = chalk.cyan(`[${info.agentTag}]`);
+        const status = info.success ? chalk.green('✓') : chalk.red('✗');
+        const toolName = chalk.yellow(info.name);
+        const command = info.input?.command
+          ? chalk.gray(` $ ${truncateText(String(info.input.command), 80)}`)
+          : '';
+        console.log(`${tag} ${status} ${toolName}${command}`);
+      },
+    });
     subAgent
       .enhance(expandedPath)
       .then((result) => {
@@ -396,12 +411,7 @@ function showConversationHistory(history: ConversationEntry[]): void {
     const roleLabel = entry.role === 'user' ? 'You' : 'Agent';
 
     console.log(chalk.gray(`[${time}] `) + roleColor(`${roleLabel} (${entry.turn}):`));
-
-    // Truncate long messages
-    const maxLen = 200;
-    const displayContent =
-      entry.content.length > maxLen ? entry.content.substring(0, maxLen) + '...' : entry.content;
-    console.log(chalk.white(`  ${displayContent}`));
+    console.log(chalk.white(`  ${truncateText(entry.content, 200)}`));
     console.log();
   }
 }
@@ -662,13 +672,11 @@ export async function startRepl(): Promise<void> {
       },
       onToolExecution: (toolName, success, output) => {
         const status = success ? chalk.green('✓') : chalk.red('✗');
-        const shortCmd = toolName.length > 50 ? toolName.substring(0, 50) + '...' : toolName;
-        console.log(chalk.gray(`  ${status} ${shortCmd}`));
+        console.log(chalk.gray(`  ${status} ${truncateText(toolName, 50)}`));
 
         // Show error output for failed commands
         if (!success && output) {
-          const errorPreview =
-            output.length > 200 ? output.substring(0, 200) + '...' : output;
+          const errorPreview = truncateText(output, 200);
           console.log(chalk.red(`    ${errorPreview.split('\n')[0]}`));
         }
       },

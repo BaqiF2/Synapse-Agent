@@ -77,8 +77,9 @@ Standard Unix/Linux commands: \`ls\`, \`grep\`, \`cat\`, \`curl\`, \`git\`, etc.
 
 /**
  * Build Agent Shell Command commands section
+ * This is exported for use by SkillSubAgent
  */
-function buildAgentShellCommandSection(): string {
+export function buildAgentShellCommandSection(): string {
   return `
 ## 2. Agent Shell Command (Core Tools)
 
@@ -362,40 +363,38 @@ All commands support self-description:
 
 Never call a tool directly without first understanding its purpose and parameters.`;
 
-  // Add available skills summary if provided
-  if (availableSkills && availableSkills.length > 0) {
-    section += `
+  if (!availableSkills || availableSkills.length === 0) {
+    return section;
+  }
+
+  section += `
 
 ## Available Skills
 
 `;
-    // Group by domain
-    const byDomain = new Map<string, SkillLevel1[]>();
-    for (const skill of availableSkills) {
-      const domain = skill.domain;
-      if (!byDomain.has(domain)) {
-        byDomain.set(domain, []);
-      }
-      byDomain.get(domain)!.push(skill);
-    }
 
-    for (const [domain, skills] of byDomain) {
-      section += `### ${domain}\n\n`;
-      for (const skill of skills) {
-        section += `- **${skill.name}**`;
-        if (skill.description) {
-          section += `: ${skill.description}`;
+  // Group skills by domain
+  const skillsByDomain = Map.groupBy(availableSkills, (skill) => skill.domain);
+
+  for (const [domain, skills] of skillsByDomain) {
+    section += `### ${domain}\n\n`;
+
+    for (const skill of skills) {
+      section += `- **${skill.name}**`;
+      if (skill.description) {
+        section += `: ${skill.description}`;
+      }
+      if (skill.tools.length > 0) {
+        const displayTools = skill.tools.slice(0, 3).join(', ');
+        const moreCount = skill.tools.length - 3;
+        section += `\n  Tools: ${displayTools}`;
+        if (moreCount > 0) {
+          section += ` (+${moreCount} more)`;
         }
-        if (skill.tools.length > 0) {
-          section += `\n  Tools: ${skill.tools.slice(0, 3).join(', ')}`;
-          if (skill.tools.length > 3) {
-            section += ` (+${skill.tools.length - 3} more)`;
-          }
-        }
-        section += '\n';
       }
       section += '\n';
     }
+    section += '\n';
   }
 
   return section;

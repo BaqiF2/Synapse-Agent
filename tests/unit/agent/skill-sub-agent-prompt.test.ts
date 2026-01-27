@@ -20,14 +20,14 @@ describe('buildSkillSubAgentPrompt', () => {
     const prompt = buildSkillSubAgentPrompt('test metadata', 'test meta content');
 
     const roleIndex = prompt.indexOf('## 1. Your Role');
-    const toolsIndex = prompt.indexOf('## 2. Tools');
+    const toolsIndex = prompt.indexOf('## 2. Available Tools (via Bash)');
     expect(toolsIndex).toBeGreaterThan(roleIndex);
   });
 
   it('should include meta skills section third', () => {
     const prompt = buildSkillSubAgentPrompt('test metadata', 'test meta content');
 
-    const toolsIndex = prompt.indexOf('## 2. Tools');
+    const toolsIndex = prompt.indexOf('## 2. Available Tools (via Bash)');
     const metaIndex = prompt.indexOf('## 3. Meta Skills');
     expect(metaIndex).toBeGreaterThan(toolsIndex);
   });

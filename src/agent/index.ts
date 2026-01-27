@@ -41,6 +41,7 @@ export {
   type OutputMode,
   type AgentRunnerLlmClient,
   type AgentRunnerToolExecutor,
+  type ToolCallInfo,
 } from './agent-runner.ts';
 
 // Skill Sub-Agent
@@ -48,6 +49,7 @@ export { SkillSubAgent, type SkillSubAgentOptions } from './skill-sub-agent.ts';
 export { SkillMemoryStore } from './skill-memory-store.ts';
 export {
   buildSkillSubAgentPrompt,
+  buildSkillSubAgentToolSection,
   SKILL_SEARCH_INSTRUCTIONS,
   SKILL_ENHANCE_INSTRUCTIONS,
 } from './skill-sub-agent-prompt.ts';

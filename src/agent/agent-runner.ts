@@ -9,6 +9,7 @@
  * - AgentRunner: Main Agent Loop class
  * - AgentRunnerOptions: Configuration options
  * - OutputMode: Output mode type
+ * - ToolCallInfo: Tool call info for callbacks
  */
 
 import type { LlmResponse, LlmToolCall } from './llm-client.ts';
@@ -50,6 +51,22 @@ export interface AgentRunnerToolExecutor {
 }
 
 /**
+ * Tool call info for onToolCall callback
+ */
+export interface ToolCallInfo {
+  /** Tool name */
+  name: string;
+  /** Tool input */
+  input: Record<string, unknown>;
+  /** Execution success */
+  success: boolean;
+  /** Execution output */
+  output: string;
+  /** Agent tag for identification */
+  agentTag?: string;
+}
+
+/**
  * Options for AgentRunner
  */
 export interface AgentRunnerOptions {
@@ -67,10 +84,14 @@ export interface AgentRunnerOptions {
   maxIterations?: number;
   /** Output mode: streaming or silent */
   outputMode: OutputMode;
+  /** Agent tag for identification in logs and callbacks */
+  agentTag?: string;
   /** Callback for text output (streaming mode) */
   onText?: (text: string) => void;
   /** Callback for tool execution (streaming mode) */
   onToolExecution?: (toolName: string, success: boolean, output: string) => void;
+  /** Callback for tool calls (all modes, with full info) */
+  onToolCall?: (info: ToolCallInfo) => void;
 }
 
 /**
@@ -98,8 +119,10 @@ export class AgentRunner {
   private tools: Anthropic.Tool[];
   private maxIterations: number;
   private outputMode: OutputMode;
+  private agentTag?: string;
   private onText?: (text: string) => void;
   private onToolExecution?: (toolName: string, success: boolean, output: string) => void;
+  private onToolCall?: (info: ToolCallInfo) => void;
 
   constructor(options: AgentRunnerOptions) {
     this.llmClient = options.llmClient;
@@ -109,8 +132,10 @@ export class AgentRunner {
     this.tools = options.tools;
     this.maxIterations = options.maxIterations ?? DEFAULT_MAX_ITERATIONS;
     this.outputMode = options.outputMode;
+    this.agentTag = options.agentTag;
     this.onText = options.onText;
     this.onToolExecution = options.onToolExecution;
+    this.onToolCall = options.onToolCall;
   }
 
   /**
@@ -208,12 +233,25 @@ export class AgentRunner {
       // Add tool results to context
       this.contextManager.addToolResults(toolResults);
 
-      // Call onToolExecution callback in streaming mode
-      if (this.outputMode === 'streaming' && this.onToolExecution) {
-        for (const result of results) {
-          const toolInput = toolInputs.find(t => t.id === result.toolUseId);
+      // Process callbacks for tool results
+      for (const result of results) {
+        const toolInput = toolInputs.find(t => t.id === result.toolUseId);
+
+        // Call onToolExecution callback in streaming mode
+        if (this.outputMode === 'streaming' && this.onToolExecution) {
           const toolName = toolInput?.input?.command?.toString() || 'unknown';
           this.onToolExecution(toolName, result.success, result.output);
+        }
+
+        // Call onToolCall callback (all modes)
+        if (this.onToolCall) {
+          this.onToolCall({
+            name: toolInput?.name || 'unknown',
+            input: toolInput?.input || {},
+            success: result.success,
+            output: result.output,
+            agentTag: this.agentTag,
+          });
         }
       }
 

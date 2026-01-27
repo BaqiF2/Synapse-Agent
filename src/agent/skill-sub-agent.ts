@@ -16,7 +16,7 @@ import * as os from 'node:os';
 import { createLogger } from '../utils/logger.ts';
 import { SkillMemoryStore } from './skill-memory-store.ts';
 import { buildSkillSubAgentPrompt } from './skill-sub-agent-prompt.ts';
-import { AgentRunner, type AgentRunnerLlmClient, type AgentRunnerToolExecutor } from './agent-runner.ts';
+import { AgentRunner, type AgentRunnerLlmClient, type AgentRunnerToolExecutor, type ToolCallInfo } from './agent-runner.ts';
 import { ContextManager } from './context-manager.ts';
 import { BashToolSchema } from '../tools/bash-tool-schema.ts';
 import type {
@@ -33,6 +33,19 @@ const logger = createLogger('skill-sub-agent');
 const DEFAULT_SKILLS_DIR = path.join(os.homedir(), '.synapse', 'skills');
 
 /**
+ * Default max iterations for SkillSubAgent (higher than main agent)
+ */
+const DEFAULT_SKILL_SUB_AGENT_MAX_ITERATIONS = parseInt(
+  process.env.SKILL_SUB_AGENT_MAX_ITERATIONS || '50',
+  10
+);
+
+/**
+ * Agent tag for SkillSubAgent
+ */
+const SKILL_SUB_AGENT_TAG = 'skill-sub-agent';
+
+/**
  * Options for SkillSubAgent
  */
 export interface SkillSubAgentOptions {
@@ -42,6 +55,10 @@ export interface SkillSubAgentOptions {
   llmClient?: AgentRunnerLlmClient;
   /** Tool executor (optional - required for LLM-based operations) */
   toolExecutor?: AgentRunnerToolExecutor;
+  /** Maximum iterations for Agent Loop */
+  maxIterations?: number;
+  /** Callback for tool calls (with agent tag) */
+  onToolCall?: (info: ToolCallInfo) => void;
 }
 
 /**
@@ -103,6 +120,9 @@ export class SkillSubAgent {
         systemPrompt,
         tools: [BashToolSchema],
         outputMode: 'silent',
+        maxIterations: options.maxIterations ?? DEFAULT_SKILL_SUB_AGENT_MAX_ITERATIONS,
+        agentTag: SKILL_SUB_AGENT_TAG,
+        onToolCall: options.onToolCall,
       });
     }
 
@@ -207,12 +227,35 @@ Respond with JSON only in this format:
 
     const prompt = `Analyze the conversation at "${conversationPath}" and determine if a skill should be created or enhanced.
 
-1. Read the conversation file
-2. Identify reusable patterns or workflows
-3. If creating a new skill, follow the skill-creator meta skill
-4. If enhancing an existing skill, follow the enhancing-skills meta skill
+## Instructions
 
-After completing the task, respond with JSON only.`;
+1. **Read and analyze** the conversation file to identify reusable patterns or workflows
+
+2. **Search for similar skills** by checking the Available Skills (Metadata) section in your system prompt:
+   - Look for skills that cover similar functionality
+   - Consider semantic similarity, not just keyword matching
+
+3. **Decide action based on search results**:
+   - **If a similar skill exists**: Follow the enhancing-skills meta skill to enhance it
+   - **If no similar skill exists**: Follow the skill-creator meta skill to create a new one
+   - **If no actionable pattern found**: Return action "none"
+
+4. **Important - Output Directory**:
+   When creating a new skill, use this command:
+   \`scripts/init_skill.py <skill-name> --path ~/.synapse/skills\`
+
+   When enhancing an existing skill, the skill files are in: ~/.synapse/skills/<skill-name>/
+
+## Output Format
+
+After completing the task, respond with JSON only:
+\`\`\`json
+{
+  "action": "created" | "enhanced" | "none",
+  "skillName": "skill-name-if-applicable",
+  "message": "Brief description of what was done"
+}
+\`\`\``;
 
     const result = await this.agentRunner.run(prompt);
     return this.parseJsonResult<SkillEnhanceResult>(result, {
@@ -283,23 +326,17 @@ After completing the evaluation, respond with JSON only.`;
    * @returns Array of matched skills with name and description
    */
   searchLocal(query: string): { name: string; description: string }[] {
-    const results: { name: string; description: string }[] = [];
-    const queryLower = query.toLowerCase();
-    const queryTerms = queryLower.split(/\s+/).filter((t) => t.length > 0);
+    const queryTerms = query.toLowerCase().split(/\s+/).filter((t) => t.length > 0);
 
-    for (const skill of this.memoryStore.getAll()) {
-      const nameLower = skill.name.toLowerCase();
-      const descLower = (skill.description || '').toLowerCase();
-      const matches = queryTerms.some(
-        (term) => nameLower.includes(term) || descLower.includes(term)
-      );
-
-      if (matches) {
-        results.push({ name: skill.name, description: skill.description || '' });
-      }
-    }
-
-    return results;
+    return this.memoryStore.getAll()
+      .filter((skill) => {
+        const searchText = `${skill.name} ${skill.description || ''}`.toLowerCase();
+        return queryTerms.some((term) => searchText.includes(term));
+      })
+      .map((skill) => ({
+        name: skill.name,
+        description: skill.description || '',
+      }));
   }
 
   /**

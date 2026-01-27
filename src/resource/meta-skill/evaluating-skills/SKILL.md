@@ -1,6 +1,7 @@
 ---
 name: evaluating-skills
 description: Guide for evaluating and quality assessment of skills to determine their effectiveness and identify areas for improvement. This skill should be used when assessing skill quality, comparing skills, or deciding whether a skill needs enhancement or replacement.
+type: meta
 ---
 
 # Evaluating Skills

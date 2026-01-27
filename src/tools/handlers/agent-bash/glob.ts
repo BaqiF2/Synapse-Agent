@@ -12,6 +12,7 @@ import fg from 'fast-glob';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { CommandResult } from '../base-bash-handler.ts';
+import { parseCommandArgs } from './command-utils.ts';
 
 const DEFAULT_MAX_RESULTS = parseInt(process.env.GLOB_MAX_RESULTS || '100', 10);
 
@@ -29,7 +30,7 @@ interface GlobArgs {
  * Syntax: glob <pattern> [--path <dir>] [--max <n>]
  */
 export function parseGlobCommand(command: string): GlobArgs {
-  const parts = command.trim().split(/\s+/);
+  const parts = parseCommandArgs(command.trim());
 
   // Remove 'glob' prefix
   parts.shift();
@@ -63,14 +64,8 @@ export function parseGlobCommand(command: string): GlobArgs {
       }
       maxResults = val;
     } else if (!pattern) {
-      // First non-flag argument is the pattern
-      // Handle quoted patterns
-      let p = part ?? '';
-      if ((p.startsWith('"') && p.endsWith('"')) ||
-          (p.startsWith("'") && p.endsWith("'"))) {
-        p = p.slice(1, -1);
-      }
-      pattern = p;
+      // First non-flag argument is the pattern (quotes already stripped by parseCommandArgs)
+      pattern = part ?? '';
     } else {
       throw new Error(`Unexpected argument: ${part}`);
     }

@@ -11,6 +11,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { CommandResult } from '../base-bash-handler.ts';
+import { parseCommandArgs } from './command-utils.ts';
 
 const DEFAULT_LIMIT = parseInt(process.env.READ_DEFAULT_LIMIT || '0', 10);
 
@@ -28,7 +29,7 @@ interface ReadArgs {
  * Syntax: read <file_path> [--offset N] [--limit N]
  */
 export function parseReadCommand(command: string): ReadArgs {
-  const parts = command.trim().split(/\s+/);
+  const parts = parseCommandArgs(command.trim());
 
   // Remove 'read' prefix
   parts.shift();
