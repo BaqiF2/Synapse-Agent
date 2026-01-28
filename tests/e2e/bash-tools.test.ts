@@ -3,7 +3,7 @@
  *
  * Tests the complete flow of Bash tool execution including:
  * - Native Shell Command commands (Layer 1)
- * - Agent Shell Command tools (Layer 2): read, write, edit, glob, grep
+ * - Agent Shell Command tools (Layer 2): read, write, edit, glob, search
  * - Bash session persistence
  *
  * @module tests/e2e/bash-tools
@@ -190,27 +190,27 @@ describe('E2E: Bash Tools Integration', () => {
     });
   });
 
-  describe('Scenario 2: Agent Shell Command - Grep Tool', () => {
+  describe('Scenario 2: Agent Shell Command - Search Tool', () => {
     beforeAll(() => {
-      // Create a subdirectory with a test file for grep
-      const grepDir = path.join(TEST_DIR, 'grep-test-dir');
-      fs.mkdirSync(grepDir, { recursive: true });
+      // Create a subdirectory with a test file for search
+      const searchDir = path.join(TEST_DIR, 'search-test-dir');
+      fs.mkdirSync(searchDir, { recursive: true });
       fs.writeFileSync(
-        path.join(grepDir, 'test.js'),
+        path.join(searchDir, 'test.js'),
         'function hello() {\n  console.log("Hello");\n}\n\nfunction world() {\n  return "World";\n}'
       );
     });
 
     test('should search for pattern in directory', async () => {
-      const grepDir = path.join(TEST_DIR, 'grep-test-dir');
-      const result = await router.route(`grep "function" --path ${grepDir}`);
+      const searchDir = path.join(TEST_DIR, 'search-test-dir');
+      const result = await router.route(`search "function" --path ${searchDir}`);
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain('function');
     });
 
     test('should support regex patterns', async () => {
-      const grepDir = path.join(TEST_DIR, 'grep-test-dir');
-      const result = await router.route(`grep "console\\.log" --path ${grepDir}`);
+      const searchDir = path.join(TEST_DIR, 'search-test-dir');
+      const result = await router.route(`search "console\\.log" --path ${searchDir}`);
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain('console.log');
     });

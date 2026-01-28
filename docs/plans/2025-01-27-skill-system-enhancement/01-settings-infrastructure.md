@@ -41,7 +41,7 @@ describe('SynapseSettingsSchema', () => {
 
   it('should have correct default values for skillEnhance', () => {
     expect(DEFAULT_SETTINGS.skillEnhance.autoEnhance).toBe(false);
-    expect(DEFAULT_SETTINGS.skillEnhance.maxEnhanceContextTokens).toBe(50000);
+    expect(DEFAULT_SETTINGS.skillEnhance.maxEnhanceContextChars).toBe(50000);
   });
 
   it('should validate partial settings with defaults', () => {
@@ -92,8 +92,8 @@ import { z } from 'zod';
 /**
  * Default max tokens for enhance context
  */
-const DEFAULT_MAX_ENHANCE_CONTEXT_TOKENS = parseInt(
-  process.env.SYNAPSE_MAX_ENHANCE_CONTEXT_TOKENS || '50000',
+const DEFAULT_MAX_ENHANCE_CONTEXT_CHARS = parseInt(
+  process.env.SYNAPSE_MAX_ENHANCE_CONTEXT_CHARS || '50000',
   10
 );
 
@@ -104,7 +104,7 @@ export const SkillEnhanceSettingsSchema = z.object({
   /** Whether auto-enhance is enabled */
   autoEnhance: z.boolean().default(false),
   /** Maximum tokens to include in enhance context */
-  maxEnhanceContextTokens: z.number().positive().default(DEFAULT_MAX_ENHANCE_CONTEXT_TOKENS),
+  maxEnhanceContextChars: z.number().positive().default(DEFAULT_MAX_ENHANCE_CONTEXT_CHARS),
 });
 
 export type SkillEnhanceSettings = z.infer<typeof SkillEnhanceSettingsSchema>;
@@ -118,7 +118,7 @@ export const SynapseSettingsSchema = z.object({
   /** Skill enhance settings */
   skillEnhance: SkillEnhanceSettingsSchema.default({
     autoEnhance: false,
-    maxEnhanceContextTokens: DEFAULT_MAX_ENHANCE_CONTEXT_TOKENS,
+    maxEnhanceContextChars: DEFAULT_MAX_ENHANCE_CONTEXT_CHARS,
   }),
 });
 
@@ -131,7 +131,7 @@ export const DEFAULT_SETTINGS: SynapseSettings = {
   version: '1.0.0',
   skillEnhance: {
     autoEnhance: false,
-    maxEnhanceContextTokens: DEFAULT_MAX_ENHANCE_CONTEXT_TOKENS,
+    maxEnhanceContextChars: DEFAULT_MAX_ENHANCE_CONTEXT_CHARS,
   },
 };
 ```
@@ -229,9 +229,9 @@ describe('SettingsManager', () => {
     });
 
     it('should update nested settings', () => {
-      manager.set('skillEnhance.maxEnhanceContextTokens', 100000);
+      manager.set('skillEnhance.maxEnhanceContextChars', 100000);
       const settings = manager.get();
-      expect(settings.skillEnhance.maxEnhanceContextTokens).toBe(100000);
+      expect(settings.skillEnhance.maxEnhanceContextChars).toBe(100000);
     });
   });
 
@@ -409,8 +409,8 @@ export class SettingsManager {
   /**
    * Get max enhance context tokens
    */
-  getMaxEnhanceContextTokens(): number {
-    return this.get().skillEnhance.maxEnhanceContextTokens;
+  getMaxEnhanceContextChars(): number {
+    return this.get().skillEnhance.maxEnhanceContextChars;
   }
 
   /**
@@ -595,13 +595,13 @@ describe('Settings Persistence E2E', () => {
     const manager = new SettingsManager(testDir);
 
     // Set initial values
-    manager.set('skillEnhance.maxEnhanceContextTokens', 100000);
+    manager.set('skillEnhance.maxEnhanceContextChars', 100000);
     manager.setAutoEnhance(true);
 
     // Verify both values are preserved
     const settings = manager.get();
     expect(settings.skillEnhance.autoEnhance).toBe(true);
-    expect(settings.skillEnhance.maxEnhanceContextTokens).toBe(100000);
+    expect(settings.skillEnhance.maxEnhanceContextChars).toBe(100000);
   });
 });
 ```

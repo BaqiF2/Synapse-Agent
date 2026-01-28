@@ -28,7 +28,7 @@ describe('ConversationReader', () => {
       { id: 'msg-3', timestamp: '2025-01-27T10:00:02Z', role: 'user', content: 'Find all ERROR entries' },
       { id: 'msg-4', timestamp: '2025-01-27T10:00:03Z', role: 'assistant', content: [
         { type: 'text', text: 'Let me search for errors.' },
-        { type: 'tool_use', id: 'tool-1', name: 'grep', input: { pattern: 'ERROR', path: 'error.log' } }
+        { type: 'tool_use', id: 'tool-1', name: 'search', input: { pattern: 'ERROR', path: 'error.log' } }
       ]},
       { id: 'msg-5', timestamp: '2025-01-27T10:00:04Z', role: 'user', content: [
         { type: 'tool_result', tool_use_id: 'tool-1', content: 'ERROR: Connection failed\nERROR: Timeout' }
@@ -66,7 +66,7 @@ describe('ConversationReader', () => {
       const turn = turns[3];
       expect(turn?.role).toBe('assistant');
       expect(turn?.toolCalls?.length).toBe(1);
-      expect(turn?.toolCalls?.[0]?.name).toBe('grep');
+      expect(turn?.toolCalls?.[0]?.name).toBe('search');
     });
 
     it('should parse tool results', () => {
@@ -80,24 +80,31 @@ describe('ConversationReader', () => {
   });
 
   describe('readTruncated', () => {
-    it('should truncate to specified token limit', () => {
+    it('should truncate to specified character limit', () => {
       const reader = new ConversationReader();
-      // Assuming ~4 chars per token, 100 tokens = ~400 chars
-      const turns = reader.readTruncated(conversationPath, 100);
+      const content = fs.readFileSync(conversationPath, 'utf-8');
+      const lines = content.split('\n');
+      const lastLine = lines[lines.length - 1] ?? '';
 
-      // Should return fewer messages due to truncation
-      expect(turns.length).toBeLessThanOrEqual(5);
+      const turns = reader.readTruncated(conversationPath, lastLine.length);
+
+      expect(turns.length).toBe(1);
+      expect(turns[0]?.id).toBe('msg-5');
     });
 
     it('should read from end of file', () => {
       const reader = new ConversationReader();
-      const turns = reader.readTruncated(conversationPath, 50);
+      const content = fs.readFileSync(conversationPath, 'utf-8');
+      const lines = content.split('\n');
+      const lastLine = lines[lines.length - 1] ?? '';
+      const prevLine = lines[lines.length - 2] ?? '';
+
+      const turns = reader.readTruncated(conversationPath, lastLine.length + prevLine.length + 1);
 
       // Last messages should be included
-      if (turns.length > 0) {
-        const lastTurn = turns[turns.length - 1];
-        expect(lastTurn?.timestamp).toBeDefined();
-      }
+      expect(turns.length).toBe(2);
+      expect(turns[0]?.id).toBe('msg-4');
+      expect(turns[1]?.id).toBe('msg-5');
     });
   });
 
@@ -108,7 +115,7 @@ describe('ConversationReader', () => {
       const tools = reader.extractToolSequence(turns);
 
       expect(tools.length).toBe(1);
-      expect(tools[0]).toBe('grep');
+      expect(tools[0]).toBe('search');
     });
   });
 

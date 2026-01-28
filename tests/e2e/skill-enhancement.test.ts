@@ -134,7 +134,7 @@ describe('Skill Enhancement E2E', () => {
 
       const context: TaskContext = {
         toolCallCount: 10,
-        uniqueTools: ['read', 'write', 'grep', 'edit'],
+        uniqueTools: ['read', 'write', 'search', 'edit'],
         userClarifications: 1,
         skillsUsed: [],
         scriptsGenerated: 1,
@@ -168,7 +168,7 @@ describe('Skill Enhancement E2E', () => {
 
       const context: TaskContext = {
         toolCallCount: 20,
-        uniqueTools: ['read', 'write', 'grep', 'edit', 'glob'],
+        uniqueTools: ['read', 'write', 'search', 'edit', 'glob'],
         userClarifications: 5,
         skillsUsed: [],
         scriptsGenerated: 3,
@@ -186,7 +186,7 @@ describe('Skill Enhancement E2E', () => {
 
       const context: TaskContext = {
         toolCallCount: 15,
-        uniqueTools: ['read', 'write', 'grep', 'edit'],
+        uniqueTools: ['read', 'write', 'search', 'edit'],
         userClarifications: 0,
         skillsUsed: ['code-analyzer'],
         skillsWorkedWell: true,
@@ -204,7 +204,7 @@ describe('Skill Enhancement E2E', () => {
 
       const context: TaskContext = {
         toolCallCount: 10,
-        uniqueTools: ['read', 'write', 'grep', 'edit'],
+        uniqueTools: ['read', 'write', 'search', 'edit'],
         userClarifications: 2,
         skillsUsed: ['code-analyzer'],
         skillsWorkedWell: false,
@@ -230,7 +230,7 @@ describe('Skill Enhancement E2E', () => {
       // Build context
       const context: TaskContext = {
         toolCallCount: 8,
-        uniqueTools: ['read', 'grep', 'write'],
+        uniqueTools: ['read', 'search', 'write'],
         userClarifications: 0,
         skillsUsed: [],
         scriptsGenerated: 0,
@@ -294,7 +294,7 @@ describe('Skill Enhancement E2E', () => {
         },
         {
           role: 'assistant',
-          toolCalls: [{ name: 'read' }, { name: 'grep' }],
+          toolCalls: [{ name: 'read' }, { name: 'search' }],
         },
         {
           role: 'user',
@@ -310,7 +310,7 @@ describe('Skill Enhancement E2E', () => {
 
       expect(context.toolCallCount).toBe(4);
       expect(context.uniqueTools).toContain('read');
-      expect(context.uniqueTools).toContain('grep');
+      expect(context.uniqueTools).toContain('search');
       expect(context.uniqueTools).toContain('edit');
       expect(context.userClarifications).toBeGreaterThanOrEqual(1); // "actually" keyword
       expect(context.skillsUsed).toContain('my-skill');
@@ -334,7 +334,7 @@ function createComplexConversation(conversationsDir: string): string {
       { type: 'tool_result', tool_use_id: 't1', content: 'error.log\napp.log\nsystem.log' },
     ]},
     { id: 'm4', timestamp: '2025-01-27T10:00:03Z', role: 'assistant', content: [
-      { type: 'tool_use', id: 't2', name: 'grep', input: { pattern: 'ERROR', path: 'error.log' } },
+      { type: 'tool_use', id: 't2', name: 'search', input: { pattern: 'ERROR', path: 'error.log' } },
     ]},
     { id: 'm5', timestamp: '2025-01-27T10:00:04Z', role: 'user', content: [
       { type: 'tool_result', tool_use_id: 't2', content: 'ERROR: Connection failed\nERROR: Timeout' },

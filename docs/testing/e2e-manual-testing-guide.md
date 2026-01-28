@@ -155,7 +155,7 @@ You (1)> /tools
 
 **预期输出**: 显示所有可用的工具列表，包括:
 - Native Shell Command 工具
-- Agent Shell Command 工具 (read, write, edit, glob, grep, bash)
+- Agent Shell Command 工具 (read, write, edit, glob, search, bash)
 - extend Shell command 工具 (mcp:*, skill:*, tools)
 
 **验证结果**:
@@ -334,14 +334,14 @@ You (4)> 使用 glob 工具查找 src 目录下所有的 TypeScript 文件
 - [x] 返回文件列表
 - [x] 文件路径正确
 
-### 5.5 grep 工具测试
+### 5.5 search 工具测试
 
 ```
-You (5)> 使用 grep 工具在 src 目录中搜索 "BashRouter" 关键词
+You (5)> 使用 search 工具在 src 目录中搜索 "BashRouter" 关键词
 ```
 
 **预期行为**:
-- Agent 执行 grep 命令
+- Agent 执行 search 命令
 - 返回匹配的文件和行号
 
 **验证结果**:
@@ -692,7 +692,7 @@ cat ~/.synapse/logs/agent.log | tail -50
 | write 工具正常工作 | ☐ | |
 | edit 工具正常工作 | ☐ | |
 | glob 工具正常工作 | ☐ | |
-| grep 工具正常工作 | ☐ | |
+| search 工具正常工作 | ☐ | |
 | bash 包装器正常工作 | ☐ | |
 
 ### MCP 和技能系统

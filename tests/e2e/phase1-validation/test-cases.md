@@ -64,7 +64,7 @@ cat src/tools/bash-tool-schema.ts
 
 **测试步骤**:
 1. 识别 Native Shell Command 命令 (ls, pwd, echo)
-2. 识别 Agent Shell Command 命令 (read, write, edit, glob, grep, skill search)
+2. 识别 Agent Shell Command 命令 (read, write, edit, glob, search, skill search)
 3. 识别 Extension Shell Command 命令 (mcp:*, skill:*, tools)
 
 **测试数据**:
@@ -77,7 +77,7 @@ cat src/tools/bash-tool-schema.ts
 | `write /path/file.txt "content"` | AGENT_SHELL |
 | `edit /path/file.txt "old" "new"` | AGENT_SHELL |
 | `glob "*.ts"` | AGENT_SHELL |
-| `grep "pattern"` | AGENT_SHELL |
+| `search "pattern"` | AGENT_SHELL |
 | `skill search "query"` | AGENT_SHELL |
 | `tools search "query"` | EXTENSION_SHELL |
 | `mcp:server:tool arg` | EXTENSION_SHELL |
@@ -299,16 +299,16 @@ glob "**/*.ts" --path /tmp/glob-test
 
 ---
 
-### TC-2.5: grep 工具 [AUTO]
+### TC-2.5: search 工具 [AUTO]
 
 **验证目标**: 代码搜索功能
 
 **测试步骤**:
 1. 创建测试文件包含多个函数定义
-2. `grep "function" --path <dir>` - 搜索关键词
-3. `grep "console\\.log" --path <dir>` - 搜索正则表达式
-4. `grep "pattern" --type ts` - 按文件类型过滤
-5. `grep "pattern" -i` - 忽略大小写搜索
+2. `search "function" --path <dir>` - 搜索关键词
+3. `search "console\\.log" --path <dir>` - 搜索正则表达式
+4. `search "pattern" --type ts` - 按文件类型过滤
+5. `search "pattern" -i` - 忽略大小写搜索
 
 **预期结果**:
 - 关键词搜索返回匹配行
@@ -319,11 +319,11 @@ glob "**/*.ts" --path /tmp/glob-test
 ```bash
 bun run chat
 
-!mkdir -p /tmp/grep-test
-!echo 'function hello() { console.log("hi"); }' > /tmp/grep-test/test.js
+!mkdir -p /tmp/search-test
+!echo 'function hello() { console.log("hi"); }' > /tmp/search-test/test.js
 
-grep "function" --path /tmp/grep-test
-grep "console\\.log" --path /tmp/grep-test
+search "function" --path /tmp/search-test
+search "console\\.log" --path /tmp/search-test
 ```
 
 ---
@@ -338,7 +338,7 @@ grep "console\\.log" --path /tmp/grep-test
 2. `write -h` / `write --help`
 3. `edit -h` / `edit --help`
 4. `glob -h` / `glob --help`
-5. `grep -h` / `grep --help`
+5. `search -h` / `search --help`
 6. `skill search -h` / `skill search --help`
 7. `tools search -h` / `tools search --help`
 
@@ -356,7 +356,7 @@ read --help
 write -h
 edit --help
 glob -h
-grep --help
+search --help
 skill search --help
 tools search --help
 ```

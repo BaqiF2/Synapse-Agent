@@ -16,7 +16,8 @@ import { ReadHandler, WriteHandler, EditHandler, GlobHandler, GrepHandler, BashW
 import { ToolsHandler } from './handlers/field-bash/index.ts';
 import { McpConfigParser, McpClient, McpWrapperGenerator, McpInstaller } from './converters/mcp/index.ts';
 import { SkillStructure, DocstringParser, SkillWrapperGenerator } from './converters/skill/index.ts';
-import { SkillCommandHandler, type SkillSearchLlmClient } from './handlers/skill-command-handler.ts';
+import { SkillCommandHandler } from './handlers/skill-command-handler.ts';
+import { type AgentRunnerLlmClient, type AgentRunnerToolExecutor } from '../agent/agent-runner.ts';
 
 /**
  * Command types in the three-layer Bash architecture
@@ -39,7 +40,11 @@ export interface BashRouterOptions {
   skillsDir?: string;
   synapseDir?: string;
   /** LLM client for semantic skill search */
-  llmClient?: SkillSearchLlmClient;
+  llmClient?: AgentRunnerLlmClient;
+  /** Tool executor for skill sub-agent */
+  toolExecutor?: AgentRunnerToolExecutor;
+  /** Callback to get current conversation path */
+  getConversationPath?: () => string | null;
 }
 
 /**
@@ -58,12 +63,16 @@ export class BashRouter {
   private skillCommandHandler: SkillCommandHandler | null = null;
   private skillsDir: string;
   private synapseDir: string;
-  private llmClient: SkillSearchLlmClient | undefined;
+  private llmClient: AgentRunnerLlmClient | undefined;
+  private toolExecutor: AgentRunnerToolExecutor | undefined;
+  private getConversationPath: (() => string | null) | undefined;
 
   constructor(private session: BashSession, options: BashRouterOptions = {}) {
     this.synapseDir = options.synapseDir ?? DEFAULT_SYNAPSE_DIR;
     this.skillsDir = options.skillsDir ?? path.join(this.synapseDir, 'skills');
     this.llmClient = options.llmClient;
+    this.toolExecutor = options.toolExecutor;
+    this.getConversationPath = options.getConversationPath;
 
     this.nativeShellCommandHandler = new NativeShellCommandHandler(session);
     this.readHandler = new ReadHandler();
@@ -112,31 +121,36 @@ export class BashRouter {
   identifyCommandType(command: string): CommandType {
     const trimmed = command.trim();
 
-    // Agent Shell Command commands (Layer 2)
-    const agentShellCommandCommands = ['read', 'write', 'edit', 'glob', 'grep', 'bash'];
-    for (const cmd of agentShellCommandCommands) {
-      if (trimmed.startsWith(cmd + ' ') || trimmed === cmd) {
-        return CommandType.AGENT_SHELL_COMMAND;
-      }
-    }
-
-    // Skill management commands (not skill:*:* which is Extension)
-    // skill list, skill search, skill load, skill enhance, skill --help
-    if (trimmed.startsWith('skill ') && !trimmed.startsWith('skill:')) {
-      return CommandType.AGENT_SHELL_COMMAND;
-    }
-    if (trimmed === 'skill' || trimmed === 'skill --help' || trimmed === 'skill -h') {
-      return CommandType.AGENT_SHELL_COMMAND;
-    }
-
-    // extend Shell command commands (Layer 3)
-    // mcp:*, skill:*, tools
+    // extend Shell command commands (Layer 3) - mcp:*, skill:*, tools
     if (trimmed.startsWith('mcp:') || trimmed.startsWith('skill:') || trimmed.startsWith('tools ')) {
       return CommandType.EXTEND_SHELL_COMMAND;
     }
 
+    // Skill management commands (not skill:*:* which is Extension)
+    if (trimmed === 'skill' || trimmed === 'skill --help' || trimmed === 'skill -h') {
+      return CommandType.AGENT_SHELL_COMMAND;
+    }
+    if (trimmed.startsWith('skill ') && !trimmed.startsWith('skill:')) {
+      return CommandType.AGENT_SHELL_COMMAND;
+    }
+
+    // Agent Shell Command commands (Layer 2)
+    const agentShellCommands = ['read', 'write', 'edit', 'glob', 'search', 'bash'];
+    for (const cmd of agentShellCommands) {
+      if (trimmed === cmd || trimmed.startsWith(cmd + ' ')) {
+        return CommandType.AGENT_SHELL_COMMAND;
+      }
+    }
+
     // Default to Native Shell Command (Layer 1)
     return CommandType.NATIVE_SHELL_COMMAND;
+  }
+
+  /**
+   * Check if command matches a prefix
+   */
+  private matchesCommand(trimmed: string, cmd: string): boolean {
+    return trimmed === cmd || trimmed.startsWith(cmd + ' ');
   }
 
   /**
@@ -146,38 +160,32 @@ export class BashRouter {
     const trimmed = command.trim();
 
     // Route to appropriate handler based on command prefix
-    if (trimmed.startsWith('read ') || trimmed === 'read') {
+    if (this.matchesCommand(trimmed, 'read')) {
       return await this.readHandler.execute(command);
     }
 
-    if (trimmed.startsWith('write ') || trimmed === 'write') {
+    if (this.matchesCommand(trimmed, 'write')) {
       return await this.writeHandler.execute(command);
     }
 
-    if (trimmed.startsWith('edit ') || trimmed === 'edit') {
+    if (this.matchesCommand(trimmed, 'edit')) {
       return await this.editHandler.execute(command);
     }
 
-    // glob, grep, bash handlers
-    if (trimmed.startsWith('glob ') || trimmed === 'glob') {
+    if (this.matchesCommand(trimmed, 'glob')) {
       return await this.globHandler.execute(command);
     }
 
-    if (trimmed.startsWith('grep ') || trimmed === 'grep') {
+    if (this.matchesCommand(trimmed, 'search')) {
       return await this.grepHandler.execute(command);
     }
 
-    if (trimmed.startsWith('bash ') || trimmed === 'bash') {
+    if (this.matchesCommand(trimmed, 'bash')) {
       return await this.bashWrapperHandler.execute(command);
     }
 
     // Skill management commands
-    if (
-      trimmed.startsWith('skill ') ||
-      trimmed === 'skill' ||
-      trimmed === 'skill --help' ||
-      trimmed === 'skill -h'
-    ) {
+    if (this.matchesCommand(trimmed, 'skill')) {
       return await this.executeSkillManagementCommand(command);
     }
 
@@ -198,6 +206,8 @@ export class BashRouter {
         skillsDir: this.skillsDir,
         synapseDir: this.synapseDir,
         llmClient: this.llmClient,
+        toolExecutor: this.toolExecutor,
+        getConversationPath: this.getConversationPath,
       });
     }
 
@@ -548,6 +558,21 @@ export class BashRouter {
         stderr: `Skill command failed: ${errorMessage}`,
         exitCode: 1,
       };
+    }
+  }
+
+  /**
+   * Set the tool executor (for delayed binding to avoid circular dependencies)
+   * This allows ToolExecutor to pass itself after BashRouter is created.
+   *
+   * @param executor - The tool executor instance
+   */
+  setToolExecutor(executor: AgentRunnerToolExecutor): void {
+    this.toolExecutor = executor;
+    // Reset skill command handler to pick up the new executor on next use
+    if (this.skillCommandHandler) {
+      this.skillCommandHandler.shutdown();
+      this.skillCommandHandler = null;
     }
   }
 

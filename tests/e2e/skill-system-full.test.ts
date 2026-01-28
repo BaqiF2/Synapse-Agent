@@ -189,7 +189,7 @@ describe('Skill System Full Integration', () => {
       generator.createSkill({
         name: 'log-analyzer',
         description: 'Analyzes log files',
-        quickStart: 'grep ERROR *.log',
+        quickStart: 'search ERROR *.log',
         executionSteps: ['Find logs', 'Search errors'],
         bestPractices: [],
         examples: [],
@@ -200,7 +200,7 @@ describe('Skill System Full Integration', () => {
       const messages = [
         { id: 'm1', timestamp: '2025-01-27T10:00:00Z', role: 'user', content: 'Analyze the logs but also check for warnings' },
         { id: 'm2', timestamp: '2025-01-27T10:00:01Z', role: 'assistant', content: [
-          { type: 'tool_use', id: 't1', name: 'grep', input: { pattern: 'ERROR|WARN' } },
+          { type: 'tool_use', id: 't1', name: 'search', input: { pattern: 'ERROR|WARN' } },
         ]},
         { id: 'm3', timestamp: '2025-01-27T10:00:02Z', role: 'user', content: [
           { type: 'tool_result', tool_use_id: 't1', content: 'ERROR: fail\nWARN: slow' },

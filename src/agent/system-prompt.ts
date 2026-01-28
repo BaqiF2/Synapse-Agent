@@ -7,9 +7,31 @@
  * - buildSystemPrompt(): 构建完整的系统提示词
  * - buildSkillSystemSection(): 构建技能系统说明
  * - SystemPromptOptions: 系统提示词配置选项
+ * - AUTO_ENHANCE_PROMPT: 自动增强提示词（用于任务完成后动态注入）
  */
 
 import type { SkillLevel1 } from '../skills/skill-loader.js';
+
+/**
+ * Auto-enhance prompt for dynamic injection after task completion
+ *
+ * This prompt is injected into the agent loop when auto-enhance is enabled,
+ * triggering the agent to analyze the conversation for reusable patterns.
+ */
+export const AUTO_ENHANCE_PROMPT = `
+任务已完成。请分析本次对话，判断是否存在可复用的工具使用模式：
+
+**评估标准：**
+- 是否涉及 5+ 次工具调用的复杂操作
+- 是否存在重复的操作模式
+- 是否可以抽象为可复用的技能
+
+**决策：**
+- 如果发现有价值的模式，请调用 \`skill enhance\` 命令创建或改进技能
+- 如果没有发现值得增强的模式，请直接回复"无需增强"并结束
+
+注意：这是自动增强检查，请简洁回复。
+`;
 
 /**
  * Options for building the system prompt
@@ -39,7 +61,7 @@ function buildBaseRole(): string {
 
 **CRITICAL: You have ONLY ONE tool available - the \`Bash\` tool.**
 
-All operations MUST be performed by calling the \`Bash\` tool with the command as a parameter. The commands documented below (read, write, edit, glob, grep, skill, tools, etc.) are NOT separate tools - they are bash commands that you execute through the single Bash tool.
+All operations MUST be performed by calling the \`Bash\` tool with the command as a parameter. The commands documented below (read, write, edit, glob, search, skill, tools, etc.) are NOT separate tools - they are bash commands that you execute through the single Bash tool.
 
 **Correct usage example:**
 \`\`\`
@@ -191,9 +213,9 @@ Examples:
   glob "**/*.test.ts" --max 10   # Find test files, limit to 10
 \`\`\`
 
-### grep - Search for patterns in files
+### search - Search for patterns in files
 \`\`\`
-Usage: grep <pattern> [OPTIONS]
+Usage: search <pattern> [OPTIONS]
 
 Arguments:
   <pattern>      Search pattern (supports JavaScript regex)
@@ -218,10 +240,10 @@ Output:
   file:line:  matched line content
 
 Examples:
-  grep "TODO"                        # Find TODO comments
-  grep "function\\s+\\w+" --type ts   # Find function definitions in TypeScript
-  grep "import.*from" --context 2    # Find imports with context
-  grep "error" -i --type py          # Case-insensitive search in Python files
+  search "TODO"                        # Find TODO comments
+  search "function\\s+\\w+" --type ts   # Find function definitions in TypeScript
+  search "import.*from" --context 2    # Find imports with context
+  search "error" -i --type py          # Case-insensitive search in Python files
 \`\`\`
 
 ### skill search - Search for skills in the skill library
@@ -282,6 +304,31 @@ Output:
 
 Examples:
   skill list                    # Show all available skills
+\`\`\`
+
+### skill enhance - Analyze and enhance skills
+\`\`\`
+Usage: skill enhance [OPTIONS]
+
+Options:
+  --reason <text>    Reason for enhancement (helps skill creation)
+  --on               Enable auto skill enhancement mode
+  --off              Disable auto skill enhancement mode
+
+Description:
+  Analyzes the current conversation for reusable patterns and creates
+  or improves skills accordingly. Use this after completing complex
+  multi-step operations that could become reusable skills.
+
+When to use:
+  - After completing complex multi-step operations
+  - When you notice repeated tool usage patterns
+  - When the user asks for task automation
+
+Examples:
+  skill enhance                                # Analyze current conversation
+  skill enhance --reason "File processing workflow"  # With reason
+  skill enhance --on                           # Enable auto-enhance mode
 \`\`\`
 
 ### tools - Search and manage installed MCP and Skill tools
@@ -418,7 +465,7 @@ function buildExecutionPrinciplesSection(): string {
    - Use \`write\` instead of \`echo >\` for writing files
    - Use \`edit\` instead of \`sed\` for editing files
    - Use \`glob\` instead of \`find\` for finding files
-   - Use \`grep\` instead of native \`grep\` for searching
+   - Use \`search\` instead of native \`grep\` for searching
    - Only fall back to Unix commands when Agent Shell Command tools cannot accomplish the task
 
 2. **Command Learning**: When encountering an unfamiliar command or tool:
@@ -543,9 +590,9 @@ Available commands:
 - write <file> <content> - Write to file
 - edit <file> <old> <new> - Edit file
 - glob <pattern> - Find files
-- grep <pattern> - Search content
+- search <pattern> - Search content
 
 Use --help to see command details.
 
-CRITICAL: Use Agent Shell Command tools (read, write, edit, glob, grep) instead of Unix equivalents when available.`;
+CRITICAL: Use Agent Shell Command tools (read, write, edit, glob, search) instead of Unix equivalents when available.`;
 }

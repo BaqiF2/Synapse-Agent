@@ -16,11 +16,16 @@
 
 import * as path from 'node:path';
 import * as os from 'node:os';
-import type Anthropic from '@anthropic-ai/sdk';
 import type { CommandResult } from './base-bash-handler.ts';
 import { SkillSubAgent } from '../../agent/skill-sub-agent.ts';
+import { type AgentRunnerLlmClient, type AgentRunnerToolExecutor } from '../../agent/agent-runner.ts';
 import { SettingsManager } from '../../config/settings-manager.ts';
 import { createLogger } from '../../utils/logger.ts';
+
+/**
+ * @deprecated Use AgentRunnerLlmClient from agent-runner.ts instead
+ */
+export type SkillSearchLlmClient = AgentRunnerLlmClient;
 
 const logger = createLogger('skill-command-handler');
 
@@ -41,6 +46,7 @@ export interface ParsedSkillCommand {
     off?: boolean;
     conversation?: string;
     rebuild?: boolean;
+    reason?: string;
   };
 }
 
@@ -108,6 +114,9 @@ export function parseSkillCommand(command: string): ParsedSkillCommand {
     } else if (token === '--conversation') {
       i++;
       result.options.conversation = tokens[i];
+    } else if (token === '--reason') {
+      i++;
+      result.options.reason = tokens[i];
     } else if (token && !token.startsWith('--') && !result.subcommand) {
       // First non-option is subcommand
       if (token === 'search' || token === 'load' || token === 'enhance' || token === 'list') {
@@ -132,24 +141,17 @@ export function parseSkillCommand(command: string): ParsedSkillCommand {
 }
 
 /**
- * LLM Client interface for semantic search
- */
-export interface SkillSearchLlmClient {
-  sendMessage: (
-    messages: Anthropic.MessageParam[],
-    systemPrompt: string,
-    tools?: Anthropic.Tool[]
-  ) => Promise<{ content: string; toolCalls: unknown[]; stopReason: string | null }>;
-}
-
-/**
  * Options for SkillCommandHandler
  */
 export interface SkillCommandHandlerOptions {
   skillsDir?: string;
   synapseDir?: string;
   /** LLM client for semantic skill search */
-  llmClient?: SkillSearchLlmClient;
+  llmClient?: AgentRunnerLlmClient;
+  /** Tool executor for skill sub-agent (required for enhance operation) */
+  toolExecutor?: AgentRunnerToolExecutor;
+  /** Callback to get current conversation path */
+  getConversationPath?: () => string | null;
 }
 
 /**
@@ -165,7 +167,9 @@ export class SkillCommandHandler {
   private subAgent: SkillSubAgent;
   private settings: SettingsManager;
   private skillsDir: string;
-  private llmClient: SkillSearchLlmClient | undefined;
+  private llmClient: AgentRunnerLlmClient | undefined;
+  private toolExecutor: AgentRunnerToolExecutor | undefined;
+  private getConversationPath: (() => string | null) | undefined;
 
   /**
    * Creates a new SkillCommandHandler
@@ -176,10 +180,13 @@ export class SkillCommandHandler {
     const synapseDir = options.synapseDir ?? DEFAULT_SYNAPSE_DIR;
     this.skillsDir = options.skillsDir ?? path.join(synapseDir, 'skills');
     this.llmClient = options.llmClient;
+    this.toolExecutor = options.toolExecutor;
+    this.getConversationPath = options.getConversationPath;
 
     this.subAgent = new SkillSubAgent({
       skillsDir: this.skillsDir,
       llmClient: this.llmClient,
+      toolExecutor: this.toolExecutor,
     });
     this.settings = new SettingsManager(synapseDir);
   }
@@ -357,7 +364,7 @@ export class SkillCommandHandler {
       return {
         stdout: `Auto skill enhancement enabled
 
-Each task completion will be analyzed for skill enhancement opportunities.
+The agent will consider skill enhancement opportunities after complex tasks.
 This will consume additional tokens.
 
 Use \`skill enhance --off\` to disable.
@@ -378,28 +385,46 @@ Auto-enhance is now enabled`,
       };
     }
 
-    // Manual enhance requires conversation path
-    const conversationPath = parsed.options.conversation;
+    // Get conversation path: explicit option or callback
+    const conversationPath = parsed.options.conversation ?? this.getConversationPath?.() ?? undefined;
+
     if (!conversationPath) {
-      // Show current status
       const enabled = this.settings.isAutoEnhanceEnabled();
       return {
         stdout: `Skill Enhancement Status: ${enabled ? 'enabled' : 'disabled'}
 
 Usage:
-  skill enhance --on              Enable auto-enhance
-  skill enhance --off             Disable auto-enhance
-  skill enhance --conversation <path>  Manual enhance from conversation`,
+  skill enhance                   Analyze current conversation for skill enhancement
+  skill enhance --reason "..."    Provide reason for enhancement
+  skill enhance --on              Enable auto-enhance mode
+  skill enhance --off             Disable auto-enhance mode
+  skill enhance --conversation <path>  Manual enhance from specific conversation file
+
+Note: When called without --conversation, uses current session automatically.`,
         stderr: '',
         exitCode: 0,
       };
     }
 
-    // Trigger manual enhancement
+    // Log reason if provided
+    const reason = parsed.options.reason;
+    if (reason) {
+      logger.info('Skill enhance triggered', { reason, conversationPath });
+    }
+
+    // Trigger enhancement
     const result = await this.subAgent.enhance(conversationPath);
 
+    if (result.action === 'none' && result.message === 'Could not parse result') {
+      return {
+        stdout: `Skill Enhancement Analysis:\n\n- Conclusion: Enhancement failed\n- Reason: Model output was not valid JSON. Retry the command or check logs for details.`,
+        stderr: '',
+        exitCode: 1,
+      };
+    }
+
     return {
-      stdout: this.formatEnhanceResult(result),
+      stdout: this.formatEnhanceResult(result, reason),
       stderr: '',
       exitCode: 0,
     };
@@ -408,20 +433,31 @@ Usage:
   /**
    * Format enhancement result
    */
-  private formatEnhanceResult(result: { action: string; skillName?: string; message: string }): string {
+  private formatEnhanceResult(
+    result: { action: string; skillName?: string; message: string },
+    reason?: string
+  ): string {
     const lines: string[] = ['Skill Enhancement Analysis:\n'];
 
-    if (result.action === 'none') {
-      lines.push('- Conclusion: No enhancement needed');
-      lines.push(`- Reason: ${result.message}`);
-    } else if (result.action === 'created') {
-      lines.push('- Action: Created new skill');
-      lines.push(`- Name: ${result.skillName}`);
-      lines.push(`- Details: ${result.message}`);
-    } else if (result.action === 'enhanced') {
-      lines.push('- Action: Enhanced existing skill');
-      lines.push(`- Name: ${result.skillName}`);
-      lines.push(`- Details: ${result.message}`);
+    if (reason) {
+      lines.push(`- Trigger reason: ${reason}`);
+    }
+
+    switch (result.action) {
+      case 'none':
+        lines.push('- Conclusion: No enhancement needed');
+        lines.push(`- Reason: ${result.message}`);
+        break;
+      case 'created':
+        lines.push('- Action: Created new skill');
+        lines.push(`- Name: ${result.skillName}`);
+        lines.push(`- Details: ${result.message}`);
+        break;
+      case 'enhanced':
+        lines.push('- Action: Enhanced existing skill');
+        lines.push(`- Name: ${result.skillName}`);
+        lines.push(`- Details: ${result.message}`);
+        break;
     }
 
     return lines.join('\n');
@@ -484,28 +520,29 @@ EXAMPLES:
     skill load code-analyzer      Load the code-analyzer skill
     skill load my-custom-skill    Load a custom skill`,
 
-      enhance: `skill enhance - Manage skill enhancement
+      enhance: `skill enhance - Analyze and enhance skills
 
 USAGE:
     skill enhance [options]
 
 OPTIONS:
-    --on                          Enable auto skill enhancement
-    --off                         Disable auto skill enhancement
-    --conversation <path>         Manually trigger enhancement from conversation
+    --reason <text>               Reason for enhancement (helps skill creation)
+    --on                          Enable auto skill enhancement mode
+    --off                         Disable auto skill enhancement mode
+    --conversation <path>         Use specific conversation file (default: current session)
     -h, --help                    Show this help message
 
 DESCRIPTION:
-    Manages the skill enhancement feature. Auto-enhance analyzes task
-    completions for skill improvement opportunities. Manual enhance
-    processes a specific conversation file.
+    Analyzes the current conversation for reusable patterns and creates or
+    improves skills accordingly. The agent can call this command when it
+    identifies complex multi-step operations that could become reusable skills.
 
 EXAMPLES:
-    skill enhance                 Show current status
-    skill enhance --on            Enable auto-enhance
-    skill enhance --off           Disable auto-enhance
-    skill enhance --conversation /path/to/conversation.jsonl
-                                  Manually trigger enhancement`,
+    skill enhance                 Analyze current conversation
+    skill enhance --reason "Repeated file processing pattern"
+                                  Trigger with specific reason
+    skill enhance --on            Enable auto-enhance mode
+    skill enhance --off           Disable auto-enhance mode`,
     };
 
     const help = helpMessages[subcommand];
@@ -533,16 +570,16 @@ SUBCOMMANDS:
     list                    List all available skills
     search <query>          Search for skills by keyword
     load <name>             Load a skill's content
-    enhance                 Manage skill enhancement
+    enhance                 Analyze and enhance skills
 
 GLOBAL OPTIONS:
     -h, --help              Show help (use with subcommand for detailed help)
 
 ENHANCE OPTIONS:
-    skill enhance --on      Enable auto skill enhancement
-    skill enhance --off     Disable auto skill enhancement
-    skill enhance --conversation <path>
-                            Manually trigger enhancement from conversation
+    skill enhance           Analyze current conversation for skill enhancement
+    skill enhance --reason "..." Provide reason for enhancement
+    skill enhance --on      Enable auto skill enhancement mode
+    skill enhance --off     Disable auto skill enhancement mode
 
 EXAMPLES:
     skill list              Show all skills

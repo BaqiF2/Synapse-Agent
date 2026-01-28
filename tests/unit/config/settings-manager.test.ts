@@ -46,6 +46,7 @@ describe('SettingsManager', () => {
       const loaded = manager.get();
       expect(loaded.skillEnhance.autoEnhance).toBe(true);
     });
+
   });
 
   describe('set', () => {
@@ -60,9 +61,9 @@ describe('SettingsManager', () => {
     });
 
     it('should update nested settings', () => {
-      manager.set('skillEnhance.maxEnhanceContextTokens', 100000);
+      manager.set('skillEnhance.maxEnhanceContextChars', 100000);
       const settings = manager.get();
-      expect(settings.skillEnhance.maxEnhanceContextTokens).toBe(100000);
+      expect(settings.skillEnhance.maxEnhanceContextChars).toBe(100000);
     });
   });
 

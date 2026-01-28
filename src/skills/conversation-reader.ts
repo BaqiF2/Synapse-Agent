@@ -93,35 +93,41 @@ export class ConversationReader {
   }
 
   /**
-   * Read turns with token limit (reads from end)
+   * Read turns with character limit (reads from end)
    *
    * @param filePath - Path to JSONL conversation file
-   * @param maxTokens - Maximum tokens to include
+   * @param maxChars - Maximum characters to include (counted from end)
    * @returns Array of conversation turns (truncated)
    */
-  readTruncated(filePath: string, maxTokens: number): ConversationTurn[] {
-    const allTurns = this.read(filePath);
-    const maxChars = maxTokens * CHARS_PER_TOKEN;
-
-    let totalChars = 0;
-    const result: ConversationTurn[] = [];
-
-    // Read from end
-    for (let i = allTurns.length - 1; i >= 0; i--) {
-      const turn = allTurns[i];
-      if (!turn) continue;
-
-      const turnChars = JSON.stringify(turn.rawContent || turn.content).length;
-
-      if (totalChars + turnChars > maxChars && result.length > 0) {
-        break;
-      }
-
-      result.unshift(turn);
-      totalChars += turnChars;
+  readTruncated(filePath: string, maxChars: number): ConversationTurn[] {
+    if (!fs.existsSync(filePath)) {
+      logger.warn('Conversation file not found', { path: filePath });
+      return [];
     }
 
-    return result;
+    if (maxChars <= 0) {
+      return [];
+    }
+
+    const content = fs.readFileSync(filePath, 'utf-8');
+    if (!content.trim()) {
+      return [];
+    }
+
+    let truncated = content;
+    if (content.length > maxChars) {
+      const startIndex = content.length - maxChars;
+      truncated = content.slice(startIndex);
+      if (startIndex > 0 && content[startIndex - 1] !== '\n') {
+        const firstNewline = truncated.indexOf('\n');
+        if (firstNewline !== -1) {
+          truncated = truncated.slice(firstNewline + 1);
+        }
+      }
+    }
+
+    const lines = truncated.split('\n').filter(line => line.trim());
+    return lines.map(line => this.parseLine(line)).filter((t): t is ConversationTurn => t !== null);
   }
 
   /**

@@ -169,5 +169,41 @@ describe('AgentRunner', () => {
 
       expect(textOutput).toHaveLength(0);
     });
+
+    it('should stop after consecutive tool failures', async () => {
+      const toolCallResponse = {
+        content: 'Running tools',
+        toolCalls: [{ id: 'call1', name: 'Bash', input: { command: 'false' } }],
+        stopReason: 'tool_use',
+      };
+
+      const failingLlmClient = {
+        sendMessage: mock(() => Promise.resolve(toolCallResponse)),
+      };
+
+      const failingToolExecutor = {
+        executeTools: mock(() =>
+          Promise.resolve([{ toolUseId: 'call1', success: false, output: 'fail', isError: true }])
+        ),
+        formatResultsForLlm: mock(() => [
+          { type: 'tool_result' as const, tool_use_id: 'call1', content: 'fail', is_error: true },
+        ]),
+      };
+
+      const runner = new AgentRunner({
+        llmClient: failingLlmClient,
+        contextManager,
+        toolExecutor: failingToolExecutor,
+        systemPrompt: 'Test prompt',
+        tools: [BashToolSchema],
+        outputMode: 'silent',
+        maxConsecutiveToolFailures: 3,
+      });
+
+      const response = await runner.run('Run failing tools');
+
+      expect(response).toBe('工具执行连续失败，已停止。');
+      expect(failingLlmClient.sendMessage).toHaveBeenCalledTimes(3);
+    });
   });
 });

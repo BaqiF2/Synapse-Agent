@@ -12,10 +12,11 @@
 import { BashRouter, type BashRouterOptions } from '../tools/bash-router.ts';
 import { BashSession } from '../tools/bash-session.ts';
 import type { ToolResultContent } from './context-manager.ts';
-import type { SkillSearchLlmClient } from '../tools/handlers/skill-command-handler.ts';
+import type { AgentRunnerLlmClient } from './agent-runner.ts';
 
 const MAX_OUTPUT_LENGTH = parseInt(process.env.MAX_TOOL_OUTPUT_LENGTH || '10000', 10);
 const MAX_RETRIES = parseInt(process.env.MAX_TOOL_RETRIES || '3', 10);
+const COMMAND_TIMEOUT_MARKER = 'Command execution timeout';
 
 /**
  * Tool call input from LLM
@@ -45,7 +46,9 @@ export interface ToolExecutionResult {
  */
 export interface ToolExecutorOptions {
   /** LLM client for semantic skill search */
-  llmClient?: SkillSearchLlmClient;
+  llmClient?: AgentRunnerLlmClient;
+  /** Callback to get current conversation path */
+  getConversationPath?: () => string | null;
 }
 
 /**
@@ -59,7 +62,11 @@ export class ToolExecutor {
     this.session = new BashSession();
     this.router = new BashRouter(this.session, {
       llmClient: options.llmClient,
+      getConversationPath: options.getConversationPath,
     });
+
+    // Delayed binding: pass self as toolExecutor to enable skill enhance
+    this.router.setToolExecutor(this);
   }
 
   /**
@@ -73,7 +80,7 @@ export class ToolExecutor {
       return {
         toolUseId: id,
         success: false,
-        output: `Unknown tool: ${name}. Only 'Bash' tool is available.`,
+        output: `Unknown tool: ${name}. Only 'Agent Shell Command' tool is available.`,
         isError: true,
       };
     }
@@ -93,15 +100,25 @@ export class ToolExecutor {
     try {
       const restart = input.restart === true;
       const result = await this.router.route(command, restart);
+      const timeoutDetected = result.stderr.includes(COMMAND_TIMEOUT_MARKER);
+
+      if (timeoutDetected) {
+        await this.restartSessionSafely();
+      }
 
       // Format output
       let output = '';
       if (result.stdout) {
         output += result.stdout;
       }
-      if (result.stderr) {
+      let stderr = result.stderr;
+      if (timeoutDetected) {
+        const restartNote = 'Bash session restarted after timeout.';
+        stderr = stderr ? `${stderr}\n${restartNote}` : restartNote;
+      }
+      if (stderr) {
         if (output) output += '\n\n';
-        output += `[stderr]\n${result.stderr}`;
+        output += `[stderr]\n${stderr}`;
       }
 
       // Truncate if too long
@@ -123,12 +140,23 @@ export class ToolExecutor {
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
+      if (message.includes(COMMAND_TIMEOUT_MARKER)) {
+        await this.restartSessionSafely();
+      }
       return {
         toolUseId: id,
         success: false,
         output: `Command execution failed: ${message}`,
         isError: true,
       };
+    }
+  }
+
+  private async restartSessionSafely(): Promise<void> {
+    try {
+      await this.session.restart();
+    } catch {
+      // Best-effort restart; ignore errors to avoid masking the original failure.
     }
   }
 

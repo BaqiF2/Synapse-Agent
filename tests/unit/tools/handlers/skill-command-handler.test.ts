@@ -225,6 +225,18 @@ This skill helps you create new skills.
             };
           }
 
+          if (query.includes('invalid')) {
+            return {
+              content: JSON.stringify({
+                skills: [
+                  { name: 'bad-shape', description: 'Invalid payload shape' }
+                ]
+              }),
+              toolCalls: [],
+              stopReason: 'end_turn',
+            };
+          }
+
           return {
             content: JSON.stringify({ matched_skills: [] }),
             toolCalls: [],
@@ -259,6 +271,13 @@ This skill helps you create new skills.
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain('skill-creator');
       expect(result.stdout).toContain('Guide for creating effective skills');
+    });
+
+    it('should return no results when LLM returns invalid payload', async () => {
+      const result = await handlerWithLlm.execute('skill search invalid');
+
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('No skills found matching');
     });
   });
 });

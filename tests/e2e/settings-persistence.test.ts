@@ -47,12 +47,12 @@ describe('Settings Persistence E2E', () => {
     const manager = new SettingsManager(testDir);
 
     // Set initial values
-    manager.set('skillEnhance.maxEnhanceContextTokens', 100000);
+    manager.set('skillEnhance.maxEnhanceContextChars', 100000);
     manager.setAutoEnhance(true);
 
     // Verify both values are preserved
     const settings = manager.get();
     expect(settings.skillEnhance.autoEnhance).toBe(true);
-    expect(settings.skillEnhance.maxEnhanceContextTokens).toBe(100000);
+    expect(settings.skillEnhance.maxEnhanceContextChars).toBe(100000);
   });
 });

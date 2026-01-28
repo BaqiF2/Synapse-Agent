@@ -1,7 +1,7 @@
 /**
  * 批次五功能测试
  *
- * 功能：验证 glob/grep/bash 工具的基本功能
+ * 功能：验证 glob/search/bash 工具的基本功能
  */
 
 import { BashSession } from '../src/tools/bash-session.ts';
@@ -38,26 +38,26 @@ async function testBatch5() {
     console.log('stdout (前 300 字符):', globHelp.stdout.slice(0, 300));
     console.log();
 
-    // Test 2: grep 工具
-    console.log('--- 测试 2: grep 工具 ---');
+    // Test 2: search 工具
+    console.log('--- 测试 2: search 工具 ---');
 
     // 搜索 "export"
-    const grepResult = await router.route('grep "export" --path /Users/wuwenjun/WebstormProjects/Synapse-Agent/src/tools/handlers/agent-bash --type ts --max 5');
-    console.log('grep "export" 结果:');
+    const grepResult = await router.route('search "export" --path /Users/wuwenjun/WebstormProjects/Synapse-Agent/src/tools/handlers/agent-bash --type ts --max 5');
+    console.log('search "export" 结果:');
     console.log('exitCode:', grepResult.exitCode);
     console.log('stdout:', grepResult.stdout);
     console.log();
 
     // 搜索带上下文
-    const grepWithContext = await router.route('grep "CommandResult" --path /Users/wuwenjun/WebstormProjects/Synapse-Agent/src/tools --type ts --context 1 --max 3');
-    console.log('grep "CommandResult" --context 1:');
+    const grepWithContext = await router.route('search "CommandResult" --path /Users/wuwenjun/WebstormProjects/Synapse-Agent/src/tools --type ts --context 1 --max 3');
+    console.log('search "CommandResult" --context 1:');
     console.log('exitCode:', grepWithContext.exitCode);
     console.log('stdout:', grepWithContext.stdout);
     console.log();
 
-    // grep --help
-    const grepHelp = await router.route('grep --help');
-    console.log('grep --help:');
+    // search --help
+    const grepHelp = await router.route('search --help');
+    console.log('search --help:');
     console.log('exitCode:', grepHelp.exitCode);
     console.log('stdout (前 300 字符):', grepHelp.stdout.slice(0, 300));
     console.log();
@@ -104,16 +104,16 @@ async function testBatch5() {
     console.log('stderr:', globError.stderr);
     console.log();
 
-    // grep 无效正则
-    const grepInvalidRegex = await router.route('grep "[invalid(" --path /Users/wuwenjun/WebstormProjects/Synapse-Agent/src');
-    console.log('grep 无效正则:');
+    // search 无效正则
+    const grepInvalidRegex = await router.route('search "[invalid(" --path /Users/wuwenjun/WebstormProjects/Synapse-Agent/src');
+    console.log('search 无效正则:');
     console.log('exitCode:', grepInvalidRegex.exitCode);
     console.log('stderr:', grepInvalidRegex.stderr);
     console.log();
 
-    // grep 未知文件类型
-    const grepUnknownType = await router.route('grep "test" --type unknowntype');
-    console.log('grep 未知文件类型:');
+    // search 未知文件类型
+    const grepUnknownType = await router.route('search "test" --type unknowntype');
+    console.log('search 未知文件类型:');
     console.log('exitCode:', grepUnknownType.exitCode);
     console.log('stderr:', grepUnknownType.stderr);
     console.log();

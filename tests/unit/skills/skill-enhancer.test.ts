@@ -37,7 +37,7 @@ describe('SkillEnhancer', () => {
       const messages = [
         { id: 'm1', timestamp: '2025-01-27T10:00:00Z', role: 'user', content: 'Analyze logs' },
         { id: 'm2', timestamp: '2025-01-27T10:00:01Z', role: 'assistant', content: [
-          { type: 'tool_use', id: 't1', name: 'grep', input: { pattern: 'ERROR' } },
+          { type: 'tool_use', id: 't1', name: 'search', input: { pattern: 'ERROR' } },
           { type: 'tool_use', id: 't2', name: 'read', input: { path: 'log.txt' } },
         ]},
         { id: 'm3', timestamp: '2025-01-27T10:00:02Z', role: 'user', content: 'Good work' },
@@ -48,7 +48,7 @@ describe('SkillEnhancer', () => {
 
       expect(analysis.summary.totalTurns).toBe(3);
       expect(analysis.summary.toolCalls).toBe(2);
-      expect(analysis.toolSequence).toEqual(['grep', 'read']);
+      expect(analysis.toolSequence).toEqual(['search', 'read']);
     });
   });
 
@@ -60,10 +60,10 @@ describe('SkillEnhancer', () => {
           userTurns: 3,
           assistantTurns: 7,
           toolCalls: 8,
-          uniqueTools: ['grep', 'read', 'write', 'edit'],
+          uniqueTools: ['search', 'read', 'write', 'edit'],
           estimatedTokens: 5000,
         },
-        toolSequence: ['grep', 'read', 'write', 'edit', 'grep', 'read', 'write', 'edit'],
+        toolSequence: ['search', 'read', 'write', 'edit', 'search', 'read', 'write', 'edit'],
         turns: [],
       };
 
@@ -101,13 +101,13 @@ describe('SkillEnhancer', () => {
           userTurns: 2,
           assistantTurns: 3,
           toolCalls: 4,
-          uniqueTools: ['grep', 'read'],
+          uniqueTools: ['search', 'read'],
           estimatedTokens: 2000,
         },
-        toolSequence: ['grep', 'read', 'grep', 'read'],
+        toolSequence: ['search', 'read', 'search', 'read'],
         turns: [
           { id: 'm1', timestamp: '2025-01-27T10:00:00Z', role: 'user' as const, content: 'Analyze error.log for errors' },
-          { id: 'm2', timestamp: '2025-01-27T10:00:01Z', role: 'assistant' as const, content: 'Found errors', toolCalls: [{ id: 't1', name: 'grep', input: { pattern: 'ERROR' } }] },
+          { id: 'm2', timestamp: '2025-01-27T10:00:01Z', role: 'assistant' as const, content: 'Found errors', toolCalls: [{ id: 't1', name: 'search', input: { pattern: 'ERROR' } }] },
         ],
       };
 

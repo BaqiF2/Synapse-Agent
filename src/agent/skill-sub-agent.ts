@@ -11,6 +11,7 @@
  * - SkillSubAgentOptions: Configuration options
  */
 
+import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
 import { createLogger } from '../utils/logger.ts';
@@ -19,6 +20,8 @@ import { buildSkillSubAgentPrompt } from './skill-sub-agent-prompt.ts';
 import { AgentRunner, type AgentRunnerLlmClient, type AgentRunnerToolExecutor, type ToolCallInfo } from './agent-runner.ts';
 import { ContextManager } from './context-manager.ts';
 import { BashToolSchema } from '../tools/bash-tool-schema.ts';
+import { SkillDocParser } from '../skills/skill-schema.ts';
+import { SkillSearchResultSchema } from './skill-sub-agent-types.ts';
 import type {
   SkillSearchResult,
   SkillEnhanceResult,
@@ -33,10 +36,10 @@ const logger = createLogger('skill-sub-agent');
 const DEFAULT_SKILLS_DIR = path.join(os.homedir(), '.synapse', 'skills');
 
 /**
- * Default max iterations for SkillSubAgent (higher than main agent)
+ * Default max iterations for SkillSubAgent
  */
 const DEFAULT_SKILL_SUB_AGENT_MAX_ITERATIONS = parseInt(
-  process.env.SKILL_SUB_AGENT_MAX_ITERATIONS || '50',
+  process.env.SYNAPSE_MAX_TOOL_ITERATIONS || '50',
   10
 );
 
@@ -80,10 +83,12 @@ export interface SkillSubAgentOptions {
  * ```
  */
 export class SkillSubAgent {
+  private skillsDir: string;
   private memoryStore: SkillMemoryStore;
   private agentRunner: AgentRunner | null = null;
   private llmClient: AgentRunnerLlmClient | null = null;
   private contextManager: ContextManager;
+  private docParser: SkillDocParser;
   private initialized: boolean = false;
   private running: boolean = false;
 
@@ -94,6 +99,8 @@ export class SkillSubAgent {
    */
   constructor(options: SkillSubAgentOptions) {
     const skillsDir = options.skillsDir ?? DEFAULT_SKILLS_DIR;
+    this.skillsDir = skillsDir;
+    this.docParser = new SkillDocParser();
 
     // Initialize memory store and load skills
     this.memoryStore = new SkillMemoryStore(skillsDir);
@@ -186,7 +193,8 @@ Analyze the available skills and return those that best match the query.
 Respond with JSON only.`;
 
       const result = await this.agentRunner.run(prompt);
-      return this.parseJsonResult<SkillSearchResult>(result, { matched_skills: [] });
+      const parsed = this.parseJsonResult<SkillSearchResult>(result, { matched_skills: [] });
+      return this.normalizeSearchResult(parsed, result);
     }
 
     // Fallback to direct LLM call for semantic search (no tools needed)
@@ -202,7 +210,8 @@ Respond with JSON only in this format:
 
       try {
         const response = await this.llmClient.sendMessage(messages, systemPrompt);
-        return this.parseJsonResult<SkillSearchResult>(response.content, { matched_skills: [] });
+        const parsed = this.parseJsonResult<SkillSearchResult>(response.content, { matched_skills: [] });
+        return this.normalizeSearchResult(parsed, response.content);
       } catch (error) {
         logger.warn('Semantic search failed', { error });
         return { matched_skills: [] };
@@ -241,27 +250,66 @@ Respond with JSON only in this format:
    - **If no actionable pattern found**: Return action "none"
 
 4. **Important - Output Directory**:
-   When creating a new skill, use this command:
-   \`scripts/init_skill.py <skill-name> --path ~/.synapse/skills\`
+   When creating a new skill, prefer the skill tool wrapper:
+   \`skill:skill-creator:init_skill <skill-name> --path ~/.synapse/skills\`
+
+   If the wrapper isn't available, run the script by absolute path:
+   \`~/.synapse/skills/skill-creator/scripts/init_skill.py <skill-name> --path ~/.synapse/skills\`
+
+   Always use absolute paths and do not create skill folders in the current project directory.
 
    When enhancing an existing skill, the skill files are in: ~/.synapse/skills/<skill-name>/
 
 ## Output Format
 
-After completing the task, respond with JSON only:
-\`\`\`json
+After completing the task, respond with a single JSON object only (no markdown, no code fences, no extra text).
+{
+  "action": "created" | "enhanced" | "none",
+  "skillName": "skill-name-if-applicable",
+  "message": "Brief description of what was done"
+}`;
+
+    const result = await this.agentRunner.run(prompt);
+    const defaultResult: SkillEnhanceResult = {
+      action: 'none',
+      message: 'Could not parse result',
+    };
+    const firstParse = this.parseJsonResultWithFlag<SkillEnhanceResult>(result, defaultResult);
+    let parsed = firstParse.value;
+
+    if (!firstParse.ok) {
+      logger.warn('Enhance response not valid JSON, attempting repair');
+      const trimmedResponse = result.length > 2000 ? `${result.slice(0, 2000)}…` : result;
+      const repairPrompt = `Your previous response was not valid JSON.
+
+Return only a single JSON object matching this schema and nothing else:
 {
   "action": "created" | "enhanced" | "none",
   "skillName": "skill-name-if-applicable",
   "message": "Brief description of what was done"
 }
-\`\`\``;
 
-    const result = await this.agentRunner.run(prompt);
-    return this.parseJsonResult<SkillEnhanceResult>(result, {
-      action: 'none',
-      message: 'Could not parse result',
-    });
+Previous response:
+${trimmedResponse}`;
+      const repairResult = await this.agentRunner.run(repairPrompt);
+      const repairParse = this.parseJsonResultWithFlag<SkillEnhanceResult>(repairResult, defaultResult);
+      if (repairParse.ok) {
+        parsed = repairParse.value;
+      } else {
+        logger.warn('Enhance repair failed to produce valid JSON');
+      }
+    }
+
+    if (parsed.action === 'created' && parsed.skillName) {
+      const movedTo = this.relocateSkillIfNeeded(parsed.skillName);
+      if (movedTo) {
+        parsed.message = parsed.message
+          ? `${parsed.message} (moved to ${movedTo})`
+          : `Moved skill to ${movedTo}`;
+        this.reloadAll();
+      }
+    }
+    return parsed;
   }
 
   /**
@@ -313,6 +361,108 @@ After completing the evaluation, respond with JSON only.`;
   }
 
   /**
+   * Relocate a newly created skill into the user skills directory if needed.
+   * Returns the destination path when a move occurs.
+   */
+  private relocateSkillIfNeeded(skillName: string): string | null {
+    const targetPath = path.join(this.skillsDir, skillName);
+    if (fs.existsSync(targetPath)) {
+      return null;
+    }
+
+    const candidates = this.findSkillCandidatesInCwd(skillName);
+    for (const candidate of candidates) {
+      if (!fs.existsSync(candidate)) {
+        continue;
+      }
+
+      if (fs.existsSync(targetPath)) {
+        logger.warn('Target skill directory already exists; skipping move', {
+          skillName,
+          targetPath,
+        });
+        return null;
+      }
+
+      try {
+        this.ensureDir(path.dirname(targetPath));
+        this.moveDirectory(candidate, targetPath);
+        logger.info('Relocated skill to user skills directory', {
+          skillName,
+          from: candidate,
+          to: targetPath,
+        });
+        return targetPath;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        logger.warn('Failed to relocate skill directory', {
+          skillName,
+          from: candidate,
+          to: targetPath,
+          error: message,
+        });
+      }
+    }
+
+    return null;
+  }
+
+  private findSkillCandidatesInCwd(skillName: string): string[] {
+    const cwd = process.cwd();
+    if (!fs.existsSync(cwd)) {
+      return [];
+    }
+
+    const entries = fs.readdirSync(cwd, { withFileTypes: true });
+    const candidates: string[] = [];
+
+    for (const entry of entries) {
+      if (!entry.isDirectory()) {
+        continue;
+      }
+
+      const candidatePath = path.join(cwd, entry.name);
+      const skillMdPath = path.join(candidatePath, 'SKILL.md');
+      if (!fs.existsSync(skillMdPath)) {
+        continue;
+      }
+
+      if (entry.name === skillName) {
+        candidates.unshift(candidatePath);
+        continue;
+      }
+
+      const parsed = this.docParser.parse(skillMdPath, entry.name);
+      if (parsed?.name === skillName) {
+        candidates.push(candidatePath);
+      }
+    }
+
+    return candidates;
+  }
+
+  private ensureDir(dirPath: string): void {
+    if (!fs.existsSync(dirPath)) {
+      fs.mkdirSync(dirPath, { recursive: true });
+    }
+  }
+
+  private moveDirectory(source: string, target: string): void {
+    try {
+      fs.renameSync(source, target);
+      return;
+    } catch (error) {
+      const err = error as NodeJS.ErrnoException;
+      if (err.code !== 'EXDEV') {
+        throw error;
+      }
+    }
+
+    fs.cpSync(source, target, { recursive: true });
+    fs.rmSync(source, { recursive: true, force: true });
+  }
+
+  /**
    * Check if the sub-agent is running
    */
   isRunning(): boolean {
@@ -353,17 +503,24 @@ After completing the evaluation, respond with JSON only.`;
    * Parse JSON result from LLM response
    */
   private parseJsonResult<T>(response: string, defaultValue: T): T {
+    return this.parseJsonResultWithFlag(response, defaultValue).value;
+  }
+
+  private parseJsonResultWithFlag<T>(
+    response: string,
+    defaultValue: T
+  ): { value: T; ok: boolean } {
     const jsonString = this.extractFirstJsonObject(response);
     if (!jsonString) {
       logger.warn('No JSON found in response', { response: response.substring(0, 200) });
-      return defaultValue;
+      return { value: defaultValue, ok: false };
     }
 
     try {
-      return JSON.parse(jsonString) as T;
+      return { value: JSON.parse(jsonString) as T, ok: true };
     } catch (error) {
       logger.warn('Failed to parse JSON', { error, jsonString: jsonString.substring(0, 200) });
-      return defaultValue;
+      return { value: defaultValue, ok: false };
     }
   }
 
@@ -398,8 +555,9 @@ After completing the evaluation, respond with JSON only.`;
 
       if (inString) continue;
 
-      if (char === '{') depth++;
-      else if (char === '}') {
+      if (char === '{') {
+        depth++;
+      } else if (char === '}') {
         depth--;
         if (depth === 0) {
           return text.substring(startIndex, i + 1);
@@ -408,6 +566,27 @@ After completing the evaluation, respond with JSON only.`;
     }
 
     return null;
+  }
+
+  /**
+   * Normalize search result with schema validation
+   */
+  private normalizeSearchResult(
+    parsed: SkillSearchResult,
+    rawResponse: string
+  ): SkillSearchResult {
+    const validation = SkillSearchResultSchema.safeParse(parsed);
+    if (validation.success) {
+      return validation.data;
+    }
+
+    const issues = validation.error.issues.map(issue => issue.message).join('; ');
+    logger.warn('Invalid skill search result from LLM', {
+      issues: issues.substring(0, 200),
+      response: rawResponse.substring(0, 200),
+    });
+
+    return { matched_skills: [] };
   }
 }
 

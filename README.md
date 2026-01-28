@@ -7,7 +7,7 @@
 **一切工具都是 Shell Command** - 通过三层工具体系实现可扩展的智能体能力：
 
 - **Layer 1 - Native Shell Command**: 标准 Unix 命令（ls, cd, git 等）
-- **Layer 2 - Agent Shell Command**: 内置 Agent 工具（read, write, edit, glob, grep）
+- **Layer 2 - Agent Shell Command**: 内置 Agent 工具（read, write, edit, glob, search）
 - **Layer 3 - Extension Shell Command**: 领域工具（mcp:\*, skill:\*）
 
 ## 特性
@@ -136,10 +136,10 @@ edit /path/to/file.txt "旧内容" "新内容" --all
 glob "**/*.ts" --path /path/to/dir
 ```
 
-### grep - 代码搜索
+### search - 代码搜索
 
 ```bash
-grep "pattern" --path /path/to/dir --type ts
+search "pattern" --path /path/to/dir --type ts
 ```
 
 ## 技能系统

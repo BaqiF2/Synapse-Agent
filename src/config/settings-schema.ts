@@ -17,10 +17,10 @@
 import { z } from 'zod';
 
 /**
- * Default max tokens for enhance context
+ * Default max characters for enhance context
  */
-const DEFAULT_MAX_ENHANCE_CONTEXT_TOKENS = parseInt(
-  process.env.SYNAPSE_MAX_ENHANCE_CONTEXT_TOKENS || '50000',
+const DEFAULT_MAX_ENHANCE_CONTEXT_CHARS = parseInt(
+  process.env.SYNAPSE_MAX_ENHANCE_CONTEXT_CHARS || '50000',
   10
 );
 
@@ -30,8 +30,8 @@ const DEFAULT_MAX_ENHANCE_CONTEXT_TOKENS = parseInt(
 export const SkillEnhanceSettingsSchema = z.object({
   /** Whether auto-enhance is enabled */
   autoEnhance: z.boolean().default(false),
-  /** Maximum tokens to include in enhance context */
-  maxEnhanceContextTokens: z.number().positive().default(DEFAULT_MAX_ENHANCE_CONTEXT_TOKENS),
+  /** Maximum characters to include in enhance context */
+  maxEnhanceContextChars: z.number().positive().default(DEFAULT_MAX_ENHANCE_CONTEXT_CHARS),
 });
 
 export type SkillEnhanceSettings = z.infer<typeof SkillEnhanceSettingsSchema>;
@@ -45,7 +45,7 @@ export const SynapseSettingsSchema = z.object({
   /** Skill enhance settings */
   skillEnhance: SkillEnhanceSettingsSchema.default({
     autoEnhance: false,
-    maxEnhanceContextTokens: DEFAULT_MAX_ENHANCE_CONTEXT_TOKENS,
+    maxEnhanceContextChars: DEFAULT_MAX_ENHANCE_CONTEXT_CHARS,
   }),
 });
 
@@ -58,6 +58,6 @@ export const DEFAULT_SETTINGS: SynapseSettings = {
   version: '1.0.0',
   skillEnhance: {
     autoEnhance: false,
-    maxEnhanceContextTokens: DEFAULT_MAX_ENHANCE_CONTEXT_TOKENS,
+    maxEnhanceContextChars: DEFAULT_MAX_ENHANCE_CONTEXT_CHARS,
   },
 };

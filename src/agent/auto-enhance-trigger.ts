@@ -1,16 +1,14 @@
 /**
  * Auto Enhance Trigger
  *
- * Manages automatic skill enhancement triggering based on task completion.
- * Analyzes task context (tool usage, complexity, user clarifications) to
- * determine if the conversation should trigger skill creation or enhancement.
+ * Provides settings management for skill auto-enhancement feature.
+ * The actual enhancement decision is now made by the Agent autonomously
+ * via the `skill enhance` command.
  *
  * @module auto-enhance-trigger
  *
  * Core Exports:
- * - AutoEnhanceTrigger: Main trigger class that evaluates task context
- * - TaskContext: Interface for task metadata used in enhancement decisions
- * - TriggerDecision: Result type containing trigger decision and reason
+ * - AutoEnhanceTrigger: Settings manager for auto-enhance feature
  */
 
 import * as path from 'node:path';
@@ -29,14 +27,10 @@ const DEFAULT_SYNAPSE_DIR = path.join(os.homedir(), '.synapse');
 /**
  * Thresholds for triggering enhancement
  */
-const MIN_TOOL_CALLS_THRESHOLD = parseInt(
-  process.env.SYNAPSE_AUTO_ENHANCE_MIN_TOOLS || '5',
-  10
-);
-const MIN_UNIQUE_TOOLS_THRESHOLD = parseInt(
-  process.env.SYNAPSE_AUTO_ENHANCE_MIN_UNIQUE || '2',
-  10
-);
+const parsedMinTools = parseInt(process.env.SYNAPSE_AUTO_ENHANCE_MIN_TOOLS || '5', 10);
+const parsedMinUnique = parseInt(process.env.SYNAPSE_AUTO_ENHANCE_MIN_UNIQUE || '2', 10);
+const MIN_TOOL_CALLS_THRESHOLD = Number.isFinite(parsedMinTools) ? parsedMinTools : 5;
+const MIN_UNIQUE_TOOLS_THRESHOLD = Number.isFinite(parsedMinUnique) ? parsedMinUnique : 2;
 
 /**
  * Task context for enhancement decision
@@ -73,22 +67,17 @@ export interface AutoEnhanceTriggerOptions {
 }
 
 /**
- * AutoEnhanceTrigger - Manages automatic skill enhancement
+ * AutoEnhanceTrigger - Settings manager for skill auto-enhancement
  *
- * Evaluates task completion context to determine if the conversation
- * should trigger skill creation or enhancement. Uses configurable
- * thresholds for tool calls, unique tools, and other complexity metrics.
+ * This class manages the auto-enhance feature settings. The actual
+ * enhancement logic is handled by the Agent calling `skill enhance`
+ * command when it identifies valuable patterns.
  *
  * Usage:
  * ```typescript
  * const trigger = new AutoEnhanceTrigger();
  * trigger.enable();
- *
- * // After task completion
- * const decision = trigger.shouldTrigger(context);
- * if (decision.shouldTrigger) {
- *   const result = await trigger.triggerEnhancement(convPath, context);
- * }
+ * console.log(trigger.isEnabled()); // true
  * ```
  */
 export class AutoEnhanceTrigger {
@@ -134,82 +123,66 @@ export class AutoEnhanceTrigger {
   }
 
   /**
+   * Create a trigger decision result
+   */
+  private createDecision(
+    shouldTrigger: boolean,
+    reason: string,
+    suggestedAction: 'create' | 'enhance' | 'none' = 'none'
+  ): TriggerDecision {
+    return { shouldTrigger, reason, suggestedAction };
+  }
+
+  /**
    * Determine if enhancement should be triggered
    *
    * @param context - Task context
    * @returns Trigger decision
    */
   shouldTrigger(context: TaskContext): TriggerDecision {
-    // Check if auto-enhance is enabled
     if (!this.isEnabled()) {
-      return {
-        shouldTrigger: false,
-        reason: 'Auto-enhance is disabled',
-        suggestedAction: 'none',
-      };
+      return this.createDecision(false, 'Auto-enhance is disabled');
     }
 
-    // Check if skills were used and worked well
-    if (context.skillsUsed.length > 0 && context.skillsWorkedWell) {
-      return {
-        shouldTrigger: false,
-        reason: 'Task completed successfully with existing skills',
-        suggestedAction: 'none',
-      };
+    const hasSkillsUsed = context.skillsUsed.length > 0;
+    const meetsComplexityThreshold =
+      context.userClarifications >= 2 || context.toolCallCount >= MIN_TOOL_CALLS_THRESHOLD;
+
+    // Skills worked well - no enhancement needed
+    if (hasSkillsUsed && context.skillsWorkedWell) {
+      return this.createDecision(false, 'Task completed successfully with existing skills');
     }
 
-    // Check if skills were used but had issues (potential enhancement)
-    if (context.skillsUsed.length > 0 && !context.skillsWorkedWell) {
-      if (context.userClarifications >= 2 || context.toolCallCount >= MIN_TOOL_CALLS_THRESHOLD) {
-        return {
-          shouldTrigger: true,
-          reason: 'Skills were used but may need improvement',
-          suggestedAction: 'enhance',
-        };
-      }
+    // Skills had issues - consider enhancement
+    if (hasSkillsUsed && meetsComplexityThreshold) {
+      return this.createDecision(true, 'Skills were used but may need improvement', 'enhance');
     }
 
     // Check complexity thresholds for new skill creation
     if (context.toolCallCount < MIN_TOOL_CALLS_THRESHOLD) {
-      return {
-        shouldTrigger: false,
-        reason: `Task too simple (${context.toolCallCount} tool calls, need ${MIN_TOOL_CALLS_THRESHOLD}+)`,
-        suggestedAction: 'none',
-      };
+      return this.createDecision(
+        false,
+        `Task too simple (${context.toolCallCount} tool calls, need ${MIN_TOOL_CALLS_THRESHOLD}+)`
+      );
     }
 
     if (context.uniqueTools.length < MIN_UNIQUE_TOOLS_THRESHOLD) {
-      return {
-        shouldTrigger: false,
-        reason: `Not enough tool variety (${context.uniqueTools.length} unique tools)`,
-        suggestedAction: 'none',
-      };
+      return this.createDecision(
+        false,
+        `Not enough tool variety (${context.uniqueTools.length} unique tools)`
+      );
     }
 
-    // Check for script generation (indicates complex workflow)
+    // Script generation or multiple clarifications indicate skill-worthy patterns
     if (context.scriptsGenerated > 0) {
-      return {
-        shouldTrigger: true,
-        reason: 'Scripts were generated, potential for reusable skill',
-        suggestedAction: 'create',
-      };
+      return this.createDecision(true, 'Scripts were generated, potential for reusable skill', 'create');
     }
 
-    // Check for multiple user clarifications
     if (context.userClarifications >= 2) {
-      return {
-        shouldTrigger: true,
-        reason: 'Multiple clarifications needed, workflow can be documented',
-        suggestedAction: 'create',
-      };
+      return this.createDecision(true, 'Multiple clarifications needed, workflow can be documented', 'create');
     }
 
-    // Default: trigger based on complexity
-    return {
-      shouldTrigger: true,
-      reason: 'Complex task with reusable patterns detected',
-      suggestedAction: 'create',
-    };
+    return this.createDecision(true, 'Complex task with reusable patterns detected', 'create');
   }
 
   /**
@@ -226,11 +199,11 @@ export class AutoEnhanceTrigger {
     logger.info('Triggering enhancement', { conversationPath });
 
     try {
-      // Get max tokens from settings
-      const maxTokens = this.settings.getMaxEnhanceContextTokens();
+      // Get max characters from settings
+      const maxChars = this.settings.getMaxEnhanceContextChars();
 
       // Analyze conversation
-      const analysis = this.enhancer.analyzeConversation(conversationPath, maxTokens);
+      const analysis = this.enhancer.analyzeConversation(conversationPath, maxChars);
 
       // Get enhancement decision
       const decision = this.enhancer.shouldEnhance(analysis);
@@ -271,31 +244,38 @@ export class AutoEnhanceTrigger {
     }>,
     skillsUsed: string[] = []
   ): TaskContext {
-    const toolSet = new Set<string>();
     let toolCallCount = 0;
+    const toolSet = new Set<string>();
     let userClarifications = 0;
     let scriptsGenerated = 0;
-
-    const clarificationPatterns = ['clarif', 'mean', 'actually', 'instead'];
 
     for (const turn of turns) {
       if (turn.toolCalls) {
         toolCallCount += turn.toolCalls.length;
-        turn.toolCalls.forEach((call) => toolSet.add(call.name));
-
-        // Count script generation from assistant tool calls
-        if (turn.role === 'assistant') {
-          scriptsGenerated += turn.toolCalls.filter(
-            (call) => call.name === 'write' || call.name === 'edit'
-          ).length;
+        for (const call of turn.toolCalls) {
+          toolSet.add(call.name);
         }
       }
 
-      // Count clarification patterns from user messages
+      // Count clarification patterns
       if (turn.role === 'user' && turn.content) {
-        const contentLower = turn.content.toLowerCase();
-        if (clarificationPatterns.some((pattern) => contentLower.includes(pattern))) {
+        const content = turn.content.toLowerCase();
+        if (
+          content.includes('clarif') ||
+          content.includes('mean') ||
+          content.includes('actually') ||
+          content.includes('instead')
+        ) {
           userClarifications++;
+        }
+      }
+
+      // Count script generation
+      if (turn.role === 'assistant' && turn.toolCalls) {
+        for (const call of turn.toolCalls) {
+          if (call.name === 'write' || call.name === 'edit') {
+            scriptsGenerated++;
+          }
         }
       }
     }

@@ -263,6 +263,66 @@ export class ContextManager {
       // Keep at least the last exchange
       this.messages.shift();
     }
+
+    this.removeDanglingToolResults();
+  }
+
+  /**
+   * Remove tool_result blocks that no longer have a matching tool_use in context
+   */
+  private removeDanglingToolResults(): void {
+    if (this.messages.length === 0) return;
+
+    // Collect all valid tool_use IDs from assistant messages
+    const toolUseIds = new Set<string>();
+    for (const message of this.messages) {
+      if (message.role === 'assistant' && Array.isArray(message.content)) {
+        for (const block of message.content) {
+          if (block.type === 'tool_use') {
+            toolUseIds.add(block.id);
+          }
+        }
+      }
+    }
+
+    // Filter messages, removing dangling tool results
+    let mutated = false;
+    const cleaned: ConversationMessage[] = [];
+
+    for (const message of this.messages) {
+      // Only process user messages with array content that may contain tool_results
+      if (message.role !== 'user' || !Array.isArray(message.content)) {
+        cleaned.push(message);
+        continue;
+      }
+
+      const hasToolResult = message.content.some(block => block.type === 'tool_result');
+      if (!hasToolResult) {
+        cleaned.push(message);
+        continue;
+      }
+
+      // Filter out dangling tool results
+      const keptBlocks = message.content.filter(block => {
+        if (block.type !== 'tool_result') return true;
+        const keep = toolUseIds.has(block.tool_use_id);
+        if (!keep) mutated = true;
+        return keep;
+      });
+
+      // Skip empty messages, otherwise add with filtered blocks
+      if (keptBlocks.length === 0) {
+        mutated = true;
+      } else if (keptBlocks.length !== message.content.length) {
+        cleaned.push({ ...message, content: keptBlocks });
+      } else {
+        cleaned.push(message);
+      }
+    }
+
+    if (mutated) {
+      this.messages = cleaned;
+    }
   }
 
   /**

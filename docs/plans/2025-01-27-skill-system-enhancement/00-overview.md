@@ -94,7 +94,7 @@ interface SynapseSettings {
   version: string;
   skillEnhance: {
     autoEnhance: boolean;
-    maxEnhanceContextTokens: number;
+    maxEnhanceContextChars: number;
   };
   // 其他设置...
 }

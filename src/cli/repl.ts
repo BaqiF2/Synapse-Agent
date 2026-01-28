@@ -20,7 +20,7 @@ import chalk from 'chalk';
 
 // Agent imports
 import { LlmClient } from '../agent/llm-client.ts';
-import { ContextManager } from '../agent/context-manager.ts';
+import { ContextManager, type ConversationMessage } from '../agent/context-manager.ts';
 import { ToolExecutor } from '../agent/tool-executor.ts';
 import { buildSystemPrompt } from '../agent/system-prompt.ts';
 import { ContextPersistence } from '../agent/context-persistence.ts';
@@ -59,7 +59,7 @@ function printSectionHeader(title: string): void {
 const HISTORY_FILE =
   process.env.SYNAPSE_HISTORY_FILE || path.join(os.homedir(), '.synapse', '.repl_history');
 const MAX_HISTORY_SIZE = parseInt(process.env.SYNAPSE_MAX_HISTORY || '1000', 10);
-const MAX_TOOL_ITERATIONS = parseInt(process.env.SYNAPSE_MAX_TOOL_ITERATIONS || '10', 10);
+const MAX_TOOL_ITERATIONS = parseInt(process.env.SYNAPSE_MAX_TOOL_ITERATIONS || '50', 10);
 const PERSISTENCE_ENABLED = process.env.SYNAPSE_PERSISTENCE_ENABLED !== 'false';
 
 /**
@@ -204,6 +204,15 @@ export function handleSpecialCommand(
 }
 
 /**
+ * Expand tilde (~) in path to home directory
+ */
+function expandPath(filePath: string): string {
+  return filePath.startsWith('~')
+    ? path.join(os.homedir(), filePath.slice(1))
+    : filePath;
+}
+
+/**
  * Handle /skill enhance commands
  *
  * @param args - Command arguments (after '/skill')
@@ -259,10 +268,7 @@ function handleSkillEnhanceCommand(args: string[], agentRunner?: AgentRunner | n
       return;
     }
 
-    // Expand ~ to home directory
-    const expandedPath = conversationPath.startsWith('~')
-      ? path.join(os.homedir(), conversationPath.slice(1))
-      : conversationPath;
+    const expandedPath = expandPath(conversationPath);
 
     if (!fs.existsSync(expandedPath)) {
       console.log(chalk.red(`\nError: Conversation file not found: ${expandedPath}\n`));
@@ -297,13 +303,12 @@ function handleSkillEnhanceCommand(args: string[], agentRunner?: AgentRunner | n
     subAgent
       .enhance(expandedPath)
       .then((result) => {
-        if (result.action === 'none') {
-          console.log(chalk.gray('No enhancement needed.'));
-        } else if (result.action === 'created') {
-          console.log(chalk.green(`Created new skill: ${result.skillName}`));
-        } else if (result.action === 'enhanced') {
-          console.log(chalk.green(`Enhanced skill: ${result.skillName}`));
-        }
+        const actionMessages: Record<string, string> = {
+          none: chalk.gray('No enhancement needed.'),
+          created: chalk.green(`Created new skill: ${result.skillName}`),
+          enhanced: chalk.green(`Enhanced skill: ${result.skillName}`),
+        };
+        console.log(actionMessages[result.action] || '');
         console.log(chalk.gray(`Message: ${result.message}\n`));
       })
       .catch((error: Error) => {
@@ -427,7 +432,7 @@ function showToolsList(): void {
   console.log(chalk.gray('  write <file>     ') + chalk.white('Write content to file'));
   console.log(chalk.gray('  edit <file>      ') + chalk.white('Edit file (string replacement)'));
   console.log(chalk.gray('  glob <pattern>   ') + chalk.white('Find files by pattern'));
-  console.log(chalk.gray('  grep <pattern>   ') + chalk.white('Search file contents'));
+  console.log(chalk.gray('  search <pattern> ') + chalk.white('Search file contents'));
   console.log(chalk.gray('  bash <cmd>       ') + chalk.white('Execute bash command'));
   console.log();
   console.log(chalk.white.bold('extend Shell command Tools (Layer 3):'));
@@ -627,14 +632,22 @@ export async function startRepl(): Promise<void> {
   let agentRunner: AgentRunner | null = null;
   let persistence: ContextPersistence | null = null;
 
+  // Initialize settings manager for auto-enhance feature
+  const settingsManager = new SettingsManager();
+
   try {
     const llmClient = new LlmClient();
-    const toolExecutor = new ToolExecutor({ llmClient });
 
-    // Initialize persistence if enabled
+    // Initialize persistence if enabled (before ToolExecutor for callback)
     if (PERSISTENCE_ENABLED) {
       persistence = new ContextPersistence();
     }
+
+    // Create ToolExecutor with conversation path callback
+    const toolExecutor = new ToolExecutor({
+      llmClient,
+      getConversationPath: () => persistence?.getSessionPath() ?? null,
+    });
 
     const contextManager = new ContextManager({
       persistence: persistence ?? undefined,
@@ -665,6 +678,8 @@ export async function startRepl(): Promise<void> {
       tools: [BashToolSchema],
       outputMode: 'streaming',
       maxIterations: MAX_TOOL_ITERATIONS,
+      // Auto-enhance configuration: check settings manager for enabled state
+      isAutoEnhanceEnabled: () => settingsManager.isAutoEnhanceEnabled(),
       onText: (text) => {
         if (text.trim()) {
           process.stdout.write(text);
@@ -677,7 +692,14 @@ export async function startRepl(): Promise<void> {
         // Show error output for failed commands
         if (!success && output) {
           const errorPreview = truncateText(output, 200);
-          console.log(chalk.red(`    ${errorPreview.split('\n')[0]}`));
+          const lines = errorPreview
+            .split('\n')
+            .map(line => line.trim())
+            .filter(line => line.length > 0);
+          const previewLine = lines.find(line => line !== '[stderr]') ?? lines[0];
+          if (previewLine) {
+            console.log(chalk.red(`    ${previewLine}`));
+          }
         }
       },
     });
@@ -875,7 +897,7 @@ export async function startRepl(): Promise<void> {
   rl.on('close', () => {
     // Cleanup Agent resources
     if (agentRunner) {
-      agentRunner.getToolExecutor().cleanup();
+      agentRunner.getToolExecutor().cleanup?.();
     }
     // Save history before exit
     saveCommandHistory(state.commandHistory);
@@ -898,7 +920,7 @@ export async function startRepl(): Promise<void> {
       if (answer.toLowerCase() === 'y' || answer.toLowerCase() === 'yes') {
         // Cleanup
         if (agentRunner) {
-          agentRunner.getToolExecutor().cleanup();
+          agentRunner.getToolExecutor().cleanup?.();
         }
         saveCommandHistory(state.commandHistory);
         console.log(chalk.yellow('\nGoodbye!\n'));

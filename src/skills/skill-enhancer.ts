@@ -108,12 +108,12 @@ export class SkillEnhancer {
    * Analyze a conversation file
    *
    * @param conversationPath - Path to conversation JSONL file
-   * @param maxTokens - Maximum tokens to analyze (optional)
+   * @param maxChars - Maximum characters to analyze (optional, counted from end)
    * @returns Conversation analysis
    */
-  analyzeConversation(conversationPath: string, maxTokens?: number): ConversationAnalysis {
-    const turns = maxTokens
-      ? this.reader.readTruncated(conversationPath, maxTokens)
+  analyzeConversation(conversationPath: string, maxChars?: number): ConversationAnalysis {
+    const turns = maxChars
+      ? this.reader.readTruncated(conversationPath, maxChars)
       : this.reader.read(conversationPath);
 
     const summary = this.reader.summarize(turns);

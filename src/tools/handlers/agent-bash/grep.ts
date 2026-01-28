@@ -1,11 +1,11 @@
 /**
- * Grep 工具 - Agent Shell Command Layer 2
+ * Search 工具 - Agent Shell Command Layer 2
  *
  * 功能：代码搜索，支持正则表达式和文件类型过滤
  *
  * 核心导出：
  * - GrepHandler: 代码搜索处理器类
- * - parseGrepCommand: 解析 grep 命令参数的函数
+ * - parseGrepCommand: 解析 search 命令参数的函数
  */
 
 import fg from 'fast-glob';
@@ -37,7 +37,7 @@ const FILE_TYPE_MAP: Record<string, string[]> = {
 };
 
 /**
- * Parsed grep command arguments
+ * Parsed search command arguments
  */
 interface GrepArgs {
   pattern: string;
@@ -49,17 +49,17 @@ interface GrepArgs {
 }
 
 /**
- * Parse the grep command arguments
- * Syntax: grep <pattern> [--path <dir>] [--type <type>] [--context <n>] [--max <n>] [-i]
+ * Parse the search command arguments
+ * Syntax: search <pattern> [--path <dir>] [--type <type>] [--context <n>] [--max <n>] [-i]
  */
 export function parseGrepCommand(command: string): GrepArgs {
   const trimmed = command.trim();
 
-  // Remove 'grep' prefix
-  let remaining = trimmed.slice('grep'.length).trim();
+  // Remove 'search' prefix
+  let remaining = trimmed.slice('search'.length).trim();
 
   if (!remaining) {
-    throw new Error('Usage: grep <pattern> [--path <dir>] [--type <type>] [--context <n>]');
+    throw new Error('Usage: search <pattern> [--path <dir>] [--type <type>] [--context <n>]');
   }
 
   // Check for flags
@@ -120,7 +120,7 @@ export function parseGrepCommand(command: string): GrepArgs {
   }
 
   if (!pattern) {
-    throw new Error('Usage: grep <pattern> [--path <dir>] [--type <type>] [--context <n>]');
+    throw new Error('Usage: search <pattern> [--path <dir>] [--type <type>] [--context <n>]');
   }
 
   return { pattern, searchPath, fileType, contextLines, maxResults, ignoreCase };
@@ -179,11 +179,11 @@ interface MatchResult {
 }
 
 /**
- * Handler for the grep command
+ * Handler for the search command
  */
 export class GrepHandler {
   /**
-   * Execute the grep command
+   * Execute the search command
    */
   async execute(command: string): Promise<CommandResult> {
     try {
@@ -353,10 +353,10 @@ export class GrepHandler {
    */
   private showHelp(verbose: boolean): CommandResult {
     if (verbose) {
-      const help = `grep - Search for patterns in files
+      const help = `search - Search for patterns in files
 
 USAGE:
-    grep <pattern> [OPTIONS]
+    search <pattern> [OPTIONS]
 
 ARGUMENTS:
     <pattern>      Search pattern (supports regex)
@@ -387,15 +387,15 @@ OUTPUT:
     file:line:  matched line content
 
 EXAMPLES:
-    grep "TODO"                        Find TODO comments
-    grep "function\\s+\\w+" --type ts   Find function definitions in TypeScript
-    grep "import.*from" --context 2    Find imports with context
-    grep "error" -i --type py          Case-insensitive search in Python files`;
+    search "TODO"                        Find TODO comments
+    search "function\\s+\\w+" --type ts   Find function definitions in TypeScript
+    search "import.*from" --context 2    Find imports with context
+    search "error" -i --type py          Case-insensitive search in Python files`;
 
       return { stdout: help, stderr: '', exitCode: 0 };
     }
 
-    const brief = 'Usage: grep <pattern> [--path <dir>] [--type <type>] [--context <n>]';
+    const brief = 'Usage: search <pattern> [--path <dir>] [--type <type>] [--context <n>]';
     return { stdout: brief, stderr: '', exitCode: 0 };
   }
 }

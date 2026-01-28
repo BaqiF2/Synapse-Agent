@@ -190,9 +190,9 @@ Examples:
   glob "src/**/*.ts"             # Find all .ts files in src/ recursively
 \`\`\`
 
-### grep - Search for patterns in files
+### search - Search for patterns in files
 \`\`\`
-Usage: grep <pattern> [OPTIONS]
+Usage: search <pattern> [OPTIONS]
 
 Arguments:
   <pattern>      Search pattern (supports JavaScript regex)
@@ -205,8 +205,8 @@ Options:
   -i             Case-insensitive search
 
 Examples:
-  grep "TODO"                        # Find TODO comments
-  grep "function\\s+\\w+" --type ts   # Find function definitions in TypeScript
+  search "TODO"                        # Find TODO comments
+  search "function\\s+\\w+" --type ts   # Find function definitions in TypeScript
 \`\`\``;
 }
 

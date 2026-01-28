@@ -1051,7 +1051,7 @@ Expected: All tests PASS
 1. **设置管理** (Batch 1)
    - `SettingsManager` - 持久化设置管理
    - 支持 `autoEnhance` 开关
-   - 支持 `maxEnhanceContextTokens` 配置
+   - 支持 `maxEnhanceContextChars` 配置
 
 2. **Skill 子 Agent** (Batch 2)
    - `SkillSubAgent` - 持久化子 Agent

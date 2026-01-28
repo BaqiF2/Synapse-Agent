@@ -407,7 +407,7 @@ export class AutoEnhanceTrigger {
 
     try {
       // Get max tokens from settings
-      const maxTokens = this.settings.getMaxEnhanceContextTokens();
+      const maxTokens = this.settings.getMaxEnhanceContextChars();
 
       // Analyze conversation
       const analysis = this.enhancer.analyzeConversation(conversationPath, maxTokens);

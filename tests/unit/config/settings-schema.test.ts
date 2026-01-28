@@ -12,6 +12,11 @@ import {
 } from '../../../src/config/settings-schema.ts';
 
 describe('SynapseSettingsSchema', () => {
+  const expectedMaxEnhanceContextChars = parseInt(
+    process.env.SYNAPSE_MAX_ENHANCE_CONTEXT_CHARS || '50000',
+    10
+  );
+
   it('should validate default settings', () => {
     const result = SynapseSettingsSchema.safeParse(DEFAULT_SETTINGS);
     expect(result.success).toBe(true);
@@ -19,7 +24,9 @@ describe('SynapseSettingsSchema', () => {
 
   it('should have correct default values for skillEnhance', () => {
     expect(DEFAULT_SETTINGS.skillEnhance.autoEnhance).toBe(false);
-    expect(DEFAULT_SETTINGS.skillEnhance.maxEnhanceContextTokens).toBe(50000);
+    expect(DEFAULT_SETTINGS.skillEnhance.maxEnhanceContextChars).toBe(
+      expectedMaxEnhanceContextChars
+    );
   });
 
   it('should validate partial settings with defaults', () => {

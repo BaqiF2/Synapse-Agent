@@ -71,7 +71,5 @@ export {
 // Auto Enhance Trigger
 export {
   AutoEnhanceTrigger,
-  type TaskContext,
-  type TriggerDecision,
   type AutoEnhanceTriggerOptions,
 } from './auto-enhance-trigger.ts';

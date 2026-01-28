@@ -135,10 +135,10 @@ export class SettingsManager {
   }
 
   /**
-   * Get max enhance context tokens
+   * Get max enhance context characters
    */
-  getMaxEnhanceContextTokens(): number {
-    return this.get().skillEnhance.maxEnhanceContextTokens;
+  getMaxEnhanceContextChars(): number {
+    return this.get().skillEnhance.maxEnhanceContextChars;
   }
 
   /**
@@ -169,6 +169,7 @@ export class SettingsManager {
       fs.mkdirSync(this.synapseDir, { recursive: true });
     }
   }
+
 
   /**
    * Clear the cache (for testing)

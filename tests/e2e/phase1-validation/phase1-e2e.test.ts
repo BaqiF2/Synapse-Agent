@@ -570,8 +570,8 @@ describe('Phase 1 E2E: TC-2 Agent Shell Command Tools', () => {
     });
   });
 
-  describe('TC-2.5: grep Tool', () => {
-    const grepTestDir = path.join(TEST_WORK_DIR, 'grep-test');
+  describe('TC-2.5: search Tool', () => {
+    const grepTestDir = path.join(TEST_WORK_DIR, 'search-test');
 
     beforeAll(() => {
       fs.mkdirSync(grepTestDir, { recursive: true });
@@ -586,26 +586,26 @@ describe('Phase 1 E2E: TC-2 Agent Shell Command Tools', () => {
     });
 
     test('should search for pattern', async () => {
-      const result = await router.route(`grep "function" --path ${grepTestDir}`);
+      const result = await router.route(`search "function" --path ${grepTestDir}`);
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain('function');
     });
 
     test('should support regex patterns', async () => {
-      const result = await router.route(`grep "console\\.log" --path ${grepTestDir}`);
+      const result = await router.route(`search "console\\.log" --path ${grepTestDir}`);
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain('console.log');
     });
 
     test('should show help with --help flag', async () => {
-      const result = await router.route('grep --help');
+      const result = await router.route('search --help');
       expect(result.exitCode).toBe(0);
-      expect(result.stdout.toLowerCase()).toMatch(/usage|grep|options/i);
+      expect(result.stdout.toLowerCase()).toMatch(/usage|search|options/i);
     });
   });
 
   describe('TC-2.6: Tool Help Information', () => {
-    const toolsToTest = ['read', 'write', 'edit', 'glob', 'grep'];
+    const toolsToTest = ['read', 'write', 'edit', 'glob', 'search'];
 
     for (const tool of toolsToTest) {
       test(`${tool} should respond to -h flag`, async () => {
