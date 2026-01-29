@@ -720,6 +720,7 @@ export async function startRepl(): Promise<void> {
         }
       },
       onToolStart: (info) => {
+        if (!terminalRenderer) return;
         const command = info.input?.command?.toString() || 'unknown';
         terminalRenderer.renderToolStart({
           id: info.id,
@@ -730,6 +731,7 @@ export async function startRepl(): Promise<void> {
         terminalRenderer.storeCommand(info.id, command);
       },
       onToolCall: (info) => {
+        if (!terminalRenderer) return;
         terminalRenderer.renderToolEnd({
           id: info.id,
           success: info.success,
