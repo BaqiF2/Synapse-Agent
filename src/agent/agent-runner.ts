@@ -60,6 +60,8 @@ export interface AgentRunnerToolExecutor {
  * Tool call info for onToolCall callback
  */
 export interface ToolCallInfo {
+  /** Unique tool call ID */
+  id: string;
   /** Tool name */
   name: string;
   /** Tool input */
@@ -70,6 +72,10 @@ export interface ToolCallInfo {
   output: string;
   /** Agent tag for identification */
   agentTag?: string;
+  /** Nesting depth (0 = top-level) */
+  depth: number;
+  /** Parent SubAgent ID for nested calls */
+  parentId?: string;
 }
 
 /**
@@ -100,6 +106,8 @@ export interface AgentRunnerOptions {
   onToolExecution?: (toolName: string, success: boolean, output: string) => void;
   /** Callback for tool calls (all modes, with full info) */
   onToolCall?: (info: ToolCallInfo) => void;
+  /** Callback when tool execution starts */
+  onToolStart?: (info: { id: string; name: string; input: Record<string, unknown>; depth: number; parentId?: string }) => void;
   /**
    * Callback to check if auto-enhance is enabled
    * Returns true if auto-enhance should be triggered after task completion
@@ -110,6 +118,10 @@ export interface AgentRunnerOptions {
    * If not provided, uses default AUTO_ENHANCE_PROMPT
    */
   autoEnhancePrompt?: string;
+  /** Current nesting depth for SubAgent calls */
+  depth?: number;
+  /** Parent ID for SubAgent calls */
+  parentId?: string;
 }
 
 /**
@@ -142,8 +154,11 @@ export class AgentRunner {
   private onText?: (text: string) => void;
   private onToolExecution?: (toolName: string, success: boolean, output: string) => void;
   private onToolCall?: (info: ToolCallInfo) => void;
+  private onToolStart?: (info: { id: string; name: string; input: Record<string, unknown>; depth: number; parentId?: string }) => void;
   private isAutoEnhanceEnabled?: () => boolean;
   private autoEnhancePrompt?: string;
+  private depth: number;
+  private parentId?: string;
   /** Flag to prevent multiple auto-enhance triggers per user message */
   private autoEnhanceTriggered: boolean = false;
   /** Consecutive tool failure counter */
@@ -163,8 +178,11 @@ export class AgentRunner {
     this.onText = options.onText;
     this.onToolExecution = options.onToolExecution;
     this.onToolCall = options.onToolCall;
+    this.onToolStart = options.onToolStart;
     this.isAutoEnhanceEnabled = options.isAutoEnhanceEnabled;
     this.autoEnhancePrompt = options.autoEnhancePrompt;
+    this.depth = options.depth ?? 0;
+    this.parentId = options.parentId;
   }
 
   /**
@@ -282,6 +300,19 @@ export class AgentRunner {
         input: call.input,
       }));
 
+      // Call onToolStart callback for each tool
+      if (this.onToolStart) {
+        for (const toolInput of toolInputs) {
+          this.onToolStart({
+            id: toolInput.id,
+            name: toolInput.name,
+            input: toolInput.input,
+            depth: this.depth,
+            parentId: this.parentId,
+          });
+        }
+      }
+
       const results = await this.toolExecutor.executeTools(toolInputs);
       const toolResults = this.toolExecutor.formatResultsForLlm(results);
 
@@ -301,11 +332,14 @@ export class AgentRunner {
         // Call onToolCall callback (all modes)
         if (this.onToolCall) {
           this.onToolCall({
+            id: result.toolUseId,
             name: toolInput?.name || 'unknown',
             input: toolInput?.input || {},
             success: result.success,
             output: result.output,
             agentTag: this.agentTag,
+            depth: this.depth,
+            parentId: this.parentId,
           });
         }
       }
