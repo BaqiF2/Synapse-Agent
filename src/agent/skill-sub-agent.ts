@@ -14,6 +14,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
+import { randomUUID } from 'node:crypto';
 import { createLogger } from '../utils/logger.ts';
 import { SkillMemoryStore } from './skill-memory-store.ts';
 import { buildSkillSubAgentPrompt } from './skill-sub-agent-prompt.ts';
@@ -62,6 +63,8 @@ export interface SkillSubAgentOptions {
   maxIterations?: number;
   /** Callback for tool calls (with agent tag) */
   onToolCall?: (info: ToolCallInfo) => void;
+  /** Callback when tool starts */
+  onToolStart?: (info: { id: string; name: string; input: Record<string, unknown>; depth: number; parentId?: string }) => void;
 }
 
 /**
@@ -91,6 +94,7 @@ export class SkillSubAgent {
   private docParser: SkillDocParser;
   private initialized: boolean = false;
   private running: boolean = false;
+  private subAgentId: string;
 
   /**
    * Creates a new SkillSubAgent
@@ -101,6 +105,7 @@ export class SkillSubAgent {
     const skillsDir = options.skillsDir ?? DEFAULT_SKILLS_DIR;
     this.skillsDir = skillsDir;
     this.docParser = new SkillDocParser();
+    this.subAgentId = randomUUID();
 
     // Initialize memory store and load skills
     this.memoryStore = new SkillMemoryStore(skillsDir);
@@ -129,7 +134,10 @@ export class SkillSubAgent {
         outputMode: 'silent',
         maxIterations: options.maxIterations ?? DEFAULT_SKILL_SUB_AGENT_MAX_ITERATIONS,
         agentTag: SKILL_SUB_AGENT_TAG,
+        depth: 1, // SubAgent is always depth 1
+        parentId: this.subAgentId,
         onToolCall: options.onToolCall,
+        onToolStart: options.onToolStart,
       });
     }
 
@@ -140,6 +148,13 @@ export class SkillSubAgent {
       skillCount: this.memoryStore.size(),
       metaSkillCount: this.memoryStore.getAll().filter(s => s.type === 'meta').length,
     });
+  }
+
+  /**
+   * Get the SubAgent's unique ID
+   */
+  getSubAgentId(): string {
+    return this.subAgentId;
   }
 
   /**
