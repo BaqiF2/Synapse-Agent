@@ -10,10 +10,12 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { loadDesc } from '../../../utils/load-desc.js';
 import type { CommandResult } from '../base-bash-handler.ts';
-import { parseCommandArgs } from './command-utils.ts';
+import { parseCommandArgs, toCommandErrorResult } from './command-utils.ts';
 
 const DEFAULT_LIMIT = parseInt(process.env.READ_DEFAULT_LIMIT || '0', 10);
+const USAGE = 'Usage: read <file_path> [--offset N] [--limit N]';
 
 /**
  * Parsed read command arguments
@@ -35,7 +37,7 @@ export function parseReadCommand(command: string): ReadArgs {
   parts.shift();
 
   if (parts.length === 0) {
-    throw new Error('Usage: read <file_path> [--offset N] [--limit N]');
+    throw new Error(USAGE);
   }
 
   let filePath = '';
@@ -76,7 +78,7 @@ export function parseReadCommand(command: string): ReadArgs {
   }
 
   if (!filePath) {
-    throw new Error('Usage: read <file_path> [--offset N] [--limit N]');
+    throw new Error(USAGE);
   }
 
   return { filePath, offset, limit };
@@ -105,12 +107,7 @@ export class ReadHandler {
         exitCode: 0,
       };
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      return {
-        stdout: '',
-        stderr: message,
-        exitCode: 1,
-      };
+      return toCommandErrorResult(error);
     }
   }
 
@@ -166,37 +163,10 @@ export class ReadHandler {
    */
   private showHelp(verbose: boolean): CommandResult {
     if (verbose) {
-      const help = `read - Read file contents
-
-USAGE:
-    read <file_path> [OPTIONS]
-
-ARGUMENTS:
-    <file_path>    Absolute or relative path to the file to read
-
-OPTIONS:
-    --offset N     Start reading from line N (0-based, default: 0)
-    --limit N      Read only N lines (default: 0 = all lines)
-    -h             Show brief help
-    --help         Show detailed help
-
-OUTPUT:
-    File contents with line numbers in cat -n format:
-        1	first line
-        2	second line
-        ...
-
-EXAMPLES:
-    read /path/to/file.txt              Read entire file
-    read ./src/main.ts                  Read relative path
-    read /path/to/file --offset 10      Start from line 11
-    read /path/to/file --limit 20       Read first 20 lines
-    read /path/to/file --offset 5 --limit 10   Read lines 6-15`;
-
+      const help = loadDesc(path.join(import.meta.dirname, 'read.md'));
       return { stdout: help, stderr: '', exitCode: 0 };
     }
 
-    const brief = 'Usage: read <file_path> [--offset N] [--limit N]';
-    return { stdout: brief, stderr: '', exitCode: 0 };
+    return { stdout: USAGE, stderr: '', exitCode: 0 };
   }
 }

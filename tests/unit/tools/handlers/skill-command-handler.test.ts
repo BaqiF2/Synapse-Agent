@@ -208,7 +208,7 @@ This skill helps you create new skills.
           searchCallCount++;
           // Simulate LLM understanding "创建新技能" means "create skill"
           const lastMessage = messages[messages.length - 1];
-          const query = typeof lastMessage.content === 'string'
+          const query = typeof lastMessage?.content === 'string'
             ? lastMessage.content
             : '';
 

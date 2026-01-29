@@ -207,7 +207,7 @@ export class SkillWatcher {
     this.watcher.on('add', (filePath: string) => this.handleEvent('add', filePath));
     this.watcher.on('change', (filePath: string) => this.handleEvent('change', filePath));
     this.watcher.on('unlink', (filePath: string) => this.handleEvent('unlink', filePath));
-    this.watcher.on('error', (error: Error) => this.handleError(error));
+    this.watcher.on('error', (error: unknown) => this.handleError(error));
 
     // Wait for ready event
     return new Promise<void>((resolve) => {
@@ -312,6 +312,9 @@ export class SkillWatcher {
 
     const skillName = parts[0];
     const scriptsDir = parts[1];
+    if (!skillName || !scriptsDir) {
+      return null;
+    }
 
     // Verify it's in the scripts directory
     if (scriptsDir !== SCRIPTS_DIR) {
@@ -319,6 +322,9 @@ export class SkillWatcher {
     }
 
     const fileName = parts[parts.length - 1];
+    if (!fileName) {
+      return null;
+    }
     const extension = path.extname(fileName) as SupportedExtension;
 
     // Verify supported extension
@@ -409,10 +415,11 @@ export class SkillWatcher {
   /**
    * Handles an error
    */
-  private handleError(error: Error): void {
+  private handleError(error: unknown): void {
+    const err = error instanceof Error ? error : new Error(String(error));
     for (const handler of this.onErrorHandlers) {
       try {
-        handler(error);
+        handler(err);
       } catch {
         // Ignore errors in error handlers
       }

@@ -75,7 +75,7 @@ async function testLoggerBasic(): Promise<void> {
 
     // Verify JSON format
     try {
-      const entry = JSON.parse(lines[0]);
+      const entry = JSON.parse(lines[0]!);
       if (entry.timestamp && entry.level && entry.category && entry.message) {
         console.log('  [PASS] Log entries are valid JSON');
       } else {

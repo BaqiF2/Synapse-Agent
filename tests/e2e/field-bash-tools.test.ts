@@ -97,7 +97,7 @@ describe('E2E: extend Shell command Tools Integration', () => {
       // Parser should find the server
       expect(Array.isArray(result.servers)).toBe(true);
       expect(result.servers.length).toBe(1);
-      expect(result.servers[0].name).toBe('test-server');
+      expect(result.servers[0]!.name).toBe('test-server');
     });
 
     test('should handle missing config gracefully', () => {

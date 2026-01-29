@@ -13,6 +13,8 @@
 
 import type { CommandResult } from '../base-bash-handler.ts';
 import { McpInstaller, type SearchOptions } from '../../converters/mcp/installer.js';
+import path from 'node:path';
+import { loadDesc } from '../../../utils/load-desc.js';
 
 /**
  * Parsed tools command
@@ -50,6 +52,9 @@ export function parseToolsCommand(command: string): ParsedToolsCommand | null {
   }
 
   const subcommand = parts[0];
+  if (!subcommand) {
+    return { subcommand: 'help' };
+  }
 
   // Parse subcommands
   switch (subcommand) {
@@ -58,8 +63,7 @@ export function parseToolsCommand(command: string): ParsedToolsCommand | null {
       let pattern = '*';
       let type: 'mcp' | 'skill' | 'all' = 'all';
 
-      for (let i = 1; i < parts.length; i++) {
-        const part = parts[i];
+      for (const part of parts.slice(1)) {
         if (part.startsWith('--type=')) {
           const typeVal = part.slice(7);
           if (typeVal === 'mcp' || typeVal === 'skill') {
@@ -162,36 +166,7 @@ export class ToolsHandler {
    * Show help message
    */
   private showHelp(): CommandResult {
-    const help = `tools - Search and manage installed MCP and Skill tools
-
-USAGE
-  tools search [pattern] [options]   Search for tools by pattern
-  tools list                         List all installed tools
-  tools help                         Show this help message
-
-OPTIONS
-  --type=mcp     Only search MCP tools (mcp:* commands)
-  --type=skill   Only search Skill tools (skill:* commands)
-
-EXAMPLES
-  tools search git          Search for tools containing "git"
-  tools search "mcp:*"      List all MCP tools (pattern match)
-  tools search --type=mcp   List all MCP tools (type filter)
-  tools search --type=skill List all Skill tools
-  tools list                List all installed tools
-
-PATTERN SYNTAX
-  *     Match any characters
-  ?     Match a single character
-
-TOOL TYPES
-  mcp:*    MCP server tools (e.g., mcp:git-tools:commit)
-  skill:*  Skill script tools (e.g., skill:pdf-editor:extract_text)
-
-TOOL LOCATIONS
-  Installed tools: ~/.synapse/bin/
-  Skills source:   ~/.synapse/skills/
-`;
+    const help = loadDesc(path.join(import.meta.dirname, 'tools-search.md'));
 
     return {
       stdout: help,

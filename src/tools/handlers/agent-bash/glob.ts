@@ -12,9 +12,11 @@ import fg from 'fast-glob';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { CommandResult } from '../base-bash-handler.ts';
-import { parseCommandArgs } from './command-utils.ts';
+import { parseCommandArgs, toCommandErrorResult } from './command-utils.ts';
+import { loadDesc } from '../../../utils/load-desc.js';
 
 const DEFAULT_MAX_RESULTS = parseInt(process.env.GLOB_MAX_RESULTS || '100', 10);
+const USAGE = 'Usage: glob <pattern> [--path <dir>] [--max <n>]';
 
 /**
  * Parsed glob command arguments
@@ -36,7 +38,7 @@ export function parseGlobCommand(command: string): GlobArgs {
   parts.shift();
 
   if (parts.length === 0) {
-    throw new Error('Usage: glob <pattern> [--path <dir>] [--max <n>]');
+    throw new Error(USAGE);
   }
 
   let pattern = '';
@@ -73,7 +75,7 @@ export function parseGlobCommand(command: string): GlobArgs {
   }
 
   if (!pattern) {
-    throw new Error('Usage: glob <pattern> [--path <dir>] [--max <n>]');
+    throw new Error(USAGE);
   }
 
   return { pattern, searchPath, maxResults };
@@ -102,12 +104,7 @@ export class GlobHandler {
         exitCode: 0,
       };
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      return {
-        stdout: '',
-        stderr: message,
-        exitCode: 1,
-      };
+      return toCommandErrorResult(error);
     }
   }
 
@@ -173,40 +170,10 @@ export class GlobHandler {
    */
   private showHelp(verbose: boolean): CommandResult {
     if (verbose) {
-      const help = `glob - Find files matching a pattern
-
-USAGE:
-    glob <pattern> [OPTIONS]
-
-ARGUMENTS:
-    <pattern>      Glob pattern to match files (e.g., "*.ts", "src/**/*.js")
-
-OPTIONS:
-    --path <dir>   Directory to search in (default: current directory)
-    --max <n>      Maximum number of results (default: 100)
-    -h             Show brief help
-    --help         Show detailed help
-
-PATTERN SYNTAX:
-    *              Match any characters except path separators
-    **             Match any characters including path separators
-    ?              Match single character
-    [abc]          Match any character in the brackets
-    {a,b}          Match either a or b
-
-OUTPUT:
-    File paths sorted by modification time (newest first)
-
-EXAMPLES:
-    glob "*.ts"                    Find TypeScript files in current directory
-    glob "src/**/*.ts"             Find all .ts files in src/ recursively
-    glob "*.{js,ts}" --path ./lib  Find .js and .ts files in ./lib
-    glob "**/*.test.ts" --max 10   Find test files, limit to 10 results`;
-
+      const help = loadDesc(path.join(import.meta.dirname, 'glob.md'));
       return { stdout: help, stderr: '', exitCode: 0 };
     }
 
-    const brief = 'Usage: glob <pattern> [--path <dir>] [--max <n>]';
-    return { stdout: brief, stderr: '', exitCode: 0 };
+    return { stdout: USAGE, stderr: '', exitCode: 0 };
   }
 }

@@ -106,6 +106,9 @@ export class DocstringParser {
     }
 
     const docstring = docstringMatch[2];
+    if (!docstring) {
+      return result;
+    }
     const lines = docstring.split('\n');
 
     let currentSection = 'description';
@@ -149,7 +152,12 @@ export class DocstringParser {
             if (currentParam) {
               result.params.push(currentParam);
             }
-            const [, name, typeStr, desc] = paramMatch;
+            const name = paramMatch[1] ?? '';
+            const typeStr = paramMatch[2] ?? 'string';
+            const desc = paramMatch[3] ?? '';
+            if (!name) {
+              break;
+            }
             const { type, required, defaultValue } = this.parseParamType(typeStr);
             currentParam = {
               name: name.replace(/^-+/, ''),
@@ -249,8 +257,9 @@ export class DocstringParser {
           } else if (trimmed.match(/^[\w-]+ - /)) {
             // Script name - description format
             const match = trimmed.match(/^[\w-]+ - (.+)$/);
-            if (match) {
-              descriptionLines.push(match[1]);
+            const summary = match?.[1];
+            if (summary) {
+              descriptionLines.push(summary);
             }
           }
           break;
@@ -262,7 +271,12 @@ export class DocstringParser {
             if (currentParam) {
               result.params.push(currentParam);
             }
-            const [, name, typeStr, desc] = paramMatch;
+            const name = paramMatch[1] ?? '';
+            const typeStr = paramMatch[2] ?? 'string';
+            const desc = paramMatch[3] ?? '';
+            if (!name) {
+              break;
+            }
             const { type, required, defaultValue } = this.parseParamType(typeStr);
             currentParam = {
               name: name.replace(/^-+/, ''),
@@ -314,6 +328,9 @@ export class DocstringParser {
     }
 
     const jsdoc = jsdocMatch[1];
+    if (!jsdoc) {
+      return result;
+    }
     const lines = jsdoc.split('\n').map((l) => l.replace(/^\s*\*\s?/, '').trim());
 
     let currentSection = 'description';
@@ -324,12 +341,17 @@ export class DocstringParser {
       if (line.startsWith('@param')) {
         const paramMatch = line.match(/@param\s+(?:\{([^}]+)\}\s+)?(\w+)\s*-?\s*(.*)$/);
         if (paramMatch) {
-          const [, type, name, desc] = paramMatch;
-          const { type: normalizedType, required, defaultValue } = this.parseParamType(type || 'string');
+          const type = paramMatch[1] ?? 'string';
+          const name = paramMatch[2] ?? '';
+          const desc = paramMatch[3] ?? '';
+          if (!name) {
+            continue;
+          }
+          const { type: normalizedType, required, defaultValue } = this.parseParamType(type);
           result.params.push({
             name,
             type: normalizedType,
-            description: desc || '',
+            description: desc,
             required,
             default: defaultValue,
           });
@@ -340,7 +362,10 @@ export class DocstringParser {
       if (line.startsWith('@returns') || line.startsWith('@return')) {
         const returnMatch = line.match(/@returns?\s+(?:\{([^}]+)\}\s+)?(.*)$/);
         if (returnMatch) {
-          result.returns = returnMatch[2] || returnMatch[1];
+          const returns = returnMatch[2] || returnMatch[1];
+          if (returns) {
+            result.returns = returns;
+          }
         }
         continue;
       }
@@ -385,7 +410,10 @@ export class DocstringParser {
     // Check for default value: (type, default: "value")
     const defaultMatch = type.match(/,?\s*default:?\s*["']?([^"')]+)["']?/i);
     if (defaultMatch) {
-      defaultValue = defaultMatch[1].trim();
+      const rawDefault = defaultMatch[1];
+      if (rawDefault) {
+        defaultValue = rawDefault.trim();
+      }
       type = type.replace(defaultMatch[0], '').trim();
       required = false;
     }

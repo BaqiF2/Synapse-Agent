@@ -59,7 +59,7 @@ export const SkillEnhanceResultSchema = z.object({
   action: z.enum(['created', 'enhanced', 'none']),
   skillName: z.string().optional(),
   message: z.string(),
-  details: z.record(z.unknown()).optional(),
+  details: z.record(z.string(), z.unknown()).optional(),
 });
 
 export type SkillEnhanceResult = z.infer<typeof SkillEnhanceResultSchema>;

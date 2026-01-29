@@ -11,6 +11,10 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { CommandResult } from '../base-bash-handler.ts';
+import { toCommandErrorResult } from './command-utils.ts';
+import { loadDesc } from '../../../utils/load-desc.js';
+
+const USAGE = 'Usage: write <file_path> <content>';
 
 /**
  * Parsed write command arguments
@@ -32,7 +36,7 @@ export function parseWriteCommand(command: string): WriteArgs {
   const withoutPrefix = trimmed.slice('write'.length).trim();
 
   if (!withoutPrefix) {
-    throw new Error('Usage: write <file_path> <content>');
+    throw new Error(USAGE);
   }
 
   // Extract file path (first argument)
@@ -41,8 +45,8 @@ export function parseWriteCommand(command: string): WriteArgs {
 
   // Handle quoted path
   if (withoutPrefix.startsWith('"') || withoutPrefix.startsWith("'")) {
-    const quote = withoutPrefix[0];
-    const endQuote = withoutPrefix.indexOf(quote ?? '', 1);
+    const quote = withoutPrefix[0] ?? '';
+    const endQuote = withoutPrefix.indexOf(quote, 1);
     if (endQuote === -1) {
       throw new Error('Unclosed quote in file path');
     }
@@ -52,7 +56,7 @@ export function parseWriteCommand(command: string): WriteArgs {
     // Non-quoted path: take until first whitespace
     const spaceIndex = withoutPrefix.search(/\s/);
     if (spaceIndex === -1) {
-      throw new Error('Usage: write <file_path> <content>');
+      throw new Error(USAGE);
     }
     filePath = withoutPrefix.slice(0, spaceIndex);
     contentStart = spaceIndex;
@@ -62,7 +66,7 @@ export function parseWriteCommand(command: string): WriteArgs {
   let content = withoutPrefix.slice(contentStart).trim();
 
   if (!content) {
-    throw new Error('Usage: write <file_path> <content>');
+    throw new Error(USAGE);
   }
 
   // Handle content wrapped in quotes
@@ -88,7 +92,7 @@ export function parseWriteCommand(command: string): WriteArgs {
   content = processEscapeSequences(content);
 
   if (!filePath) {
-    throw new Error('Usage: write <file_path> <content>');
+    throw new Error(USAGE);
   }
 
   return { filePath, content };
@@ -128,12 +132,7 @@ export class WriteHandler {
         exitCode: 0,
       };
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      return {
-        stdout: '',
-        stderr: message,
-        exitCode: 1,
-      };
+      return toCommandErrorResult(error);
     }
   }
 
@@ -174,40 +173,10 @@ export class WriteHandler {
    */
   private showHelp(verbose: boolean): CommandResult {
     if (verbose) {
-      const help = `write - Write content to a file
-
-USAGE:
-    write <file_path> <content>
-
-ARGUMENTS:
-    <file_path>    Absolute or relative path to the file to write
-    <content>      Content to write to the file
-
-CONTENT FORMATS:
-    - Simple string: write file.txt "Hello World"
-    - With escape sequences: write file.txt "Line1\\nLine2"
-    - Heredoc style: write file.txt <<EOF
-      content here
-      EOF
-
-OPTIONS:
-    -h             Show brief help
-    --help         Show detailed help
-
-NOTES:
-    - Parent directories are created automatically if they don't exist
-    - Existing files are overwritten without warning
-    - Supported escape sequences: \\n (newline), \\t (tab), \\r (carriage return)
-
-EXAMPLES:
-    write /path/to/file.txt "Hello World"
-    write ./output.txt "Line 1\\nLine 2\\nLine 3"
-    write /tmp/test.json '{"key": "value"}'`;
-
+      const help = loadDesc(path.join(import.meta.dirname, 'write.md'));
       return { stdout: help, stderr: '', exitCode: 0 };
     }
 
-    const brief = 'Usage: write <file_path> <content>';
-    return { stdout: brief, stderr: '', exitCode: 0 };
+    return { stdout: USAGE, stderr: '', exitCode: 0 };
   }
 }

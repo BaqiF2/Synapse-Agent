@@ -7,6 +7,8 @@
  * - parseCommandArgs: Parse command arguments with proper quote handling
  */
 
+import type { CommandResult } from '../base-bash-handler.ts';
+
 /**
  * Parse command arguments with proper quote handling
  * Supports both single and double quotes
@@ -45,4 +47,16 @@ export function parseCommandArgs(command: string): string[] {
   }
 
   return args;
+}
+
+/**
+ * Normalize unknown errors to a CommandResult
+ */
+export function toCommandErrorResult(error: unknown): CommandResult {
+  const message = error instanceof Error ? error.message : 'Unknown error';
+  return {
+    stdout: '',
+    stderr: message,
+    exitCode: 1,
+  };
 }

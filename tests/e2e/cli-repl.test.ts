@@ -230,8 +230,8 @@ describe('E2E: CLI/REPL Integration', () => {
       });
 
       expect(state.conversationHistory.length).toBe(2);
-      expect(state.conversationHistory[0].role).toBe('user');
-      expect(state.conversationHistory[1].role).toBe('agent');
+      expect(state.conversationHistory[0]!.role).toBe('user');
+      expect(state.conversationHistory[1]!.role).toBe('agent');
     });
 
     test('should clear history on /clear', () => {

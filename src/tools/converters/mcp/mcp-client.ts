@@ -17,6 +17,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
+import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import type {
   CommandServerConfig,
   UrlServerConfig,
@@ -37,6 +38,26 @@ const CLIENT_NAME = 'synapse-agent';
  * Default client version
  */
 const CLIENT_VERSION = '1.0.0';
+
+/**
+ * Build a clean env map for MCP transports.
+ */
+function buildTransportEnv(
+  baseEnv: NodeJS.ProcessEnv,
+  extraEnv?: Record<string, string>
+): Record<string, string> {
+  const merged = {
+    ...baseEnv,
+    ...(extraEnv || {}),
+  };
+  const cleaned: Record<string, string> = {};
+  for (const [key, value] of Object.entries(merged)) {
+    if (typeof value === 'string') {
+      cleaned[key] = value;
+    }
+  }
+  return cleaned;
+}
 
 /**
  * Connection options for MCP client
@@ -140,10 +161,7 @@ export class McpClient {
     const transport = new StdioClientTransport({
       command: config.command,
       args: config.args,
-      env: {
-        ...process.env,
-        ...(config.env || {}),
-      },
+      env: buildTransportEnv(process.env, config.env),
       cwd: config.cwd,
     });
 
@@ -198,9 +216,7 @@ export class McpClient {
           version: this.options.clientVersion,
         },
         {
-          capabilities: {
-            tools: {},
-          },
+          capabilities: {},
         }
       );
 
@@ -295,7 +311,7 @@ export class McpClient {
     const result = await this.client.callTool({
       name,
       arguments: args,
-    });
+    }) as CallToolResult;
 
     return {
       content: result.content,

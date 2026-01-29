@@ -8,8 +8,13 @@
  * - parseBashCommand: 解析 bash 命令参数的函数
  */
 
+import path from 'node:path';
 import type { BashSession } from '../../bash-session.ts';
 import type { CommandResult } from '../base-bash-handler.ts';
+import { toCommandErrorResult } from './command-utils.ts';
+import { loadDesc } from '../../../utils/load-desc.js';
+
+const USAGE = 'Usage: bash <command>';
 
 /**
  * Parse the bash command arguments
@@ -22,7 +27,7 @@ export function parseBashCommand(command: string): string {
   const remaining = trimmed.slice('bash'.length).trim();
 
   if (!remaining) {
-    throw new Error('Usage: bash <command>');
+    throw new Error(USAGE);
   }
 
   return remaining;
@@ -50,12 +55,7 @@ export class BashWrapperHandler {
 
       return result;
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      return {
-        stdout: '',
-        stderr: message,
-        exitCode: 1,
-      };
+      return toCommandErrorResult(error);
     }
   }
 
@@ -64,40 +64,10 @@ export class BashWrapperHandler {
    */
   private showHelp(verbose: boolean): CommandResult {
     if (verbose) {
-      const help = `bash - Execute system commands explicitly
-
-USAGE:
-    bash <command>
-
-ARGUMENTS:
-    <command>      The bash command to execute
-
-DESCRIPTION:
-    This is an explicit wrapper for executing system commands in the
-    persistent Bash session. Use this when you want to clearly indicate
-    that a system command should be executed, rather than relying on
-    automatic command routing.
-
-    The command is executed in the same persistent session as other
-    commands, so environment variables and working directory are preserved.
-
-OPTIONS:
-    -h             Show brief help
-    --help         Show detailed help
-
-EXAMPLES:
-    bash ls -la                    List files in detail
-    bash pwd                       Print working directory
-    bash echo $PATH                Print PATH environment variable
-    bash npm install               Install npm packages
-    bash git status                Show git status
-    bash export FOO=bar            Set environment variable
-    bash cd /tmp && ls             Change directory and list`;
-
+      const help = loadDesc(path.join(import.meta.dirname, 'bash-wrapper.md'));
       return { stdout: help, stderr: '', exitCode: 0 };
     }
 
-    const brief = 'Usage: bash <command>';
-    return { stdout: brief, stderr: '', exitCode: 0 };
+    return { stdout: USAGE, stderr: '', exitCode: 0 };
   }
 }

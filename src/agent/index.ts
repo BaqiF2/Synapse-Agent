@@ -30,7 +30,6 @@ export {
 export { ToolExecutor, type ToolCallInput, type ToolExecutionResult } from './tool-executor.ts';
 export {
   buildSystemPrompt,
-  buildMinimalSystemPrompt,
   type SystemPromptOptions,
 } from './system-prompt.ts';
 

@@ -105,9 +105,15 @@ async function testSkillWatcher(): Promise<void> {
 
   const events: WatchEvent[] = [];
 
-  watcher.onAdd((e) => events.push(e));
-  watcher.onChange((e) => events.push(e));
-  watcher.onUnlink((e) => events.push(e));
+  watcher.onAdd((e) => {
+    events.push(e);
+  });
+  watcher.onChange((e) => {
+    events.push(e);
+  });
+  watcher.onUnlink((e) => {
+    events.push(e);
+  });
 
   // Create skill directory structure first
   ensureDir(path.join(TEST_SKILLS_DIR, 'test-watcher', 'scripts'));
@@ -138,7 +144,7 @@ async function testSkillWatcher(): Promise<void> {
   const addEvents = events.filter((e) => e.type === 'add');
   if (addEvents.length > 0) {
     console.log(`  [PASS] Detected ${addEvents.length} add event(s)`);
-    console.log(`  [INFO] Event: skill=${addEvents[0].skillName}, script=${addEvents[0].scriptName}`);
+    console.log(`  [INFO] Event: skill=${addEvents[0]!.skillName}, script=${addEvents[0]!.scriptName}`);
   } else {
     console.log('  [WARN] No add events detected (may be timing-related)');
   }
@@ -157,7 +163,9 @@ async function testAutoUpdater(): Promise<void> {
   });
 
   const events: UpdateEvent[] = [];
-  updater.onUpdate((e) => events.push(e));
+  updater.onUpdate((e) => {
+    events.push(e);
+  });
 
   console.log(`  [INFO] Skills dir: ${updater.getSkillsDir()}`);
   console.log(`  [INFO] Bin dir: ${updater.getBinDir()}`);

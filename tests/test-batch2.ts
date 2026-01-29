@@ -29,7 +29,7 @@ async function testBatch2() {
   // Test 2: Bash Tool Schema
   console.log('Test 2: Bash Tool Schema');
   console.log('Tool name:', BashToolSchema.name);
-  console.log('Tool description length:', BashToolSchema.description.length);
+  console.log('Tool description length:', BashToolSchema.description?.length ?? 0);
   console.log('Required parameters:', BashToolSchema.input_schema.required);
   console.log('✅ Bash Tool Schema is valid\n');
 

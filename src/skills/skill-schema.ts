@@ -170,7 +170,7 @@ export class SkillDocParser {
     let codeBlockContent: string[] = [];
 
     for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
+      const line = lines[i] ?? '';
       const trimmed = line.trim();
 
       // Handle code blocks
@@ -196,23 +196,31 @@ export class SkillDocParser {
       // Parse h1 header (title)
       const h1Match = PATTERNS.h1Header.exec(trimmed);
       if (h1Match) {
-        result.title = h1Match[1].trim();
+        const title = h1Match[1];
+        if (title) {
+          result.title = title.trim();
+        }
         continue;
       }
 
       // Parse h2 header (section)
       const h2Match = PATTERNS.h2Header.exec(trimmed);
       if (h2Match) {
-        currentSection = this.normalizeSection(h2Match[1]);
+        const section = h2Match[1];
+        if (section) {
+          currentSection = this.normalizeSection(section);
+        }
         continue;
       }
 
       // Parse key-value pairs
       const kvMatch = PATTERNS.keyValue.exec(trimmed);
       if (kvMatch) {
-        const key = kvMatch[1].trim().toLowerCase();
-        const value = kvMatch[2].trim();
-        this.setKeyValue(result, key, value);
+        const key = kvMatch[1];
+        const value = kvMatch[2];
+        if (key && value) {
+          this.setKeyValue(result, key.trim().toLowerCase(), value.trim());
+        }
         continue;
       }
 
@@ -313,8 +321,9 @@ export class SkillDocParser {
         if (item) {
           // Extract tool reference (mcp:* or skill:*)
           const toolRef = item.match(/((?:mcp|skill):[^\s]+)/);
-          if (toolRef) {
-            result.toolDependencies!.push(toolRef[1]);
+          const toolRefValue = toolRef?.[1];
+          if (toolRefValue) {
+            result.toolDependencies!.push(toolRefValue);
           } else {
             result.toolDependencies!.push(item.trim());
           }
@@ -331,8 +340,9 @@ export class SkillDocParser {
         // Parse tool references from tools section
         if (item) {
           const toolRef = item.match(/`([^`]+)`/);
-          if (toolRef) {
-            result.toolDependencies!.push(toolRef[1]);
+          const toolRefValue = toolRef?.[1];
+          if (toolRefValue) {
+            result.toolDependencies!.push(toolRefValue);
           }
         }
         break;

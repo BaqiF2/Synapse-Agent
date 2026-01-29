@@ -8,7 +8,6 @@ import {
   ContextManager,
   ToolExecutor,
   buildSystemPrompt,
-  buildMinimalSystemPrompt,
 } from '../src/agent/index.ts';
 
 async function testBatch6() {
@@ -72,10 +71,6 @@ async function testBatch6() {
   console.log('包含工作目录:', customPrompt.includes('/home/user/project'));
   console.log('包含 extend Shell command:', customPrompt.includes('extend Shell command'));
   console.log('包含附加指令:', customPrompt.includes('请用中文回复'));
-
-  // 最小提示词
-  const minimalPrompt = buildMinimalSystemPrompt();
-  console.log('最小提示词长度:', minimalPrompt.length, '字符');
   console.log();
 
   // Test 3: 工具执行器

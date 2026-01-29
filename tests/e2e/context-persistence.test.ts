@@ -92,7 +92,7 @@ describe('E2E: Context Persistence', () => {
       const lines = content.trim().split('\n');
       expect(lines.length).toBe(1);
 
-      const message = JSON.parse(lines[0]);
+      const message = JSON.parse(lines[0]!);
       expect(message.role).toBe('user');
       expect(message.content).toBe('Hello');
       expect(message.id).toMatch(/^msg-/);
@@ -134,8 +134,8 @@ describe('E2E: Context Persistence', () => {
       const messages = loaded.loadMessages();
 
       expect(messages.length).toBe(2);
-      expect(messages[0].content).toBe('Hello');
-      expect(messages[1].content).toBe('Hi!');
+      expect(messages[0]!.content).toBe('Hello');
+      expect(messages[1]!.content).toBe('Hi!');
     });
   });
 
@@ -187,7 +187,7 @@ describe('E2E: Context Persistence', () => {
       expect(listed.length).toBe(5);
 
       // Most recent should be first
-      expect(listed[0].id).toBe(sessions[4].getSessionId());
+      expect(listed[0]!.id).toBe(sessions[4]!.getSessionId());
     });
   });
 
@@ -249,7 +249,7 @@ describe('E2E: Context Persistence', () => {
 
       const messages = contextManager.getMessages();
       expect(messages.length).toBe(2);
-      expect(messages[0].content).toBe('Previous message');
+      expect(messages[0]!.content).toBe('Previous message');
     });
   });
 

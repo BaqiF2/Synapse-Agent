@@ -11,6 +11,10 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { CommandResult } from '../base-bash-handler.ts';
+import { toCommandErrorResult } from './command-utils.ts';
+import { loadDesc } from '../../../utils/load-desc.js';
+
+const USAGE = 'Usage: edit <file_path> <old_string> <new_string> [--all]';
 
 /**
  * Parsed edit command arguments
@@ -33,7 +37,7 @@ export function parseEditCommand(command: string): EditArgs {
   let remaining = trimmed.slice('edit'.length).trim();
 
   if (!remaining) {
-    throw new Error('Usage: edit <file_path> <old_string> <new_string> [--all]');
+    throw new Error(USAGE);
   }
 
   // Check for --all flag
@@ -44,7 +48,7 @@ export function parseEditCommand(command: string): EditArgs {
   const args = parseQuotedArgs(remaining);
 
   if (args.length < 3) {
-    throw new Error('Usage: edit <file_path> <old_string> <new_string> [--all]');
+    throw new Error(USAGE);
   }
 
   const filePath = args[0] ?? '';
@@ -52,7 +56,7 @@ export function parseEditCommand(command: string): EditArgs {
   const newString = args[2] ?? '';
 
   if (!filePath) {
-    throw new Error('Usage: edit <file_path> <old_string> <new_string> [--all]');
+    throw new Error(USAGE);
   }
 
   return { filePath, oldString, newString, replaceAll };
@@ -146,12 +150,7 @@ export class EditHandler {
         exitCode: 0,
       };
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      return {
-        stdout: '',
-        stderr: message,
-        exitCode: 1,
-      };
+      return toCommandErrorResult(error);
     }
   }
 
@@ -228,38 +227,10 @@ export class EditHandler {
    */
   private showHelp(verbose: boolean): CommandResult {
     if (verbose) {
-      const help = `edit - Replace strings in a file
-
-USAGE:
-    edit <file_path> <old_string> <new_string> [OPTIONS]
-
-ARGUMENTS:
-    <file_path>    Absolute or relative path to the file to edit
-    <old_string>   The string to find and replace (exact match)
-    <new_string>   The replacement string
-
-OPTIONS:
-    --all          Replace all occurrences (default: replace only first)
-    -h             Show brief help
-    --help         Show detailed help
-
-NOTES:
-    - Uses exact string matching, not regex
-    - Strings containing spaces should be quoted
-    - Supported escape sequences: \\n (newline), \\t (tab), \\r (carriage return)
-    - Returns error if old_string is not found in the file
-
-EXAMPLES:
-    edit /path/to/file.txt "old text" "new text"
-    edit ./config.json "localhost" "0.0.0.0" --all
-    edit main.ts "console.log" "logger.info" --all
-    edit file.txt "function foo" "function bar"
-    edit file.txt "line1\\nline2" "replaced"`;
-
+      const help = loadDesc(path.join(import.meta.dirname, 'edit.md'));
       return { stdout: help, stderr: '', exitCode: 0 };
     }
 
-    const brief = 'Usage: edit <file_path> <old_string> <new_string> [--all]';
-    return { stdout: brief, stderr: '', exitCode: 0 };
+    return { stdout: USAGE, stderr: '', exitCode: 0 };
   }
 }

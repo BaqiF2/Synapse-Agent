@@ -161,7 +161,7 @@ async function testSkillLoaderLevel1(): Promise<void> {
   console.log(`  [PASS] Loaded ${allSkills.length} skills at Level 1`);
 
   if (allSkills.length > 0) {
-    const skill = allSkills[0];
+    const skill = allSkills[0]!;
     console.log(`  [INFO] First skill: ${skill.name}`);
     console.log(`  [INFO] Domain: ${skill.domain}`);
     console.log(`  [INFO] Tools: ${skill.tools.length}`);
@@ -199,7 +199,7 @@ async function testSkillLoaderLevel2(): Promise<void> {
   }
 
   // Load first skill at Level 2
-  const skillName = allSkills[0].name;
+  const skillName = allSkills[0]!.name;
   const level2 = loader.loadLevel2(skillName);
 
   if (!level2) {

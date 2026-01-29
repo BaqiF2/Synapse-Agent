@@ -254,6 +254,13 @@ export class BashRouter {
     const args = parts.slice(1);
 
     // Parse mcp:server:tool
+    if (!commandPart) {
+      return {
+        stdout: '',
+        stderr: 'Invalid MCP command format. Expected: mcp:<server>:<tool> [args...]',
+        exitCode: 1,
+      };
+    }
     const mcpParts = commandPart.split(':');
     if (mcpParts.length < 3) {
       return {
@@ -263,8 +270,15 @@ export class BashRouter {
       };
     }
 
-    const serverName = mcpParts[1];
+    const serverName = mcpParts[1] ?? '';
     const toolName = mcpParts.slice(2).join(':');
+    if (!serverName || !toolName) {
+      return {
+        stdout: '',
+        stderr: 'Invalid MCP command format. Expected: mcp:<server>:<tool> [args...]',
+        exitCode: 1,
+      };
+    }
 
     // Parse arguments
     const positionalArgs: string[] = [];
@@ -345,6 +359,9 @@ export class BashRouter {
 
         for (let i = 0; i < required.length && i < positionalArgs.length; i++) {
           const paramName = required[i];
+          if (!paramName) {
+            continue;
+          }
           const propSchema = schema.properties?.[paramName] as { type?: string } | undefined;
           const type = propSchema?.type || 'string';
 
@@ -440,6 +457,13 @@ export class BashRouter {
     const args = parts.slice(1);
 
     // Parse skill:skill:tool
+    if (!commandPart) {
+      return {
+        stdout: '',
+        stderr: 'Invalid skill command format. Expected: skill:<skill>:<tool> [args...]',
+        exitCode: 1,
+      };
+    }
     const skillParts = commandPart.split(':');
     if (skillParts.length < 3) {
       return {
@@ -449,8 +473,15 @@ export class BashRouter {
       };
     }
 
-    const skillName = skillParts[1];
+    const skillName = skillParts[1] ?? '';
     const toolName = skillParts.slice(2).join(':');
+    if (!skillName || !toolName) {
+      return {
+        stdout: '',
+        stderr: 'Invalid skill command format. Expected: skill:<skill>:<tool> [args...]',
+        exitCode: 1,
+      };
+    }
 
     // Check for help flags
     if (args.includes('-h') || args.includes('--help')) {

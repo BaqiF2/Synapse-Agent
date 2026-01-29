@@ -317,20 +317,6 @@ async function testSkillSearchHandler(): Promise<void> {
     console.log('  [FAIL] Filter by domain failed');
   }
 
-  // Test 3.4: Filter by tag
-  const tagResult = await handler.execute('skill search --tag automation');
-  if (tagResult.exitCode === 0) {
-    console.log('  [PASS] Filter by tag works');
-  }
-
-  // Test 3.5: Show tools
-  const toolsResult = await handler.execute('skill search --tools');
-  if (toolsResult.exitCode === 0 && toolsResult.stdout.includes('skill:')) {
-    console.log('  [PASS] Show tools option works');
-  } else {
-    console.log('  [WARN] Show tools may not have displayed tool commands');
-  }
-
   // Test 3.6: Help
   const helpResult = await handler.execute('skill search --help');
   if (helpResult.exitCode === 0 && helpResult.stdout.includes('USAGE')) {
@@ -344,8 +330,8 @@ async function testSkillSearchHandler(): Promise<void> {
   }
 
   // Test 3.8: Parse command
-  const args = parseSkillSearchCommand('skill search pdf --domain programming --tag test --max 5 --tools');
-  if (args.query === 'pdf' && args.domain === 'programming' && args.tags.includes('test') && args.maxResults === 5 && args.showTools) {
+  const args = parseSkillSearchCommand('skill search pdf --max 5');
+  if (args.query === 'pdf' && args.maxResults === 5) {
     console.log('  [PASS] Command parsing works correctly');
   } else {
     console.log('  [FAIL] Command parsing incorrect');

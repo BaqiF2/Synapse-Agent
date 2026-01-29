@@ -12,9 +12,12 @@ import fg from 'fast-glob';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { CommandResult } from '../base-bash-handler.ts';
+import { toCommandErrorResult } from './command-utils.ts';
+import { loadDesc } from '../../../utils/load-desc.js';
 
 const DEFAULT_MAX_RESULTS = parseInt(process.env.GREP_MAX_RESULTS || '50', 10);
 const DEFAULT_CONTEXT_LINES = parseInt(process.env.GREP_CONTEXT_LINES || '0', 10);
+const USAGE = 'Usage: search <pattern> [--path <dir>] [--type <type>] [--context <n>]';
 
 /**
  * File type to extension mapping
@@ -59,7 +62,7 @@ export function parseGrepCommand(command: string): GrepArgs {
   let remaining = trimmed.slice('search'.length).trim();
 
   if (!remaining) {
-    throw new Error('Usage: search <pattern> [--path <dir>] [--type <type>] [--context <n>]');
+    throw new Error(USAGE);
   }
 
   // Check for flags
@@ -120,7 +123,7 @@ export function parseGrepCommand(command: string): GrepArgs {
   }
 
   if (!pattern) {
-    throw new Error('Usage: search <pattern> [--path <dir>] [--type <type>] [--context <n>]');
+    throw new Error(USAGE);
   }
 
   return { pattern, searchPath, fileType, contextLines, maxResults, ignoreCase };
@@ -201,12 +204,7 @@ export class GrepHandler {
         exitCode: 0,
       };
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      return {
-        stdout: '',
-        stderr: message,
-        exitCode: 1,
-      };
+      return toCommandErrorResult(error);
     }
   }
 
@@ -353,49 +351,10 @@ export class GrepHandler {
    */
   private showHelp(verbose: boolean): CommandResult {
     if (verbose) {
-      const help = `search - Search for patterns in files
-
-USAGE:
-    search <pattern> [OPTIONS]
-
-ARGUMENTS:
-    <pattern>      Search pattern (supports regex)
-
-OPTIONS:
-    --path <dir>   Directory to search in (default: current directory)
-    --type <type>  File type to search (ts, js, py, java, go, rust, c, cpp, md, json, yaml, html, css, sh)
-    --context <n>  Number of context lines before/after match (default: 0)
-    --max <n>      Maximum number of results (default: 50)
-    -i             Case-insensitive search
-    -h             Show brief help
-    --help         Show detailed help
-
-PATTERN SYNTAX:
-    Uses JavaScript regex syntax:
-    .              Match any character
-    \\d             Match digit
-    \\w             Match word character
-    [abc]          Match any character in brackets
-    (a|b)          Match a or b
-    ^              Start of line
-    $              End of line
-    +              One or more
-    *              Zero or more
-    ?              Zero or one
-
-OUTPUT:
-    file:line:  matched line content
-
-EXAMPLES:
-    search "TODO"                        Find TODO comments
-    search "function\\s+\\w+" --type ts   Find function definitions in TypeScript
-    search "import.*from" --context 2    Find imports with context
-    search "error" -i --type py          Case-insensitive search in Python files`;
-
+      const help = loadDesc(path.join(import.meta.dirname, 'grep.md'));
       return { stdout: help, stderr: '', exitCode: 0 };
     }
 
-    const brief = 'Usage: search <pattern> [--path <dir>] [--type <type>] [--context <n>]';
-    return { stdout: brief, stderr: '', exitCode: 0 };
+    return { stdout: USAGE, stderr: '', exitCode: 0 };
   }
 }

@@ -215,13 +215,15 @@ export class McpInstaller {
         type = 'mcp';
         const parts = fileName.slice(4).split(':');
         if (parts.length < 2) return null;
-        serverName = parts[0];
+        serverName = parts[0] ?? '';
+        if (!serverName) return null;
         toolName = parts.slice(1).join(':');
       } else if (fileName.startsWith('skill:')) {
         type = 'skill';
         const parts = fileName.slice(6).split(':');
         if (parts.length < 2) return null;
-        serverName = parts[0];
+        serverName = parts[0] ?? '';
+        if (!serverName) return null;
         toolName = parts.slice(1).join(':');
       } else {
         return null;
