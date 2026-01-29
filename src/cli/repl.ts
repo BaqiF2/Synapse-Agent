@@ -31,8 +31,12 @@ import { initializeSkillTools } from '../tools/converters/skill/index.ts';
 import { createLogger } from '../utils/logger.ts';
 import { SettingsManager } from '../config/settings-manager.ts';
 import { SkillSubAgent } from '../agent/skill-sub-agent.ts';
+import { TerminalRenderer } from './terminal-renderer.ts';
 
 const cliLogger = createLogger('cli');
+
+// Module-level terminal renderer for access in command handlers
+let terminalRenderer: TerminalRenderer | null = null;
 
 /**
  * Truncate text to specified length with ellipsis
@@ -290,19 +294,43 @@ function handleSkillEnhanceCommand(args: string[], agentRunner?: AgentRunner | n
     const subAgent = new SkillSubAgent({
       llmClient,
       toolExecutor,
+      onToolStart: (info) => {
+        if (!terminalRenderer) return;
+        const command = info.input?.command?.toString() || 'unknown';
+        terminalRenderer.renderToolStart({
+          id: info.id,
+          command,
+          depth: info.depth,
+          parentId: info.parentId,
+        });
+        terminalRenderer.storeCommand(info.id, command);
+      },
       onToolCall: (info) => {
-        const tag = chalk.cyan(`[${info.agentTag}]`);
-        const status = info.success ? chalk.green('✓') : chalk.red('✗');
-        const toolName = chalk.yellow(info.name);
-        const command = info.input?.command
-          ? chalk.gray(` $ ${truncateText(String(info.input.command), 80)}`)
-          : '';
-        console.log(`${tag} ${status} ${toolName}${command}`);
+        if (!terminalRenderer) return;
+        terminalRenderer.renderToolEnd({
+          id: info.id,
+          success: info.success,
+          output: info.output,
+        });
       },
     });
+
+    // Render SubAgent start
+    if (terminalRenderer) {
+      terminalRenderer.renderSubAgentStart({
+        id: subAgent.getSubAgentId(),
+        name: `enhance ${expandedPath}`,
+      });
+    }
+
     subAgent
       .enhance(expandedPath)
       .then((result) => {
+        // Render SubAgent completion
+        if (terminalRenderer) {
+          terminalRenderer.renderSubAgentEnd(subAgent.getSubAgentId());
+        }
+
         const actionMessages: Record<string, string> = {
           none: chalk.gray('No enhancement needed.'),
           created: chalk.green(`Created new skill: ${result.skillName}`),
@@ -312,6 +340,9 @@ function handleSkillEnhanceCommand(args: string[], agentRunner?: AgentRunner | n
         console.log(chalk.gray(`Message: ${result.message}\n`));
       })
       .catch((error: Error) => {
+        if (terminalRenderer) {
+          terminalRenderer.renderSubAgentEnd(subAgent.getSubAgentId());
+        }
         console.log(chalk.red(`\nEnhance failed: ${error.message}\n`));
       });
     return;
@@ -635,6 +666,9 @@ export async function startRepl(): Promise<void> {
   // Initialize settings manager for auto-enhance feature
   const settingsManager = new SettingsManager();
 
+  // Initialize terminal renderer for tool output
+  terminalRenderer = new TerminalRenderer();
+
   try {
     const llmClient = new LlmClient();
 
@@ -685,22 +719,22 @@ export async function startRepl(): Promise<void> {
           process.stdout.write(text);
         }
       },
-      onToolExecution: (toolName, success, output) => {
-        const status = success ? chalk.green('✓') : chalk.red('✗');
-        console.log(chalk.gray(`  ${status} ${truncateText(toolName, 50)}`));
-
-        // Show error output for failed commands
-        if (!success && output) {
-          const errorPreview = truncateText(output, 200);
-          const lines = errorPreview
-            .split('\n')
-            .map(line => line.trim())
-            .filter(line => line.length > 0);
-          const previewLine = lines.find(line => line !== '[stderr]') ?? lines[0];
-          if (previewLine) {
-            console.log(chalk.red(`    ${previewLine}`));
-          }
-        }
+      onToolStart: (info) => {
+        const command = info.input?.command?.toString() || 'unknown';
+        terminalRenderer.renderToolStart({
+          id: info.id,
+          command,
+          depth: info.depth,
+          parentId: info.parentId,
+        });
+        terminalRenderer.storeCommand(info.id, command);
+      },
+      onToolCall: (info) => {
+        terminalRenderer.renderToolEnd({
+          id: info.id,
+          success: info.success,
+          output: info.output,
+        });
       },
     });
 
