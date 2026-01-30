@@ -26,7 +26,7 @@ import { buildSystemPrompt } from '../agent/system-prompt.ts';
 import { ContextPersistence } from '../agent/context-persistence.ts';
 import { AgentRunner } from '../agent/agent-runner.ts';
 import { BashToolSchema } from '../tools/bash-tool-schema.ts';
-import { initializeMcpTools } from '../tools/converters/mcp/index.ts';
+import { McpInstaller, initializeMcpTools } from '../tools/converters/mcp/index.ts';
 import { initializeSkillTools } from '../tools/converters/skill/index.ts';
 import { createLogger } from '../utils/logger.ts';
 import { SettingsManager } from '../config/settings-manager.ts';
@@ -136,6 +136,23 @@ export function handleSpecialCommand(
   const cmd = command.toLowerCase().trim();
   const parts = command.trim().split(/\s+/);
 
+  if (parts[0]?.toLowerCase() === '/tools') {
+    const option = parts[1]?.toLowerCase();
+
+    if (!option) {
+      showToolsList();
+      return true;
+    }
+
+    if (option === '--all') {
+      showToolsList({ showAll: true });
+      return true;
+    }
+
+    console.log(chalk.yellow('\nUsage: /tools [--all]\n'));
+    return true;
+  }
+
   switch (cmd) {
     case '/exit':
     case '/quit':
@@ -165,10 +182,6 @@ export function handleSpecialCommand(
 
     case '/history':
       showConversationHistory(state.conversationHistory);
-      return true;
-
-    case '/tools':
-      showToolsList();
       return true;
 
     case '/skills':
@@ -405,7 +418,7 @@ function showHelp(): void {
   console.log(chalk.gray('  /exit, /quit, /q ') + chalk.white('Exit the REPL'));
   console.log(chalk.gray('  /clear           ') + chalk.white('Clear conversation history'));
   console.log(chalk.gray('  /history         ') + chalk.white('Show conversation history'));
-  console.log(chalk.gray('  /tools           ') + chalk.white('List all available tools'));
+  console.log(chalk.gray('  /tools [--all]   ') + chalk.white('List available tools'));
   console.log(chalk.gray('  /skills          ') + chalk.white('List all available skills'));
   console.log(chalk.gray('  /sessions        ') + chalk.white('List saved sessions'));
   console.log(chalk.gray('  /resume <id>     ') + chalk.white('Resume a saved session'));
@@ -455,24 +468,22 @@ function showConversationHistory(history: ConversationEntry[]): void {
 /**
  * Show available tools list
  */
-function showToolsList(): void {
+function showToolsList(options: { showAll?: boolean } = {}): void {
   printSectionHeader('Available Tools');
   console.log();
-  console.log(chalk.white.bold('Agent Shell Command Tools (Layer 2):'));
-  console.log(chalk.gray('  read <file>      ') + chalk.white('Read file contents'));
-  console.log(chalk.gray('  write <file>     ') + chalk.white('Write content to file'));
-  console.log(chalk.gray('  edit <file>      ') + chalk.white('Edit file (string replacement)'));
-  console.log(chalk.gray('  glob <pattern>   ') + chalk.white('Find files by pattern'));
-  console.log(chalk.gray('  search <pattern> ') + chalk.white('Search file contents'));
-  console.log(chalk.gray('  bash <cmd>       ') + chalk.white('Execute bash command'));
-  console.log();
-  console.log(chalk.white.bold('extend Shell command Tools (Layer 3):'));
-  console.log(chalk.gray('  command:search   ') + chalk.white('Search installed tools'));
-  console.log(chalk.gray('  skill:search     ') + chalk.white('Search available skills'));
+
+  if (options.showAll) {
+    const installer = new McpInstaller();
+    const result = installer.search({ pattern: '*', type: 'all' });
+    const output = installer.formatSearchResult(result);
+    console.log(output);
+    console.log();
+    return;
+  }
+
+  console.log(chalk.white.bold('Tools:'));
   console.log(chalk.gray('  mcp:*            ') + chalk.white('MCP server tools'));
   console.log(chalk.gray('  skill:*          ') + chalk.white('Skill script tools'));
-  console.log();
-  console.log(chalk.gray('Use "command:search" or "skill:search <query>" for more details.'));
   console.log();
 }
 
