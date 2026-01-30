@@ -1,12 +1,12 @@
-任务已完成。请分析本次对话，判断是否存在可复用的工具使用模式：
+Task completed. Please analyze this conversation to identify reusable tool usage patterns.
 
-**评估标准：**
-- 是否涉及 5+ 次工具调用的复杂操作
-- 是否存在重复的操作模式
-- 是否可以抽象为可复用的技能
+**Evaluation criteria:**
+- Does it involve 5+ tool calls in a complex operation?
+- Are there repeated operation patterns?
+- Can it be abstracted into a reusable skill?
 
-**决策：**
-- 如果发现有价值的模式，请调用 `skill enhance` 命令创建或改进技能
-- 如果没有发现值得增强的模式，请直接回复"无需增强"并结束
+**Decision:**
+- If valuable patterns are found, run `skill:enhance` to create or improve skills
+- If no patterns worth enhancing, simply reply "No enhancement needed" and end
 
-注意：这是自动增强检查，请简洁回复。
+Note: This is an automatic enhancement check. Keep your response brief.
