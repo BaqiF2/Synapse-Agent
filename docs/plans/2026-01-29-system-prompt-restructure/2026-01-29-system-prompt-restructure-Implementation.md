@@ -423,9 +423,9 @@ git commit -m "refactor(system-prompt): simplify to 6-section structure"
 ## Task 4: Rename tools command to command:search
 
 **Files:**
-- Modify: `src/tools/handlers/field-bash/tools-search.ts`
+- Modify: `src/tools/handlers/field-bash/command-search.ts`
 - Modify: `src/tools/bash-router.ts`
-- Modify: `src/tools/handlers/field-bash/tools-search.md` (help file)
+- Modify: `src/tools/handlers/field-bash/command-search.md` (help file)
 
 **Step 1: Write failing test**
 
@@ -461,7 +461,7 @@ bun test tests/unit/tools/bash-router-skill.test.ts -v
 
 Expected: FAIL
 
-**Step 3: Update tools-search.ts**
+**Step 3: Update command-search.ts**
 
 Rename and update the handler to support `command:search`:
 
@@ -640,7 +640,7 @@ Expected: PASS
 **Step 6: Commit**
 
 ```bash
-git add src/tools/handlers/field-bash/tools-search.ts src/tools/bash-router.ts
+git add src/tools/handlers/extend-bash/command-search.ts src/tools/bash-router.ts
 git commit -m "refactor(commands): rename tools to command:search"
 ```
 

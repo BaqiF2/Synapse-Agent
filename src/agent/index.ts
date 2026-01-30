@@ -44,14 +44,14 @@ export {
 } from './agent-runner.ts';
 
 // Skill Sub-Agent
-export { SkillSubAgent, type SkillSubAgentOptions } from './skill-sub-agent.ts';
-export { SkillMemoryStore } from './skill-memory-store.ts';
+export { SkillSubAgent, type SkillSubAgentOptions } from '../skill-sub-agent/index.ts';
+export { SkillMemoryStore } from '../skill-sub-agent/index.ts';
 export {
   buildSkillSubAgentPrompt,
   buildSkillSubAgentToolSection,
   SKILL_SEARCH_INSTRUCTIONS,
   SKILL_ENHANCE_INSTRUCTIONS,
-} from './skill-sub-agent-prompt.ts';
+} from '../skill-sub-agent/index.ts';
 export {
   type SkillMetadata,
   type SkillMatch,
@@ -65,7 +65,7 @@ export {
   SkillEnhanceResultSchema,
   SkillEvaluateResultSchema,
   SkillSubAgentCommandSchema,
-} from './skill-sub-agent-types.ts';
+} from '../skill-sub-agent/index.ts';
 
 // Auto Enhance Trigger
 export {

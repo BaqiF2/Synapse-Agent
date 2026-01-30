@@ -11,7 +11,7 @@ import {
   SkillSubAgentCommandSchema,
   type SkillMetadata,
   type SkillSearchResult,
-} from '../../../src/agent/skill-sub-agent-types.ts';
+} from '../../../src/skill-sub-agent/skill-sub-agent-types.ts';
 
 describe('SkillMetadataSchema', () => {
   it('should validate valid skill metadata', () => {

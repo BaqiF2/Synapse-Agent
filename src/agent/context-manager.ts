@@ -12,8 +12,7 @@
 import type Anthropic from '@anthropic-ai/sdk';
 import type { ContextPersistence } from './context-persistence.ts';
 
-const DEFAULT_MAX_MESSAGES = parseInt(process.env.MAX_CONTEXT_MESSAGES || '50', 10);
-const DEFAULT_MAX_TOKENS = parseInt(process.env.MAX_CONTEXT_TOKENS || '100000', 10);
+const DEFAULT_MAX_TOKENS = parseInt(process.env.MAX_CONTEXT_TOKENS || '200000', 10);
 
 /**
  * Tool result content type
@@ -43,7 +42,6 @@ export interface ToolCall {
  * Context manager configuration options
  */
 export interface ContextManagerOptions {
-  maxMessages?: number;
   maxTokens?: number;
   persistence?: ContextPersistence;
 }
@@ -53,12 +51,10 @@ export interface ContextManagerOptions {
  */
 export class ContextManager {
   private messages: ConversationMessage[] = [];
-  private maxMessages: number;
   private maxTokens: number;
   private persistence?: ContextPersistence;
 
   constructor(options?: ContextManagerOptions) {
-    this.maxMessages = options?.maxMessages ?? DEFAULT_MAX_MESSAGES;
     this.maxTokens = options?.maxTokens ?? DEFAULT_MAX_TOKENS;
     this.persistence = options?.persistence;
   }
@@ -88,9 +84,10 @@ export class ContextManager {
    * Load messages from persistence
    */
   loadFromPersistence(): void {
-    if (this.persistence) {
-      this.messages = this.persistence.loadMessages();
+    if (!this.persistence) {
+      return;
     }
+    this.messages = this.persistence.loadMessages();
   }
 
   /**
@@ -105,9 +102,7 @@ export class ContextManager {
     this.trimContext();
 
     // Persist
-    if (this.persistence) {
-      this.persistence.appendMessage(message);
-    }
+    this.persistMessage(message);
   }
 
   /**
@@ -124,9 +119,7 @@ export class ContextManager {
     this.trimContext();
 
     // Persist
-    if (this.persistence) {
-      this.persistence.appendMessage(message);
-    }
+    this.persistMessage(message);
   }
 
   /**
@@ -161,9 +154,7 @@ export class ContextManager {
       this.messages.push(message);
 
       // Persist
-      if (this.persistence) {
-        this.persistence.appendMessage(message);
-      }
+      this.persistMessage(message);
     }
     this.trimContext();
   }
@@ -181,9 +172,7 @@ export class ContextManager {
     this.messages.push(message);
 
     // Persist
-    if (this.persistence) {
-      this.persistence.appendMessage(message);
-    }
+    this.persistMessage(message);
 
     this.trimContext();
   }
@@ -225,25 +214,43 @@ export class ContextManager {
   }
 
   /**
+   * Estimate token count for a message content block
+   */
+  private estimateContentTokens(content: ConversationMessage['content']): number {
+    if (typeof content === 'string') {
+      return this.estimateTokens(content);
+    }
+
+    if (!Array.isArray(content)) {
+      return 0;
+    }
+
+    let total = 0;
+    for (const block of content) {
+      if ('text' in block && typeof block.text === 'string') {
+        total += this.estimateTokens(block.text);
+        continue;
+      }
+      if ('content' in block && typeof block.content === 'string') {
+        total += this.estimateTokens(block.content);
+        continue;
+      }
+      if ('input' in block) {
+        total += this.estimateTokens(JSON.stringify(block.input));
+      }
+    }
+
+    return total;
+  }
+
+  /**
    * Estimate total token count of all messages
    */
   private estimateTotalTokens(): number {
     let total = 0;
 
     for (const message of this.messages) {
-      if (typeof message.content === 'string') {
-        total += this.estimateTokens(message.content);
-      } else if (Array.isArray(message.content)) {
-        for (const block of message.content) {
-          if ('text' in block && typeof block.text === 'string') {
-            total += this.estimateTokens(block.text);
-          } else if ('content' in block && typeof block.content === 'string') {
-            total += this.estimateTokens(block.content);
-          } else if ('input' in block) {
-            total += this.estimateTokens(JSON.stringify(block.input));
-          }
-        }
-      }
+      total += this.estimateContentTokens(message.content);
     }
 
     return total;
@@ -253,11 +260,6 @@ export class ContextManager {
    * Trim context to stay within limits
    */
   private trimContext(): void {
-    // Trim by message count
-    while (this.messages.length > this.maxMessages) {
-      this.messages.shift();
-    }
-
     // Trim by token count
     while (this.estimateTotalTokens() > this.maxTokens && this.messages.length > 2) {
       // Keep at least the last exchange
@@ -323,6 +325,13 @@ export class ContextManager {
     if (mutated) {
       this.messages = cleaned;
     }
+  }
+
+  /**
+   * Persist a message when persistence is enabled
+   */
+  private persistMessage(message: ConversationMessage): void {
+    this.persistence?.appendMessage(message);
   }
 
   /**

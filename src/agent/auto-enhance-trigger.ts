@@ -24,13 +24,23 @@ const logger = createLogger('auto-enhance-trigger');
  */
 const DEFAULT_SYNAPSE_DIR = path.join(os.homedir(), '.synapse');
 
+const DEFAULT_MIN_UNIQUE_TOOLS_THRESHOLD = 2;
+const CLARIFICATION_KEYWORDS = ['clarif', 'mean', 'actually', 'instead'];
+
+function parseThreshold(value: string | undefined, fallback: number): number {
+  const parsed = parseInt(value ?? '', 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return fallback;
+  }
+  return parsed;
+}
+
 /**
  * Thresholds for triggering enhancement
  */
-const parsedMinTools = parseInt(process.env.SYNAPSE_AUTO_ENHANCE_MIN_TOOLS || '5', 10);
-const parsedMinUnique = parseInt(process.env.SYNAPSE_AUTO_ENHANCE_MIN_UNIQUE || '2', 10);
-const MIN_TOOL_CALLS_THRESHOLD = Number.isFinite(parsedMinTools) ? parsedMinTools : 5;
-const MIN_UNIQUE_TOOLS_THRESHOLD = Number.isFinite(parsedMinUnique) ? parsedMinUnique : 2;
+function getMinUniqueToolsThreshold(): number {
+  return parseThreshold(process.env.SYNAPSE_MIN_ENHANCE_UNIQUE_TOOLS, DEFAULT_MIN_UNIQUE_TOOLS_THRESHOLD);
+}
 
 /**
  * Task context for enhancement decision
@@ -145,8 +155,11 @@ export class AutoEnhanceTrigger {
     }
 
     const hasSkillsUsed = context.skillsUsed.length > 0;
-    const meetsComplexityThreshold =
-      context.userClarifications >= 2 || context.toolCallCount >= MIN_TOOL_CALLS_THRESHOLD;
+    const uniqueToolCount = context.uniqueTools.length;
+    const minUniqueTools = getMinUniqueToolsThreshold();
+    const hasMultipleClarifications = context.userClarifications >= 2;
+    const hasEnoughToolVariety = uniqueToolCount >= minUniqueTools;
+    const meetsComplexityThreshold = hasMultipleClarifications || hasEnoughToolVariety;
 
     // Skills worked well - no enhancement needed
     if (hasSkillsUsed && context.skillsWorkedWell) {
@@ -159,17 +172,10 @@ export class AutoEnhanceTrigger {
     }
 
     // Check complexity thresholds for new skill creation
-    if (context.toolCallCount < MIN_TOOL_CALLS_THRESHOLD) {
+    if (!hasEnoughToolVariety) {
       return this.createDecision(
         false,
-        `Task too simple (${context.toolCallCount} tool calls, need ${MIN_TOOL_CALLS_THRESHOLD}+)`
-      );
-    }
-
-    if (context.uniqueTools.length < MIN_UNIQUE_TOOLS_THRESHOLD) {
-      return this.createDecision(
-        false,
-        `Not enough tool variety (${context.uniqueTools.length} unique tools)`
+        `Not enough tool variety (${uniqueToolCount} unique tools)`
       );
     }
 
@@ -178,7 +184,7 @@ export class AutoEnhanceTrigger {
       return this.createDecision(true, 'Scripts were generated, potential for reusable skill', 'create');
     }
 
-    if (context.userClarifications >= 2) {
+    if (hasMultipleClarifications) {
       return this.createDecision(true, 'Multiple clarifications needed, workflow can be documented', 'create');
     }
 
@@ -250,9 +256,10 @@ export class AutoEnhanceTrigger {
     let scriptsGenerated = 0;
 
     for (const turn of turns) {
-      if (turn.toolCalls) {
-        toolCallCount += turn.toolCalls.length;
-        for (const call of turn.toolCalls) {
+      const toolCalls = turn.toolCalls ?? [];
+      if (toolCalls.length > 0) {
+        toolCallCount += toolCalls.length;
+        for (const call of toolCalls) {
           toolSet.add(call.name);
         }
       }
@@ -260,19 +267,14 @@ export class AutoEnhanceTrigger {
       // Count clarification patterns
       if (turn.role === 'user' && turn.content) {
         const content = turn.content.toLowerCase();
-        if (
-          content.includes('clarif') ||
-          content.includes('mean') ||
-          content.includes('actually') ||
-          content.includes('instead')
-        ) {
+        if (CLARIFICATION_KEYWORDS.some((keyword) => content.includes(keyword))) {
           userClarifications++;
         }
       }
 
       // Count script generation
-      if (turn.role === 'assistant' && turn.toolCalls) {
-        for (const call of turn.toolCalls) {
+      if (turn.role === 'assistant' && toolCalls.length > 0) {
+        for (const call of toolCalls) {
           if (call.name === 'write' || call.name === 'edit') {
             scriptsGenerated++;
           }

@@ -30,7 +30,7 @@ import { initializeMcpTools } from '../tools/converters/mcp/index.ts';
 import { initializeSkillTools } from '../tools/converters/skill/index.ts';
 import { createLogger } from '../utils/logger.ts';
 import { SettingsManager } from '../config/settings-manager.ts';
-import { SkillSubAgent } from '../agent/skill-sub-agent.ts';
+import { SkillSubAgent } from '../skill-sub-agent/skill-sub-agent.ts';
 import { TerminalRenderer } from './terminal-renderer.ts';
 
 const cliLogger = createLogger('cli');
@@ -62,7 +62,7 @@ function printSectionHeader(title: string): void {
  */
 const HISTORY_FILE =
   process.env.SYNAPSE_HISTORY_FILE || path.join(os.homedir(), '.synapse', '.repl_history');
-const MAX_HISTORY_SIZE = parseInt(process.env.SYNAPSE_MAX_HISTORY || '1000', 10);
+const MAX_HISTORY_SIZE = parseInt(process.env.SYNAPSE_MAX_HISTORY || '100', 10);
 const MAX_TOOL_ITERATIONS = parseInt(process.env.SYNAPSE_MAX_TOOL_ITERATIONS || '50', 10);
 const PERSISTENCE_ENABLED = process.env.SYNAPSE_PERSISTENCE_ENABLED !== 'false';
 

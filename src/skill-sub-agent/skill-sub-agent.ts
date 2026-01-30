@@ -18,8 +18,13 @@ import { randomUUID } from 'node:crypto';
 import { createLogger } from '../utils/logger.ts';
 import { SkillMemoryStore } from './skill-memory-store.ts';
 import { buildSkillSubAgentPrompt } from './skill-sub-agent-prompt.ts';
-import { AgentRunner, type AgentRunnerLlmClient, type AgentRunnerToolExecutor, type ToolCallInfo } from './agent-runner.ts';
-import { ContextManager } from './context-manager.ts';
+import {
+  AgentRunner,
+  type AgentRunnerLlmClient,
+  type AgentRunnerToolExecutor,
+  type ToolCallInfo,
+} from '../agent/agent-runner.ts';
+import { ContextManager } from '../agent/context-manager.ts';
 import { BashToolSchema } from '../tools/bash-tool-schema.ts';
 import { SkillDocParser } from '../skills/skill-schema.ts';
 import { SkillSearchResultSchema } from './skill-sub-agent-types.ts';

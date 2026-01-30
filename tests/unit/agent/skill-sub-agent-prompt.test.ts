@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it } from 'bun:test';
-import { buildSkillSubAgentPrompt } from '../../../src/agent/skill-sub-agent-prompt.ts';
+import { buildSkillSubAgentPrompt } from '../../../src/skill-sub-agent/skill-sub-agent-prompt.ts';
 
 describe('buildSkillSubAgentPrompt', () => {
   it('should include role definition first', () => {

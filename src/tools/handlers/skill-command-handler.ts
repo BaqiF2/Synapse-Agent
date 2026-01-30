@@ -13,7 +13,7 @@
 import * as path from 'node:path';
 import * as os from 'node:os';
 import type { CommandResult } from './base-bash-handler.ts';
-import { SkillSubAgent } from '../../agent/skill-sub-agent.ts';
+import { SkillSubAgent } from '../../skill-sub-agent/skill-sub-agent.ts';
 import { type AgentRunnerLlmClient, type AgentRunnerToolExecutor } from '../../agent/agent-runner.ts';
 import { SettingsManager } from '../../config/settings-manager.ts';
 import { createLogger } from '../../utils/logger.ts';

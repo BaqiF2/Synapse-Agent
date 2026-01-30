@@ -22,7 +22,7 @@ const hasToolResult = (messages: Array<{ content: unknown }>): boolean => {
 
 describe('ContextManager', () => {
   it('removes dangling tool_result blocks after trimming', () => {
-    const contextManager = new ContextManager({ maxMessages: 2 });
+    const contextManager = new ContextManager({ maxTokens: 1 });
 
     contextManager.addAssistantToolCall('', [
       { id: 't1', name: 'Bash', input: { command: 'echo hi' } },

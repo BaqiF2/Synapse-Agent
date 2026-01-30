@@ -49,7 +49,7 @@ src/
 │       │   ├── bash-wrapper.md           # bash 帮助文本
 │       │   └── skill-search.md           # skill search 帮助文本
 │       └── field-bash/
-│           └── tools-search.md           # tools 帮助文本
+│           └── command-search.md           # tools 帮助文本
 ```
 
 ## loadDesc Implementation

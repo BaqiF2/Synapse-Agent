@@ -20,15 +20,30 @@ import { SkillLoader } from './skill-loader.ts';
 
 const logger = createLogger('skill-enhancer');
 
+const DEFAULT_MIN_TOOL_CALLS = 3;
+const DEFAULT_MIN_UNIQUE_TOOLS = 2;
+
+function parseThreshold(value: string | undefined, fallback: number): number {
+  const parsed = parseInt(value ?? '', 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return fallback;
+  }
+  return parsed;
+}
+
 /**
  * Minimum tool calls to consider enhancement
  */
-const MIN_TOOL_CALLS = parseInt(process.env.SYNAPSE_MIN_ENHANCE_TOOL_CALLS || '3', 10);
+function getMinToolCalls(): number {
+  return parseThreshold(process.env.SYNAPSE_MIN_ENHANCE_TOOL_CALLS, DEFAULT_MIN_TOOL_CALLS);
+}
 
 /**
  * Minimum unique tools to consider enhancement
  */
-const MIN_UNIQUE_TOOLS = parseInt(process.env.SYNAPSE_MIN_ENHANCE_UNIQUE_TOOLS || '2', 10);
+function getMinUniqueTools(): number {
+  return parseThreshold(process.env.SYNAPSE_MIN_ENHANCE_UNIQUE_TOOLS, DEFAULT_MIN_UNIQUE_TOOLS);
+}
 
 /**
  * Conversation analysis result
@@ -135,19 +150,20 @@ export class SkillEnhancer {
   shouldEnhance(analysis: ConversationAnalysis): EnhanceDecision {
     const { summary, toolSequence } = analysis;
 
-    // Check minimum complexity thresholds
-    if (summary.toolCalls < MIN_TOOL_CALLS) {
+    const minToolCalls = getMinToolCalls();
+    if (summary.toolCalls < minToolCalls) {
       return {
         shouldEnhance: false,
-        reason: `Task too simple (${summary.toolCalls} tool calls, need ${MIN_TOOL_CALLS}+)`,
+        reason: `Task too simple (${summary.toolCalls} tool calls, need ${minToolCalls}+)`,
         suggestedAction: 'none',
       };
     }
 
-    if (summary.uniqueTools.length < MIN_UNIQUE_TOOLS) {
+    const minUniqueTools = getMinUniqueTools();
+    if (summary.uniqueTools.length < minUniqueTools) {
       return {
         shouldEnhance: false,
-        reason: `Not enough tool variety (${summary.uniqueTools.length} unique, need ${MIN_UNIQUE_TOOLS}+)`,
+        reason: `Not enough tool variety (${summary.uniqueTools.length} unique, need ${minUniqueTools}+)`,
         suggestedAction: 'none',
       };
     }

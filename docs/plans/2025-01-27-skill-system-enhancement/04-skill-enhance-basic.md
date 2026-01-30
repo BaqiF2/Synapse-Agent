@@ -1139,11 +1139,6 @@ const logger = createLogger('skill-enhancer');
 const DEFAULT_SYNAPSE_DIR = path.join(os.homedir(), '.synapse');
 
 /**
- * Minimum tool calls to consider enhancement
- */
-const MIN_TOOL_CALLS = parseInt(process.env.SYNAPSE_MIN_ENHANCE_TOOL_CALLS || '3', 10);
-
-/**
  * Minimum unique tools to consider enhancement
  */
 const MIN_UNIQUE_TOOLS = parseInt(process.env.SYNAPSE_MIN_ENHANCE_UNIQUE_TOOLS || '2', 10);
@@ -1252,15 +1247,6 @@ export class SkillEnhancer {
    */
   shouldEnhance(analysis: ConversationAnalysis): EnhanceDecision {
     const { summary, toolSequence } = analysis;
-
-    // Check minimum complexity thresholds
-    if (summary.toolCalls < MIN_TOOL_CALLS) {
-      return {
-        shouldEnhance: false,
-        reason: `Task too simple (${summary.toolCalls} tool calls, need ${MIN_TOOL_CALLS}+)`,
-        suggestedAction: 'none',
-      };
-    }
 
     if (summary.uniqueTools.length < MIN_UNIQUE_TOOLS) {
       return {

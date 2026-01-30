@@ -213,12 +213,8 @@ const DEFAULT_SYNAPSE_DIR = path.join(os.homedir(), '.synapse');
 /**
  * Thresholds for triggering enhancement
  */
-const MIN_TOOL_CALLS_THRESHOLD = parseInt(
-  process.env.SYNAPSE_AUTO_ENHANCE_MIN_TOOLS || '5',
-  10
-);
 const MIN_UNIQUE_TOOLS_THRESHOLD = parseInt(
-  process.env.SYNAPSE_AUTO_ENHANCE_MIN_UNIQUE || '2',
+  process.env.SYNAPSE_MIN_ENHANCE_UNIQUE_TOOLS || '2',
   10
 );
 
@@ -340,22 +336,13 @@ export class AutoEnhanceTrigger {
 
     // Check if skills were used but had issues (potential enhancement)
     if (context.skillsUsed.length > 0 && !context.skillsWorkedWell) {
-      if (context.userClarifications >= 2 || context.toolCallCount >= MIN_TOOL_CALLS_THRESHOLD) {
+      if (context.userClarifications >= 2 || context.uniqueTools.length >= MIN_UNIQUE_TOOLS_THRESHOLD) {
         return {
           shouldTrigger: true,
           reason: 'Skills were used but may need improvement',
           suggestedAction: 'enhance',
         };
       }
-    }
-
-    // Check complexity thresholds for new skill creation
-    if (context.toolCallCount < MIN_TOOL_CALLS_THRESHOLD) {
-      return {
-        shouldTrigger: false,
-        reason: `Task too simple (${context.toolCallCount} tool calls, need ${MIN_TOOL_CALLS_THRESHOLD}+)`,
-        suggestedAction: 'none',
-      };
     }
 
     if (context.uniqueTools.length < MIN_UNIQUE_TOOLS_THRESHOLD) {

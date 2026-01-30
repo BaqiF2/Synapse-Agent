@@ -15,8 +15,8 @@ import type { CommandResult } from '../base-bash-handler.ts';
 import { toCommandErrorResult } from './command-utils.ts';
 import { loadDesc } from '../../../utils/load-desc.js';
 
-const DEFAULT_MAX_RESULTS = parseInt(process.env.GREP_MAX_RESULTS || '50', 10);
-const DEFAULT_CONTEXT_LINES = parseInt(process.env.GREP_CONTEXT_LINES || '0', 10);
+const DEFAULT_MAX_RESULTS = parseInt(process.env.GREP_MAX_RESULTS || '100', 10);
+const DEFAULT_CONTEXT_LINES = parseInt(process.env.GREP_CONTEXT_LINES || '2000', 10);
 const USAGE = 'Usage: search <pattern> [--path <dir>] [--type <type>] [--context <n>]';
 
 /**

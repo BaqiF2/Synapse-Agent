@@ -42,7 +42,7 @@ const LOG_DIR = process.env.SYNAPSE_LOG_DIR || path.join(os.homedir(), '.synapse
 const LOG_FILE = process.env.SYNAPSE_LOG_FILE || 'agent.log';
 const LOG_LEVEL = parseLogLevel(process.env.SYNAPSE_LOG_LEVEL || 'INFO');
 const LOG_TO_FILE = process.env.SYNAPSE_LOG_TO_FILE !== 'false';
-const LOG_TO_CONSOLE = process.env.SYNAPSE_LOG_TO_CONSOLE !== 'false';
+const LOG_TO_CONSOLE = false;
 const LOG_MAX_SIZE = parseInt(process.env.SYNAPSE_LOG_MAX_SIZE || '10485760', 10); // 10MB default
 
 /**

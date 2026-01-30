@@ -22,7 +22,7 @@ import { BashToolSchema } from '../../../src/tools/bash-tool-schema.js';
 import { SkillLoader } from '../../../src/skills/skill-loader.js';
 import { SkillIndexer } from '../../../src/skills/indexer.js';
 import { SkillSearchHandler } from '../../../src/tools/handlers/agent-bash/skill-search.js';
-import { CommandSearchHandler } from '../../../src/tools/handlers/field-bash/tools-search.js';
+import { CommandSearchHandler } from '../../../src/tools/handlers/extend-bash/command-search.js';
 import { McpConfigParser } from '../../../src/tools/converters/mcp/config-parser.js';
 import { McpInstaller } from '../../../src/tools/converters/mcp/installer.js';
 import { executeShellCommand, handleSpecialCommand, type ReplState } from '../../../src/cli/repl.js';

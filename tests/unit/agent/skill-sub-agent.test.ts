@@ -8,7 +8,7 @@ import { describe, expect, it, beforeEach, afterEach, mock } from 'bun:test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
-import { SkillSubAgent } from '../../../src/agent/skill-sub-agent.ts';
+import { SkillSubAgent } from '../../../src/skill-sub-agent/skill-sub-agent.ts';
 
 describe('SkillSubAgent', () => {
   let testDir: string;

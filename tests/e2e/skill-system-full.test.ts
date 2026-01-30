@@ -11,7 +11,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
 import { SkillCommandHandler } from '../../src/tools/handlers/skill-command-handler.ts';
-import { SkillSubAgent } from '../../src/agent/skill-sub-agent.ts';
+import { SkillSubAgent } from '../../src/skill-sub-agent/skill-sub-agent.ts';
 import { SkillEnhancer } from '../../src/skills/skill-enhancer.ts';
 import { SkillGenerator } from '../../src/skills/skill-generator.ts';
 import { SkillIndexUpdater } from '../../src/skills/index-updater.ts';

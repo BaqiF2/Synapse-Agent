@@ -7,4 +7,4 @@
  * - CommandSearchHandler: command:search handler
  */
 
-export { CommandSearchHandler, parseCommandSearchCommand, type ParsedCommandSearchCommand } from './tools-search.ts';
+export { CommandSearchHandler, parseCommandSearchCommand, type ParsedCommandSearchCommand } from './command-search.ts';

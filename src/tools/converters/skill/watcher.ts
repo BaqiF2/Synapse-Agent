@@ -31,7 +31,7 @@ const DEFAULT_SKILLS_DIR = '.synapse/skills';
 /**
  * Default debounce delay in milliseconds
  */
-const DEFAULT_DEBOUNCE_MS = parseInt(process.env.SKILL_WATCHER_DEBOUNCE_MS || '300', 10);
+const DEFAULT_DEBOUNCE_MS = parseInt(process.env.SKILL_WATCHER_DEBOUNCE_MS || '1500', 10);
 
 const logger = createLogger('skill-watcher');
 

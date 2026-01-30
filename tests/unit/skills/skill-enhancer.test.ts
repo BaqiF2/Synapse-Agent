@@ -15,8 +15,15 @@ describe('SkillEnhancer', () => {
   let skillsDir: string;
   let conversationsDir: string;
   let enhancer: SkillEnhancer;
+  let originalMinUniqueTools: string | undefined;
+  let originalMinToolCalls: string | undefined;
 
   beforeEach(() => {
+    originalMinUniqueTools = process.env.SYNAPSE_MIN_ENHANCE_UNIQUE_TOOLS;
+    originalMinToolCalls = process.env.SYNAPSE_MIN_ENHANCE_TOOL_CALLS;
+    process.env.SYNAPSE_MIN_ENHANCE_UNIQUE_TOOLS = '2';
+    process.env.SYNAPSE_MIN_ENHANCE_TOOL_CALLS = '3';
+
     testDir = fs.mkdtempSync(path.join(os.tmpdir(), 'synapse-enhance-test-'));
     skillsDir = path.join(testDir, '.synapse', 'skills');
     conversationsDir = path.join(testDir, 'conversations');
@@ -28,6 +35,16 @@ describe('SkillEnhancer', () => {
 
   afterEach(() => {
     fs.rmSync(testDir, { recursive: true, force: true });
+    if (originalMinUniqueTools === undefined) {
+      delete process.env.SYNAPSE_MIN_ENHANCE_UNIQUE_TOOLS;
+    } else {
+      process.env.SYNAPSE_MIN_ENHANCE_UNIQUE_TOOLS = originalMinUniqueTools;
+    }
+    if (originalMinToolCalls === undefined) {
+      delete process.env.SYNAPSE_MIN_ENHANCE_TOOL_CALLS;
+    } else {
+      process.env.SYNAPSE_MIN_ENHANCE_TOOL_CALLS = originalMinToolCalls;
+    }
   });
 
   describe('analyzeConversation', () => {
