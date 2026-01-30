@@ -290,9 +290,14 @@ export function buildSystemPrompt(options?: SystemPromptOptions): string {
   // 6. Ultimate Reminders
   sections.push(loadDesc(path.join(PROMPTS_DIR, 'ultimate-reminders.md')));
 
-  // 7. Custom Instructions (optional)
+  // Current working directory (if provided)
+  if (options?.cwd) {
+    sections.push(`## Current Working Directory\n\n\`${options.cwd}\``);
+  }
+
+  // Custom instructions (optional, wrapped with heading)
   if (options?.customInstructions) {
-    sections.push(options.customInstructions);
+    sections.push(`## Additional Instructions\n\n${options.customInstructions}`);
   }
 
   return sections.join('\n\n');

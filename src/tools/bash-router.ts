@@ -510,7 +510,7 @@ export class BashRouter {
         }
       }
       return {
-        stdout: `Usage: ${commandPart} [args...]\nUse tools search "${commandPart}" for more info.`,
+        stdout: `Usage: ${commandPart} [args...]\nUse command:search "${commandPart}" for more info.`,
         stderr: '',
         exitCode: 0,
       };
