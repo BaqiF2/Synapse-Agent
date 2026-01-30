@@ -11,6 +11,32 @@ import * as os from 'node:os';
 import { SkillCommandHandler, parseSkillCommand, type SkillSearchLlmClient } from '../../../../src/tools/handlers/skill-command-handler.ts';
 
 describe('parseSkillCommand', () => {
+  // New format: skill:search, skill:load, skill:enhance
+  it('should parse skill:search command', () => {
+    const result = parseSkillCommand('skill:search pdf');
+    expect(result.subcommand).toBe('search');
+    expect(result.args).toContain('pdf');
+  });
+
+  it('should parse skill:load command', () => {
+    const result = parseSkillCommand('skill:load code-analyzer');
+    expect(result.subcommand).toBe('load');
+    expect(result.args).toContain('code-analyzer');
+  });
+
+  it('should parse skill:enhance command', () => {
+    const result = parseSkillCommand('skill:enhance --reason "test"');
+    expect(result.subcommand).toBe('enhance');
+    expect(result.options.reason).toBe('test');
+  });
+
+  it('should NOT parse skill:list (removed)', () => {
+    const result = parseSkillCommand('skill:list');
+    // skill:list is not a valid subcommand, should return null subcommand
+    expect(result.subcommand).toBeNull();
+  });
+
+  // Legacy format: skill search, skill load, skill enhance
   it('should parse skill search command', () => {
     const result = parseSkillCommand('skill search "code analysis"');
     expect(result.subcommand).toBe('search');
@@ -51,11 +77,6 @@ describe('parseSkillCommand', () => {
     expect(result.subcommand).toBe('search');
     expect(result.options.help).toBe(true);
   });
-
-  it('should handle skill list command', () => {
-    const result = parseSkillCommand('skill list');
-    expect(result.subcommand).toBe('list');
-  });
 });
 
 describe('SkillCommandHandler', () => {
@@ -93,8 +114,8 @@ Content here.
   });
 
   describe('execute', () => {
-    it('should handle skill list command', async () => {
-      const result = await handler.execute('skill list');
+    it('should handle skill:search with no query (lists all)', async () => {
+      const result = await handler.execute('skill:search');
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain('test-skill');
     });
@@ -122,9 +143,9 @@ Content here.
       const result = await handler.execute('skill --help');
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain('USAGE');
-      expect(result.stdout).toContain('search');
-      expect(result.stdout).toContain('load');
-      expect(result.stdout).toContain('enhance');
+      expect(result.stdout).toContain('skill:search');
+      expect(result.stdout).toContain('skill:load');
+      expect(result.stdout).toContain('skill:enhance');
     });
 
     it('should handle skill enhance --on command', async () => {
@@ -144,7 +165,7 @@ Content here.
       const result = await handler.execute('skill load --help');
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain('USAGE');
-      expect(result.stdout).toContain('skill load <skill-name>');
+      expect(result.stdout).toContain('skill:load <skill-name>');
       expect(result.stdout).toContain('ARGUMENTS');
     });
 
@@ -152,22 +173,22 @@ Content here.
       const result = await handler.execute('skill search -h');
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain('USAGE');
-      expect(result.stdout).toContain('skill search <query>');
+      expect(result.stdout).toContain('skill:search <query>');
       expect(result.stdout).toContain('semantic search');
     });
 
-    it('should handle skill list --help command', async () => {
-      const result = await handler.execute('skill list --help');
+    it('should handle skill:search --help command', async () => {
+      const result = await handler.execute('skill:search --help');
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain('USAGE');
-      expect(result.stdout).toContain('skill list');
+      expect(result.stdout).toContain('skill:search');
     });
 
     it('should handle skill enhance --help command', async () => {
       const result = await handler.execute('skill enhance --help');
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain('USAGE');
-      expect(result.stdout).toContain('skill enhance');
+      expect(result.stdout).toContain('skill:enhance');
       expect(result.stdout).toContain('--on');
       expect(result.stdout).toContain('--off');
     });

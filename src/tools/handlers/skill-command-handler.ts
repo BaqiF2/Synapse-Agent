@@ -34,11 +34,15 @@ const logger = createLogger('skill-command-handler');
  */
 const DEFAULT_SYNAPSE_DIR = path.join(os.homedir(), '.synapse');
 
+/** Valid skill subcommands */
+const SKILL_SUBCOMMANDS = ['search', 'load', 'enhance'] as const;
+type SkillSubcommand = typeof SKILL_SUBCOMMANDS[number];
+
 /**
  * Parsed skill command
  */
 export interface ParsedSkillCommand {
-  subcommand: 'search' | 'load' | 'enhance' | 'list' | 'help' | null;
+  subcommand: SkillSubcommand | 'help' | null;
   args: string[];
   options: {
     help?: boolean;
@@ -51,7 +55,16 @@ export interface ParsedSkillCommand {
 }
 
 /**
+ * Check if a string is a valid skill subcommand
+ */
+function isSkillSubcommand(value: string): value is SkillSubcommand {
+  return (SKILL_SUBCOMMANDS as readonly string[]).includes(value);
+}
+
+/**
  * Parse skill command arguments
+ *
+ * Supports both old format (skill search) and new format (skill:search)
  *
  * @param command - Full command string
  * @returns Parsed command structure
@@ -93,12 +106,23 @@ export function parseSkillCommand(command: string): ParsedSkillCommand {
     tokens.push(current);
   }
 
-  // Remove 'skill' prefix
-  if (tokens[0] === 'skill') {
-    tokens.shift();
+  // Handle new format: skill:search, skill:load, skill:enhance
+  const firstToken = tokens[0] || '';
+  if (firstToken.startsWith('skill:')) {
+    const subCmd = firstToken.slice('skill:'.length);
+    if (isSkillSubcommand(subCmd)) {
+      result.subcommand = subCmd;
+      tokens.shift(); // Remove the command token
+    }
+    // If not a valid subcommand (e.g. skill:name:tool), leave subcommand as null
+  } else {
+    // Old format: remove 'skill' prefix
+    if (tokens[0] === 'skill') {
+      tokens.shift();
+    }
   }
 
-  // Parse tokens
+  // Parse remaining tokens
   let i = 0;
   while (i < tokens.length) {
     const token = tokens[i];
@@ -118,8 +142,8 @@ export function parseSkillCommand(command: string): ParsedSkillCommand {
       i++;
       result.options.reason = tokens[i];
     } else if (token && !token.startsWith('--') && !result.subcommand) {
-      // First non-option is subcommand
-      if (token === 'search' || token === 'load' || token === 'enhance' || token === 'list') {
+      // First non-option is subcommand (old format)
+      if (isSkillSubcommand(token)) {
         result.subcommand = token;
       } else {
         // Treat as argument
@@ -211,9 +235,6 @@ export class SkillCommandHandler {
         case null:
           return this.showHelp();
 
-        case 'list':
-          return this.handleList();
-
         case 'load':
           return this.handleLoad(parsed.args[0]);
 
@@ -239,30 +260,6 @@ export class SkillCommandHandler {
         exitCode: 1,
       };
     }
-  }
-
-  /**
-   * Handle skill list command
-   */
-  private handleList(): CommandResult {
-    const descriptions = this.subAgent.getSkillDescriptions();
-
-    if (!descriptions) {
-      return {
-        stdout: 'No skills found. Create skills in ~/.synapse/skills/',
-        stderr: '',
-        exitCode: 0,
-      };
-    }
-
-    const count = this.subAgent.getSkillCount();
-    const output = `Available skills (${count}):\n\n${descriptions}`;
-
-    return {
-      stdout: output,
-      stderr: '',
-      exitCode: 0,
-    };
   }
 
   /**
@@ -303,7 +300,21 @@ export class SkillCommandHandler {
    */
   private async handleSearch(query: string): Promise<CommandResult> {
     if (!query) {
-      return this.handleList();
+      // List all skills when no query provided
+      const descriptions = this.subAgent.getSkillDescriptions();
+      if (!descriptions) {
+        return {
+          stdout: 'No skills found. Create skills in ~/.synapse/skills/',
+          stderr: '',
+          exitCode: 0,
+        };
+      }
+      const count = this.subAgent.getSkillCount();
+      return {
+        stdout: `Available skills (${count}):\n\n${descriptions}`,
+        stderr: '',
+        exitCode: 0,
+      };
     }
 
     // Use LLM-based semantic search if available
@@ -367,7 +378,7 @@ export class SkillCommandHandler {
 The agent will consider skill enhancement opportunities after complex tasks.
 This will consume additional tokens.
 
-Use \`skill enhance --off\` to disable.
+Use \`skill:enhance --off\` to disable.
 
 Auto-enhance is now enabled`,
         stderr: '',
@@ -394,11 +405,11 @@ Auto-enhance is now enabled`,
         stdout: `Skill Enhancement Status: ${enabled ? 'enabled' : 'disabled'}
 
 Usage:
-  skill enhance                   Analyze current conversation for skill enhancement
-  skill enhance --reason "..."    Provide reason for enhancement
-  skill enhance --on              Enable auto-enhance mode
-  skill enhance --off             Disable auto-enhance mode
-  skill enhance --conversation <path>  Manual enhance from specific conversation file
+  skill:enhance                   Analyze current conversation for skill enhancement
+  skill:enhance --reason "..."    Provide reason for enhancement
+  skill:enhance --on              Enable auto-enhance mode
+  skill:enhance --off             Disable auto-enhance mode
+  skill:enhance --conversation <path>  Manual enhance from specific conversation file
 
 Note: When called without --conversation, uses current session automatically.`,
         stderr: '',
@@ -468,24 +479,10 @@ Note: When called without --conversation, uses current session automatically.`,
    */
   private showSubcommandHelp(subcommand: string): CommandResult {
     const helpMessages: Record<string, string> = {
-      list: `skill list - List all available skills
+      search: `skill:search - Search for skills by keyword
 
 USAGE:
-    skill list [options]
-
-OPTIONS:
-    -h, --help    Show this help message
-
-DESCRIPTION:
-    Lists all available skills in the skills directory with their descriptions.
-
-EXAMPLES:
-    skill list              Show all skills`,
-
-      search: `skill search - Search for skills by keyword
-
-USAGE:
-    skill search <query> [options]
+    skill:search <query> [options]
 
 ARGUMENTS:
     <query>       Search keywords (supports multiple words in quotes)
@@ -496,15 +493,17 @@ OPTIONS:
 DESCRIPTION:
     Searches for skills matching the given query. Uses LLM semantic search
     when available, otherwise falls back to local keyword matching.
+    When called without a query, lists all available skills.
 
 EXAMPLES:
-    skill search pdf              Find PDF-related skills
-    skill search "code analysis"  Search with multiple words`,
+    skill:search pdf              Find PDF-related skills
+    skill:search "code analysis"  Search with multiple words
+    skill:search                  List all available skills`,
 
-      load: `skill load - Load a skill's content
+      load: `skill:load - Load a skill's content
 
 USAGE:
-    skill load <skill-name> [options]
+    skill:load <skill-name> [options]
 
 ARGUMENTS:
     <skill-name>  Name of the skill to load (required)
@@ -517,13 +516,13 @@ DESCRIPTION:
     is read directly from memory without using LLM.
 
 EXAMPLES:
-    skill load code-analyzer      Load the code-analyzer skill
-    skill load my-custom-skill    Load a custom skill`,
+    skill:load code-analyzer      Load the code-analyzer skill
+    skill:load my-custom-skill    Load a custom skill`,
 
-      enhance: `skill enhance - Analyze and enhance skills
+      enhance: `skill:enhance - Analyze and enhance skills
 
 USAGE:
-    skill enhance [options]
+    skill:enhance [options]
 
 OPTIONS:
     --reason <text>               Reason for enhancement (helps skill creation)
@@ -538,11 +537,11 @@ DESCRIPTION:
     identifies complex multi-step operations that could become reusable skills.
 
 EXAMPLES:
-    skill enhance                 Analyze current conversation
-    skill enhance --reason "Repeated file processing pattern"
+    skill:enhance                 Analyze current conversation
+    skill:enhance --reason "Repeated file processing pattern"
                                   Trigger with specific reason
-    skill enhance --on            Enable auto-enhance mode
-    skill enhance --off           Disable auto-enhance mode`,
+    skill:enhance --on            Enable auto-enhance mode
+    skill:enhance --off           Disable auto-enhance mode`,
     };
 
     const help = helpMessages[subcommand];
@@ -564,35 +563,34 @@ EXAMPLES:
     const help = `skill - Manage skills for Synapse Agent
 
 USAGE:
-    skill <subcommand> [options]
+    skill:<subcommand> [options]
+    skill <subcommand> [options]   (legacy format)
 
 SUBCOMMANDS:
-    list                    List all available skills
-    search <query>          Search for skills by keyword
-    load <name>             Load a skill's content
-    enhance                 Analyze and enhance skills
+    skill:search <query>    Search for skills by keyword
+    skill:load <name>       Load a skill's content
+    skill:enhance           Analyze and enhance skills
 
 GLOBAL OPTIONS:
     -h, --help              Show help (use with subcommand for detailed help)
 
 ENHANCE OPTIONS:
-    skill enhance           Analyze current conversation for skill enhancement
-    skill enhance --reason "..." Provide reason for enhancement
-    skill enhance --on      Enable auto skill enhancement mode
-    skill enhance --off     Disable auto skill enhancement mode
+    skill:enhance           Analyze current conversation for skill enhancement
+    skill:enhance --reason "..." Provide reason for enhancement
+    skill:enhance --on      Enable auto skill enhancement mode
+    skill:enhance --off     Disable auto skill enhancement mode
 
 EXAMPLES:
-    skill list              Show all skills
-    skill search pdf        Find PDF-related skills
-    skill load code-analyzer
+    skill:search pdf        Find PDF-related skills
+    skill:load code-analyzer
                             Load the code-analyzer skill
-    skill enhance --on      Enable auto-enhance after tasks
-    skill load --help       Show help for load subcommand
+    skill:enhance --on      Enable auto-enhance after tasks
+    skill:load --help       Show help for load subcommand
 
 SKILL LOCATION:
     Skills directory: ~/.synapse/skills/
 
-See also: tools search, mcp:*`;
+See also: command:search, mcp:*`;
 
     return {
       stdout: help,

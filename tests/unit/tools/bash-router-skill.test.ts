@@ -57,6 +57,25 @@ description: A test skill
     });
   });
 
+  describe('skill: new format routing', () => {
+    it('should identify skill:search as AGENT_SHELL_COMMAND', () => {
+      expect(router.identifyCommandType('skill:search')).toBe(CommandType.AGENT_SHELL_COMMAND);
+      expect(router.identifyCommandType('skill:search pdf')).toBe(CommandType.AGENT_SHELL_COMMAND);
+    });
+
+    it('should identify skill:load as AGENT_SHELL_COMMAND', () => {
+      expect(router.identifyCommandType('skill:load my-skill')).toBe(CommandType.AGENT_SHELL_COMMAND);
+    });
+
+    it('should identify skill:enhance as AGENT_SHELL_COMMAND', () => {
+      expect(router.identifyCommandType('skill:enhance --on')).toBe(CommandType.AGENT_SHELL_COMMAND);
+    });
+
+    it('should still identify skill:name:tool as EXTEND_SHELL_COMMAND', () => {
+      expect(router.identifyCommandType('skill:analyzer:run')).toBe(CommandType.EXTEND_SHELL_COMMAND);
+    });
+  });
+
   describe('identifyCommandType', () => {
     it('should identify skill list as AGENT_SHELL_COMMAND', () => {
       const type = router.identifyCommandType('skill list');
@@ -77,16 +96,11 @@ description: A test skill
       const type = router.identifyCommandType('skill enhance --on');
       expect(type).toBe(CommandType.AGENT_SHELL_COMMAND);
     });
-
-    it('should still identify skill:name:tool as EXTEND_SHELL_COMMAND', () => {
-      const type = router.identifyCommandType('skill:analyzer:run');
-      expect(type).toBe(CommandType.EXTEND_SHELL_COMMAND);
-    });
   });
 
   describe('route skill commands', () => {
-    it('should route skill list command', async () => {
-      const result = await router.route('skill list');
+    it('should route skill:search command', async () => {
+      const result = await router.route('skill:search');
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain('test-skill');
     });

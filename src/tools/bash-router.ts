@@ -126,8 +126,20 @@ export class BashRouter {
       return CommandType.AGENT_SHELL_COMMAND;
     }
 
-    // extend Shell command commands (Layer 3) - mcp:*, skill:*, tools
-    if (trimmed.startsWith('mcp:') || trimmed.startsWith('skill:') || trimmed.startsWith('tools ')) {
+    // Skill management commands (new format: skill:search, skill:load, skill:enhance)
+    if (trimmed.startsWith('skill:search') ||
+        trimmed.startsWith('skill:load') ||
+        trimmed.startsWith('skill:enhance')) {
+      return CommandType.AGENT_SHELL_COMMAND;
+    }
+
+    // extend Shell command commands (Layer 3) - mcp:*, skill:*:* (extension tools), tools
+    if (trimmed.startsWith('mcp:') || trimmed.startsWith('tools ')) {
+      return CommandType.EXTEND_SHELL_COMMAND;
+    }
+
+    // skill:*:* is Extension (for skill tool execution, e.g. skill:analyzer:run)
+    if (trimmed.startsWith('skill:') && trimmed.split(':').length >= 3) {
       return CommandType.EXTEND_SHELL_COMMAND;
     }
 
@@ -194,8 +206,11 @@ export class BashRouter {
       return await this.toolsHandler.executeCommandSearch(command);
     }
 
-    // Skill management commands
-    if (this.matchesCommand(trimmed, 'skill')) {
+    // Skill management commands (both old and new format)
+    if (this.matchesCommand(trimmed, 'skill') ||
+        trimmed.startsWith('skill:search') ||
+        trimmed.startsWith('skill:load') ||
+        trimmed.startsWith('skill:enhance')) {
       return await this.executeSkillManagementCommand(command);
     }
 
