@@ -71,12 +71,12 @@ describe('Skill System Full Integration', () => {
       handler = new SkillCommandHandler({ skillsDir, synapseDir: testDir });
 
       // 4. Search for skill
-      const searchResult = await handler.execute('skill search batch');
+      const searchResult = await handler.execute('skill:search batch');
       expect(searchResult.exitCode).toBe(0);
       expect(searchResult.stdout).toContain('file-processor');
 
       // 5. Load skill (body content doesn't include frontmatter description)
-      const loadResult = await handler.execute('skill load file-processor');
+      const loadResult = await handler.execute('skill:load file-processor');
       expect(loadResult.exitCode).toBe(0);
       expect(loadResult.stdout).toContain('File Processor'); // Title from body
     });
@@ -110,7 +110,7 @@ describe('Skill System Full Integration', () => {
   describe('Settings Persistence Across Components', () => {
     it('should share settings between components', async () => {
       // 1. Enable auto-enhance via handler
-      const enableResult = await handler.execute('skill enhance --on');
+      const enableResult = await handler.execute('skill:enhance --on');
       expect(enableResult.exitCode).toBe(0);
 
       // 2. Verify settings persisted
@@ -118,7 +118,7 @@ describe('Skill System Full Integration', () => {
       expect(settings.isAutoEnhanceEnabled()).toBe(true);
 
       // 3. Disable via handler
-      const disableResult = await handler.execute('skill enhance --off');
+      const disableResult = await handler.execute('skill:enhance --off');
       expect(disableResult.exitCode).toBe(0);
 
       // 4. Verify via fresh settings instance
@@ -127,14 +127,14 @@ describe('Skill System Full Integration', () => {
     });
 
     it('should maintain settings across handler restarts', async () => {
-      await handler.execute('skill enhance --on');
+      await handler.execute('skill:enhance --on');
 
       // Restart handler
       handler.shutdown();
       handler = new SkillCommandHandler({ skillsDir, synapseDir: testDir });
 
       // Check status
-      const statusResult = await handler.execute('skill enhance');
+      const statusResult = await handler.execute('skill:enhance');
       expect(statusResult.stdout).toContain('enabled');
     });
   });
@@ -167,18 +167,16 @@ describe('Skill System Full Integration', () => {
       handler = new SkillCommandHandler({ skillsDir, synapseDir: testDir });
 
       // Search for Python-related
-      const pythonResult = await handler.execute('skill search python');
+      const pythonResult = await handler.execute('skill:search python');
       expect(pythonResult.stdout).toContain('python-linter');
 
       // Search for code-related (should return multiple)
-      const codeResult = await handler.execute('skill search code');
+      const codeResult = await handler.execute('skill:search code');
       expect(codeResult.stdout).toContain('code-reviewer');
 
-      // List all (use skill:search with no query)
-      const listResult = await handler.execute('skill:search');
-      expect(listResult.stdout).toContain('python-linter');
-      expect(listResult.stdout).toContain('js-formatter');
-      expect(listResult.stdout).toContain('code-reviewer');
+      // Search for "format" to find js-formatter via description
+      const formatResult = await handler.execute('skill:search format');
+      expect(formatResult.stdout).toContain('js-formatter');
     });
   });
 
@@ -227,15 +225,16 @@ describe('Skill System Full Integration', () => {
 
   describe('Error Handling', () => {
     it('should handle missing skill gracefully', async () => {
-      const result = await handler.execute('skill load nonexistent-skill');
+      const result = await handler.execute('skill:load nonexistent-skill');
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain('not found');
     });
 
-    it('should handle invalid commands gracefully', async () => {
-      // Invalid subcommand is treated as search args
-      const result = await handler.execute('skill invalidcommand');
-      expect(result.exitCode).toBe(0);
+    it('should require query for skill:search', async () => {
+      // skill:search without query should return error
+      const result = await handler.execute('skill:search');
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain('<query> is required');
     });
 
     it('should handle corrupted skill files', () => {
@@ -329,7 +328,7 @@ describe('Skill System Full Integration', () => {
       handler = new SkillCommandHandler({ skillsDir, synapseDir: testDir });
 
       // Access through handler
-      const loadResult = await handler.execute('skill load handler-test');
+      const loadResult = await handler.execute('skill:load handler-test');
       expect(loadResult.exitCode).toBe(0);
       expect(loadResult.stdout).toContain('handler-test');
 
@@ -405,9 +404,9 @@ describe('Skill System Full Integration', () => {
 
       // Perform multiple searches
       const results = await Promise.all([
-        handler.execute('skill search search'),
-        handler.execute('skill search target'),
-        handler.execute('skill search skill'),
+        handler.execute('skill:search search'),
+        handler.execute('skill:search target'),
+        handler.execute('skill:search skill'),
       ]);
 
       // All should succeed

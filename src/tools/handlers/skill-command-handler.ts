@@ -1,11 +1,7 @@
 /**
  * Skill Command Handler
  *
- * Unified handler for all `skill` commands:
- * - skill search: Routes to Skill Sub-Agent for semantic search
- * - skill load: Reads directly from memory (no LLM)
- * - skill enhance: Routes to Skill Sub-Agent for enhancement
- * - skill list: Lists all available skills
+ * Unified handler for all skill commands (skill:search, skill:load, skill:enhance).
  *
  * @module skill-command-handler
  *
@@ -21,11 +17,6 @@ import { SkillSubAgent } from '../../agent/skill-sub-agent.ts';
 import { type AgentRunnerLlmClient, type AgentRunnerToolExecutor } from '../../agent/agent-runner.ts';
 import { SettingsManager } from '../../config/settings-manager.ts';
 import { createLogger } from '../../utils/logger.ts';
-
-/**
- * @deprecated Use AgentRunnerLlmClient from agent-runner.ts instead
- */
-export type SkillSearchLlmClient = AgentRunnerLlmClient;
 
 const logger = createLogger('skill-command-handler');
 
@@ -64,7 +55,7 @@ function isSkillSubcommand(value: string): value is SkillSubcommand {
 /**
  * Parse skill command arguments
  *
- * Supports both old format (skill search) and new format (skill:search)
+ * Only supports colon format: skill:search, skill:load, skill:enhance
  *
  * @param command - Full command string
  * @returns Parsed command structure
@@ -106,18 +97,12 @@ export function parseSkillCommand(command: string): ParsedSkillCommand {
     tokens.push(current);
   }
 
-  // Handle new format: skill:search, skill:load, skill:enhance
+  // Only support skill:search, skill:load, skill:enhance format
   const firstToken = tokens[0] || '';
   if (firstToken.startsWith('skill:')) {
     const subCmd = firstToken.slice('skill:'.length);
     if (isSkillSubcommand(subCmd)) {
       result.subcommand = subCmd;
-      tokens.shift(); // Remove the command token
-    }
-    // If not a valid subcommand (e.g. skill:name:tool), leave subcommand as null
-  } else {
-    // Old format: remove 'skill' prefix
-    if (tokens[0] === 'skill') {
       tokens.shift();
     }
   }
@@ -141,16 +126,7 @@ export function parseSkillCommand(command: string): ParsedSkillCommand {
     } else if (token === '--reason') {
       i++;
       result.options.reason = tokens[i];
-    } else if (token && !token.startsWith('--') && !result.subcommand) {
-      // First non-option is subcommand (old format)
-      if (isSkillSubcommand(token)) {
-        result.subcommand = token;
-      } else {
-        // Treat as argument
-        result.args.push(token);
-      }
     } else if (token && !token.startsWith('--')) {
-      // Additional arguments
       result.args.push(token);
     }
     i++;
@@ -184,7 +160,7 @@ export interface SkillCommandHandlerOptions {
  * Usage:
  * ```typescript
  * const handler = new SkillCommandHandler();
- * const result = await handler.execute('skill search "code analysis"');
+ * const result = await handler.execute('skill:search "code analysis"');
  * ```
  */
 export class SkillCommandHandler {
@@ -271,7 +247,7 @@ export class SkillCommandHandler {
     if (!skillName) {
       return {
         stdout: '',
-        stderr: 'Usage: skill load <skill-name>',
+        stderr: 'Usage: skill:load <skill-name>',
         exitCode: 1,
       };
     }
@@ -300,20 +276,10 @@ export class SkillCommandHandler {
    */
   private async handleSearch(query: string): Promise<CommandResult> {
     if (!query) {
-      // List all skills when no query provided
-      const descriptions = this.subAgent.getSkillDescriptions();
-      if (!descriptions) {
-        return {
-          stdout: 'No skills found. Create skills in ~/.synapse/skills/',
-          stderr: '',
-          exitCode: 0,
-        };
-      }
-      const count = this.subAgent.getSkillCount();
       return {
-        stdout: `Available skills (${count}):\n\n${descriptions}`,
-        stderr: '',
-        exitCode: 0,
+        stdout: '',
+        stderr: 'Error: <query> is required.\nUsage: skill:search <query>',
+        exitCode: 1,
       };
     }
 
@@ -485,7 +451,7 @@ USAGE:
     skill:search <query> [options]
 
 ARGUMENTS:
-    <query>       Search keywords (supports multiple words in quotes)
+    <query>       Search keywords (required, supports multiple words in quotes)
 
 OPTIONS:
     -h, --help    Show this help message
@@ -493,12 +459,10 @@ OPTIONS:
 DESCRIPTION:
     Searches for skills matching the given query. Uses LLM semantic search
     when available, otherwise falls back to local keyword matching.
-    When called without a query, lists all available skills.
 
 EXAMPLES:
     skill:search pdf              Find PDF-related skills
-    skill:search "code analysis"  Search with multiple words
-    skill:search                  List all available skills`,
+    skill:search "code analysis"  Search with multiple words`,
 
       load: `skill:load - Load a skill's content
 
@@ -564,7 +528,6 @@ EXAMPLES:
 
 USAGE:
     skill:<subcommand> [options]
-    skill <subcommand> [options]   (legacy format)
 
 SUBCOMMANDS:
     skill:search <query>    Search for skills by keyword

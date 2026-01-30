@@ -22,7 +22,7 @@ import { BashToolSchema } from '../../../src/tools/bash-tool-schema.js';
 import { SkillLoader } from '../../../src/skills/skill-loader.js';
 import { SkillIndexer } from '../../../src/skills/indexer.js';
 import { SkillSearchHandler } from '../../../src/tools/handlers/agent-bash/skill-search.js';
-import { ToolsHandler } from '../../../src/tools/handlers/field-bash/tools-search.js';
+import { CommandSearchHandler } from '../../../src/tools/handlers/field-bash/tools-search.js';
 import { McpConfigParser } from '../../../src/tools/converters/mcp/config-parser.js';
 import { McpInstaller } from '../../../src/tools/converters/mcp/installer.js';
 import { executeShellCommand, handleSpecialCommand, type ReplState } from '../../../src/cli/repl.js';
@@ -327,11 +327,11 @@ describe('Phase 1 E2E: TC-1 Three-Layer Bash Architecture', () => {
       expect(globHelpResult.stdout.toLowerCase()).toMatch(/usage|glob/i);
     });
 
-    test('should execute extend Shell command commands (tools)', async () => {
-      // Test that tools commands are routed correctly
-      const toolsHelpResult = await router.route('tools help');
-      expect(toolsHelpResult.exitCode).toBe(0);
-      expect(toolsHelpResult.stdout).toContain('tools');
+    test('should execute extend Shell command commands (command:search)', async () => {
+      // Test that command:search is routed correctly
+      const searchHelpResult = await router.route('command:search --help');
+      expect(searchHelpResult.exitCode).toBe(0);
+      expect(searchHelpResult.stdout).toContain('command:search');
     });
   });
 
@@ -676,39 +676,39 @@ describe('Phase 1 E2E: TC-3 Tool Conversion System', () => {
     });
   });
 
-  describe('TC-3.3: tools search Tool', () => {
-    test('should respond to tools help command', async () => {
-      const handler = new ToolsHandler();
-      const result = await handler.execute('tools help');
+  describe('TC-3.3: command:search Tool', () => {
+    test('should respond to command:search --help command', async () => {
+      const handler = new CommandSearchHandler();
+      const result = await handler.execute('command:search --help');
 
       expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain('tools');
+      expect(result.stdout).toContain('command:search');
     });
 
-    test('should respond to tools list command', async () => {
-      const handler = new ToolsHandler();
-      const result = await handler.execute('tools list');
+    test('should respond to command:search command (list all)', async () => {
+      const handler = new CommandSearchHandler();
+      const result = await handler.execute('command:search');
 
       expect(result.exitCode).toBe(0);
     });
 
     test('should search for tools by pattern', async () => {
-      const handler = new ToolsHandler();
-      const result = await handler.execute('tools search test');
+      const handler = new CommandSearchHandler();
+      const result = await handler.execute('command:search test');
 
       expect(result.exitCode).toBe(0);
     });
 
     test('should filter by type=mcp', async () => {
-      const handler = new ToolsHandler();
-      const result = await handler.execute('tools search --type=mcp');
+      const handler = new CommandSearchHandler();
+      const result = await handler.execute('command:search --type=mcp');
 
       expect(result.exitCode).toBe(0);
     });
 
     test('should filter by type=skill', async () => {
-      const handler = new ToolsHandler();
-      const result = await handler.execute('tools search --type=skill');
+      const handler = new CommandSearchHandler();
+      const result = await handler.execute('command:search --type=skill');
 
       expect(result.exitCode).toBe(0);
     });

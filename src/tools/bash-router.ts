@@ -13,7 +13,7 @@ import * as os from 'node:os';
 import type { BashSession } from './bash-session.ts';
 import { NativeShellCommandHandler, type CommandResult } from './handlers/base-bash-handler.ts';
 import { ReadHandler, WriteHandler, EditHandler, GlobHandler, GrepHandler, BashWrapperHandler } from './handlers/agent-bash/index.ts';
-import { ToolsHandler } from './handlers/field-bash/index.ts';
+import { CommandSearchHandler } from './handlers/field-bash/index.ts';
 import { McpConfigParser, McpClient, McpWrapperGenerator, McpInstaller } from './converters/mcp/index.ts';
 import { SkillStructure, DocstringParser, SkillWrapperGenerator } from './converters/skill/index.ts';
 import { SkillCommandHandler } from './handlers/skill-command-handler.ts';
@@ -25,7 +25,7 @@ import { type AgentRunnerLlmClient, type AgentRunnerToolExecutor } from '../agen
 export enum CommandType {
   NATIVE_SHELL_COMMAND = 'native_shell_command',       // Standard Unix commands
   AGENT_SHELL_COMMAND = 'agent_shell_command',         // Built-in Agent commands (read, write, edit, etc.)
-  EXTEND_SHELL_COMMAND = 'extend_shell_command', // Domain-specific tools (mcp:*, skill:*, tools)
+  EXTEND_SHELL_COMMAND = 'extend_shell_command', // Domain-specific tools (mcp:*, skill:*:*)
 }
 
 /**
@@ -58,7 +58,7 @@ export class BashRouter {
   private globHandler: GlobHandler;
   private grepHandler: GrepHandler;
   private bashWrapperHandler: BashWrapperHandler;
-  private toolsHandler: ToolsHandler;
+  private commandSearchHandler: CommandSearchHandler;
   private mcpInstaller: McpInstaller;
   private skillCommandHandler: SkillCommandHandler | null = null;
   private skillsDir: string;
@@ -81,7 +81,7 @@ export class BashRouter {
     this.globHandler = new GlobHandler();
     this.grepHandler = new GrepHandler();
     this.bashWrapperHandler = new BashWrapperHandler(session);
-    this.toolsHandler = new ToolsHandler();
+    this.commandSearchHandler = new CommandSearchHandler();
     this.mcpInstaller = new McpInstaller();
   }
 
@@ -126,29 +126,21 @@ export class BashRouter {
       return CommandType.AGENT_SHELL_COMMAND;
     }
 
-    // Skill management commands (new format: skill:search, skill:load, skill:enhance)
+    // Skill management commands: skill:search, skill:load, skill:enhance
     if (trimmed.startsWith('skill:search') ||
         trimmed.startsWith('skill:load') ||
         trimmed.startsWith('skill:enhance')) {
       return CommandType.AGENT_SHELL_COMMAND;
     }
 
-    // extend Shell command commands (Layer 3) - mcp:*, skill:*:* (extension tools), tools
-    if (trimmed.startsWith('mcp:') || trimmed.startsWith('tools ')) {
+    // extend Shell command commands (Layer 3) - mcp:*, skill:*:* (extension tools)
+    if (trimmed.startsWith('mcp:')) {
       return CommandType.EXTEND_SHELL_COMMAND;
     }
 
     // skill:*:* is Extension (for skill tool execution, e.g. skill:analyzer:run)
     if (trimmed.startsWith('skill:') && trimmed.split(':').length >= 3) {
       return CommandType.EXTEND_SHELL_COMMAND;
-    }
-
-    // Skill management commands (not skill:*:* which is Extension)
-    if (trimmed === 'skill' || trimmed === 'skill --help' || trimmed === 'skill -h') {
-      return CommandType.AGENT_SHELL_COMMAND;
-    }
-    if (trimmed.startsWith('skill ') && !trimmed.startsWith('skill:')) {
-      return CommandType.AGENT_SHELL_COMMAND;
     }
 
     // Agent Shell Command commands (Layer 2)
@@ -203,12 +195,11 @@ export class BashRouter {
 
     // command:search
     if (trimmed.startsWith('command:search')) {
-      return await this.toolsHandler.executeCommandSearch(command);
+      return await this.commandSearchHandler.execute(command);
     }
 
-    // Skill management commands (both old and new format)
-    if (this.matchesCommand(trimmed, 'skill') ||
-        trimmed.startsWith('skill:search') ||
+    // Skill management commands: skill:search, skill:load, skill:enhance
+    if (trimmed.startsWith('skill:search') ||
         trimmed.startsWith('skill:load') ||
         trimmed.startsWith('skill:enhance')) {
       return await this.executeSkillManagementCommand(command);
@@ -241,22 +232,17 @@ export class BashRouter {
 
   /**
    * Execute extend Shell command commands (Layer 3)
-   * Handles mcp:*, skill:*, and tools commands
+   * Handles mcp:* and skill:*:* commands
    */
   private async executeExtendShellCommand(command: string): Promise<CommandResult> {
     const trimmed = command.trim();
-
-    // Handle tools command
-    if (trimmed.startsWith('tools ') || trimmed === 'tools') {
-      return await this.toolsHandler.execute(command);
-    }
 
     // Handle mcp:* commands
     if (trimmed.startsWith('mcp:')) {
       return await this.executeMcpCommand(trimmed);
     }
 
-    // Handle skill:* commands
+    // Handle skill:*:* commands (extension tool execution)
     if (trimmed.startsWith('skill:')) {
       return await this.executeSkillCommand(trimmed);
     }
@@ -323,7 +309,7 @@ export class BashRouter {
           }
         }
         return {
-          stdout: `Usage: ${commandPart} [args...]\nUse tools search "${commandPart}" for more info.`,
+          stdout: `Usage: ${commandPart} [args...]\nUse command:search "${commandPart}" for more info.`,
           stderr: '',
           exitCode: 0,
         };

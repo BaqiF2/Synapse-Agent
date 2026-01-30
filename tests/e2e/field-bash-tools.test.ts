@@ -2,7 +2,7 @@
  * E2E Tests - extend Shell command Tools Integration
  *
  * Tests the complete flow of extend Shell command tools including:
- * - Tools search command
+ * - command:search command
  * - MCP configuration parsing
  * - Skill wrapper generation
  *
@@ -14,7 +14,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
 
-import { ToolsHandler } from '../../src/tools/handlers/field-bash/tools-search.js';
+import { CommandSearchHandler } from '../../src/tools/handlers/field-bash/tools-search.js';
 import { McpConfigParser } from '../../src/tools/converters/mcp/config-parser.js';
 import { McpInstaller } from '../../src/tools/converters/mcp/installer.js';
 
@@ -41,34 +41,34 @@ describe('E2E: extend Shell command Tools Integration', () => {
     }
   });
 
-  describe('Scenario 3: Tools Search', () => {
-    test('should show help with tools help', async () => {
-      const handler = new ToolsHandler();
-      const result = await handler.execute('tools help');
+  describe('Scenario 3: command:search Command', () => {
+    test('should show help with command:search --help', async () => {
+      const handler = new CommandSearchHandler();
+      const result = await handler.execute('command:search --help');
 
       expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain('tools');
-      expect(result.stdout).toContain('search');
+      expect(result.stdout).toContain('command:search');
+      expect(result.stdout).toContain('USAGE');
     });
 
-    test('should handle tools search command', async () => {
-      const handler = new ToolsHandler();
-      const result = await handler.execute('tools search test');
+    test('should handle command:search with pattern', async () => {
+      const handler = new CommandSearchHandler();
+      const result = await handler.execute('command:search test');
 
       // May or may not find tools depending on installation
       expect(result.exitCode).toBe(0);
     });
 
-    test('should handle tools list command', async () => {
-      const handler = new ToolsHandler();
-      const result = await handler.execute('tools list');
+    test('should handle command:search without pattern (list all)', async () => {
+      const handler = new CommandSearchHandler();
+      const result = await handler.execute('command:search');
 
       expect(result.exitCode).toBe(0);
     });
 
     test('should filter by type', async () => {
-      const handler = new ToolsHandler();
-      const result = await handler.execute('tools search --type=mcp');
+      const handler = new CommandSearchHandler();
+      const result = await handler.execute('command:search --type=mcp');
 
       expect(result.exitCode).toBe(0);
     });

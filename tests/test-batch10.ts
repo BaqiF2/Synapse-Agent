@@ -17,7 +17,7 @@ import * as os from 'node:os';
 import { SkillWatcher, type WatchEvent } from '../src/tools/converters/skill/watcher.js';
 import { SkillAutoUpdater, type UpdateEvent } from '../src/tools/converters/skill/auto-updater.js';
 import { SkillStructure } from '../src/tools/converters/skill/skill-structure.js';
-import { ToolsHandler } from '../src/tools/handlers/field-bash/tools-search.js';
+import { CommandSearchHandler } from '../src/tools/handlers/field-bash/tools-search.js';
 import { McpInstaller } from '../src/tools/converters/mcp/installer.js';
 
 // Test configuration
@@ -270,9 +270,9 @@ async function testToolsSearch(): Promise<void> {
     console.log('  [PASS] Formatted output groups tools by type');
   }
 
-  // Test ToolsHandler
-  const handler = new ToolsHandler();
-  const helpResult = await handler.execute('tools help');
+  // Test CommandSearchHandler
+  const handler = new CommandSearchHandler();
+  const helpResult = await handler.execute('command:search --help');
   if (helpResult.stdout.includes('--type=skill')) {
     console.log('  [PASS] Help includes skill type filter');
   }

@@ -52,12 +52,13 @@ description: A test skill
       expect(router.identifyCommandType('command:search --help')).toBe(CommandType.AGENT_SHELL_COMMAND);
     });
 
-    it('should still route old tools command as EXTEND_SHELL_COMMAND', () => {
-      expect(router.identifyCommandType('tools search')).toBe(CommandType.EXTEND_SHELL_COMMAND);
+    it('should route tools command as NATIVE (no longer extend)', () => {
+      // 'tools' is no longer a recognized command, falls through to native
+      expect(router.identifyCommandType('tools search')).toBe(CommandType.NATIVE_SHELL_COMMAND);
     });
   });
 
-  describe('skill: new format routing', () => {
+  describe('skill: command routing', () => {
     it('should identify skill:search as AGENT_SHELL_COMMAND', () => {
       expect(router.identifyCommandType('skill:search')).toBe(CommandType.AGENT_SHELL_COMMAND);
       expect(router.identifyCommandType('skill:search pdf')).toBe(CommandType.AGENT_SHELL_COMMAND);
@@ -71,54 +72,40 @@ description: A test skill
       expect(router.identifyCommandType('skill:enhance --on')).toBe(CommandType.AGENT_SHELL_COMMAND);
     });
 
-    it('should still identify skill:name:tool as EXTEND_SHELL_COMMAND', () => {
+    it('should identify skill:name:tool as EXTEND_SHELL_COMMAND', () => {
       expect(router.identifyCommandType('skill:analyzer:run')).toBe(CommandType.EXTEND_SHELL_COMMAND);
     });
-  });
 
-  describe('identifyCommandType', () => {
-    it('should identify skill list as AGENT_SHELL_COMMAND', () => {
-      const type = router.identifyCommandType('skill list');
-      expect(type).toBe(CommandType.AGENT_SHELL_COMMAND);
+    it('should route old "skill list" as NATIVE (no longer agent)', () => {
+      expect(router.identifyCommandType('skill list')).toBe(CommandType.NATIVE_SHELL_COMMAND);
     });
 
-    it('should identify skill search as AGENT_SHELL_COMMAND', () => {
-      const type = router.identifyCommandType('skill search test');
-      expect(type).toBe(CommandType.AGENT_SHELL_COMMAND);
-    });
-
-    it('should identify skill load as AGENT_SHELL_COMMAND', () => {
-      const type = router.identifyCommandType('skill load my-skill');
-      expect(type).toBe(CommandType.AGENT_SHELL_COMMAND);
-    });
-
-    it('should identify skill enhance as AGENT_SHELL_COMMAND', () => {
-      const type = router.identifyCommandType('skill enhance --on');
-      expect(type).toBe(CommandType.AGENT_SHELL_COMMAND);
+    it('should route old "skill search" as NATIVE (no longer agent)', () => {
+      expect(router.identifyCommandType('skill search test')).toBe(CommandType.NATIVE_SHELL_COMMAND);
     });
   });
 
   describe('route skill commands', () => {
-    it('should route skill:search command', async () => {
-      const result = await router.route('skill:search');
+    it('should route skill:search with query', async () => {
+      const result = await router.route('skill:search test');
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain('test-skill');
     });
 
-    it('should route skill load command', async () => {
-      const result = await router.route('skill load test-skill');
+    it('should return error for skill:search without query', async () => {
+      const result = await router.route('skill:search');
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain('<query> is required');
+    });
+
+    it('should route skill:load command', async () => {
+      const result = await router.route('skill:load test-skill');
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain('# Test Skill');
     });
 
-    it('should route skill search command', async () => {
-      const result = await router.route('skill search test');
-      expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain('test-skill');
-    });
-
-    it('should route skill --help command', async () => {
-      const result = await router.route('skill --help');
+    it('should route skill:search --help command', async () => {
+      const result = await router.route('skill:search --help');
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain('USAGE');
     });

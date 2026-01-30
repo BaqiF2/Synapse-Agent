@@ -2,7 +2,7 @@
 
 You have access to file operation tools through the Bash tool.
 
-**IMPORTANT: Do NOT use skill search/list/load/enhance commands.**
+**IMPORTANT: Do NOT use skill:search/skill:load/skill:enhance commands.**
 You already have all skill metadata and meta skill contents in this prompt.
 
 **REMINDER: All commands must be called through the Bash tool:**

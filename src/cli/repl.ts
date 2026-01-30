@@ -467,12 +467,12 @@ function showToolsList(): void {
   console.log(chalk.gray('  bash <cmd>       ') + chalk.white('Execute bash command'));
   console.log();
   console.log(chalk.white.bold('extend Shell command Tools (Layer 3):'));
-  console.log(chalk.gray('  tools search     ') + chalk.white('Search installed tools'));
-  console.log(chalk.gray('  skill search     ') + chalk.white('Search available skills'));
+  console.log(chalk.gray('  command:search   ') + chalk.white('Search installed tools'));
+  console.log(chalk.gray('  skill:search     ') + chalk.white('Search available skills'));
   console.log(chalk.gray('  mcp:*            ') + chalk.white('MCP server tools'));
   console.log(chalk.gray('  skill:*          ') + chalk.white('Skill script tools'));
   console.log();
-  console.log(chalk.gray('Use "tools search" or "skill search" for more details.'));
+  console.log(chalk.gray('Use "command:search" or "skill:search <query>" for more details.'));
   console.log();
 }
 
@@ -529,7 +529,7 @@ function showSkillsList(): void {
     }
 
     console.log();
-    console.log(chalk.gray('Use "skill search <query>" for detailed information.'));
+    console.log(chalk.gray('Use "skill:search <query>" for detailed information.'));
     console.log();
   } catch (error) {
     const message = getErrorMessage(error);
@@ -698,9 +698,6 @@ export async function startRepl(): Promise<void> {
 
     // Build system prompt
     const systemPrompt = buildSystemPrompt({
-      includeAgentShellCommand: true,
-      includeExtendShellCommand: true,
-      includeSkillSystem: true,
       cwd: process.cwd(),
     });
 

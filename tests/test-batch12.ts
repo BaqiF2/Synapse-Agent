@@ -238,46 +238,40 @@ async function testSkillLoaderLevel2(): Promise<void> {
 async function testSystemPromptSkillSystem(): Promise<void> {
   console.log('\n=== Test 3: System Prompt Skill System ===');
 
-  // Test basic prompt without skills
-  const basicPrompt = buildSystemPrompt({
-    includeSkillSystem: true,
-  });
+  // Test basic prompt - now always includes all 6 sections
+  const basicPrompt = buildSystemPrompt();
 
-  if (basicPrompt.includes('技能系统') && basicPrompt.includes('skill search')) {
+  if (basicPrompt.includes('# Skills') && basicPrompt.includes('skill:search')) {
     console.log('  [PASS] Skill system section included');
   } else {
     console.log('  [FAIL] Skill system section missing');
   }
 
-  // Test prompt with available skills
+  // Test prompt with cwd option
   const loader = new SkillLoader(TEST_HOME_DIR);
   const skills = loader.loadAllLevel1();
 
-  const promptWithSkills = buildSystemPrompt({
-    includeSkillSystem: true,
-    includeExtendShellCommand: true,
-    availableSkills: skills,
+  const promptWithCwd = buildSystemPrompt({
+    cwd: '/test/dir',
   });
 
-  if (promptWithSkills.includes('当前可用技能')) {
-    console.log('  [PASS] Available skills section included');
-  } else if (skills.length === 0) {
-    console.log('  [SKIP] No skills to inject');
+  if (promptWithCwd.includes('/test/dir')) {
+    console.log('  [PASS] CWD section included');
   } else {
-    console.log('  [WARN] Available skills section may not be included');
+    console.log('  [WARN] CWD section may not be included');
   }
 
-  // Test extend Shell command section
-  if (promptWithSkills.includes('extend Shell command') && promptWithSkills.includes('mcp:')) {
-    console.log('  [PASS] extend Shell command section included');
+  // Test shell commands section
+  if (basicPrompt.includes('# Shell Commands') && basicPrompt.includes('mcp:')) {
+    console.log('  [PASS] Shell Commands section included');
   }
 
   // Test prompt sections
-  if (promptWithSkills.includes('tools search') && promptWithSkills.includes('skill:')) {
+  if (basicPrompt.includes('command:search') && basicPrompt.includes('skill:')) {
     console.log('  [PASS] Tool references included');
   }
 
-  console.log(`  [INFO] System prompt length: ${promptWithSkills.length} chars`);
+  console.log(`  [INFO] System prompt length: ${basicPrompt.length} chars`);
 }
 
 /**

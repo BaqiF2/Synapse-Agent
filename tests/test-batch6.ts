@@ -64,12 +64,11 @@ async function testBatch6() {
   // 带选项的提示词
   const customPrompt = buildSystemPrompt({
     cwd: '/home/user/project',
-    includeExtendShellCommand: true,
     customInstructions: '请用中文回复。',
   });
   console.log('自定义提示词长度:', customPrompt.length, '字符');
   console.log('包含工作目录:', customPrompt.includes('/home/user/project'));
-  console.log('包含 extend Shell command:', customPrompt.includes('extend Shell command'));
+  console.log('包含 Shell Commands:', customPrompt.includes('# Shell Commands'));
   console.log('包含附加指令:', customPrompt.includes('请用中文回复'));
   console.log();
 
