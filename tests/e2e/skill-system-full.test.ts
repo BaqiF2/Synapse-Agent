@@ -174,8 +174,8 @@ describe('Skill System Full Integration', () => {
       const codeResult = await handler.execute('skill search code');
       expect(codeResult.stdout).toContain('code-reviewer');
 
-      // List all
-      const listResult = await handler.execute('skill list');
+      // List all (use skill:search with no query)
+      const listResult = await handler.execute('skill:search');
       expect(listResult.stdout).toContain('python-linter');
       expect(listResult.stdout).toContain('js-formatter');
       expect(listResult.stdout).toContain('code-reviewer');

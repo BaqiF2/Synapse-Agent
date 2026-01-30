@@ -49,9 +49,9 @@ describe('Skill Commands E2E', () => {
     fs.rmSync(testDir, { recursive: true, force: true });
   });
 
-  describe('skill list', () => {
-    it('should list all available skills', async () => {
-      const result = await handler.execute('skill list');
+  describe('skill:search (replaces skill list)', () => {
+    it('should list all available skills when no query', async () => {
+      const result = await handler.execute('skill:search');
 
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain('code-analyzer');
@@ -60,14 +60,14 @@ describe('Skill Commands E2E', () => {
     });
 
     it('should show skill descriptions', async () => {
-      const result = await handler.execute('skill list');
+      const result = await handler.execute('skill:search');
 
       expect(result.stdout).toContain('Analyzes code quality');
       expect(result.stdout).toContain('Parses log files');
     });
 
     it('should show skill count', async () => {
-      const result = await handler.execute('skill list');
+      const result = await handler.execute('skill:search');
 
       expect(result.stdout).toContain('(3)');
     });
@@ -177,10 +177,9 @@ describe('Skill Commands E2E', () => {
 
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain('USAGE');
-      expect(result.stdout).toContain('list');
-      expect(result.stdout).toContain('search');
-      expect(result.stdout).toContain('load');
-      expect(result.stdout).toContain('enhance');
+      expect(result.stdout).toContain('skill:search');
+      expect(result.stdout).toContain('skill:load');
+      expect(result.stdout).toContain('skill:enhance');
     });
 
     it('should show help with -h flag', async () => {
