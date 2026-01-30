@@ -8,7 +8,7 @@
  */
 
 import chalk from 'chalk';
-import { TREE_SYMBOLS, MAX_OUTPUT_LENGTH } from './terminal-renderer-types.ts';
+import { TREE_SYMBOLS } from './terminal-renderer-types.ts';
 
 /**
  * TreeBuilder - Generates tree-structured prefixes
@@ -65,20 +65,6 @@ export class TreeBuilder {
     return chalk.gray(TREE_SYMBOLS.LAST + ' ');
   }
 
-  /**
-   * Truncate text to maximum length with ellipsis
-   *
-   * @param text - Text to truncate
-   * @param maxLength - Maximum length (defaults to MAX_OUTPUT_LENGTH)
-   * @returns Truncated text
-   */
-  truncate(text: string, maxLength: number = MAX_OUTPUT_LENGTH): string {
-    // Remove newlines and collapse whitespace
-    const cleaned = text.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
-    return cleaned.length > maxLength
-      ? cleaned.substring(0, maxLength) + '...'
-      : cleaned;
-  }
 }
 
 export default TreeBuilder;

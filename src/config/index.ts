@@ -13,7 +13,6 @@
 
 export {
   SettingsManager,
-  default as SettingsManagerDefault,
 } from './settings-manager.ts';
 
 export {

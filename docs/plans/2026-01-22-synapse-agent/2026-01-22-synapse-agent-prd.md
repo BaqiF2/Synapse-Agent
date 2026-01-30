@@ -10,10 +10,10 @@
 
 本 PRD 由以下部分组成：
 
-1. [项目概述与需求](./synapse-agent-prd/01-overview-and-requirements.md) - 背景、核心理念、目标用户、使用场景
-2. [系统架构与功能设计](./synapse-agent-prd/02-architecture-and-features.md) - 三层 Bash 架构、工具转换、Agent Loop、技能系统
-3. [实施路线图与成功指标](./synapse-agent-prd/03-roadmap-and-metrics.md) - 分阶段实施计划、成功指标、非功能性需求
-4. [风险与未来展望](./synapse-agent-prd/04-risks-and-future.md) - 潜在风险、应对策略、未来演进方向
+1. [项目概述与需求](../synapse-agent-prd/01-overview-and-requirements.md) - 背景、核心理念、目标用户、使用场景
+2. [系统架构与功能设计](../synapse-agent-prd/02-architecture-and-features.md) - 三层 Bash 架构、工具转换、Agent Loop、技能系统
+3. [实施路线图与成功指标](../synapse-agent-prd/03-roadmap-and-metrics.md) - 分阶段实施计划、成功指标、非功能性需求
+4. [风险与未来展望](../synapse-agent-prd/04-risks-and-future.md) - 潜在风险、应对策略、未来演进方向
 
 ---
 

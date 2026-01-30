@@ -14,7 +14,6 @@ import { BashSession } from '../tools/bash-session.ts';
 import type { ToolResultContent } from './context-manager.ts';
 import type { AgentRunnerLlmClient } from './agent-runner.ts';
 
-const MAX_OUTPUT_LENGTH = parseInt(process.env.MAX_TOOL_OUTPUT_LENGTH || '10000', 10);
 const MAX_RETRIES = parseInt(process.env.MAX_TOOL_RETRIES || '3', 10);
 const COMMAND_TIMEOUT_MARKER = 'Command execution timeout';
 
@@ -119,12 +118,6 @@ export class ToolExecutor {
       if (stderr) {
         if (output) output += '\n\n';
         output += `[stderr]\n${stderr}`;
-      }
-
-      // Truncate if too long
-      if (output.length > MAX_OUTPUT_LENGTH) {
-        output = output.slice(0, MAX_OUTPUT_LENGTH) +
-          `\n\n[Output truncated, ${output.length - MAX_OUTPUT_LENGTH} characters omitted]`;
       }
 
       // Empty output handling

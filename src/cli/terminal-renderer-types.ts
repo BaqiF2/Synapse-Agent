@@ -8,7 +8,6 @@
  * - ToolResultEvent: Event when tool completes
  * - SubAgentEvent: Event for SubAgent lifecycle
  * - TreeSymbols: Unicode tree symbols
- * - StatusIcons: Status indicator icons
  */
 
 /**
@@ -33,7 +32,7 @@ export interface ToolResultEvent {
   id: string;
   /** Whether execution succeeded */
   success: boolean;
-  /** Output content (will be truncated) */
+  /** Output content */
   output: string;
 }
 
@@ -60,20 +59,3 @@ export const TREE_SYMBOLS = {
   /** Indent spacing */
   SPACE: '  ',
 } as const;
-
-/**
- * Status indicator icons
- */
-export const STATUS_ICONS = {
-  /** Pending/executing */
-  PENDING: '⏳',
-  /** Success */
-  SUCCESS: '✓',
-  /** Failure */
-  FAILURE: '✗',
-} as const;
-
-/**
- * Maximum output length before truncation
- */
-export const MAX_OUTPUT_LENGTH = parseInt(process.env.SYNAPSE_MAX_OUTPUT_LENGTH || '100', 10);
