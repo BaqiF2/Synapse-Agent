@@ -3,7 +3,7 @@ node_modules
 
 # output
 out
-dist
+dist/
 *.tgz
 
 # code coverage
@@ -28,7 +28,7 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 *.tsbuildinfo
 
 # IntelliJ based IDEs
-.idea
+.idea/
 
 # Cursor IDE
 .cursor
