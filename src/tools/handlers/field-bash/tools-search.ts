@@ -1,14 +1,15 @@
 /**
- * Tools Search Handler
+ * Command Search Handler
  *
- * This handler implements the `tools search` command for discovering
- * installed MCP and Skill tools in ~/.synapse/bin/
+ * Implements the `command:search` command (and legacy `tools` command) for discovering
+ * all available commands across all three layers (Native, Agent, Extend).
  *
- * @module tools-search
+ * @module command-search
  *
  * Core Exports:
- * - ToolsHandler: Handler for tools command
+ * - ToolsHandler: Handler for command:search and legacy tools command
  * - parseToolsCommand: Parse tools command arguments
+ * - parseCommandSearchCommand: Parse command:search arguments
  */
 
 import type { CommandResult } from '../base-bash-handler.ts';
@@ -23,6 +24,42 @@ export interface ParsedToolsCommand {
   subcommand: 'search' | 'list' | 'help';
   pattern?: string;
   type?: 'mcp' | 'skill' | 'all';
+}
+
+/**
+ * Parsed command:search command
+ */
+export interface ParsedCommandSearchCommand {
+  pattern?: string;
+  help: boolean;
+}
+
+/**
+ * Parse a command:search command string
+ *
+ * @param command - The full command string (e.g., "command:search git")
+ * @returns Parsed command
+ */
+export function parseCommandSearchCommand(command: string): ParsedCommandSearchCommand {
+  const trimmed = command.trim();
+
+  // Remove "command:search" prefix
+  let rest = trimmed;
+  if (rest.startsWith('command:search')) {
+    rest = rest.slice('command:search'.length).trim();
+  }
+
+  // Check for help flags
+  if (rest === '-h' || rest === '--help') {
+    return { help: true, pattern: undefined };
+  }
+
+  // Check for help flags in args
+  if (rest.includes(' -h') || rest.includes(' --help')) {
+    return { help: true, pattern: undefined };
+  }
+
+  return { pattern: rest || undefined, help: false };
 }
 
 /**
@@ -95,7 +132,8 @@ export function parseToolsCommand(command: string): ParsedToolsCommand | null {
 /**
  * ToolsHandler
  *
- * Handles the `tools` command for searching and listing installed tools.
+ * Handles the `command:search` and legacy `tools` command for searching
+ * and listing installed tools.
  */
 export class ToolsHandler {
   private installer: McpInstaller;
@@ -105,7 +143,7 @@ export class ToolsHandler {
   }
 
   /**
-   * Execute a tools command
+   * Execute a tools command (legacy format)
    *
    * @param command - The full command string
    * @returns Command execution result
@@ -141,6 +179,22 @@ export class ToolsHandler {
   }
 
   /**
+   * Execute a command:search command (new format)
+   *
+   * @param command - The full command string
+   * @returns Command execution result
+   */
+  async executeCommandSearch(command: string): Promise<CommandResult> {
+    const parsed = parseCommandSearchCommand(command);
+
+    if (parsed.help) {
+      return this.showCommandSearchHelp();
+    }
+
+    return this.executeSearch(parsed.pattern);
+  }
+
+  /**
    * Execute tools search
    */
   private executeSearch(
@@ -163,10 +217,44 @@ export class ToolsHandler {
   }
 
   /**
-   * Show help message
+   * Show legacy tools help message
    */
   private showHelp(): CommandResult {
     const help = loadDesc(path.join(import.meta.dirname, 'tools-search.md'));
+
+    return {
+      stdout: help,
+      stderr: '',
+      exitCode: 0,
+    };
+  }
+
+  /**
+   * Show command:search help message
+   */
+  private showCommandSearchHelp(): CommandResult {
+    const help = `command:search - Search for available commands
+
+USAGE:
+    command:search [pattern]
+
+ARGUMENTS:
+    [pattern]    Search pattern (string, supports regex). Matches command name and description.
+
+OPTIONS:
+    -h, --help   Show this help message
+
+EXAMPLES:
+    command:search              List all available commands
+    command:search file         Search commands related to "file"
+    command:search git          Search for git-related commands
+    command:search "skill.*"    Search with regex pattern
+
+DESCRIPTION:
+    Searches across all three command layers:
+    - Native Shell Commands (ls, git, etc.)
+    - Agent Shell Commands (read, write, edit, glob, search, skill:*)
+    - Extend Shell Commands (mcp:*, skill:<name>:<tool>)`;
 
     return {
       stdout: help,

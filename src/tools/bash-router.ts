@@ -121,6 +121,11 @@ export class BashRouter {
   identifyCommandType(command: string): CommandType {
     const trimmed = command.trim();
 
+    // command:search → Agent Shell Command
+    if (trimmed.startsWith('command:search')) {
+      return CommandType.AGENT_SHELL_COMMAND;
+    }
+
     // extend Shell command commands (Layer 3) - mcp:*, skill:*, tools
     if (trimmed.startsWith('mcp:') || trimmed.startsWith('skill:') || trimmed.startsWith('tools ')) {
       return CommandType.EXTEND_SHELL_COMMAND;
@@ -182,6 +187,11 @@ export class BashRouter {
 
     if (this.matchesCommand(trimmed, 'bash')) {
       return await this.bashWrapperHandler.execute(command);
+    }
+
+    // command:search
+    if (trimmed.startsWith('command:search')) {
+      return await this.toolsHandler.executeCommandSearch(command);
     }
 
     // Skill management commands

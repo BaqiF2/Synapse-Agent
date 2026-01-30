@@ -45,6 +45,18 @@ description: A test skill
     fs.rmSync(testDir, { recursive: true, force: true });
   });
 
+  describe('command:search routing', () => {
+    it('should identify command:search as AGENT_SHELL_COMMAND', () => {
+      expect(router.identifyCommandType('command:search')).toBe(CommandType.AGENT_SHELL_COMMAND);
+      expect(router.identifyCommandType('command:search file')).toBe(CommandType.AGENT_SHELL_COMMAND);
+      expect(router.identifyCommandType('command:search --help')).toBe(CommandType.AGENT_SHELL_COMMAND);
+    });
+
+    it('should still route old tools command as EXTEND_SHELL_COMMAND', () => {
+      expect(router.identifyCommandType('tools search')).toBe(CommandType.EXTEND_SHELL_COMMAND);
+    });
+  });
+
   describe('identifyCommandType', () => {
     it('should identify skill list as AGENT_SHELL_COMMAND', () => {
       const type = router.identifyCommandType('skill list');
