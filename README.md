@@ -46,9 +46,8 @@ bun run src/cli/index.ts chat
 | `/help` | 显示帮助信息 |
 | `/exit` | 退出 REPL |
 | `/clear` | 清空对话历史 |
-| `/history` | 显示对话历史 |
 | `/tools` | 列出可用工具 |
-| `/skills` | 列出本地技能 |
+| `/skills` | 列出本地技能（读取 SKILL.md 的 description） |
 | `/sessions` | 列出已保存会话 |
 | `/resume <id>` | 恢复会话 |
 | `/skill enhance` | 查看技能自动增强状态 |

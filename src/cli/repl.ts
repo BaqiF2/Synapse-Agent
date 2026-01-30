@@ -38,12 +38,6 @@ const cliLogger = createLogger('cli');
 // Module-level terminal renderer for access in command handlers
 let terminalRenderer: TerminalRenderer | null = null;
 
-/**
- * Truncate text to specified length with ellipsis
- */
-function truncateText(text: string, maxLength: number): string {
-  return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
-}
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'Unknown error';
 }
@@ -60,9 +54,6 @@ function printSectionHeader(title: string): void {
 /**
  * Environment variable configuration
  */
-const HISTORY_FILE =
-  process.env.SYNAPSE_HISTORY_FILE || path.join(os.homedir(), '.synapse', '.repl_history');
-const MAX_HISTORY_SIZE = parseInt(process.env.SYNAPSE_MAX_HISTORY || '100', 10);
 const MAX_TOOL_ITERATIONS = parseInt(process.env.SYNAPSE_MAX_TOOL_ITERATIONS || '50', 10);
 const PERSISTENCE_ENABLED = process.env.SYNAPSE_PERSISTENCE_ENABLED !== 'false';
 
@@ -82,7 +73,6 @@ interface ConversationEntry {
 export interface ReplState {
   turnNumber: number;
   conversationHistory: ConversationEntry[];
-  commandHistory: string[];
   isProcessing: boolean;
 }
 
@@ -136,23 +126,6 @@ export function handleSpecialCommand(
   const cmd = command.toLowerCase().trim();
   const parts = command.trim().split(/\s+/);
 
-  if (parts[0]?.toLowerCase() === '/tools') {
-    const option = parts[1]?.toLowerCase();
-
-    if (!option) {
-      showToolsList();
-      return true;
-    }
-
-    if (option === '--all') {
-      showToolsList({ showAll: true });
-      return true;
-    }
-
-    console.log(chalk.yellow('\nUsage: /tools [--all]\n'));
-    return true;
-  }
-
   switch (cmd) {
     case '/exit':
     case '/quit':
@@ -180,8 +153,8 @@ export function handleSpecialCommand(
       console.log(chalk.green('\nConversation history cleared.\n'));
       return true;
 
-    case '/history':
-      showConversationHistory(state.conversationHistory);
+    case '/tools':
+      showToolsList();
       return true;
 
     case '/skills':
@@ -413,28 +386,24 @@ function showSkillEnhanceHelp(): void {
 function showHelp(): void {
   printSectionHeader('Synapse Agent - Help');
   console.log();
-  console.log(chalk.white.bold('Special Commands:'));
+  console.log(chalk.white.bold('Common:'));
   console.log(chalk.gray('  /help, /h, /?    ') + chalk.white('Show this help message'));
   console.log(chalk.gray('  /exit, /quit, /q ') + chalk.white('Exit the REPL'));
   console.log(chalk.gray('  /clear           ') + chalk.white('Clear conversation history'));
-  console.log(chalk.gray('  /history         ') + chalk.white('Show conversation history'));
-  console.log(chalk.gray('  /tools [--all]   ') + chalk.white('List available tools'));
+  console.log(chalk.gray('  /tools           ') + chalk.white('List available tools'));
   console.log(chalk.gray('  /skills          ') + chalk.white('List all available skills'));
   console.log(chalk.gray('  /sessions        ') + chalk.white('List saved sessions'));
   console.log(chalk.gray('  /resume <id>     ') + chalk.white('Resume a saved session'));
   console.log();
-  console.log(chalk.white.bold('Skill Commands:'));
+  console.log(chalk.white.bold('Skill:'));
   console.log(chalk.gray('  /skill enhance       ') + chalk.white('Show auto-enhance status'));
   console.log(chalk.gray('  /skill enhance --on  ') + chalk.white('Enable auto skill enhance'));
   console.log(chalk.gray('  /skill enhance --off ') + chalk.white('Disable auto skill enhance'));
   console.log(chalk.gray('  /skill enhance -h    ') + chalk.white('Show skill enhance help'));
   console.log();
-  console.log(chalk.white.bold('Shell Commands:'));
+  console.log(chalk.white.bold('Execute:'));
   console.log(chalk.gray('  !<command>       ') + chalk.white('Execute a shell command directly'));
   console.log(chalk.gray('                   ') + chalk.white('Example: !ls -la, !git status'));
-  console.log();
-  console.log(chalk.white.bold('Regular Input:'));
-  console.log(chalk.gray('  <any text>       ') + chalk.white('Send message to the Agent'));
   console.log();
   console.log(chalk.white.bold('Keyboard Shortcuts:'));
   console.log(chalk.gray('  Ctrl+C           ') + chalk.white('Prompt for exit confirmation'));
@@ -443,47 +412,22 @@ function showHelp(): void {
 }
 
 /**
- * Show conversation history
- */
-function showConversationHistory(history: ConversationEntry[]): void {
-  printSectionHeader('Conversation History');
-
-  if (history.length === 0) {
-    console.log(chalk.gray('\n  No conversation history.\n'));
-    return;
-  }
-
-  console.log();
-  for (const entry of history) {
-    const time = entry.timestamp.toLocaleTimeString();
-    const roleColor = entry.role === 'user' ? chalk.green : chalk.magenta;
-    const roleLabel = entry.role === 'user' ? 'You' : 'Agent';
-
-    console.log(chalk.gray(`[${time}] `) + roleColor(`${roleLabel} (${entry.turn}):`));
-    console.log(chalk.white(`  ${truncateText(entry.content, 200)}`));
-    console.log();
-  }
-}
-
-/**
  * Show available tools list
  */
-function showToolsList(options: { showAll?: boolean } = {}): void {
+function showToolsList(): void {
   printSectionHeader('Available Tools');
   console.log();
-
-  if (options.showAll) {
-    const installer = new McpInstaller();
-    const result = installer.search({ pattern: '*', type: 'all' });
-    const output = installer.formatSearchResult(result);
-    console.log(output);
-    console.log();
-    return;
+  const installer = new McpInstaller();
+  const result = installer.search({ pattern: '*', type: 'all' });
+  const output = installer.formatSearchResult(result);
+  const lines = output.split('\n');
+  if (lines[0]?.startsWith('Found ')) {
+    lines.shift();
+    if (lines[0] === '') {
+      lines.shift();
+    }
   }
-
-  console.log(chalk.white.bold('Tools:'));
-  console.log(chalk.gray('  mcp:*            ') + chalk.white('MCP server tools'));
-  console.log(chalk.gray('  skill:*          ') + chalk.white('Skill script tools'));
+  console.log(lines.join('\n'));
   console.log();
 }
 
@@ -525,10 +469,9 @@ function showSkillsList(): void {
       if (fs.existsSync(skillMdPath)) {
         try {
           const content = fs.readFileSync(skillMdPath, 'utf-8');
-          // Look for description line
-          const descMatch = content.match(/\*\*描述\*\*:\s*(.+)/);
-          if (descMatch?.[1]) {
-            description = chalk.white(descMatch[1].trim());
+          const parsedDescription = extractSkillDescription(content);
+          if (parsedDescription) {
+            description = chalk.white(parsedDescription);
           }
         } catch {
           // Ignore read errors
@@ -540,13 +483,42 @@ function showSkillsList(): void {
     }
 
     console.log();
-    console.log(chalk.gray('Use "skill:search <query>" for detailed information.'));
-    console.log();
   } catch (error) {
     const message = getErrorMessage(error);
     console.log(chalk.red(`  Error reading skills: ${message}`));
     console.log();
   }
+}
+
+function extractSkillDescription(content: string): string | null {
+  const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
+  if (frontmatterMatch?.[1]) {
+    const lines = frontmatterMatch[1].split('\n');
+    for (const line of lines) {
+      const colonIndex = line.indexOf(':');
+      if (colonIndex <= 0) continue;
+      const key = line.slice(0, colonIndex).trim();
+      if (key !== 'description') continue;
+      const rawValue = line.slice(colonIndex + 1).trim();
+      if (!rawValue) return null;
+      return stripWrappingQuotes(rawValue);
+    }
+  }
+
+  const markdownDesc =
+    content.match(/\*\*描述\*\*:\s*(.+)/)?.[1] ??
+    content.match(/\*\*Description\*\*:\s*(.+)/i)?.[1];
+  return markdownDesc ? markdownDesc.trim() : null;
+}
+
+function stripWrappingQuotes(value: string): string {
+  if (
+    (value.startsWith('"') && value.endsWith('"')) ||
+    (value.startsWith("'") && value.endsWith("'"))
+  ) {
+    return value.slice(1, -1);
+  }
+  return value;
 }
 
 /**
@@ -619,51 +591,6 @@ function resumeSession(
 
   console.log(chalk.green(`\nResumed session: ${sessionId}`));
   console.log(chalk.gray(`Loaded ${messages.length} messages\n`));
-}
-
-/**
- * Load command history from file
- */
-function loadCommandHistory(): string[] {
-  try {
-    if (fs.existsSync(HISTORY_FILE)) {
-      const content = fs.readFileSync(HISTORY_FILE, 'utf-8');
-      return content.split('\n').filter((line) => line.trim());
-    }
-  } catch {
-    // Ignore errors, return empty history
-  }
-  return [];
-}
-
-/**
- * Save command history to file
- */
-function saveCommandHistory(history: string[]): void {
-  try {
-    // Ensure directory exists
-    const dir = path.dirname(HISTORY_FILE);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-
-    // Limit history size
-    const trimmedHistory = history.slice(-MAX_HISTORY_SIZE);
-    fs.writeFileSync(HISTORY_FILE, trimmedHistory.join('\n'));
-  } catch {
-    // Ignore save errors
-  }
-}
-
-/**
- * Add entry to command history
- */
-function addToHistory(command: string, history: string[]): void {
-  // Don't add empty commands or duplicates of the last command
-  if (!command.trim() || history[history.length - 1] === command) {
-    return;
-  }
-  history.push(command);
 }
 
 /**
@@ -805,7 +732,6 @@ export async function startRepl(): Promise<void> {
   const state: ReplState = {
     turnNumber: initialTurnNumber,
     conversationHistory: [],
-    commandHistory: loadCommandHistory(),
     isProcessing: false,
   };
 
@@ -828,13 +754,7 @@ export async function startRepl(): Promise<void> {
     input: process.stdin,
     output: process.stdout,
     prompt: '',
-    historySize: MAX_HISTORY_SIZE,
   });
-
-  // Load history into readline
-  for (const cmd of state.commandHistory) {
-    (rl as unknown as { history: string[] }).history?.unshift(cmd);
-  }
 
   const promptUser = () => {
     rl.setPrompt(chalk.green(`You (${state.turnNumber})> `));
@@ -849,9 +769,6 @@ export async function startRepl(): Promise<void> {
       promptUser();
       return;
     }
-
-    // Add to history
-    addToHistory(trimmedInput, state.commandHistory);
 
     // Handle shell commands (! prefix)
     if (trimmedInput.startsWith('!')) {
@@ -943,8 +860,6 @@ export async function startRepl(): Promise<void> {
     if (agentRunner) {
       agentRunner.getToolExecutor().cleanup?.();
     }
-    // Save history before exit
-    saveCommandHistory(state.commandHistory);
     console.log(chalk.yellow('\nREPL session ended.\n'));
     process.exit(0);
   });
@@ -966,7 +881,6 @@ export async function startRepl(): Promise<void> {
         if (agentRunner) {
           agentRunner.getToolExecutor().cleanup?.();
         }
-        saveCommandHistory(state.commandHistory);
         console.log(chalk.yellow('\nGoodbye!\n'));
         rl.close();
       } else {

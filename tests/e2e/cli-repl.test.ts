@@ -4,7 +4,6 @@
  * Tests the complete flow of CLI interaction including:
  * - REPL special commands
  * - Shell command execution (! prefix)
- * - Command history
  * - New session commands
  *
  * @module tests/e2e/cli-repl
@@ -35,7 +34,6 @@ function createMockState(): ReplState {
   return {
     turnNumber: 1,
     conversationHistory: [],
-    commandHistory: [],
     isProcessing: false,
   };
 }
@@ -103,14 +101,6 @@ describe('E2E: CLI/REPL Integration', () => {
 
       expect(state.conversationHistory.length).toBe(0);
       expect(state.turnNumber).toBe(1);
-    });
-
-    test('/history should be handled', () => {
-      const state = createMockState();
-      const rl = createMockReadline();
-
-      const handled = handleSpecialCommand('/history', state, rl, null, { skipExit: true });
-      expect(handled).toBe(true);
     });
 
     test('/tools should be handled', () => {

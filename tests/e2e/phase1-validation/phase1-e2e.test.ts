@@ -250,7 +250,6 @@ function createMockReplState(): ReplState {
   return {
     turnNumber: 1,
     conversationHistory: [],
-    commandHistory: [],
     isProcessing: false,
   };
 }
@@ -776,14 +775,6 @@ describe('Phase 1 E2E: TC-4 CLI and REPL', () => {
 
       expect(state.conversationHistory.length).toBe(0);
       expect(state.turnNumber).toBe(1);
-    });
-
-    test('/history should be handled', () => {
-      const state = createMockReplState();
-      const rl = createMockReadline();
-
-      const handled = handleSpecialCommand('/history', state, rl, null, { skipExit: true });
-      expect(handled).toBe(true);
     });
 
     test('/tools should be handled', () => {
