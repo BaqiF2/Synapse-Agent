@@ -16,6 +16,7 @@ import { SkillEnhancer } from '../../src/skills/skill-enhancer.ts';
 import { SkillGenerator } from '../../src/skills/skill-generator.ts';
 import { SkillIndexUpdater } from '../../src/skills/index-updater.ts';
 import { SettingsManager } from '../../src/config/settings-manager.ts';
+import { DEFAULT_SETTINGS } from '../../src/config/settings-schema.ts';
 
 describe('Skill System Full Integration', () => {
   let testHomeDir: string;
@@ -23,6 +24,14 @@ describe('Skill System Full Integration', () => {
   let skillsDir: string;
   let conversationsDir: string;
   let handler: SkillCommandHandler;
+
+  const writeSettingsFile = (dir: string) => {
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(
+      path.join(dir, 'settings.json'),
+      JSON.stringify(DEFAULT_SETTINGS, null, 2)
+    );
+  };
 
   beforeEach(() => {
     // testHomeDir simulates user home dir
@@ -33,6 +42,7 @@ describe('Skill System Full Integration', () => {
     conversationsDir = path.join(testDir, 'conversations');
     fs.mkdirSync(skillsDir, { recursive: true });
     fs.mkdirSync(conversationsDir, { recursive: true });
+    writeSettingsFile(testDir);
 
     handler = new SkillCommandHandler({ skillsDir, synapseDir: testDir });
   });
@@ -351,7 +361,6 @@ describe('Skill System Full Integration', () => {
       trigger.enable();
 
       // Verify via settings
-      settings.clearCache();
       expect(settings.isAutoEnhanceEnabled()).toBe(true);
 
       // Disable via settings

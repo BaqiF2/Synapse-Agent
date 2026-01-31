@@ -11,16 +11,26 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
 import { SkillCommandHandler } from '../../src/tools/handlers/skill-command-handler.ts';
+import { DEFAULT_SETTINGS } from '../../src/config/settings-schema.ts';
 
 describe('Skill Commands E2E', () => {
   let testDir: string;
   let skillsDir: string;
   let handler: SkillCommandHandler;
 
+  const writeSettingsFile = (dir: string) => {
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(
+      path.join(dir, 'settings.json'),
+      JSON.stringify(DEFAULT_SETTINGS, null, 2)
+    );
+  };
+
   beforeEach(() => {
     testDir = fs.mkdtempSync(path.join(os.tmpdir(), 'synapse-e2e-skill-cmd-'));
     skillsDir = path.join(testDir, 'skills');
     fs.mkdirSync(skillsDir, { recursive: true });
+    writeSettingsFile(testDir);
 
     // Create test skills
     createTestSkill(skillsDir, 'code-analyzer', {

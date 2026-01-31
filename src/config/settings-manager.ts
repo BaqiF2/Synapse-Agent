@@ -16,7 +16,6 @@ import * as os from 'node:os';
 import { createLogger } from '../utils/logger.ts';
 import {
   SynapseSettingsSchema,
-  DEFAULT_SETTINGS,
   type SynapseSettings,
 } from './settings-schema.ts';
 
@@ -45,7 +44,6 @@ const SETTINGS_FILE = 'settings.json';
 export class SettingsManager {
   private synapseDir: string;
   private settingsPath: string;
-  private cache: SynapseSettings | null = null;
 
   /**
    * Creates a new SettingsManager
@@ -61,33 +59,26 @@ export class SettingsManager {
    * Get all settings
    */
   get(): SynapseSettings {
-    if (this.cache) {
-      return this.cache;
-    }
-
     if (!fs.existsSync(this.settingsPath)) {
-      this.cache = structuredClone(DEFAULT_SETTINGS);
-      return this.cache;
+      throw new Error(`Settings file not found: ${this.settingsPath}`);
     }
 
+    const content = fs.readFileSync(this.settingsPath, 'utf-8');
+    let parsed: unknown;
     try {
-      const content = fs.readFileSync(this.settingsPath, 'utf-8');
-      const parsed = JSON.parse(content);
-      const result = SynapseSettingsSchema.safeParse(parsed);
-
-      if (result.success) {
-        this.cache = result.data;
-        return this.cache;
-      }
-
-      logger.warn('Invalid settings file, using defaults');
-      this.cache = structuredClone(DEFAULT_SETTINGS);
-      return this.cache;
+      parsed = JSON.parse(content);
     } catch (error) {
-      logger.warn('Failed to load settings, using defaults', { error });
-      this.cache = structuredClone(DEFAULT_SETTINGS);
-      return this.cache;
+      logger.error('Failed to parse settings file', { error });
+      throw new Error('Failed to parse settings file');
     }
+
+    const result = SynapseSettingsSchema.safeParse(parsed);
+    if (!result.success) {
+      logger.error('Invalid settings file', { error: result.error });
+      throw new Error('Invalid settings file');
+    }
+
+    return result.data;
   }
 
   /**
@@ -146,7 +137,6 @@ export class SettingsManager {
    */
   private save(settings: SynapseSettings): void {
     this.ensureDirectory();
-    this.cache = settings;
 
     try {
       fs.writeFileSync(
@@ -154,7 +144,7 @@ export class SettingsManager {
         JSON.stringify(settings, null, 2),
         'utf-8'
       );
-      logger.debug('Settings saved');
+      logger.info('Settings saved');
     } catch (error) {
       logger.error('Failed to save settings', { error });
       throw new Error('Failed to save settings');
@@ -169,15 +159,4 @@ export class SettingsManager {
       fs.mkdirSync(this.synapseDir, { recursive: true });
     }
   }
-
-
-  /**
-   * Clear the cache (for testing)
-   */
-  clearCache(): void {
-    this.cache = null;
-  }
 }
-
-// Default export
-export default SettingsManager;

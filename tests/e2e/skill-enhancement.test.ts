@@ -12,6 +12,7 @@ import * as path from 'node:path';
 import * as os from 'node:os';
 import { SkillEnhancer } from '../../src/skills/skill-enhancer.ts';
 import { AutoEnhanceTrigger, type TaskContext } from '../../src/agent/auto-enhance-trigger.ts';
+import { DEFAULT_SETTINGS } from '../../src/config/settings-schema.ts';
 
 describe('Skill Enhancement E2E', () => {
   let testDir: string;
@@ -19,6 +20,14 @@ describe('Skill Enhancement E2E', () => {
   let conversationsDir: string;
   let originalMinUniqueTools: string | undefined;
   let originalMinToolCalls: string | undefined;
+
+  const writeSettingsFile = (dir: string) => {
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(
+      path.join(dir, 'settings.json'),
+      JSON.stringify(DEFAULT_SETTINGS, null, 2)
+    );
+  };
 
   beforeEach(() => {
     originalMinUniqueTools = process.env.SYNAPSE_MIN_ENHANCE_UNIQUE_TOOLS;
@@ -31,6 +40,7 @@ describe('Skill Enhancement E2E', () => {
     conversationsDir = path.join(testDir, 'conversations');
     fs.mkdirSync(skillsDir, { recursive: true });
     fs.mkdirSync(conversationsDir, { recursive: true });
+    writeSettingsFile(testDir);
   });
 
   afterEach(() => {

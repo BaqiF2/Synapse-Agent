@@ -15,10 +15,17 @@ describe('SettingsManager', () => {
   let testDir: string;
   let manager: SettingsManager;
 
+  const writeSettingsFile = (dir: string) => {
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(
+      path.join(dir, 'settings.json'),
+      JSON.stringify(DEFAULT_SETTINGS, null, 2)
+    );
+  };
+
   beforeEach(() => {
     testDir = fs.mkdtempSync(path.join(os.tmpdir(), 'synapse-settings-test-'));
     manager = new SettingsManager(testDir);
-    manager.clearCache();
   });
 
   afterEach(() => {
@@ -26,10 +33,8 @@ describe('SettingsManager', () => {
   });
 
   describe('get', () => {
-    it('should return default settings when no file exists', () => {
-      const settings = manager.get();
-      expect('version' in settings).toBe(false);
-      expect(settings.skillEnhance.autoEnhance).toBe(false);
+    it('should throw when no file exists', () => {
+      expect(() => manager.get()).toThrow();
     });
 
     it('should load settings from file', () => {
@@ -51,6 +56,7 @@ describe('SettingsManager', () => {
 
   describe('set', () => {
     it('should persist settings to file', () => {
+      writeSettingsFile(testDir);
       manager.set('skillEnhance.autoEnhance', true);
 
       const filePath = path.join(testDir, 'settings.json');
@@ -61,6 +67,7 @@ describe('SettingsManager', () => {
     });
 
     it('should update nested settings', () => {
+      writeSettingsFile(testDir);
       manager.set('skillEnhance.maxEnhanceContextChars', 100000);
       const settings = manager.get();
       expect(settings.skillEnhance.maxEnhanceContextChars).toBe(100000);
@@ -69,10 +76,12 @@ describe('SettingsManager', () => {
 
   describe('isAutoEnhanceEnabled', () => {
     it('should return false by default', () => {
+      writeSettingsFile(testDir);
       expect(manager.isAutoEnhanceEnabled()).toBe(false);
     });
 
     it('should return true when enabled', () => {
+      writeSettingsFile(testDir);
       manager.setAutoEnhance(true);
       expect(manager.isAutoEnhanceEnabled()).toBe(true);
     });
@@ -80,11 +89,13 @@ describe('SettingsManager', () => {
 
   describe('setAutoEnhance', () => {
     it('should enable auto enhance', () => {
+      writeSettingsFile(testDir);
       manager.setAutoEnhance(true);
       expect(manager.isAutoEnhanceEnabled()).toBe(true);
     });
 
     it('should disable auto enhance', () => {
+      writeSettingsFile(testDir);
       manager.setAutoEnhance(true);
       manager.setAutoEnhance(false);
       expect(manager.isAutoEnhanceEnabled()).toBe(false);

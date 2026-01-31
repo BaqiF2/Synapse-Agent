@@ -10,6 +10,7 @@ import * as path from 'node:path';
 import * as os from 'node:os';
 import { SkillCommandHandler, parseSkillCommand } from '../../../../src/tools/handlers/skill-command-handler.ts';
 import type { AgentRunnerLlmClient } from '../../../../src/agent/agent-runner.ts';
+import { DEFAULT_SETTINGS } from '../../../../src/config/settings-schema.ts';
 
 describe('parseSkillCommand', () => {
   it('should parse skill:search command', () => {
@@ -77,10 +78,19 @@ describe('SkillCommandHandler', () => {
   let skillsDir: string;
   let handler: SkillCommandHandler;
 
+  const writeSettingsFile = (dir: string) => {
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(
+      path.join(dir, 'settings.json'),
+      JSON.stringify(DEFAULT_SETTINGS, null, 2)
+    );
+  };
+
   beforeEach(() => {
     testDir = fs.mkdtempSync(path.join(os.tmpdir(), 'synapse-skill-cmd-test-'));
     skillsDir = path.join(testDir, 'skills');
     fs.mkdirSync(skillsDir, { recursive: true });
+    writeSettingsFile(testDir);
 
     // Create test skill
     const skillDir = path.join(skillsDir, 'test-skill');
@@ -180,6 +190,7 @@ Content here.
       testDirWithLlm = fs.mkdtempSync(path.join(os.tmpdir(), 'synapse-skill-llm-test-'));
       skillsDirWithLlm = path.join(testDirWithLlm, 'skills');
       fs.mkdirSync(skillsDirWithLlm, { recursive: true });
+      writeSettingsFile(testDirWithLlm);
 
       // Create test skill (skill-creator)
       const skillCreatorDir = path.join(skillsDirWithLlm, 'skill-creator');

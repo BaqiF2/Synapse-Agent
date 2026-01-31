@@ -9,13 +9,23 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
 import { AutoEnhanceTrigger } from '../../../src/agent/auto-enhance-trigger.ts';
+import { DEFAULT_SETTINGS } from '../../../src/config/settings-schema.ts';
 
 describe('AutoEnhanceTrigger', () => {
   let testDir: string;
   let trigger: AutoEnhanceTrigger;
 
+  const writeSettingsFile = (dir: string) => {
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(
+      path.join(dir, 'settings.json'),
+      JSON.stringify(DEFAULT_SETTINGS, null, 2)
+    );
+  };
+
   beforeEach(() => {
     testDir = fs.mkdtempSync(path.join(os.tmpdir(), 'synapse-auto-enhance-test-'));
+    writeSettingsFile(testDir);
     trigger = new AutoEnhanceTrigger({ synapseDir: testDir });
   });
 

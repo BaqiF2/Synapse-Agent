@@ -9,9 +9,18 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
 import { SettingsManager } from '../../src/config/index.ts';
+import { DEFAULT_SETTINGS } from '../../src/config/settings-schema.ts';
 
 describe('Settings Persistence E2E', () => {
   let testDir: string;
+
+  const writeSettingsFile = (dir: string) => {
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(
+      path.join(dir, 'settings.json'),
+      JSON.stringify(DEFAULT_SETTINGS, null, 2)
+    );
+  };
 
   beforeEach(() => {
     testDir = fs.mkdtempSync(path.join(os.tmpdir(), 'synapse-e2e-settings-'));
@@ -22,6 +31,7 @@ describe('Settings Persistence E2E', () => {
   });
 
   it('should persist settings across manager instances', () => {
+    writeSettingsFile(testDir);
     // First instance sets value
     const manager1 = new SettingsManager(testDir);
     manager1.setAutoEnhance(true);
@@ -31,19 +41,17 @@ describe('Settings Persistence E2E', () => {
     expect(manager2.isAutoEnhanceEnabled()).toBe(true);
   });
 
-  it('should handle corrupted settings file gracefully', () => {
+  it('should throw when settings file is corrupted', () => {
     // Write corrupted JSON
     fs.mkdirSync(testDir, { recursive: true });
     fs.writeFileSync(path.join(testDir, 'settings.json'), 'not valid json');
 
     const manager = new SettingsManager(testDir);
-    const settings = manager.get();
-
-    // Should fall back to defaults
-    expect(settings.skillEnhance.autoEnhance).toBe(false);
+    expect(() => manager.get()).toThrow();
   });
 
   it('should preserve other settings when updating one', () => {
+    writeSettingsFile(testDir);
     const manager = new SettingsManager(testDir);
 
     // Set initial values
