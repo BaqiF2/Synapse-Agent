@@ -14,6 +14,11 @@ import {
   type TokenUsage,
   getTokenUsageInput,
   getTokenUsageTotal,
+  type TextPart,
+  type ThinkPart,
+  type ToolCallPart,
+  type ToolCallDeltaPart,
+  type StreamedMessagePart,
 } from '../../../src/agent/anthropic-types.ts';
 
 describe('Error Classes', () => {
@@ -87,5 +92,51 @@ describe('TokenUsage', () => {
     it('should sum input and output tokens', () => {
       expect(getTokenUsageTotal(usage)).toBe(380); // 330 + 50
     });
+  });
+});
+
+describe('StreamedMessagePart', () => {
+  it('should type-check TextPart', () => {
+    const part: StreamedMessagePart = { type: 'text', text: 'hello' };
+    expect(part.type).toBe('text');
+    if (part.type === 'text') {
+      expect(part.text).toBe('hello');
+    }
+  });
+
+  it('should type-check ThinkPart', () => {
+    const part: StreamedMessagePart = { type: 'thinking', content: 'reasoning' };
+    expect(part.type).toBe('thinking');
+    if (part.type === 'thinking') {
+      expect(part.content).toBe('reasoning');
+    }
+  });
+
+  it('should type-check ThinkPart with signature', () => {
+    const part: StreamedMessagePart = { type: 'thinking', content: '', signature: 'sig123' };
+    if (part.type === 'thinking') {
+      expect(part.signature).toBe('sig123');
+    }
+  });
+
+  it('should type-check ToolCallPart', () => {
+    const part: StreamedMessagePart = {
+      type: 'tool_call',
+      id: 'call_1',
+      name: 'Bash',
+      input: { command: 'ls' },
+    };
+    expect(part.type).toBe('tool_call');
+    if (part.type === 'tool_call') {
+      expect(part.name).toBe('Bash');
+    }
+  });
+
+  it('should type-check ToolCallDeltaPart', () => {
+    const part: StreamedMessagePart = { type: 'tool_call_delta', argumentsDelta: '{"cmd' };
+    expect(part.type).toBe('tool_call_delta');
+    if (part.type === 'tool_call_delta') {
+      expect(part.argumentsDelta).toBe('{"cmd');
+    }
   });
 });

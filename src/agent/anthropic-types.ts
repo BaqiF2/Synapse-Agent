@@ -98,3 +98,52 @@ export function getTokenUsageInput(usage: TokenUsage): number {
 export function getTokenUsageTotal(usage: TokenUsage): number {
   return getTokenUsageInput(usage) + usage.output;
 }
+
+// ===== Thinking Effort =====
+
+/**
+ * Thinking effort level
+ */
+export type ThinkingEffort = 'off' | 'low' | 'medium' | 'high';
+
+// ===== Streamed Message Parts =====
+
+/**
+ * Text content part
+ */
+export interface TextPart {
+  type: 'text';
+  text: string;
+}
+
+/**
+ * Thinking content part
+ */
+export interface ThinkPart {
+  type: 'thinking';
+  content: string;
+  signature?: string;
+}
+
+/**
+ * Tool call part (complete)
+ */
+export interface ToolCallPart {
+  type: 'tool_call';
+  id: string;
+  name: string;
+  input: Record<string, unknown>;
+}
+
+/**
+ * Tool call delta part (streaming)
+ */
+export interface ToolCallDeltaPart {
+  type: 'tool_call_delta';
+  argumentsDelta: string;
+}
+
+/**
+ * Union type for all streamed message parts
+ */
+export type StreamedMessagePart = TextPart | ThinkPart | ToolCallPart | ToolCallDeltaPart;
