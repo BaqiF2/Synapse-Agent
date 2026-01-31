@@ -23,7 +23,7 @@ import { AnthropicClient } from '../providers/anthropic/anthropic-client.ts';
 import { buildSystemPrompt } from '../agent/system-prompt.ts';
 import { ContextPersistence } from '../agent/context-persistence.ts';
 import { AgentRunner } from '../agent/agent-runner.ts';
-import { CallableToolset } from '../agent/toolset.ts';
+import { CallableToolset } from '../tools/toolset.ts';
 import { BashTool } from '../tools/bash-tool.ts';
 import { McpInstaller, initializeMcpTools } from '../tools/converters/mcp/index.ts';
 import { initializeSkillTools } from '../tools/converters/skill/index.ts';
@@ -50,7 +50,6 @@ function printSectionHeader(title: string): void {
  * Environment variable configuration
  */
 const MAX_TOOL_ITERATIONS = parseInt(process.env.SYNAPSE_MAX_TOOL_ITERATIONS || '50', 10);
-const PERSISTENCE_ENABLED = true;
 
 /**
  * REPL State
@@ -405,18 +404,13 @@ function stripWrappingQuotes(value: string): string {
 export async function startRepl(): Promise<void> {
   // Initialize Agent components
   let agentRunner: AgentRunner | null = null;
-  let persistence: ContextPersistence | null = null;
 
   // Initialize terminal renderer for tool output
   const terminalRenderer = new TerminalRenderer();
+  const persistence = new ContextPersistence();
 
   try {
     const llmClient = new AnthropicClient();
-
-    // Initialize persistence if enabled
-    if (PERSISTENCE_ENABLED) {
-      persistence = new ContextPersistence();
-    }
 
     // Create BashTool for tool handling
     const bashTool = new BashTool({
@@ -424,7 +418,7 @@ export async function startRepl(): Promise<void> {
       getConversationPath: () => persistence?.getSessionPath() ?? null,
     });
 
-    // Delayed binding: pass BashTool to its own router for skill sub-agent
+    // Delayed binding: pass BashTool to its own router for skill sub-agent todo 子代理优化
     bashTool.getRouter().setToolExecutor(bashTool);
 
     // Create toolset
@@ -454,7 +448,6 @@ export async function startRepl(): Promise<void> {
       },
     });
 
-    cliLogger.info('Agent components initialized successfully');
   } catch (error) {
     const message = getErrorMessage(error);
     console.log(chalk.yellow(`\nAgent mode unavailable: ${message}`));
@@ -473,14 +466,12 @@ export async function startRepl(): Promise<void> {
         )
       );
     } else if (mcpResult.totalServers > 0) {
-      console.log(chalk.yellow(`⚠ No MCP tools loaded (${mcpResult.errors.length} errors)`));
       for (const err of mcpResult.errors.slice(0, 3)) {
         console.log(chalk.gray(`  - ${err}`));
       }
     }
   } catch (error) {
     const message = getErrorMessage(error);
-    cliLogger.warn(`MCP initialization failed: ${message}`);
     console.log(chalk.yellow(`⚠ MCP tools unavailable: ${message}`));
   }
 
@@ -498,7 +489,6 @@ export async function startRepl(): Promise<void> {
     }
   } catch (error) {
     const message = getErrorMessage(error);
-    cliLogger.warn(`Skill initialization failed: ${message}`);
     console.log(chalk.yellow(`⚠ Skill tools unavailable: ${message}`));
   }
 
@@ -519,11 +509,9 @@ export async function startRepl(): Promise<void> {
   console.log();
   console.log(chalk.gray('Type /help for commands, /exit to quit'));
   console.log(chalk.gray('Use !<command> to execute shell commands directly'));
-  if (persistence) {
-    console.log(chalk.gray(`Session: ${persistence.getSessionId()}`));
-    if (initialTurnNumber > 1) {
+  console.log(chalk.gray(`Session: ${persistence.getSessionId()}`));
+  if (initialTurnNumber > 1) {
       console.log(chalk.green(`✓ Resumed with ${initialTurnNumber - 1} previous turn(s)`));
-    }
   }
   console.log();
 

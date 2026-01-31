@@ -33,7 +33,6 @@ function createMockReadline(): readline.Interface {
 function createMockState(): ReplState {
   return {
     turnNumber: 1,
-    conversationHistory: [],
     isProcessing: false,
   };
 }
@@ -86,20 +85,13 @@ describe('E2E: CLI/REPL Integration', () => {
       expect(handled).toBe(true);
     });
 
-    test('/clear should reset conversation history', () => {
+    test('/clear should reset turn number', () => {
       const state = createMockState();
-      state.conversationHistory.push({
-        turn: 1,
-        role: 'user',
-        content: 'test',
-        timestamp: new Date(),
-      });
       state.turnNumber = 5;
       const rl = createMockReadline();
 
       handleSpecialCommand('/clear', state, rl, null, { skipExit: true });
 
-      expect(state.conversationHistory.length).toBe(0);
       expect(state.turnNumber).toBe(1);
     });
 
@@ -197,47 +189,6 @@ describe('E2E: CLI/REPL Integration', () => {
         const handled = handleSpecialCommand(cmd, state, rl, null, { skipExit: true });
         expect(handled).toBe(true);
       }
-    });
-  });
-
-  describe('Conversation History Management', () => {
-    test('should track conversation entries', () => {
-      const state = createMockState();
-
-      // Simulate adding entries
-      state.conversationHistory.push({
-        turn: 1,
-        role: 'user',
-        content: 'Hello',
-        timestamp: new Date(),
-      });
-
-      state.conversationHistory.push({
-        turn: 1,
-        role: 'agent',
-        content: 'Hi there!',
-        timestamp: new Date(),
-      });
-
-      expect(state.conversationHistory.length).toBe(2);
-      expect(state.conversationHistory[0]!.role).toBe('user');
-      expect(state.conversationHistory[1]!.role).toBe('agent');
-    });
-
-    test('should clear history on /clear', () => {
-      const state = createMockState();
-      const rl = createMockReadline();
-
-      state.conversationHistory.push({
-        turn: 1,
-        role: 'user',
-        content: 'test',
-        timestamp: new Date(),
-      });
-
-      handleSpecialCommand('/clear', state, rl, null, { skipExit: true });
-
-      expect(state.conversationHistory.length).toBe(0);
     });
   });
 

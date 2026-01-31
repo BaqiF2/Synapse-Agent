@@ -45,7 +45,7 @@ export {
   ToolError,
   ToolValidateError,
   type ToolReturnValue,
-} from './callable-tool.ts';
+} from '../tools/callable-tool.ts';
 
 // Generate function
 export {
@@ -61,7 +61,7 @@ export {
   type Toolset,
   type ToolResult as ToolsetToolResult,
   CallableToolset,
-} from './toolset.ts';
+} from '../tools/toolset.ts';
 
 // Step function
 export {

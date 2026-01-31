@@ -11,7 +11,7 @@
  */
 
 import type Anthropic from '@anthropic-ai/sdk';
-import type { ToolCall, ToolResult } from './message.ts';
+import type { ToolCall, ToolResult } from '../agent/message.ts';
 import type { CallableTool, ToolReturnValue } from './callable-tool.ts';
 import { ToolError } from './callable-tool.ts';
 

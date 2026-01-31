@@ -5,9 +5,9 @@
  */
 
 import { describe, expect, it, mock } from 'bun:test';
-import { CallableToolset, type Toolset, type ToolResult } from '../../../src/agent/toolset.ts';
-import type { CallableTool, ToolReturnValue } from '../../../src/agent/callable-tool.ts';
-import { ToolOk } from '../../../src/agent/callable-tool.ts';
+import { CallableToolset, type Toolset, type ToolResult } from '../../../src/tools/toolset.ts';
+import type { CallableTool, ToolReturnValue } from '../../../src/tools/callable-tool.ts';
+import { ToolOk } from '../../../src/tools/callable-tool.ts';
 import type { ToolCall } from '../../../src/agent/message.ts';
 import { BashToolSchema } from '../../../src/tools/bash-tool-schema.ts';
 

@@ -61,7 +61,7 @@ describe('generate', () => {
 
     expect(result.message.content).toHaveLength(1);
     expect(result.message.toolCalls).toHaveLength(1);
-    expect(result.message.toolCalls![0].name).toBe('Bash');
+    expect(result.message.toolCalls?.[0]?.name).toBe('Bash');
   });
 
   it('should call onMessagePart callback', async () => {
@@ -70,7 +70,9 @@ describe('generate', () => {
     const history: Message[] = [createTextMessage('user', 'Hi')];
 
     await generate(client, 'System prompt', [], history, {
-      onMessagePart: (part) => parts.push(part),
+      onMessagePart: (part) => {
+        parts.push(part);
+      },
     });
 
     expect(parts).toHaveLength(1);
@@ -85,7 +87,9 @@ describe('generate', () => {
     const history: Message[] = [createTextMessage('user', 'List files')];
 
     await generate(client, 'System prompt', [], history, {
-      onToolCall: (tc) => toolCalls.push(tc),
+      onToolCall: (tc) => {
+        toolCalls.push(tc);
+      },
     });
 
     expect(toolCalls).toHaveLength(1);

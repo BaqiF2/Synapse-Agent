@@ -9,9 +9,9 @@ import {
   AgentRunner,
   type AgentRunnerOptions,
 } from '../../../src/agent/agent-runner.ts';
-import { CallableToolset } from '../../../src/agent/toolset.ts';
-import { ToolOk, ToolError } from '../../../src/agent/callable-tool.ts';
-import type { CallableTool, ToolReturnValue } from '../../../src/agent/callable-tool.ts';
+import { CallableToolset } from '../../../src/tools/toolset.ts';
+import { ToolOk, ToolError } from '../../../src/tools/callable-tool.ts';
+import type { CallableTool, ToolReturnValue } from '../../../src/tools/callable-tool.ts';
 import { createTextMessage, type Message } from '../../../src/agent/message.ts';
 import { BashToolSchema } from '../../../src/tools/bash-tool-schema.ts';
 import type { AnthropicClient } from '../../../src/providers/anthropic/anthropic-client.ts';
@@ -99,7 +99,9 @@ describe('AgentRunner', () => {
         client,
         systemPrompt: 'Test',
         toolset,
-        onMessagePart: (p) => parts.push(p),
+        onMessagePart: (p) => {
+          parts.push(p);
+        },
       });
 
       await runner.run('Hello');

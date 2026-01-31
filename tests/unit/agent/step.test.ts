@@ -7,9 +7,9 @@
 import { describe, expect, it, mock } from 'bun:test';
 import { step, type StepResult } from '../../../src/agent/step.ts';
 import { createTextMessage, type Message, type ToolCall } from '../../../src/agent/message.ts';
-import { CallableToolset } from '../../../src/agent/toolset.ts';
-import { ToolOk, ToolError } from '../../../src/agent/callable-tool.ts';
-import type { CallableTool, ToolReturnValue } from '../../../src/agent/callable-tool.ts';
+import { CallableToolset } from '../../../src/tools/toolset.ts';
+import { ToolOk, ToolError } from '../../../src/tools/callable-tool.ts';
+import type { CallableTool, ToolReturnValue } from '../../../src/tools/callable-tool.ts';
 import type { AnthropicClient } from '../../../src/providers/anthropic/anthropic-client.ts';
 import type { StreamedMessagePart } from '../../../src/providers/anthropic/anthropic-types.ts';
 import { BashToolSchema } from '../../../src/tools/bash-tool-schema.ts';
@@ -68,11 +68,11 @@ describe('step', () => {
     const result = await step(client, 'System', toolset, history);
 
     expect(result.toolCalls).toHaveLength(1);
-    expect(result.toolCalls[0].id).toBe('call1');
+    expect(result.toolCalls[0]?.id).toBe('call1');
 
     const toolResults = await result.toolResults();
     expect(toolResults).toHaveLength(1);
-    expect(toolResults[0].returnValue.output).toBe('file1.txt');
+    expect(toolResults[0]?.returnValue.output).toBe('file1.txt');
     expect(toolHandler).toHaveBeenCalled();
   });
 
@@ -109,11 +109,13 @@ describe('step', () => {
     const history: Message[] = [createTextMessage('user', 'Run')];
 
     const result = await step(client, 'System', toolset, history, {
-      onToolResult: (r) => results.push(r),
+      onToolResult: (r) => {
+        results.push(r);
+      },
     });
 
     await result.toolResults();
     expect(results).toHaveLength(1);
-    expect(results[0].returnValue.output).toBe('done');
+    expect(results[0]?.returnValue.output).toBe('done');
   });
 });

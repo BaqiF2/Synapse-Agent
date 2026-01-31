@@ -9,13 +9,15 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
 import { SkillSubAgent } from '../../../src/skill-sub-agent/skill-sub-agent.ts';
-import type { AgentRunnerStreamedMessage } from '../../../src/agent/agent-runner.ts';
-import type { StreamedMessagePart } from '../../../src/providers/anthropic/anthropic-types.ts';
+import type { AnthropicClient } from '../../../src/providers/anthropic/anthropic-client.ts';
+import type { StreamedMessagePart, TokenUsage } from '../../../src/providers/anthropic/anthropic-types.ts';
 
 /**
  * Create a mock streamed message for testing
  */
-function createMockStream(parts: StreamedMessagePart[]): AgentRunnerStreamedMessage {
+type MockStream = AsyncIterable<StreamedMessagePart> & { id: string; usage: TokenUsage };
+
+function createMockStream(parts: StreamedMessagePart[]): MockStream {
   return {
     id: 'msg_test',
     usage: { inputOther: 100, output: 50, inputCacheRead: 0, inputCacheCreation: 0 },
@@ -87,7 +89,7 @@ Instructions for creating skills.
         generate: mock(() =>
           Promise.resolve(createMockStream([{ type: 'text', text: '{}' }]))
         ),
-      };
+      } as unknown as AnthropicClient;
 
       const mockToolExecutor = createMockToolExecutor();
 
@@ -108,7 +110,7 @@ Instructions for creating skills.
         generate: mock(() =>
           Promise.resolve(createMockStream([{ type: 'text', text: '{}' }]))
         ),
-      };
+      } as unknown as AnthropicClient;
 
       const mockToolExecutor = createMockToolExecutor();
 
@@ -130,7 +132,7 @@ Instructions for creating skills.
         generate: mock(() =>
           Promise.resolve(createMockStream([{ type: 'text', text: '{}' }]))
         ),
-      };
+      } as unknown as AnthropicClient;
 
       const mockToolExecutor = createMockToolExecutor();
 

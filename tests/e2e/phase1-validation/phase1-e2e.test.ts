@@ -249,7 +249,6 @@ function createMockReadline(): any {
 function createMockReplState(): ReplState {
   return {
     turnNumber: 1,
-    conversationHistory: [],
     isProcessing: false,
   };
 }
@@ -760,20 +759,13 @@ describe('Phase 1 E2E: TC-4 CLI and REPL', () => {
       expect(handled).toBe(true);
     });
 
-    test('/clear should reset conversation history', () => {
+    test('/clear should reset turn number', () => {
       const state = createMockReplState();
-      state.conversationHistory.push({
-        turn: 1,
-        role: 'user',
-        content: 'test message',
-        timestamp: new Date(),
-      });
       state.turnNumber = 5;
       const rl = createMockReadline();
 
       handleSpecialCommand('/clear', state, rl, null, { skipExit: true });
 
-      expect(state.conversationHistory.length).toBe(0);
       expect(state.turnNumber).toBe(1);
     });
 

@@ -9,7 +9,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
 import { SkillCommandHandler, parseSkillCommand } from '../../../../src/tools/handlers/skill-command-handler.ts';
-import type { AgentRunnerLlmClient } from '../../../../src/agent/agent-runner.ts';
+import type { AnthropicClient } from '../../../../src/providers/anthropic/anthropic-client.ts';
 import { DEFAULT_SETTINGS } from '../../../../src/config/settings-schema.ts';
 
 describe('parseSkillCommand', () => {
@@ -211,7 +211,7 @@ This skill helps you create new skills.
       searchCallCount = 0;
 
       // Create mock LLM client that returns semantic search results
-      const mockLlmClient: AgentRunnerLlmClient = {
+      const mockLlmClient = {
         generate: async (_systemPrompt: string, messages: { role: string; content: string | unknown[] }[], _tools: unknown[]) => {
           searchCallCount++;
           // Simulate LLM understanding "创建新技能" means "create skill"
@@ -247,7 +247,7 @@ This skill helps you create new skills.
             },
           };
         }
-      };
+      } as unknown as AnthropicClient;
 
       handlerWithLlm = new SkillCommandHandler({
         skillsDir: skillsDirWithLlm,
