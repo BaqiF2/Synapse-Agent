@@ -1,25 +1,25 @@
-# LLM Client Refactor Implementation Plan
+# Anthropic Client Refactor Implementation Plan
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Refactor llm-client.ts to support streaming, prompt caching, extended thinking, and token usage tracking, aligned with kosong's anthropic.py design.
+**Goal:** Refactor anthropic-client.ts to support streaming, prompt caching, extended thinking, and token usage tracking, aligned with kosong's anthropic.py design.
 
-**Architecture:** Three-file structure: llm-types.ts (types/errors), llm-streamed-message.ts (stream handler), llm-client.ts (AnthropicClient). Immutable configuration pattern with withThinking()/withGenerationKwargs(). Automatic prompt caching injection.
+**Architecture:** Three-file structure: anthropic-types.ts (types/errors), anthropic-streamed-message.ts (stream handler), anthropic-client.ts (AnthropicClient). Immutable configuration pattern with withThinking()/withGenerationKwargs(). Automatic prompt caching injection.
 
 **Tech Stack:** TypeScript, Bun test, @anthropic-ai/sdk
 
 ---
 
-## Task 1: Create llm-types.ts - Error Classes
+## Task 1: Create anthropic-types.ts - Error Classes
 
 **Files:**
-- Create: `src/agent/llm-types.ts`
-- Test: `tests/unit/agent/llm-types.test.ts`
+- Create: `src/agent/anthropic-types.ts`
+- Test: `tests/unit/agent/anthropic-types.test.ts`
 
 **Step 1: Write the failing test for error classes**
 
 ```typescript
-// tests/unit/agent/llm-types.test.ts
+// tests/unit/agent/anthropic-types.test.ts
 /**
  * LLM Types Tests
  *
@@ -33,7 +33,7 @@ import {
   APITimeoutError,
   APIStatusError,
   APIEmptyResponseError,
-} from '../../../src/agent/llm-types.ts';
+} from '../../../src/agent/anthropic-types.ts';
 
 describe('Error Classes', () => {
   describe('ChatProviderError', () => {
@@ -91,13 +91,13 @@ describe('Error Classes', () => {
 
 **Step 2: Run test to verify it fails**
 
-Run: `bun test tests/unit/agent/llm-types.test.ts`
+Run: `bun test tests/unit/agent/anthropic-types.test.ts`
 Expected: FAIL with "Cannot find module"
 
 **Step 3: Write minimal implementation for error classes**
 
 ```typescript
-// src/agent/llm-types.ts
+// src/agent/anthropic-types.ts
 /**
  * LLM Types and Error Classes
  *
@@ -172,27 +172,27 @@ export class APIEmptyResponseError extends ChatProviderError {
 
 **Step 4: Run test to verify it passes**
 
-Run: `bun test tests/unit/agent/llm-types.test.ts`
+Run: `bun test tests/unit/agent/anthropic-types.test.ts`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-git add src/agent/llm-types.ts tests/unit/agent/llm-types.test.ts
+git add src/agent/anthropic-types.ts tests/unit/agent/anthropic-types.test.ts
 git commit -m "feat(llm): add error classes for LLM client"
 ```
 
 ---
 
-## Task 2: Add TokenUsage and Helper Functions to llm-types.ts
+## Task 2: Add TokenUsage and Helper Functions to anthropic-types.ts
 
 **Files:**
-- Modify: `src/agent/llm-types.ts`
-- Modify: `tests/unit/agent/llm-types.test.ts`
+- Modify: `src/agent/anthropic-types.ts`
+- Modify: `tests/unit/agent/anthropic-types.test.ts`
 
 **Step 1: Write the failing test for TokenUsage**
 
-Add to `tests/unit/agent/llm-types.test.ts`:
+Add to `tests/unit/agent/anthropic-types.test.ts`:
 
 ```typescript
 import {
@@ -200,7 +200,7 @@ import {
   type TokenUsage,
   getTokenUsageInput,
   getTokenUsageTotal,
-} from '../../../src/agent/llm-types.ts';
+} from '../../../src/agent/anthropic-types.ts';
 
 describe('TokenUsage', () => {
   const usage: TokenUsage = {
@@ -226,12 +226,12 @@ describe('TokenUsage', () => {
 
 **Step 2: Run test to verify it fails**
 
-Run: `bun test tests/unit/agent/llm-types.test.ts`
+Run: `bun test tests/unit/agent/anthropic-types.test.ts`
 Expected: FAIL with "TokenUsage is not defined"
 
 **Step 3: Add TokenUsage implementation**
 
-Add to `src/agent/llm-types.ts`:
+Add to `src/agent/anthropic-types.ts`:
 
 ```typescript
 // ===== Token Usage =====
@@ -267,27 +267,27 @@ export function getTokenUsageTotal(usage: TokenUsage): number {
 
 **Step 4: Run test to verify it passes**
 
-Run: `bun test tests/unit/agent/llm-types.test.ts`
+Run: `bun test tests/unit/agent/anthropic-types.test.ts`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-git add src/agent/llm-types.ts tests/unit/agent/llm-types.test.ts
+git add src/agent/anthropic-types.ts tests/unit/agent/anthropic-types.test.ts
 git commit -m "feat(llm): add TokenUsage interface and helper functions"
 ```
 
 ---
 
-## Task 3: Add StreamedMessagePart Types to llm-types.ts
+## Task 3: Add StreamedMessagePart Types to anthropic-types.ts
 
 **Files:**
-- Modify: `src/agent/llm-types.ts`
-- Modify: `tests/unit/agent/llm-types.test.ts`
+- Modify: `src/agent/anthropic-types.ts`
+- Modify: `tests/unit/agent/anthropic-types.test.ts`
 
 **Step 1: Write the failing test for StreamedMessagePart**
 
-Add to `tests/unit/agent/llm-types.test.ts`:
+Add to `tests/unit/agent/anthropic-types.test.ts`:
 
 ```typescript
 import {
@@ -297,7 +297,7 @@ import {
   type ToolCallPart,
   type ToolCallDeltaPart,
   type StreamedMessagePart,
-} from '../../../src/agent/llm-types.ts';
+} from '../../../src/agent/anthropic-types.ts';
 
 describe('StreamedMessagePart', () => {
   it('should type-check TextPart', () => {
@@ -348,12 +348,12 @@ describe('StreamedMessagePart', () => {
 
 **Step 2: Run test to verify it fails**
 
-Run: `bun test tests/unit/agent/llm-types.test.ts`
+Run: `bun test tests/unit/agent/anthropic-types.test.ts`
 Expected: FAIL with "TextPart is not defined"
 
 **Step 3: Add StreamedMessagePart types**
 
-Add to `src/agent/llm-types.ts`:
+Add to `src/agent/anthropic-types.ts`:
 
 ```typescript
 // ===== Thinking Effort =====
@@ -408,28 +408,28 @@ export type StreamedMessagePart = TextPart | ThinkPart | ToolCallPart | ToolCall
 
 **Step 4: Run test to verify it passes**
 
-Run: `bun test tests/unit/agent/llm-types.test.ts`
+Run: `bun test tests/unit/agent/anthropic-types.test.ts`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-git add src/agent/llm-types.ts tests/unit/agent/llm-types.test.ts
+git add src/agent/anthropic-types.ts tests/unit/agent/anthropic-types.test.ts
 git commit -m "feat(llm): add StreamedMessagePart types"
 ```
 
 ---
 
-## Task 4: Create llm-streamed-message.ts - Non-Stream Response
+## Task 4: Create anthropic-streamed-message.ts - Non-Stream Response
 
 **Files:**
-- Create: `src/agent/llm-streamed-message.ts`
-- Create: `tests/unit/agent/llm-streamed-message.test.ts`
+- Create: `src/agent/anthropic-streamed-message.ts`
+- Create: `tests/unit/agent/anthropic-streamed-message.test.ts`
 
 **Step 1: Write the failing test for non-stream response**
 
 ```typescript
-// tests/unit/agent/llm-streamed-message.test.ts
+// tests/unit/agent/anthropic-streamed-message.test.ts
 /**
  * LLM Streamed Message Tests
  *
@@ -437,8 +437,8 @@ git commit -m "feat(llm): add StreamedMessagePart types"
  */
 
 import { describe, expect, it } from 'bun:test';
-import { AnthropicStreamedMessage } from '../../../src/agent/llm-streamed-message.ts';
-import type { StreamedMessagePart } from '../../../src/agent/llm-types.ts';
+import { AnthropicStreamedMessage } from '../../../src/agent/anthropic-streamed-message.ts';
+import type { StreamedMessagePart } from '../../../src/agent/anthropic-types.ts';
 import type Anthropic from '@anthropic-ai/sdk';
 
 describe('AnthropicStreamedMessage', () => {
@@ -542,13 +542,13 @@ describe('AnthropicStreamedMessage', () => {
 
 **Step 2: Run test to verify it fails**
 
-Run: `bun test tests/unit/agent/llm-streamed-message.test.ts`
+Run: `bun test tests/unit/agent/anthropic-streamed-message.test.ts`
 Expected: FAIL with "Cannot find module"
 
 **Step 3: Write minimal implementation**
 
 ```typescript
-// src/agent/llm-streamed-message.ts
+// src/agent/anthropic-streamed-message.ts
 /**
  * Anthropic Streamed Message
  *
@@ -559,7 +559,7 @@ Expected: FAIL with "Cannot find module"
  */
 
 import type Anthropic from '@anthropic-ai/sdk';
-import type { TokenUsage, StreamedMessagePart } from './llm-types.ts';
+import type { TokenUsage, StreamedMessagePart } from './anthropic-types.ts';
 
 type AnthropicResponse = Anthropic.Message | Anthropic.MessageStream;
 
@@ -650,27 +650,27 @@ export class AnthropicStreamedMessage {
 
 **Step 4: Run test to verify it passes**
 
-Run: `bun test tests/unit/agent/llm-streamed-message.test.ts`
+Run: `bun test tests/unit/agent/anthropic-streamed-message.test.ts`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-git add src/agent/llm-streamed-message.ts tests/unit/agent/llm-streamed-message.test.ts
+git add src/agent/anthropic-streamed-message.ts tests/unit/agent/anthropic-streamed-message.test.ts
 git commit -m "feat(llm): add AnthropicStreamedMessage for non-stream responses"
 ```
 
 ---
 
-## Task 5: Add Stream Response Handling to llm-streamed-message.ts
+## Task 5: Add Stream Response Handling to anthropic-streamed-message.ts
 
 **Files:**
-- Modify: `src/agent/llm-streamed-message.ts`
-- Modify: `tests/unit/agent/llm-streamed-message.test.ts`
+- Modify: `src/agent/anthropic-streamed-message.ts`
+- Modify: `tests/unit/agent/anthropic-streamed-message.test.ts`
 
 **Step 1: Write the failing test for stream response**
 
-Add to `tests/unit/agent/llm-streamed-message.test.ts`:
+Add to `tests/unit/agent/anthropic-streamed-message.test.ts`:
 
 ```typescript
 describe('stream response', () => {
@@ -838,12 +838,12 @@ function createMockStream(events: Anthropic.MessageStreamEvent[]): Anthropic.Mes
 
 **Step 2: Run test to verify it fails**
 
-Run: `bun test tests/unit/agent/llm-streamed-message.test.ts`
+Run: `bun test tests/unit/agent/anthropic-streamed-message.test.ts`
 Expected: FAIL with "Stream response not yet implemented"
 
 **Step 3: Implement stream response handling**
 
-Update `handleStreamResponse` in `src/agent/llm-streamed-message.ts`:
+Update `handleStreamResponse` in `src/agent/anthropic-streamed-message.ts`:
 
 ```typescript
 import {
@@ -851,7 +851,7 @@ import {
   APIConnectionError,
   APITimeoutError,
   APIStatusError,
-} from './llm-types.ts';
+} from './anthropic-types.ts';
 
 // ... in AnthropicStreamedMessage class:
 
@@ -949,13 +949,13 @@ private convertError(error: unknown): ChatProviderError {
 
 **Step 4: Run test to verify it passes**
 
-Run: `bun test tests/unit/agent/llm-streamed-message.test.ts`
+Run: `bun test tests/unit/agent/anthropic-streamed-message.test.ts`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-git add src/agent/llm-streamed-message.ts tests/unit/agent/llm-streamed-message.test.ts
+git add src/agent/anthropic-streamed-message.ts tests/unit/agent/anthropic-streamed-message.test.ts
 git commit -m "feat(llm): add stream response handling to AnthropicStreamedMessage"
 ```
 
@@ -964,13 +964,13 @@ git commit -m "feat(llm): add stream response handling to AnthropicStreamedMessa
 ## Task 6: Create AnthropicClient - Basic Structure
 
 **Files:**
-- Rewrite: `src/agent/llm-client.ts`
-- Create: `tests/unit/agent/llm-client.test.ts`
+- Rewrite: `src/agent/anthropic-client.ts`
+- Create: `tests/unit/agent/anthropic-client.test.ts`
 
 **Step 1: Write the failing test for basic structure**
 
 ```typescript
-// tests/unit/agent/llm-client.test.ts
+// tests/unit/agent/anthropic-client.test.ts
 /**
  * LLM Client Tests
  *
@@ -978,7 +978,7 @@ git commit -m "feat(llm): add stream response handling to AnthropicStreamedMessa
  */
 
 import { describe, expect, it, beforeEach, mock } from 'bun:test';
-import { AnthropicClient } from '../../../src/agent/llm-client.ts';
+import { AnthropicClient } from '../../../src/agent/anthropic-client.ts';
 
 // Mock SettingsManager
 mock.module('../../../src/config/settings-manager.ts', () => ({
@@ -1058,13 +1058,13 @@ describe('AnthropicClient', () => {
 
 **Step 2: Run test to verify it fails**
 
-Run: `bun test tests/unit/agent/llm-client.test.ts`
+Run: `bun test tests/unit/agent/anthropic-client.test.ts`
 Expected: FAIL (old LlmClient doesn't have these methods)
 
-**Step 3: Rewrite llm-client.ts**
+**Step 3: Rewrite anthropic-client.ts**
 
 ```typescript
-// src/agent/llm-client.ts
+// src/agent/anthropic-client.ts
 /**
  * Anthropic LLM Client
  *
@@ -1078,8 +1078,8 @@ Expected: FAIL (old LlmClient doesn't have these methods)
 
 import Anthropic from '@anthropic-ai/sdk';
 import { SettingsManager } from '../config/settings-manager.ts';
-import type { ThinkingEffort } from './llm-types.ts';
-import { AnthropicStreamedMessage } from './llm-streamed-message.ts';
+import type { ThinkingEffort } from './anthropic-types.ts';
+import { AnthropicStreamedMessage } from './anthropic-streamed-message.ts';
 
 const DEFAULT_MAX_TOKENS = parseInt(process.env.MAX_TOKENS || '4096', 10);
 
@@ -1203,13 +1203,13 @@ export class AnthropicClient {
 
 **Step 4: Run test to verify it passes**
 
-Run: `bun test tests/unit/agent/llm-client.test.ts`
+Run: `bun test tests/unit/agent/anthropic-client.test.ts`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-git add src/agent/llm-client.ts tests/unit/agent/llm-client.test.ts
+git add src/agent/anthropic-client.ts tests/unit/agent/anthropic-client.test.ts
 git commit -m "feat(llm): add AnthropicClient with immutable configuration"
 ```
 
@@ -1218,12 +1218,12 @@ git commit -m "feat(llm): add AnthropicClient with immutable configuration"
 ## Task 7: Add generate() Method with Prompt Caching
 
 **Files:**
-- Modify: `src/agent/llm-client.ts`
-- Modify: `tests/unit/agent/llm-client.test.ts`
+- Modify: `src/agent/anthropic-client.ts`
+- Modify: `tests/unit/agent/anthropic-client.test.ts`
 
 **Step 1: Write the failing test for generate()**
 
-Add to `tests/unit/agent/llm-client.test.ts`:
+Add to `tests/unit/agent/anthropic-client.test.ts`:
 
 ```typescript
 import { mock } from 'bun:test';
@@ -1286,12 +1286,12 @@ describe('generate', () => {
 
 **Step 2: Run test to verify it fails**
 
-Run: `bun test tests/unit/agent/llm-client.test.ts`
+Run: `bun test tests/unit/agent/anthropic-client.test.ts`
 Expected: FAIL with "generate() not yet implemented"
 
 **Step 3: Implement generate() method**
 
-Update `src/agent/llm-client.ts`:
+Update `src/agent/anthropic-client.ts`:
 
 ```typescript
 import {
@@ -1299,7 +1299,7 @@ import {
   APIConnectionError,
   APITimeoutError,
   APIStatusError,
-} from './llm-types.ts';
+} from './anthropic-types.ts';
 
 // ... in AnthropicClient class:
 
@@ -1418,13 +1418,13 @@ private convertError(error: unknown): ChatProviderError {
 
 **Step 4: Run test to verify it passes**
 
-Run: `bun test tests/unit/agent/llm-client.test.ts`
+Run: `bun test tests/unit/agent/anthropic-client.test.ts`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-git add src/agent/llm-client.ts tests/unit/agent/llm-client.test.ts
+git add src/agent/anthropic-client.ts tests/unit/agent/anthropic-client.test.ts
 git commit -m "feat(llm): add generate() with prompt caching support"
 ```
 
@@ -1441,7 +1441,7 @@ git commit -m "feat(llm): add generate() with prompt caching support"
 Update `tests/unit/agent/agent-runner.test.ts` to use new interface:
 
 ```typescript
-import type { StreamedMessagePart } from '../../../src/agent/llm-types.ts';
+import type { StreamedMessagePart } from '../../../src/agent/anthropic-types.ts';
 
 // Update mock to use new generate() interface
 const mockLlmClient = {
@@ -1468,7 +1468,7 @@ Expected: FAIL (sendMessage not found)
 Update `src/agent/agent-runner.ts`:
 
 ```typescript
-import type { StreamedMessagePart, TokenUsage } from './llm-types.ts';
+import type { StreamedMessagePart, TokenUsage } from './anthropic-types.ts';
 
 /**
  * Streamed message interface for LLM responses
@@ -1602,7 +1602,7 @@ git commit -m "chore: verify all tests and types pass after LLM client refactor"
 ## Task 10: Clean Up Old Exports (if any)
 
 **Files:**
-- Review: `src/agent/llm-client.ts` for old exports
+- Review: `src/agent/anthropic-client.ts` for old exports
 - Review: Any files importing old `LlmClient`, `LlmMessage`, `LlmResponse`
 
 **Step 1: Search for old imports**

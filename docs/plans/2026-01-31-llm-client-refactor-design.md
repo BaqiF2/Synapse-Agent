@@ -1,19 +1,19 @@
-# LLM Client 重构设计
+# Anthropic Client 重构设计
 
 ## 概述
 
-对标 kosong 项目的 `anthropic.py` 实现，重构 `llm-client.ts`，添加流式响应、Prompt Caching、Extended Thinking、Token 统计等功能。
+对标 kosong 项目的 `anthropic.py` 实现，重构 `llm-client.ts` 为 `anthropic-client.ts`，添加流式响应、Prompt Caching、Extended Thinking、Token 统计等功能。
 
 ## 文件结构
 
 ```
 src/agent/
-├── llm-types.ts              # 类型定义（TokenUsage, 错误类型, StreamedMessagePart）
-├── llm-client.ts             # AnthropicClient 主客户端类
-└── llm-streamed-message.ts   # AnthropicStreamedMessage 流式响应类
+├── anthropic-types.ts              # 类型定义（TokenUsage, 错误类型, StreamedMessagePart）
+├── anthropic-client.ts             # AnthropicClient 主客户端类
+└── anthropic-streamed-message.ts   # AnthropicStreamedMessage 流式响应类
 ```
 
-## 类型定义 (llm-types.ts)
+## 类型定义 (anthropic-types.ts)
 
 ### ThinkingEffort
 
@@ -59,7 +59,7 @@ export type StreamedMessagePart =
   | ToolCallDeltaPart; // { type: 'tool_call_delta'; argumentsDelta: string }
 ```
 
-## AnthropicClient (llm-client.ts)
+## AnthropicClient (anthropic-client.ts)
 
 ### 核心特性
 
@@ -111,7 +111,7 @@ interface GenerationKwargs {
 | medium | 4096          |
 | high   | 32000         |
 
-## AnthropicStreamedMessage (llm-streamed-message.ts)
+## AnthropicStreamedMessage (anthropic-streamed-message.ts)
 
 ### 核心特性
 
@@ -166,7 +166,7 @@ const thinkingClient = client.withThinking('high');
 
 ## 实现步骤
 
-1. 创建 `llm-types.ts`：类型定义和错误类
-2. 创建 `llm-streamed-message.ts`：流式响应处理类
-3. 重写 `llm-client.ts`：AnthropicClient 主类
+1. 创建 `anthropic-types.ts`：类型定义和错误类
+2. 创建 `anthropic-streamed-message.ts`：流式响应处理类
+3. 创建 `anthropic-client.ts`：AnthropicClient 主类（删除旧 `llm-client.ts`）
 4. 更新 `agent-runner.ts`：适配新接口
