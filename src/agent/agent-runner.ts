@@ -235,10 +235,10 @@ export class AgentRunner {
 
     while (iteration < this.maxIterations) {
       iteration++;
-      logger.debug(`Agent loop iteration ${iteration}`);
 
+      // all history
       const messages = this.contextManager.getMessages();
-      logger.debug(`Sending ${messages.length} message(s) to LLM`);
+      logger.info(`Sending ${messages.length} message(s) to LLM`);
 
       // Call LLM
       let response: LlmResponse;
@@ -253,13 +253,6 @@ export class AgentRunner {
         });
         throw error;
       }
-
-      logger.debug('LLM response received', {
-        hasContent: !!response.content,
-        contentLength: response.content?.length ?? 0,
-        toolCallCount: response.toolCalls.length,
-        stopReason: response.stopReason,
-      });
 
       // Collect text content
       if (response.content) {
@@ -281,7 +274,7 @@ export class AgentRunner {
           continue; // Continue the loop instead of breaking
         }
 
-        logger.debug('Agent loop completed, no more tool calls');
+        logger.info('Agent loop completed, no more tool calls');
         break;
       }
 
@@ -356,7 +349,7 @@ export class AgentRunner {
     }
 
     if (iteration >= this.maxIterations) {
-      logger.warn(`Agent loop reached maximum iterations: ${this.maxIterations}`);
+      logger.error(`Agent loop reached maximum iterations: ${this.maxIterations}`);
     }
 
     return finalResponse;
