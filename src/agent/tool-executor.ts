@@ -12,7 +12,7 @@
 import { BashRouter, type BashRouterOptions } from '../tools/bash-router.ts';
 import { BashSession } from '../tools/bash-session.ts';
 import type { ToolResultContent } from './context-manager.ts';
-import type { AgentRunnerLlmClient } from './agent-runner.ts';
+import type { AnthropicClient } from './anthropic-client.ts';
 
 const MAX_RETRIES = parseInt(process.env.MAX_TOOL_RETRIES || '3', 10);
 const COMMAND_TIMEOUT_MARKER = 'Command execution timeout';
@@ -45,7 +45,7 @@ export interface ToolExecutionResult {
  */
 export interface ToolExecutorOptions {
   /** LLM client for semantic skill search */
-  llmClient?: AgentRunnerLlmClient;
+  llmClient?: AnthropicClient;
   /** Callback to get current conversation path */
   getConversationPath?: () => string | null;
 }

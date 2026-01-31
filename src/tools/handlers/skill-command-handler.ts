@@ -14,7 +14,8 @@ import * as path from 'node:path';
 import * as os from 'node:os';
 import type { CommandResult } from './base-bash-handler.ts';
 import { SkillSubAgent } from '../../skill-sub-agent/skill-sub-agent.ts';
-import { type AgentRunnerLlmClient, type AgentRunnerToolExecutor } from '../../agent/agent-runner.ts';
+import type { AnthropicClient } from '../../agent/anthropic-client.ts';
+import type { ToolExecutor } from '../../agent/tool-executor.ts';
 import { SettingsManager } from '../../config/settings-manager.ts';
 import { createLogger } from '../../utils/logger.ts';
 
@@ -147,9 +148,9 @@ export interface SkillCommandHandlerOptions {
   skillsDir?: string;
   synapseDir?: string;
   /** LLM client for semantic skill search */
-  llmClient?: AgentRunnerLlmClient;
+  llmClient?: AnthropicClient;
   /** Tool executor for skill sub-agent (required for enhance operation) */
-  toolExecutor?: AgentRunnerToolExecutor;
+  toolExecutor?: ToolExecutor;
   /** Callback to get current conversation path */
   getConversationPath?: () => string | null;
 }
@@ -167,8 +168,8 @@ export class SkillCommandHandler {
   private subAgent: SkillSubAgent;
   private settings: SettingsManager;
   private skillsDir: string;
-  private llmClient: AgentRunnerLlmClient | undefined;
-  private toolExecutor: AgentRunnerToolExecutor | undefined;
+  private llmClient: AnthropicClient | undefined;
+  private toolExecutor: ToolExecutor | undefined;
   private getConversationPath: (() => string | null) | undefined;
 
   /**

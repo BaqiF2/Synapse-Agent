@@ -17,7 +17,8 @@ import { CommandSearchHandler } from './handlers/extend-bash/index.ts';
 import { McpConfigParser, McpClient, McpWrapperGenerator, McpInstaller } from './converters/mcp/index.ts';
 import { SkillStructure, DocstringParser, SkillWrapperGenerator } from './converters/skill/index.ts';
 import { SkillCommandHandler } from './handlers/skill-command-handler.ts';
-import { type AgentRunnerLlmClient, type AgentRunnerToolExecutor } from '../agent/agent-runner.ts';
+import type { AnthropicClient } from '../agent/anthropic-client.ts';
+import type { ToolExecutor } from '../agent/tool-executor.ts';
 
 /**
  * Command types in the three-layer Bash architecture
@@ -61,9 +62,9 @@ export interface BashRouterOptions {
   skillsDir?: string;
   synapseDir?: string;
   /** LLM client for semantic skill search */
-  llmClient?: AgentRunnerLlmClient;
+  llmClient?: AnthropicClient;
   /** Tool executor for skill sub-agent */
-  toolExecutor?: AgentRunnerToolExecutor;
+  toolExecutor?: ToolExecutor;
   /** Callback to get current conversation path */
   getConversationPath?: () => string | null;
 }
@@ -85,8 +86,8 @@ export class BashRouter {
   private agentHandlers: AgentHandlerEntry[];
   private skillsDir: string;
   private synapseDir: string;
-  private llmClient: AgentRunnerLlmClient | undefined;
-  private toolExecutor: AgentRunnerToolExecutor | undefined;
+  private llmClient: AnthropicClient | undefined;
+  private toolExecutor: ToolExecutor | undefined;
   private getConversationPath: (() => string | null) | undefined;
 
   constructor(private session: BashSession, options: BashRouterOptions = {}) {
@@ -621,7 +622,7 @@ export class BashRouter {
    *
    * @param executor - The tool executor instance
    */
-  setToolExecutor(executor: AgentRunnerToolExecutor): void {
+  setToolExecutor(executor: ToolExecutor): void {
     this.toolExecutor = executor;
     // Reset skill command handler to pick up the new executor on next use
     if (this.skillCommandHandler) {

@@ -18,13 +18,10 @@ import { randomUUID } from 'node:crypto';
 import { createLogger } from '../utils/logger.ts';
 import { SkillMemoryStore } from './skill-memory-store.ts';
 import { buildSkillSubAgentPrompt } from './skill-sub-agent-prompt.ts';
-import {
-  AgentRunner,
-  type AgentRunnerLlmClient,
-  type AgentRunnerToolExecutor,
-  type ToolCallInfo,
-} from '../agent/agent-runner.ts';
-import { ContextManager } from '../agent/context-manager.ts';
+import { AgentRunner } from '../agent/agent-runner.ts';
+import { SimpleToolset } from '../agent/toolset.ts';
+import type { AnthropicClient } from '../agent/anthropic-client.ts';
+import type { ToolExecutor } from '../agent/tool-executor.ts';
 import { BashToolSchema } from '../tools/bash-tool-schema.ts';
 import { SkillDocParser } from '../skills/skill-schema.ts';
 import { SkillSearchResultSchema } from './skill-sub-agent-types.ts';
@@ -61,15 +58,11 @@ export interface SkillSubAgentOptions {
   /** Skills directory path */
   skillsDir?: string;
   /** LLM client (optional - required for LLM-based operations) */
-  llmClient?: AgentRunnerLlmClient;
+  llmClient?: AnthropicClient;
   /** Tool executor (optional - required for LLM-based operations) */
-  toolExecutor?: AgentRunnerToolExecutor;
+  toolExecutor?: ToolExecutor;
   /** Maximum iterations for Agent Loop */
   maxIterations?: number;
-  /** Callback for tool calls (with agent tag) */
-  onToolCall?: (info: ToolCallInfo) => void;
-  /** Callback when tool starts */
-  onToolStart?: (info: { id: string; name: string; input: Record<string, unknown>; depth: number; parentId?: string }) => void;
 }
 
 /**
@@ -94,8 +87,8 @@ export class SkillSubAgent {
   private skillsDir: string;
   private memoryStore: SkillMemoryStore;
   private agentRunner: AgentRunner | null = null;
-  private llmClient: AgentRunnerLlmClient | null = null;
-  private contextManager: ContextManager;
+  private llmClient: AnthropicClient | null = null;
+  private toolExecutor: ToolExecutor | null = null;
   private docParser: SkillDocParser;
   private initialized: boolean = false;
   private running: boolean = false;
@@ -116,11 +109,9 @@ export class SkillSubAgent {
     this.memoryStore = new SkillMemoryStore(skillsDir);
     this.memoryStore.loadAll();
 
-    // Create persistent context manager
-    this.contextManager = new ContextManager();
-
-    // Save llmClient for direct use (semantic search)
+    // Save llmClient and toolExecutor for direct use
     this.llmClient = options.llmClient ?? null;
+    this.toolExecutor = options.toolExecutor ?? null;
 
     // Build system prompt with meta skills
     const systemPrompt = buildSkillSubAgentPrompt(
@@ -128,21 +119,28 @@ export class SkillSubAgent {
       this.memoryStore.getMetaSkillContents()
     );
 
-    // Create AgentRunner in silent mode (only if llmClient and toolExecutor provided)
+    // Create AgentRunner (only if llmClient and toolExecutor provided)
     if (options.llmClient && options.toolExecutor) {
+      const toolExecutor = options.toolExecutor;
+      const toolset = new SimpleToolset([BashToolSchema], async (toolCall) => {
+        const result = await toolExecutor.executeTools([{
+          id: toolCall.id,
+          name: toolCall.name,
+          input: JSON.parse(toolCall.arguments),
+        }]);
+        const first = result[0];
+        return {
+          toolCallId: first?.toolUseId ?? toolCall.id,
+          output: first?.output ?? '',
+          isError: first?.isError ?? false,
+        };
+      });
+
       this.agentRunner = new AgentRunner({
-        llmClient: options.llmClient,
-        contextManager: this.contextManager,
-        toolExecutor: options.toolExecutor,
+        client: options.llmClient,
         systemPrompt,
-        tools: [BashToolSchema],
-        outputMode: 'silent',
+        toolset,
         maxIterations: options.maxIterations ?? DEFAULT_SKILL_SUB_AGENT_MAX_ITERATIONS,
-        agentTag: SKILL_SUB_AGENT_TAG,
-        depth: 1, // SubAgent is always depth 1
-        parentId: this.subAgentId,
-        onToolCall: options.onToolCall,
-        onToolStart: options.onToolStart,
       });
     }
 
