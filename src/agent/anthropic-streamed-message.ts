@@ -102,9 +102,75 @@ export class AnthropicStreamedMessage {
   }
 
   private async *handleStreamResponse(
-    _stream: StreamResponse
+    stream: StreamResponse
   ): AsyncGenerator<StreamedMessagePart> {
-    // Will be implemented in next task
-    throw new Error('Stream response not yet implemented');
+    for await (const event of stream) {
+      const part = this.processStreamEvent(event);
+      if (part) yield part;
+    }
+  }
+
+  private processStreamEvent(
+    event: Anthropic.RawMessageStreamEvent
+  ): StreamedMessagePart | null {
+    switch (event.type) {
+      case 'message_start':
+        this._id = event.message.id;
+        this.updateUsageFromMessage(event.message.usage);
+        return null;
+
+      case 'content_block_start':
+        return this.handleBlockStart(event.content_block);
+
+      case 'content_block_delta':
+        return this.handleBlockDelta(event.delta);
+
+      case 'message_delta':
+        if (event.usage) {
+          this.updateUsageFromDelta(event.usage);
+        }
+        return null;
+
+      default:
+        return null;
+    }
+  }
+
+  private handleBlockStart(
+    block: Anthropic.RawContentBlockStartEvent['content_block']
+  ): StreamedMessagePart | null {
+    switch (block.type) {
+      case 'text':
+        return { type: 'text', text: block.text };
+      case 'thinking':
+        return { type: 'thinking', content: (block as { thinking: string }).thinking };
+      case 'tool_use':
+        return { type: 'tool_call', id: block.id, name: block.name, input: {} };
+      default:
+        return null;
+    }
+  }
+
+  private handleBlockDelta(
+    delta: Anthropic.RawContentBlockDeltaEvent['delta']
+  ): StreamedMessagePart | null {
+    switch (delta.type) {
+      case 'text_delta':
+        return { type: 'text', text: delta.text };
+      case 'thinking_delta':
+        return { type: 'thinking', content: delta.thinking };
+      case 'input_json_delta':
+        return { type: 'tool_call_delta', argumentsDelta: delta.partial_json };
+      case 'signature_delta':
+        return { type: 'thinking', content: '', signature: delta.signature };
+      default:
+        return null;
+    }
+  }
+
+  private updateUsageFromDelta(delta: Anthropic.MessageDeltaUsage): void {
+    if (delta.output_tokens !== undefined) {
+      this._usage.output = delta.output_tokens;
+    }
   }
 }
