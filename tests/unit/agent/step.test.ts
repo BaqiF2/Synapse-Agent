@@ -7,7 +7,7 @@
 import { describe, expect, it, mock } from 'bun:test';
 import { step, type StepResult } from '../../../src/agent/step.ts';
 import { createTextMessage, type Message, type ToolCall } from '../../../src/agent/message.ts';
-import { SimpleToolset } from '../../../src/agent/toolset.ts';
+import { BashToolset } from '../../../src/agent/toolset.ts';
 import type { AnthropicClient } from '../../../src/providers/anthropic/anthropic-client.ts';
 import type { StreamedMessagePart } from '../../../src/providers/anthropic/anthropic-types.ts';
 import { BashToolSchema } from '../../../src/tools/bash-tool-schema.ts';
@@ -29,7 +29,7 @@ function createMockClient(parts: StreamedMessagePart[]): AnthropicClient {
 describe('step', () => {
   it('should return message without tool calls', async () => {
     const client = createMockClient([{ type: 'text', text: 'Hello' }]);
-    const toolset = new SimpleToolset([BashToolSchema], () =>
+    const toolset = new BashToolset([BashToolSchema], () =>
       Promise.resolve({ toolCallId: '', output: '', isError: false })
     );
     const history: Message[] = [createTextMessage('user', 'Hi')];
@@ -50,7 +50,7 @@ describe('step', () => {
     const toolHandler = mock(() =>
       Promise.resolve({ toolCallId: 'call1', output: 'file1.txt', isError: false })
     );
-    const toolset = new SimpleToolset([BashToolSchema], toolHandler);
+    const toolset = new BashToolset([BashToolSchema], toolHandler);
     const history: Message[] = [createTextMessage('user', 'List files')];
 
     const result = await step(client, 'System', toolset, history);
@@ -75,7 +75,7 @@ describe('step', () => {
       toolStartedDuringStream = true;
       return Promise.resolve({ toolCallId: 'call1', output: 'done', isError: false });
     });
-    const toolset = new SimpleToolset([BashToolSchema], toolHandler);
+    const toolset = new BashToolset([BashToolSchema], toolHandler);
     const history: Message[] = [createTextMessage('user', 'Run')];
 
     const result = await step(client, 'System', toolset, history);
@@ -91,7 +91,7 @@ describe('step', () => {
     const client = createMockClient([
       { type: 'tool_call', id: 'call1', name: 'Bash', input: { command: 'ls' } },
     ]);
-    const toolset = new SimpleToolset([BashToolSchema], () =>
+    const toolset = new BashToolset([BashToolSchema], () =>
       Promise.resolve({ toolCallId: 'call1', output: 'done', isError: false })
     );
     const history: Message[] = [createTextMessage('user', 'Run')];

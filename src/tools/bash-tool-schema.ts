@@ -24,11 +24,11 @@ export const BashToolSchema: Anthropic.Tool = {
     properties: {
       command: {
         type: 'string',
-        description: 'The bash command to execute. Can be any valid bash command or built-in Agent Shell Command.',
+        description: 'The bash command to execute. Must be non-interactive. Chain commands with `&&` or `;` if needed.',
       },
       restart: {
         type: 'boolean',
-        description: 'Restart the shell session before executing this command. Use this to reset environment variables and working directory.',
+        description: 'If true, kills the existing shell session and starts a fresh one (clears env vars and resets CWD). Use only when the environment is corrupted.',
         default: false,
       },
     },

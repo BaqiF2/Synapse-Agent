@@ -1,12 +1,17 @@
 Execute bash commands in a persistent shell session.
 
-This is the ONLY tool available to you. All operations must be done through Bash commands.
+**CAPABILITIES:**
+1. **Native Shell**: Standard Unix commands (ls, cd, pwd, grep, find, git, curl, jq, etc.).
+2. **Agent Built-ins**:
+    - \`read <path>\`: Read file content.
+    - \`write <path> <content>\`: Create/Overwrite file.
+    - \`edit <path> <pattern> <replacement>\`: String replacement.
+    - \`glob <pattern>\`: List files.
+    - \`search <query>\`: Semantic search.
+3. **Extended Commands**: Domain-specific tools (e.g., \`mcp:*\`, \`skill:*\`).
 
-The Bash session is persistent - environment variables and working directory are maintained across commands.
-
-You can use:
-- Native Shell Command: Standard Unix commands (ls, cd, pwd, grep, find, git, curl, etc.)
-- Agent Shell Command: Special built-in commands (read, write, edit, glob, search, bash)
-- extend Shell command: Domain-specific tools (mcp:*, skill:*, tools)
-
-All commands support -h (brief help) and --help (detailed documentation).
+**CRITICAL RULES:**
+- **Persistent Session**: Environment variables and CWD are maintained across calls.
+- **Non-Interactive Only**: FORBIDDEN: \`vim\`, \`nano\`, \`top\`, interactive \`python\`. Use \`sed\` or \`python -c\` instead.
+- **Output Safety**: Do NOT \`cat\` massive files. Use \`head\`, \`tail\`, or \`grep\`.
+- **Error Handling**: If exit code != 0, read stderr and fix the issue.

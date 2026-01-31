@@ -23,7 +23,7 @@ import { AnthropicClient } from '../providers/anthropic/anthropic-client.ts';
 import { buildSystemPrompt } from '../agent/system-prompt.ts';
 import { ContextPersistence } from '../agent/context-persistence.ts';
 import { AgentRunner } from '../agent/agent-runner.ts';
-import { SimpleToolset } from '../agent/toolset.ts';
+import { BashToolset } from '../agent/toolset.ts';
 import { BashToolSchema } from '../tools/bash-tool-schema.ts';
 import { ToolExecutor } from '../agent/tool-executor.ts';
 import { McpInstaller, initializeMcpTools } from '../tools/converters/mcp/index.ts';
@@ -33,9 +33,6 @@ import { SettingsManager } from '../config/settings-manager.ts';
 import { TerminalRenderer } from './terminal-renderer.ts';
 
 const cliLogger = createLogger('cli');
-
-// Module-level terminal renderer for access in command handlers
-let terminalRenderer: TerminalRenderer | null = null;
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'Unknown error';
@@ -57,21 +54,10 @@ const MAX_TOOL_ITERATIONS = parseInt(process.env.SYNAPSE_MAX_TOOL_ITERATIONS || 
 const PERSISTENCE_ENABLED = process.env.SYNAPSE_PERSISTENCE_ENABLED !== 'false';
 
 /**
- * Conversation message for history display
- */
-interface ConversationEntry {
-  turn: number;
-  role: 'user' | 'agent';
-  content: string;
-  timestamp: Date;
-}
-
-/**
  * REPL State
  */
 export interface ReplState {
   turnNumber: number;
-  conversationHistory: ConversationEntry[];
   isProcessing: boolean;
 }
 
@@ -87,7 +73,6 @@ export async function executeShellCommand(command: string): Promise<number> {
     const child = spawn(command, {
       shell: true,
       stdio: ['inherit', 'inherit', 'inherit'],
-      env: process.env,
     });
 
     child.on('error', (error) => {
@@ -143,7 +128,6 @@ export function handleSpecialCommand(
       return true;
 
     case '/clear':
-      state.conversationHistory = [];
       state.turnNumber = 1;
       // Also clear agent history if available
       if (agentRunner) {
@@ -160,23 +144,7 @@ export function handleSpecialCommand(
       showSkillsList();
       return true;
 
-    case '/sessions':
-      showSessionsList();
-      return true;
-
     default:
-      // Handle /resume <session-id>
-      if (parts[0]?.toLowerCase() === '/resume') {
-        const sessionId = parts[1];
-        if (sessionId) {
-          resumeSession(sessionId, state, agentRunner);
-        } else {
-          console.log(chalk.yellow('\nUsage: /resume <session-id>\n'));
-          console.log(chalk.gray('Use /sessions to see available sessions.\n'));
-        }
-        return true;
-      }
-
       // Handle /skill enhance commands
       if (parts[0]?.toLowerCase() === '/skill') {
         handleSkillEnhanceCommand(parts.slice(1), agentRunner);
@@ -190,15 +158,6 @@ export function handleSpecialCommand(
       }
       return false;
   }
-}
-
-/**
- * Expand tilde (~) in path to home directory
- */
-function expandPath(filePath: string): string {
-  return filePath.startsWith('~')
-    ? path.join(os.homedir(), filePath.slice(1))
-    : filePath;
 }
 
 /**
@@ -250,20 +209,6 @@ function handleSkillEnhanceCommand(args: string[], agentRunner?: AgentRunner | n
   // Check for --conversation flag
   const convIndex = enhanceArgs.indexOf('--conversation');
   if (convIndex !== -1) {
-    const conversationPath = enhanceArgs[convIndex + 1];
-    if (!conversationPath) {
-      console.log(chalk.red('\nError: --conversation requires a path argument.'));
-      console.log(chalk.gray('Usage: /skill enhance --conversation <path>\n'));
-      return;
-    }
-
-    const expandedPath = expandPath(conversationPath);
-
-    if (!fs.existsSync(expandedPath)) {
-      console.log(chalk.red(`\nError: Conversation file not found: ${expandedPath}\n`));
-      return;
-    }
-
     // Manual enhance is temporarily disabled during refactoring
     console.log(chalk.yellow('\nManual enhance is temporarily unavailable.\n'));
     console.log(chalk.gray('Use auto-enhance with --on flag instead.\n'));
@@ -328,8 +273,6 @@ function showHelp(): void {
   console.log(chalk.gray('  /clear           ') + chalk.white('Clear conversation history'));
   console.log(chalk.gray('  /tools           ') + chalk.white('List available tools'));
   console.log(chalk.gray('  /skills          ') + chalk.white('List all available skills'));
-  console.log(chalk.gray('  /sessions        ') + chalk.white('List saved sessions'));
-  console.log(chalk.gray('  /resume <id>     ') + chalk.white('Resume a saved session'));
   console.log();
   console.log(chalk.white.bold('Skill:'));
   console.log(chalk.gray('  /skill enhance       ') + chalk.white('Show auto-enhance status'));
@@ -458,65 +401,6 @@ function stripWrappingQuotes(value: string): string {
 }
 
 /**
- * Show saved sessions list
- */
-function showSessionsList(): void {
-  printSectionHeader('Saved Sessions');
-
-  const sessions = ContextPersistence.listSessions();
-
-  if (sessions.length === 0) {
-    console.log(chalk.gray('\n  No saved sessions.\n'));
-    return;
-  }
-
-  console.log();
-  for (const session of sessions.slice(0, 10)) {
-    const updatedDate = new Date(session.updatedAt).toLocaleString();
-    const title = session.title || '(Untitled)';
-
-    console.log(chalk.green(`  ${session.id}`));
-    console.log(chalk.white(`    ${title}`));
-    console.log(chalk.gray(`    ${session.messageCount} messages | ${updatedDate}`));
-    if (session.cwd) {
-      console.log(chalk.gray(`    ${session.cwd}`));
-    }
-    console.log();
-  }
-
-  if (sessions.length > 10) {
-    console.log(chalk.gray(`  ... and ${sessions.length - 10} more sessions\n`));
-  }
-
-  console.log(chalk.gray('Use /resume <session-id> to resume a session.\n'));
-}
-
-/**
- * Resume a saved session
- */
-function resumeSession(
-  sessionId: string,
-  state: ReplState,
-  agentRunner?: AgentRunner | null
-): void {
-  const session = ContextPersistence.getSession(sessionId);
-
-  if (!session) {
-    console.log(chalk.red(`\nSession not found: ${sessionId}\n`));
-    return;
-  }
-
-  if (!agentRunner) {
-    console.log(chalk.yellow('\nAgent not available. Cannot resume session.\n'));
-    return;
-  }
-
-  // Session resume is temporarily disabled during refactoring
-  console.log(chalk.yellow('\nSession resume is temporarily unavailable.\n'));
-  console.log(chalk.gray('Sessions will be re-enabled in a future update.\n'));
-}
-
-/**
  * Start the REPL (Read-Eval-Print-Loop) interactive mode
  */
 export async function startRepl(): Promise<void> {
@@ -525,7 +409,7 @@ export async function startRepl(): Promise<void> {
   let persistence: ContextPersistence | null = null;
 
   // Initialize terminal renderer for tool output
-  terminalRenderer = new TerminalRenderer();
+  const terminalRenderer = new TerminalRenderer();
 
   try {
     const llmClient = new AnthropicClient();
@@ -542,7 +426,7 @@ export async function startRepl(): Promise<void> {
     });
 
     // Create toolset with handler
-    const toolset = new SimpleToolset([BashToolSchema], async (toolCall) => {
+    const toolset = new BashToolset([BashToolSchema], async (toolCall) => {
       const result = await toolExecutor.executeTools([{
         id: toolCall.id,
         name: toolCall.name,
@@ -572,7 +456,6 @@ export async function startRepl(): Promise<void> {
         }
       },
       onToolResult: (result) => {
-        if (!terminalRenderer) return;
         terminalRenderer.renderToolEnd({
           id: result.toolCallId,
           success: !result.isError,
@@ -636,7 +519,6 @@ export async function startRepl(): Promise<void> {
 
   const state: ReplState = {
     turnNumber: initialTurnNumber,
-    conversationHistory: [],
     isProcessing: false,
   };
 
@@ -696,14 +578,6 @@ export async function startRepl(): Promise<void> {
       return;
     }
 
-    // Regular input - add to conversation history and process
-    state.conversationHistory.push({
-      turn: state.turnNumber,
-      role: 'user',
-      content: trimmedInput,
-      timestamp: new Date(),
-    });
-
     // Check if agent mode is available
     if (!agentRunner) {
       // Fallback: echo mode
@@ -712,14 +586,6 @@ export async function startRepl(): Promise<void> {
         chalk.magenta(`Agent (${state.turnNumber})> `) + chalk.white(`You said: ${trimmedInput}`)
       );
       console.log();
-
-      state.conversationHistory.push({
-        turn: state.turnNumber,
-        role: 'agent',
-        content: `You said: ${trimmedInput}`,
-        timestamp: new Date(),
-      });
-
       state.turnNumber++;
       promptUser();
       return;
@@ -743,13 +609,6 @@ export async function startRepl(): Promise<void> {
       console.log();
       console.log();
 
-      // Add agent response to conversation history
-      state.conversationHistory.push({
-        turn: state.turnNumber,
-        role: 'agent',
-        content: response,
-        timestamp: new Date(),
-      });
     } catch (error) {
       const message = getErrorMessage(error);
       console.log(chalk.red(`\nError: ${message}\n`));

@@ -9,7 +9,7 @@ import {
   AgentRunner,
   type AgentRunnerOptions,
 } from '../../../src/agent/agent-runner.ts';
-import { SimpleToolset } from '../../../src/agent/toolset.ts';
+import { BashToolset } from '../../../src/agent/toolset.ts';
 import { createTextMessage, type Message } from '../../../src/agent/message.ts';
 import { BashToolSchema } from '../../../src/tools/bash-tool-schema.ts';
 import type { AnthropicClient } from '../../../src/providers/anthropic/anthropic-client.ts';
@@ -35,7 +35,7 @@ describe('AgentRunner', () => {
   describe('run', () => {
     it('should process user message and return response (no tools)', async () => {
       const client = createMockClient([[{ type: 'text', text: 'Hello!' }]]);
-      const toolset = new SimpleToolset([BashToolSchema], () =>
+      const toolset = new BashToolset([BashToolSchema], () =>
         Promise.resolve({ toolCallId: '', output: '', isError: false })
       );
 
@@ -62,7 +62,7 @@ describe('AgentRunner', () => {
       const toolHandler = mock(() =>
         Promise.resolve({ toolCallId: 'c1', output: 'file.txt', isError: false })
       );
-      const toolset = new SimpleToolset([BashToolSchema], toolHandler);
+      const toolset = new BashToolset([BashToolSchema], toolHandler);
 
       const runner = new AgentRunner({
         client,
@@ -79,7 +79,7 @@ describe('AgentRunner', () => {
     it('should call onMessagePart callback', async () => {
       const parts: StreamedMessagePart[] = [];
       const client = createMockClient([[{ type: 'text', text: 'Hi' }]]);
-      const toolset = new SimpleToolset([BashToolSchema], () =>
+      const toolset = new BashToolset([BashToolSchema], () =>
         Promise.resolve({ toolCallId: '', output: '', isError: false })
       );
 
@@ -102,7 +102,7 @@ describe('AgentRunner', () => {
         [{ type: 'tool_call', id: 'c3', name: 'Bash', input: { command: 'fail' } }],
       ]);
 
-      const toolset = new SimpleToolset([BashToolSchema], (tc) =>
+      const toolset = new BashToolset([BashToolSchema], (tc) =>
         Promise.resolve({ toolCallId: tc.id, output: 'error', isError: true })
       );
 
@@ -123,7 +123,7 @@ describe('AgentRunner', () => {
         [{ type: 'text', text: 'First' }],
         [{ type: 'text', text: 'Second' }],
       ]);
-      const toolset = new SimpleToolset([BashToolSchema], () =>
+      const toolset = new BashToolset([BashToolSchema], () =>
         Promise.resolve({ toolCallId: '', output: '', isError: false })
       );
 

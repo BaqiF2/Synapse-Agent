@@ -52,7 +52,7 @@ export {
   type Toolset,
   type ToolHandler,
   type ToolResult as ToolsetToolResult,
-  SimpleToolset,
+  BashToolset,
 } from './toolset.ts';
 
 // Step function

@@ -19,7 +19,7 @@ import { createLogger } from '../utils/logger.ts';
 import { SkillMemoryStore } from './skill-memory-store.ts';
 import { buildSkillSubAgentPrompt } from './skill-sub-agent-prompt.ts';
 import { AgentRunner } from '../agent/agent-runner.ts';
-import { SimpleToolset } from '../agent/toolset.ts';
+import { BashToolset } from '../agent/toolset.ts';
 import type { AnthropicClient } from '../providers/anthropic/anthropic-client.ts';
 import type { ToolExecutor } from '../agent/tool-executor.ts';
 import { BashToolSchema } from '../tools/bash-tool-schema.ts';
@@ -122,7 +122,7 @@ export class SkillSubAgent {
     // Create AgentRunner (only if llmClient and toolExecutor provided)
     if (options.llmClient && options.toolExecutor) {
       const toolExecutor = options.toolExecutor;
-      const toolset = new SimpleToolset([BashToolSchema], async (toolCall) => {
+      const toolset = new BashToolset([BashToolSchema], async (toolCall) => {
         const result = await toolExecutor.executeTools([{
           id: toolCall.id,
           name: toolCall.name,

@@ -34,7 +34,7 @@ export interface Toolset {
 /**
  * Simple toolset implementation with a single handler
  */
-export class SimpleToolset implements Toolset {
+export class BashToolset implements Toolset {
   readonly tools: Anthropic.Tool[];
   private handler: ToolHandler;
 
