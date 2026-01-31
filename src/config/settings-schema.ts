@@ -40,8 +40,6 @@ export type SkillEnhanceSettings = z.infer<typeof SkillEnhanceSettingsSchema>;
  * Main settings schema
  */
 export const SynapseSettingsSchema = z.object({
-  /** Settings version */
-  version: z.string().default('1.0.0'),
   /** Skill enhance settings */
   skillEnhance: SkillEnhanceSettingsSchema.default({
     autoEnhance: false,
@@ -55,7 +53,6 @@ export type SynapseSettings = z.infer<typeof SynapseSettingsSchema>;
  * Default settings
  */
 export const DEFAULT_SETTINGS: SynapseSettings = {
-  version: '1.0.0',
   skillEnhance: {
     autoEnhance: false,
     maxEnhanceContextChars: DEFAULT_MAX_ENHANCE_CONTEXT_CHARS,

@@ -9,13 +9,14 @@
 
 import { Command } from 'commander';
 import { startRepl } from './repl.ts';
+import { getProjectVersion } from '../config/version.ts';
 
 const program = new Command();
 
 program
   .name('synapse')
   .description('Synapse Agent - A self-growing AI agent framework based on unified Bash abstraction')
-  .version('0.1.0');
+  .version(getProjectVersion());
 
 program
   .command('chat')

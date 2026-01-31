@@ -28,7 +28,7 @@ describe('SettingsManager', () => {
   describe('get', () => {
     it('should return default settings when no file exists', () => {
       const settings = manager.get();
-      expect(settings.version).toBe('1.0.0');
+      expect('version' in settings).toBe(false);
       expect(settings.skillEnhance.autoEnhance).toBe(false);
     });
 

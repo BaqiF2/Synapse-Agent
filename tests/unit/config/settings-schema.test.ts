@@ -30,7 +30,7 @@ describe('SynapseSettingsSchema', () => {
   });
 
   it('should validate partial settings with defaults', () => {
-    const partial = { version: '1.0.0' };
+    const partial = {};
     const result = SynapseSettingsSchema.safeParse(partial);
     expect(result.success).toBe(true);
     if (result.success) {
