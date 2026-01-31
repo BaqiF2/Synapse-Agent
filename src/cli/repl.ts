@@ -739,7 +739,8 @@ export async function startRepl(): Promise<void> {
     try {
       const response = await agentRunner.run(trimmedInput);
 
-      console.log(); // Ensure newline after response
+      // Ensure newline after response
+      console.log();
       console.log();
 
       // Add agent response to conversation history

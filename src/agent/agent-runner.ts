@@ -9,19 +9,12 @@
  * - AgentRunnerOptions: Configuration options
  */
 
-import type { AnthropicClient } from '../providers/anthropic/anthropic-client.ts';
-import type { StreamedMessagePart } from '../providers/anthropic/anthropic-types.ts';
-import { step, type OnToolResult } from './step.ts';
-import { type OnMessagePart } from './generate.ts';
-import {
-  type Message,
-  type ToolResult,
-  createTextMessage,
-  extractText,
-  toolResultToMessage,
-} from './message.ts';
-import type { Toolset } from './toolset.ts';
-import { createLogger } from '../utils/logger.ts';
+import type {AnthropicClient} from '../providers/anthropic/anthropic-client.ts';
+import {type OnToolResult, step} from './step.ts';
+import {type OnMessagePart} from './generate.ts';
+import {createTextMessage, extractText, type Message, toolResultToMessage,} from './message.ts';
+import type {Toolset} from './toolset.ts';
+import {createLogger} from '../utils/logger.ts';
 
 const logger = createLogger('agent-runner');
 
@@ -114,7 +107,7 @@ export class AgentRunner {
    * @returns Final text response
    */
   async run(userMessage: string): Promise<string> {
-    // Add user message to history
+    // 添加用户消息到聊天历史中
     this.history.push(createTextMessage('user', userMessage));
 
     let iteration = 0;
@@ -122,8 +115,9 @@ export class AgentRunner {
     let finalResponse = '';
 
     while (iteration < this.maxIterations) {
+      // 循环的次数
       iteration++;
-      logger.debug('Agent loop iteration', { iteration });
+      logger.info('Agent loop iteration', { iteration });
 
       // Run one step
       const result = await step(
@@ -140,15 +134,10 @@ export class AgentRunner {
       // Add assistant message to history
       this.history.push(result.message);
 
-      // Extract text response
-      const text = extractText(result.message);
-      if (text) {
-        finalResponse = text;
-      }
-
       // No tool calls - done
       if (result.toolCalls.length === 0) {
-        logger.debug('Agent loop completed, no tool calls');
+        finalResponse = extractText(result.message);
+        logger.info(`Agent loop completed, no tool calls，messages : ${finalResponse}`);
         break;
       }
 
@@ -169,7 +158,7 @@ export class AgentRunner {
         );
 
         if (consecutiveFailures >= this.maxConsecutiveToolFailures) {
-          const stopMessage = '工具执行连续失败，已停止。';
+          const stopMessage = 'Consecutive tool execution failures; stopping.';
           this.history.push(createTextMessage('assistant', stopMessage));
           finalResponse = stopMessage;
           break;
@@ -181,6 +170,9 @@ export class AgentRunner {
 
     if (iteration >= this.maxIterations) {
       logger.error(`Agent loop reached maximum iterations: ${this.maxIterations}`);
+      const stopMessage = `Reached tool iteration limit (${this.maxIterations}); stopping.`;
+      this.history.push(createTextMessage('assistant', stopMessage));
+      finalResponse = stopMessage;
     }
 
     return finalResponse;
