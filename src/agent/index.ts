@@ -4,7 +4,8 @@
  * 功能：导出所有 Agent 核心模块
  *
  * 核心导出：
- * - LlmClient: LLM 客户端
+ * - AnthropicClient: Anthropic LLM 客户端
+ * - AnthropicStreamedMessage: 流式响应包装器
  * - ContextManager: 上下文管理器
  * - ContextPersistence: 对话历史持久化
  * - ToolExecutor: 工具执行器
@@ -13,7 +14,26 @@
  * - SkillMemoryStore: 技能内存存储
  */
 
-export { LlmClient, type LlmMessage, type LlmResponse, type LlmToolCall } from './llm-client.ts';
+// New Anthropic Client exports
+export { AnthropicClient, type GenerationKwargs } from './anthropic-client.ts';
+export { AnthropicStreamedMessage } from './anthropic-streamed-message.ts';
+export {
+  type ThinkingEffort,
+  type TokenUsage,
+  type StreamedMessagePart,
+  type TextPart,
+  type ThinkPart,
+  type ToolCallPart,
+  type ToolCallDeltaPart,
+  ChatProviderError,
+  APIConnectionError,
+  APITimeoutError,
+  APIStatusError,
+  APIEmptyResponseError,
+  getTokenUsageInput,
+  getTokenUsageTotal,
+} from './anthropic-types.ts';
+
 export {
   ContextManager,
   type ConversationMessage,
