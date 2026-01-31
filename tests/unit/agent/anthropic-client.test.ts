@@ -81,4 +81,11 @@ describe('AnthropicClient', () => {
       expect(newClient).not.toBe(client);
     });
   });
+
+  describe('generate', () => {
+    it('should be defined', () => {
+      const client = new AnthropicClient();
+      expect(typeof client.generate).toBe('function');
+    });
+  });
 });
