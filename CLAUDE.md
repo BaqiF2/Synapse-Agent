@@ -7,3 +7,7 @@ Synapse Agent 是一个基于统一 Shell 抽象的自我成长 AI 智能体框�
 
 ### AnthropicSDK
 https://github.com/anthropics/anthropic-sdk-typescript
+
+
+## 约定
+- 当前处于项目开发阶段，任何调整优先考虑重构而非向后的兼容。

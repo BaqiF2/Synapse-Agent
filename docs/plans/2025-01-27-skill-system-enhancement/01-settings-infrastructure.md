@@ -450,8 +450,6 @@ export class SettingsManager {
   }
 }
 
-// Default export
-export default SettingsManager;
 ```
 
 **Step 4: Run test to verify it passes**

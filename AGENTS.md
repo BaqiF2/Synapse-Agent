@@ -32,3 +32,6 @@
 ## Security & Configuration Tips
 - Copy `.env.example` to `.env` and set required keys such as `ANTHROPIC_API_KEY` before running.
 - Do not commit secrets or local log/config files (e.g., under `~/.synapse/`).
+
+## 约定
+- 当前处于项目开发阶段，任何调整优先考虑重构而非向后的兼容。
