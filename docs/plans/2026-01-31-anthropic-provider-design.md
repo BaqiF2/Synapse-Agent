@@ -5,8 +5,7 @@
   and `src/agent/anthropic-types.ts` into a dedicated provider package at
   `src/providers/anthropic/`.
 - Introduce `src/providers/anthropic/index.ts` as the package entry point.
-- Keep `src/agent/index.ts` re-exporting the Anthropic symbols to preserve the
-  current external API.
+- Export Anthropic symbols only from `src/providers/anthropic/index.ts`.
 - No behavior changes; only module organization and import paths.
 
 ## Scope
@@ -14,7 +13,7 @@ In scope:
 - File moves to `src/providers/anthropic/`.
 - Update all internal imports referencing the moved files.
 - Add provider package index export.
-- Update `src/agent/index.ts` to re-export from the provider package.
+- Remove Anthropic exports from `src/agent/index.ts`.
 
 Out of scope:
 - Any behavioral changes to client, streaming, or error handling.
@@ -30,8 +29,8 @@ Proposed structure:
 - `src/providers/anthropic/anthropic-types.ts`
 - `src/providers/anthropic/index.ts` (exports the above)
 
-`src/agent/index.ts` will re-export all previously exported Anthropic symbols
-from `src/providers/anthropic/index.ts`, preserving the public API.
+`src/agent/index.ts` will no longer export Anthropic symbols; consumers should
+import from `src/providers/anthropic/index.ts`.
 
 ## Data flow
 No functional changes:
@@ -53,7 +52,7 @@ provider index. Call sites keep the same error types and semantics.
   - `src/agent/message.ts`
   - `src/agent/step.ts`
   - `src/agent/tool-executor.ts`
-  - `src/agent/index.ts`
+  - `src/agent/index.ts` (remove Anthropic exports)
 - Keep `src/agent/context-*` files unchanged unless they import the moved
   modules (currently they do not).
 
@@ -63,6 +62,5 @@ provider index. Call sites keep the same error types and semantics.
 
 ## Risks
 - Missed import path update may cause typecheck failures.
-- Any external consumers importing deep paths under `src/agent/` would break,
-  but internal usage remains supported via `src/agent/index.ts`.
-
+- Any consumers importing Anthropic symbols from `src/agent/index.ts` will need
+  to switch to `src/providers/anthropic/index.ts`.

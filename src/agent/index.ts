@@ -4,8 +4,6 @@
  * 功能：导出所有 Agent 核心模块
  *
  * 核心导出：
- * - AnthropicClient: Anthropic LLM 客户端
- * - AnthropicStreamedMessage: 流式响应包装器
  * - Message: 消息类型和工具函数
  * - generate: 单次 LLM 生成函数
  * - step: 生成 + 工具执行函数
@@ -17,25 +15,6 @@
  * - buildSystemPrompt: 系统提示词构建函数
  */
 
-// Anthropic Client exports
-export { AnthropicClient, type GenerationKwargs } from '../providers/anthropic/index.ts';
-export { AnthropicStreamedMessage } from '../providers/anthropic/index.ts';
-export {
-  type ThinkingEffort,
-  type TokenUsage,
-  type StreamedMessagePart,
-  type TextPart,
-  type ThinkPart,
-  type ToolCallPart,
-  type ToolCallDeltaPart,
-  ChatProviderError,
-  APIConnectionError,
-  APITimeoutError,
-  APIStatusError,
-  APIEmptyResponseError,
-  getTokenUsageInput,
-  getTokenUsageTotal,
-} from '../providers/anthropic/index.ts';
 
 // Message types and functions
 export {
