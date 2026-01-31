@@ -20,17 +20,16 @@ import chalk from 'chalk';
 
 // Agent imports
 import { AnthropicClient } from '../agent/anthropic-client.ts';
-import { ContextManager, type ConversationMessage } from '../agent/context-manager.ts';
-import { ToolExecutor } from '../agent/tool-executor.ts';
 import { buildSystemPrompt } from '../agent/system-prompt.ts';
 import { ContextPersistence } from '../agent/context-persistence.ts';
 import { AgentRunner } from '../agent/agent-runner.ts';
+import { SimpleToolset } from '../agent/toolset.ts';
 import { BashToolSchema } from '../tools/bash-tool-schema.ts';
+import { ToolExecutor } from '../agent/tool-executor.ts';
 import { McpInstaller, initializeMcpTools } from '../tools/converters/mcp/index.ts';
 import { initializeSkillTools } from '../tools/converters/skill/index.ts';
 import { createLogger } from '../utils/logger.ts';
 import { SettingsManager } from '../config/settings-manager.ts';
-import { SkillSubAgent } from '../skill-sub-agent/skill-sub-agent.ts';
 import { TerminalRenderer } from './terminal-renderer.ts';
 
 const cliLogger = createLogger('cli');
@@ -146,9 +145,9 @@ export function handleSpecialCommand(
     case '/clear':
       state.conversationHistory = [];
       state.turnNumber = 1;
-      // Also clear context manager if available
+      // Also clear agent history if available
       if (agentRunner) {
-        agentRunner.getContextManager().clear();
+        agentRunner.clearHistory();
       }
       console.log(chalk.green('\nConversation history cleared.\n'));
       return true;
@@ -265,72 +264,9 @@ function handleSkillEnhanceCommand(args: string[], agentRunner?: AgentRunner | n
       return;
     }
 
-    // Manual enhance requires LLM client from agentRunner
-    if (!agentRunner) {
-      console.log(chalk.yellow('\nAgent not available. Cannot perform manual enhance.\n'));
-      return;
-    }
-
-    console.log(chalk.gray(`\nTriggering manual enhance from: ${expandedPath}`));
-    console.log(chalk.gray('This feature requires LLM processing...\n'));
-
-    // Create SkillSubAgent with LLM client and tool executor
-    const llmClient = agentRunner.getLlmClient();
-    const toolExecutor = agentRunner.getToolExecutor();
-    const subAgent = new SkillSubAgent({
-      llmClient,
-      toolExecutor,
-      onToolStart: (info) => {
-        if (!terminalRenderer) return;
-        const command = info.input?.command?.toString() || 'unknown';
-        terminalRenderer.renderToolStart({
-          id: info.id,
-          command,
-          depth: info.depth,
-          parentId: info.parentId,
-        });
-        terminalRenderer.storeCommand(info.id, command);
-      },
-      onToolCall: (info) => {
-        if (!terminalRenderer) return;
-        terminalRenderer.renderToolEnd({
-          id: info.id,
-          success: info.success,
-          output: info.output,
-        });
-      },
-    });
-
-    // Render SubAgent start
-    if (terminalRenderer) {
-      terminalRenderer.renderSubAgentStart({
-        id: subAgent.getSubAgentId(),
-        name: `enhance ${expandedPath}`,
-      });
-    }
-
-    subAgent
-      .enhance(expandedPath)
-      .then((result) => {
-        // Render SubAgent completion
-        if (terminalRenderer) {
-          terminalRenderer.renderSubAgentEnd(subAgent.getSubAgentId());
-        }
-
-        const actionMessages: Record<string, string> = {
-          none: chalk.gray('No enhancement needed.'),
-          created: chalk.green(`Created new skill: ${result.skillName}`),
-          enhanced: chalk.green(`Enhanced skill: ${result.skillName}`),
-        };
-        console.log(actionMessages[result.action] || '');
-        console.log(chalk.gray(`Message: ${result.message}\n`));
-      })
-      .catch((error: Error) => {
-        if (terminalRenderer) {
-          terminalRenderer.renderSubAgentEnd(subAgent.getSubAgentId());
-        }
-        console.log(chalk.red(`\nEnhance failed: ${error.message}\n`));
-      });
+    // Manual enhance is temporarily disabled during refactoring
+    console.log(chalk.yellow('\nManual enhance is temporarily unavailable.\n'));
+    console.log(chalk.gray('Use auto-enhance with --on flag instead.\n'));
     return;
   }
 
@@ -575,22 +511,9 @@ function resumeSession(
     return;
   }
 
-  // Create new persistence with existing session ID
-  const persistence = new ContextPersistence(sessionId);
-  const messages = persistence.loadMessages();
-
-  // Clear and reload context manager
-  const contextManager = agentRunner.getContextManager();
-  contextManager.clear();
-  contextManager.enablePersistence(persistence);
-  contextManager.loadFromPersistence();
-
-  // Update state
-  state.turnNumber = Math.floor(messages.length / 2) + 1;
-  state.conversationHistory = [];
-
-  console.log(chalk.green(`\nResumed session: ${sessionId}`));
-  console.log(chalk.gray(`Loaded ${messages.length} messages\n`));
+  // Session resume is temporarily disabled during refactoring
+  console.log(chalk.yellow('\nSession resume is temporarily unavailable.\n'));
+  console.log(chalk.gray('Sessions will be re-enabled in a future update.\n'));
 }
 
 /**
@@ -601,38 +524,37 @@ export async function startRepl(): Promise<void> {
   let agentRunner: AgentRunner | null = null;
   let persistence: ContextPersistence | null = null;
 
-  // Initialize settings manager for auto-enhance feature
-  const settingsManager = new SettingsManager();
-
   // Initialize terminal renderer for tool output
   terminalRenderer = new TerminalRenderer();
 
   try {
     const llmClient = new AnthropicClient();
 
-    // Initialize persistence if enabled (before ToolExecutor for callback)
+    // Initialize persistence if enabled
     if (PERSISTENCE_ENABLED) {
       persistence = new ContextPersistence();
     }
 
-    // Create ToolExecutor with conversation path callback
+    // Create ToolExecutor for tool handling
     const toolExecutor = new ToolExecutor({
       llmClient,
       getConversationPath: () => persistence?.getSessionPath() ?? null,
     });
 
-    const contextManager = new ContextManager({
-      persistence: persistence ?? undefined,
+    // Create toolset with handler
+    const toolset = new SimpleToolset([BashToolSchema], async (toolCall) => {
+      const result = await toolExecutor.executeTools([{
+        id: toolCall.id,
+        name: toolCall.name,
+        input: JSON.parse(toolCall.arguments),
+      }]);
+      const first = result[0];
+      return {
+        toolCallId: first?.toolUseId ?? toolCall.id,
+        output: first?.output ?? '',
+        isError: first?.isError ?? false,
+      };
     });
-
-    // Load existing messages from persistence
-    if (persistence) {
-      contextManager.loadFromPersistence();
-      const messageCount = contextManager.getMessageCount();
-      if (messageCount > 0) {
-        cliLogger.info(`Loaded ${messageCount} messages from session: ${persistence.getSessionId()}`);
-      }
-    }
 
     // Build system prompt
     const systemPrompt = buildSystemPrompt({
@@ -640,37 +562,21 @@ export async function startRepl(): Promise<void> {
     });
 
     agentRunner = new AgentRunner({
-      llmClient,
-      contextManager,
-      toolExecutor,
+      client: llmClient,
       systemPrompt,
-      tools: [BashToolSchema],
-      outputMode: 'streaming',
+      toolset,
       maxIterations: MAX_TOOL_ITERATIONS,
-      // Auto-enhance configuration: check settings manager for enabled state
-      isAutoEnhanceEnabled: () => settingsManager.isAutoEnhanceEnabled(),
-      onText: (text) => {
-        if (text.trim()) {
-          process.stdout.write(text);
+      onMessagePart: (part) => {
+        if (part.type === 'text' && part.text.trim()) {
+          process.stdout.write(part.text);
         }
       },
-      onToolStart: (info) => {
-        if (!terminalRenderer) return;
-        const command = info.input?.command?.toString() || 'unknown';
-        terminalRenderer.renderToolStart({
-          id: info.id,
-          command,
-          depth: info.depth,
-          parentId: info.parentId,
-        });
-        terminalRenderer.storeCommand(info.id, command);
-      },
-      onToolCall: (info) => {
+      onToolResult: (result) => {
         if (!terminalRenderer) return;
         terminalRenderer.renderToolEnd({
-          id: info.id,
-          success: info.success,
-          output: info.output,
+          id: result.toolCallId,
+          success: !result.isError,
+          output: result.output,
         });
       },
     });
@@ -724,9 +630,8 @@ export async function startRepl(): Promise<void> {
   }
 
   // Initialize state
-  // Calculate initial turn number based on loaded messages
   const initialTurnNumber = agentRunner
-    ? Math.floor(agentRunner.getContextManager().getMessageCount() / 2) + 1
+    ? Math.floor(agentRunner.getHistory().length / 2) + 1
     : 1;
 
   const state: ReplState = {
@@ -856,10 +761,6 @@ export async function startRepl(): Promise<void> {
   });
 
   rl.on('close', () => {
-    // Cleanup Agent resources
-    if (agentRunner) {
-      agentRunner.getToolExecutor().cleanup?.();
-    }
     console.log(chalk.yellow('\nREPL session ended.\n'));
     process.exit(0);
   });
@@ -877,10 +778,6 @@ export async function startRepl(): Promise<void> {
     console.log();
     rl.question(chalk.yellow('Do you want to exit? (y/n) '), (answer) => {
       if (answer.toLowerCase() === 'y' || answer.toLowerCase() === 'yes') {
-        // Cleanup
-        if (agentRunner) {
-          agentRunner.getToolExecutor().cleanup?.();
-        }
         console.log(chalk.yellow('\nGoodbye!\n'));
         rl.close();
       } else {
