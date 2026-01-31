@@ -10,11 +10,8 @@
  */
 
 import Anthropic from '@anthropic-ai/sdk';
+import { SettingsManager } from '../config/settings-manager.ts';
 
-// Environment variables
-const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || '';
-const ANTHROPIC_BASE_URL = process.env.ANTHROPIC_BASE_URL || 'https://api.minimaxi.chat/v1';
-const MODEL = process.env.MODEL || 'claude-sonnet-4-5';
 const MAX_TOKENS = parseInt(process.env.MAX_TOKENS || '4096', 10);
 
 // Type definitions
@@ -37,16 +34,17 @@ export interface LlmResponse {
  */
 export class LlmClient {
   private client: Anthropic;
+  private model: string;
 
   constructor() {
-    if (!ANTHROPIC_API_KEY) {
-      throw new Error('ANTHROPIC_API_KEY environment variable is required');
-    }
+    const settingsManager = new SettingsManager();
+    const { apiKey, baseURL, model } = settingsManager.getLlmConfig();
 
     this.client = new Anthropic({
-      apiKey: ANTHROPIC_API_KEY,
-      baseURL: ANTHROPIC_BASE_URL,
+      apiKey,
+      baseURL,
     });
+    this.model = model;
   }
 
   /**
@@ -59,7 +57,7 @@ export class LlmClient {
   ): Promise<LlmResponse> {
     try {
       const response = await this.client.messages.create({
-        model: MODEL,
+        model: this.model,
         max_tokens: MAX_TOKENS,
         system: systemPrompt,
         messages,

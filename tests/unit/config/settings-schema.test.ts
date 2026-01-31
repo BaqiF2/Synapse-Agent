@@ -8,7 +8,6 @@ import { describe, expect, it } from 'bun:test';
 import {
   SynapseSettingsSchema,
   DEFAULT_SETTINGS,
-  type SynapseSettings,
 } from '../../../src/config/settings-schema.ts';
 
 describe('SynapseSettingsSchema', () => {
@@ -29,13 +28,35 @@ describe('SynapseSettingsSchema', () => {
     );
   });
 
-  it('should validate partial settings with defaults', () => {
+  it('should reject settings missing env block', () => {
     const partial = {};
+    const result = SynapseSettingsSchema.safeParse(partial);
+    expect(result.success).toBe(false);
+  });
+
+  it('should apply defaults for optional llm settings', () => {
+    const partial = {
+      env: {
+        ANTHROPIC_API_KEY: 'test-key',
+      },
+    };
     const result = SynapseSettingsSchema.safeParse(partial);
     expect(result.success).toBe(true);
     if (result.success) {
+      expect(result.data.env.ANTHROPIC_BASE_URL).toBe('https://api.anthropic.com');
+      expect(result.data.model).toBe('claude-sonnet-4-5');
       expect(result.data.skillEnhance.autoEnhance).toBe(false);
     }
+  });
+
+  it('should reject empty api key', () => {
+    const invalid = {
+      env: {
+        ANTHROPIC_API_KEY: '',
+      },
+    };
+    const result = SynapseSettingsSchema.safeParse(invalid);
+    expect(result.success).toBe(false);
   });
 
   it('should reject invalid autoEnhance value', () => {

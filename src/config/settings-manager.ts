@@ -126,6 +126,18 @@ export class SettingsManager {
   }
 
   /**
+   * Get LLM configuration
+   */
+  getLlmConfig(): { apiKey: string; baseURL: string; model: string } {
+    const settings = this.get();
+    return {
+      apiKey: settings.env.ANTHROPIC_API_KEY,
+      baseURL: settings.env.ANTHROPIC_BASE_URL,
+      model: settings.model,
+    };
+  }
+
+  /**
    * Get max enhance context characters
    */
   getMaxEnhanceContextChars(): number {

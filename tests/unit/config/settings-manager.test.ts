@@ -101,4 +101,45 @@ describe('SettingsManager', () => {
       expect(manager.isAutoEnhanceEnabled()).toBe(false);
     });
   });
+
+  describe('getLlmConfig', () => {
+    it('should load llm config from settings', () => {
+      const customSettings = {
+        ...DEFAULT_SETTINGS,
+        env: {
+          ANTHROPIC_API_KEY: 'unit-test-key',
+          ANTHROPIC_BASE_URL: 'https://api.anthropic.com',
+        },
+        model: 'claude-sonnet-4-5',
+      };
+      fs.mkdirSync(testDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(testDir, 'settings.json'),
+        JSON.stringify(customSettings, null, 2)
+      );
+
+      const config = manager.getLlmConfig();
+      expect(config.apiKey).toBe('unit-test-key');
+      expect(config.baseURL).toBe('https://api.anthropic.com');
+      expect(config.model).toBe('claude-sonnet-4-5');
+    });
+
+    it('should apply defaults for baseURL and model', () => {
+      const customSettings = {
+        ...DEFAULT_SETTINGS,
+        env: {
+          ANTHROPIC_API_KEY: 'unit-test-key',
+        },
+      };
+      fs.mkdirSync(testDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(testDir, 'settings.json'),
+        JSON.stringify(customSettings, null, 2)
+      );
+
+      const config = manager.getLlmConfig();
+      expect(config.baseURL).toBe('https://api.anthropic.com');
+      expect(config.model).toBe('claude-sonnet-4-5');
+    });
+  });
 });
