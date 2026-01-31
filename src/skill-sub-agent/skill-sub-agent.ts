@@ -19,7 +19,7 @@ import { createLogger } from '../utils/logger.ts';
 import { SkillMemoryStore } from './skill-memory-store.ts';
 import { buildSkillSubAgentPrompt } from './skill-sub-agent-prompt.ts';
 import { AgentRunner } from '../agent/agent-runner.ts';
-import { CallableToolset } from '../agent/toolset.ts';
+import { CallableToolset } from '../tools/toolset.ts';
 import type { AnthropicClient } from '../providers/anthropic/anthropic-client.ts';
 import type { BashTool } from '../tools/bash-tool.ts';
 import { SkillDocParser } from '../skills/skill-schema.ts';

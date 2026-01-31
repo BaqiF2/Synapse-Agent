@@ -26,7 +26,7 @@
 
 import type Anthropic from '@anthropic-ai/sdk';
 import type { StreamedMessagePart, ToolCallPart, ToolCallDeltaPart, ThinkPart } from '../providers/anthropic/anthropic-types.ts';
-import type { ToolReturnValue } from './callable-tool.ts';
+import type { ToolReturnValue } from '../tools/callable-tool.ts';
 
 /**
  * Message sender role

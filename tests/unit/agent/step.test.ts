@@ -7,9 +7,9 @@
 import { describe, expect, it, mock } from 'bun:test';
 import { step, type StepResult } from '../../../src/agent/step.ts';
 import { createTextMessage, type Message, type ToolCall } from '../../../src/agent/message.ts';
-import { CallableToolset } from '../../../src/agent/toolset.ts';
-import { ToolOk, ToolError } from '../../../src/agent/callable-tool.ts';
-import type { CallableTool, ToolReturnValue } from '../../../src/agent/callable-tool.ts';
+import { CallableToolset } from '../../../src/tools/toolset.ts';
+import { ToolOk, ToolError } from '../../../src/tools/callable-tool.ts';
+import type { CallableTool, ToolReturnValue } from '../../../src/tools/callable-tool.ts';
 import type { AnthropicClient } from '../../../src/providers/anthropic/anthropic-client.ts';
 import type { StreamedMessagePart } from '../../../src/providers/anthropic/anthropic-types.ts';
 import { BashToolSchema } from '../../../src/tools/bash-tool-schema.ts';
