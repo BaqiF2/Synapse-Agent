@@ -852,12 +852,10 @@ bun test tests/unit/agent/agent-runner.test.ts
 
 **预期输出**:
 ```
-✓ should create AgentRunner with streaming mode
 ✓ should create AgentRunner with silent mode
 ✓ should expose getLlmClient and getToolExecutor
 ✓ should process user message and return response (no tools)
 ✓ should execute tools when LLM returns tool calls
-✓ should call onText callback in streaming mode
 ✓ should not call onText callback in silent mode
 ```
 
@@ -984,7 +982,6 @@ You (3)> 请删除这个测试目录
 **预期行为**:
 - 每个请求都触发 AgentRunner 的 run() 方法
 - 工具调用正常执行
-- 输出以 streaming 模式显示
 
 **验证日志**:
 ```bash
@@ -996,7 +993,6 @@ grep "Agent loop iteration" ~/.synapse/logs/*.log | tail -10
 **验证结果**:
 - [x] Agent Loop 正常执行
 - [x] 工具调用成功
-- [x] Streaming 输出正常
 
 ---
 
@@ -1061,7 +1057,6 @@ grep "Agent loop iteration" ~/.synapse/logs/*.log | tail -10
 | AgentRunner 单元测试通过 | ☐ | |
 | AgentRunner 正确导出 | ☐ | |
 | repl.ts 使用 AgentRunner | ☐ | |
-| streaming 模式工作正常 | ☐ | |
 | silent 模式工作正常 | ☐ | |
 | getLlmClient() 方法可用 | ☐ | |
 | getToolExecutor() 方法可用 | ☐ | |

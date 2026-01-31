@@ -14,7 +14,7 @@ import Anthropic from '@anthropic-ai/sdk';
 // Environment variables
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || '';
 const ANTHROPIC_BASE_URL = process.env.ANTHROPIC_BASE_URL || 'https://api.minimaxi.chat/v1';
-const MODEL = process.env.MODEL || 'minimax-2.1';
+const MODEL = process.env.MODEL || 'claude-sonnet-4-5';
 const MAX_TOKENS = parseInt(process.env.MAX_TOKENS || '4096', 10);
 
 // Type definitions
@@ -95,34 +95,4 @@ export class LlmClient {
     }
   }
 
-  /**
-   * Stream a message to the LLM (for future streaming support)
-   */
-  async *streamMessage(
-    messages: LlmMessage[],
-    systemPrompt: string,
-    tools?: Anthropic.Tool[]
-  ): AsyncGenerator<string> {
-    try {
-      const stream = await this.client.messages.create({
-        model: MODEL,
-        max_tokens: MAX_TOKENS,
-        system: systemPrompt,
-        messages,
-        tools: tools || [],
-        stream: true,
-      });
-
-      for await (const event of stream) {
-        if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
-          yield event.delta.text;
-        }
-      }
-    } catch (error) {
-      if (error instanceof Error) {
-        throw new Error(`LLM streaming failed: ${error.message}`);
-      }
-      throw new Error('LLM streaming failed with unknown error');
-    }
-  }
 }

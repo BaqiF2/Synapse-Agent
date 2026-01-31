@@ -37,7 +37,7 @@
 ┌───────┴───────┐       ┌───────┴───────┐
 │  主 Agent     │       │ SkillSubAgent │
 │  (用户交互)    │       │  (静默执行)    │
-│  流式输出      │       │  返回结果      │
+│  输出          │       │  返回结果      │
 └───────────────┘       └───────────────┘
 ```
 
@@ -67,22 +67,13 @@ interface AgentRunnerOptions {
   toolExecutor: ToolExecutor;
   systemPrompt: string;
   maxIterations?: number;
-  // 新增：输出模式配置
-  outputMode: 'streaming' | 'silent';
-  // 可选：流式输出回调（streaming 模式用）
-  onText?: (text: string) => void;
-  onToolExecution?: (tool: string, success: boolean) => void;
 }
 
 class AgentRunner {
   // ... 现有字段 ...
-  private outputMode: 'streaming' | 'silent';
 
   async run(userMessage: string): Promise<string> {
     // Agent Loop 核心逻辑不变
-    // 输出行为根据 outputMode 决定：
-    // - streaming: 调用 onText/onToolExecution 回调
-    // - silent: 不输出，只收集最终结果
   }
 }
 ```
@@ -320,7 +311,7 @@ type: meta
 ### 实现步骤
 
 1. **提取 AgentRunner** - 从 repl.ts 提取到独立模块，添加 outputMode 支持
-2. **更新 repl.ts** - 引用新的 AgentRunner，配置 streaming 模式
+2. **更新 repl.ts** - 引用新的 AgentRunner，完成实例化配置
 3. **扩展 SkillMemoryStore** - 添加 type 字段解析和 getMetaSkillContents 方法
 4. **更新提示词** - 修改 buildSkillSubAgentPrompt 函数签名和内容
 5. **重构 SkillSubAgent** - 使用 AgentRunner，实现 enhance/search/evaluate

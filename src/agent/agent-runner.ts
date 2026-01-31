@@ -102,8 +102,6 @@ export interface AgentRunnerOptions {
   agentTag?: string;
   /** Callback for text output (streaming mode) */
   onText?: (text: string) => void;
-  /** Callback for tool execution (streaming mode) */
-  onToolExecution?: (toolName: string, success: boolean, output: string) => void;
   /** Callback for tool calls (all modes, with full info) */
   onToolCall?: (info: ToolCallInfo) => void;
   /** Callback when tool execution starts */
@@ -152,7 +150,6 @@ export class AgentRunner {
   private outputMode: OutputMode;
   private agentTag?: string;
   private onText?: (text: string) => void;
-  private onToolExecution?: (toolName: string, success: boolean, output: string) => void;
   private onToolCall?: (info: ToolCallInfo) => void;
   private onToolStart?: (info: { id: string; name: string; input: Record<string, unknown>; depth: number; parentId?: string }) => void;
   private isAutoEnhanceEnabled?: () => boolean;
@@ -176,7 +173,6 @@ export class AgentRunner {
     this.outputMode = options.outputMode;
     this.agentTag = options.agentTag;
     this.onText = options.onText;
-    this.onToolExecution = options.onToolExecution;
     this.onToolCall = options.onToolCall;
     this.onToolStart = options.onToolStart;
     this.isAutoEnhanceEnabled = options.isAutoEnhanceEnabled;
@@ -286,7 +282,6 @@ export class AgentRunner {
         }
 
         logger.debug('Agent loop completed, no more tool calls');
-        this.consecutiveToolFailures = 0;
         break;
       }
 
@@ -323,12 +318,6 @@ export class AgentRunner {
       for (const result of results) {
         const toolInput = toolInputs.find(t => t.id === result.toolUseId);
 
-        // Call onToolExecution callback in streaming mode
-        if (this.outputMode === 'streaming' && this.onToolExecution) {
-          const toolName = toolInput?.input?.command?.toString() || 'unknown';
-          this.onToolExecution(toolName, result.success, result.output);
-        }
-
         // Call onToolCall callback (all modes)
         if (this.onToolCall) {
           this.onToolCall({
@@ -364,15 +353,6 @@ export class AgentRunner {
         this.consecutiveToolFailures = 0;
       }
 
-      // Check if stop reason is end_turn
-      if (response.stopReason === 'end_turn') {
-        // Check if auto-enhance should be triggered at end_turn
-        if (this.triggerAutoEnhance()) {
-          continue;
-        }
-
-        break;
-      }
     }
 
     if (iteration >= this.maxIterations) {

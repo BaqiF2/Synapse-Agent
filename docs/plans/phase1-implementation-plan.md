@@ -107,7 +107,6 @@
    - 实现 Minimax API 调用：
      - 使用 Anthropic SDK 兼容模式
      - 配置 API endpoint（通过环境变量）
-     - 实现流式响应处理
    - 环境变量配置：
      - `MINIMAX_API_KEY`
      - `MINIMAX_API_BASE_URL`（可选）
@@ -691,7 +690,7 @@
     - 实现 `executeShellCommand()` 方法：
       - 提取 `!` 后的命令
       - 使用 `child_process.spawn()` 执行
-      - 流式输出到终端（stdout/stderr: "inherit"）
+      - 输出到终端（stdout/stderr: "inherit"）
       - 显示退出码（如果失败）
     - 不影响 Agent 的上下文和历史
 

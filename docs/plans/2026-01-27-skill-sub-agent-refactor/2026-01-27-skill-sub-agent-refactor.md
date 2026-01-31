@@ -379,20 +379,6 @@ describe('AgentRunner', () => {
   });
 
   describe('constructor', () => {
-    it('should create AgentRunner with streaming mode', () => {
-      const runner = new AgentRunner({
-        llmClient: mockLlmClient,
-        contextManager,
-        toolExecutor: mockToolExecutor,
-        systemPrompt: 'Test prompt',
-        tools: [BashToolSchema],
-        outputMode: 'streaming',
-      });
-
-      expect(runner).toBeDefined();
-      expect(runner.getOutputMode()).toBe('streaming');
-    });
-
     it('should create AgentRunner with silent mode', () => {
       const runner = new AgentRunner({
         llmClient: mockLlmClient,
@@ -465,7 +451,7 @@ const DEFAULT_MAX_ITERATIONS = parseInt(process.env.MAX_TOOL_ITERATIONS || '20',
 /**
  * Output mode for AgentRunner
  */
-export type OutputMode = 'streaming' | 'silent';
+export type OutputMode = 'silent';
 
 /**
  * LLM Client interface
@@ -502,12 +488,8 @@ export interface AgentRunnerOptions {
   tools: Anthropic.Tool[];
   /** Maximum iterations for Agent Loop */
   maxIterations?: number;
-  /** Output mode: streaming or silent */
+  /** Output mode */
   outputMode: OutputMode;
-  /** Callback for text output (streaming mode) */
-  onText?: (text: string) => void;
-  /** Callback for tool execution (streaming mode) */
-  onToolExecution?: (toolName: string, success: boolean, output: string) => void;
 }
 
 /**
@@ -520,8 +502,7 @@ export interface AgentRunnerOptions {
  *   contextManager,
  *   toolExecutor,
  *   systemPrompt: 'You are a helpful assistant',
- *   outputMode: 'streaming',
- *   onText: (text) => process.stdout.write(text),
+ *   outputMode: 'silent',
  * });
  *
  * const response = await runner.run('Hello');
@@ -612,7 +593,7 @@ git add src/agent/agent-runner.ts tests/unit/agent/agent-runner.test.ts
 git commit -m "$(cat <<'EOF'
 feat(agent-runner): create AgentRunner module skeleton
 
-Reusable Agent Loop with configurable output modes (streaming/silent).
+Reusable Agent Loop with configurable output mode.
 
 Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
 EOF
@@ -688,41 +669,6 @@ describe('run', () => {
     expect(toolExecutor.executeTools).toHaveBeenCalled();
   });
 
-  it('should call onText callback in streaming mode', async () => {
-    const textOutput: string[] = [];
-
-    const runner = new AgentRunner({
-      llmClient: mockLlmClient,
-      contextManager,
-      toolExecutor: mockToolExecutor,
-      systemPrompt: 'Test prompt',
-      tools: [BashToolSchema],
-      outputMode: 'streaming',
-      onText: (text) => textOutput.push(text),
-    });
-
-    await runner.run('Hello');
-
-    expect(textOutput).toContain('Test response');
-  });
-
-  it('should not call onText callback in silent mode', async () => {
-    const textOutput: string[] = [];
-
-    const runner = new AgentRunner({
-      llmClient: mockLlmClient,
-      contextManager,
-      toolExecutor: mockToolExecutor,
-      systemPrompt: 'Test prompt',
-      tools: [BashToolSchema],
-      outputMode: 'silent',
-      onText: (text) => textOutput.push(text),
-    });
-
-    await runner.run('Hello');
-
-    expect(textOutput).toHaveLength(0);
-  });
 });
 ```
 
@@ -767,10 +713,6 @@ async run(userMessage: string): Promise<string> {
     if (response.content) {
       finalResponse = response.content;
 
-      // Output text in streaming mode
-      if (this.outputMode === 'streaming' && response.content.trim() && this.onText) {
-        this.onText(response.content);
-      }
     }
 
     // Check for tool calls
@@ -795,15 +737,6 @@ async run(userMessage: string): Promise<string> {
 
     // Add tool results to context
     this.contextManager.addToolResults(toolResults);
-
-    // Call onToolExecution callback in streaming mode
-    if (this.outputMode === 'streaming' && this.onToolExecution) {
-      for (const result of results) {
-        const toolInput = toolInputs.find(t => t.id === result.toolUseId);
-        const toolName = toolInput?.input?.command?.toString() || 'unknown';
-        this.onToolExecution(toolName, result.success, result.output);
-      }
-    }
 
     // Check if stop reason is end_turn
     if (response.stopReason === 'end_turn') {
@@ -874,17 +807,7 @@ const agentRunner = new AgentRunner({
   toolExecutor,
   systemPrompt,
   tools: [BashToolSchema],
-  outputMode: 'streaming',
-  onText: (text) => {
-    if (text.trim()) {
-      process.stdout.write(text);
-    }
-  },
-  onToolExecution: (toolName, success, _output) => {
-    const status = success ? chalk.green('✓') : chalk.red('✗');
-    const shortCmd = toolName.length > 50 ? toolName.substring(0, 50) + '...' : toolName;
-    console.log(chalk.gray(`  ${status} ${shortCmd}`));
-  },
+  outputMode: 'silent',
 });
 ```
 
