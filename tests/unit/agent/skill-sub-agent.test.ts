@@ -10,7 +10,7 @@ import * as path from 'node:path';
 import * as os from 'node:os';
 import { SkillSubAgent } from '../../../src/skill-sub-agent/skill-sub-agent.ts';
 import type { AgentRunnerStreamedMessage } from '../../../src/agent/agent-runner.ts';
-import type { StreamedMessagePart } from '../../../src/agent/anthropic-types.ts';
+import type { StreamedMessagePart } from '../../../src/providers/anthropic/anthropic-types.ts';
 
 /**
  * Create a mock streamed message for testing

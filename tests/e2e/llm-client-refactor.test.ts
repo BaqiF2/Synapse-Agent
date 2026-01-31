@@ -8,8 +8,8 @@
  */
 
 import { describe, expect, it, beforeEach } from 'bun:test';
-import { AnthropicClient } from '../../src/agent/anthropic-client.ts';
-import { AnthropicStreamedMessage } from '../../src/agent/anthropic-streamed-message.ts';
+import { AnthropicClient } from '../../src/providers/anthropic/anthropic-client.ts';
+import { AnthropicStreamedMessage } from '../../src/providers/anthropic/anthropic-streamed-message.ts';
 import {
   AgentRunner,
   type AgentRunnerLlmClient,
@@ -27,7 +27,7 @@ import {
   APIEmptyResponseError,
   getTokenUsageInput,
   getTokenUsageTotal,
-} from '../../src/agent/anthropic-types.ts';
+} from '../../src/providers/anthropic/anthropic-types.ts';
 import { BashToolSchema } from '../../src/tools/bash-tool-schema.ts';
 
 /**

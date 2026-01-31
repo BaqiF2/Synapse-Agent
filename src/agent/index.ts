@@ -18,8 +18,8 @@
  */
 
 // Anthropic Client exports
-export { AnthropicClient, type GenerationKwargs } from './anthropic-client.ts';
-export { AnthropicStreamedMessage } from './anthropic-streamed-message.ts';
+export { AnthropicClient, type GenerationKwargs } from '../providers/anthropic/index.ts';
+export { AnthropicStreamedMessage } from '../providers/anthropic/index.ts';
 export {
   type ThinkingEffort,
   type TokenUsage,
@@ -35,7 +35,7 @@ export {
   APIEmptyResponseError,
   getTokenUsageInput,
   getTokenUsageTotal,
-} from './anthropic-types.ts';
+} from '../providers/anthropic/index.ts';
 
 // Message types and functions
 export {

@@ -9,8 +9,8 @@
  * - AgentRunnerOptions: Configuration options
  */
 
-import type { AnthropicClient } from './anthropic-client.ts';
-import type { StreamedMessagePart } from './anthropic-types.ts';
+import type { AnthropicClient } from '../providers/anthropic/anthropic-client.ts';
+import type { StreamedMessagePart } from '../providers/anthropic/anthropic-types.ts';
 import { step, type OnToolResult } from './step.ts';
 import { type OnMessagePart } from './generate.ts';
 import {

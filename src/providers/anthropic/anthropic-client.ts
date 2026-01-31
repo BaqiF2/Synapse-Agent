@@ -10,7 +10,7 @@
  */
 
 import Anthropic from '@anthropic-ai/sdk';
-import { SettingsManager } from '../config/settings-manager.ts';
+import { SettingsManager } from '../../config/settings-manager.ts';
 import {
   type ThinkingEffort,
   ChatProviderError,

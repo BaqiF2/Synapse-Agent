@@ -17,7 +17,7 @@ import { CommandSearchHandler } from './handlers/extend-bash/index.ts';
 import { McpConfigParser, McpClient, McpWrapperGenerator, McpInstaller } from './converters/mcp/index.ts';
 import { SkillStructure, DocstringParser, SkillWrapperGenerator } from './converters/skill/index.ts';
 import { SkillCommandHandler } from './handlers/skill-command-handler.ts';
-import type { AnthropicClient } from '../agent/anthropic-client.ts';
+import type { AnthropicClient } from '../providers/anthropic/anthropic-client.ts';
 import type { ToolExecutor } from '../agent/tool-executor.ts';
 
 /**

@@ -20,7 +20,7 @@ import { SkillMemoryStore } from './skill-memory-store.ts';
 import { buildSkillSubAgentPrompt } from './skill-sub-agent-prompt.ts';
 import { AgentRunner } from '../agent/agent-runner.ts';
 import { SimpleToolset } from '../agent/toolset.ts';
-import type { AnthropicClient } from '../agent/anthropic-client.ts';
+import type { AnthropicClient } from '../providers/anthropic/anthropic-client.ts';
 import type { ToolExecutor } from '../agent/tool-executor.ts';
 import { BashToolSchema } from '../tools/bash-tool-schema.ts';
 import { SkillDocParser } from '../skills/skill-schema.ts';

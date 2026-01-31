@@ -12,9 +12,9 @@
  */
 
 import type Anthropic from '@anthropic-ai/sdk';
-import type { AnthropicClient } from './anthropic-client.ts';
-import type { StreamedMessagePart, TokenUsage } from './anthropic-types.ts';
-import { APIEmptyResponseError } from './anthropic-types.ts';
+import type { AnthropicClient } from '../providers/anthropic/anthropic-client.ts';
+import type { StreamedMessagePart, TokenUsage } from '../providers/anthropic/anthropic-types.ts';
+import { APIEmptyResponseError } from '../providers/anthropic/anthropic-types.ts';
 import {
   type Message,
   type ToolCall,

@@ -19,7 +19,7 @@ mock.module('../../../src/config/settings-manager.ts', () => ({
   },
 }));
 
-const { AnthropicClient } = await import('../../../src/agent/anthropic-client.ts');
+const { AnthropicClient } = await import('../../../src/providers/anthropic/anthropic-client.ts');
 
 describe('AnthropicClient', () => {
   describe('constructor', () => {

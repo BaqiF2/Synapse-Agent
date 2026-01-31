@@ -14,7 +14,7 @@ import * as path from 'node:path';
 import * as os from 'node:os';
 import type { CommandResult } from './base-bash-handler.ts';
 import { SkillSubAgent } from '../../skill-sub-agent/skill-sub-agent.ts';
-import type { AnthropicClient } from '../../agent/anthropic-client.ts';
+import type { AnthropicClient } from '../../providers/anthropic/anthropic-client.ts';
 import type { ToolExecutor } from '../../agent/tool-executor.ts';
 import { SettingsManager } from '../../config/settings-manager.ts';
 import { createLogger } from '../../utils/logger.ts';

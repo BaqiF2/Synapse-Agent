@@ -5,8 +5,8 @@
  */
 
 import { describe, expect, it } from 'bun:test';
-import { AnthropicStreamedMessage } from '../../../src/agent/anthropic-streamed-message.ts';
-import type { StreamedMessagePart } from '../../../src/agent/anthropic-types.ts';
+import { AnthropicStreamedMessage } from '../../../src/providers/anthropic/anthropic-streamed-message.ts';
+import type { StreamedMessagePart } from '../../../src/providers/anthropic/anthropic-types.ts';
 import type Anthropic from '@anthropic-ai/sdk';
 
 /**

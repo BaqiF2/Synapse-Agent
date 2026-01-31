@@ -19,7 +19,7 @@ import {
   type ToolCallPart,
   type ToolCallDeltaPart,
   type StreamedMessagePart,
-} from '../../../src/agent/anthropic-types.ts';
+} from '../../../src/providers/anthropic/anthropic-types.ts';
 
 describe('Error Classes', () => {
   describe('ChatProviderError', () => {

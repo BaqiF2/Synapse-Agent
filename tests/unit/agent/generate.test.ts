@@ -7,8 +7,8 @@
 import { describe, expect, it, mock } from 'bun:test';
 import { generate, type GenerateResult } from '../../../src/agent/generate.ts';
 import { createTextMessage, type Message } from '../../../src/agent/message.ts';
-import type { AnthropicClient } from '../../../src/agent/anthropic-client.ts';
-import type { StreamedMessagePart, TokenUsage } from '../../../src/agent/anthropic-types.ts';
+import type { AnthropicClient } from '../../../src/providers/anthropic/anthropic-client.ts';
+import type { StreamedMessagePart, TokenUsage } from '../../../src/providers/anthropic/anthropic-types.ts';
 
 function createMockClient(parts: StreamedMessagePart[]): AnthropicClient {
   return {

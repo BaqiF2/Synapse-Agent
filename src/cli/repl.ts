@@ -19,7 +19,7 @@ import * as os from 'node:os';
 import chalk from 'chalk';
 
 // Agent imports
-import { AnthropicClient } from '../agent/anthropic-client.ts';
+import { AnthropicClient } from '../providers/anthropic/anthropic-client.ts';
 import { buildSystemPrompt } from '../agent/system-prompt.ts';
 import { ContextPersistence } from '../agent/context-persistence.ts';
 import { AgentRunner } from '../agent/agent-runner.ts';

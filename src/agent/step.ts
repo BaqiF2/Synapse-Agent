@@ -11,8 +11,8 @@
  * - OnToolResult: Callback type for tool results
  */
 
-import type { AnthropicClient } from './anthropic-client.ts';
-import type { TokenUsage } from './anthropic-types.ts';
+import type { AnthropicClient } from '../providers/anthropic/anthropic-client.ts';
+import type { TokenUsage } from '../providers/anthropic/anthropic-types.ts';
 import { generate, type OnMessagePart } from './generate.ts';
 import type { Message, ToolCall, ToolResult } from './message.ts';
 import type { Toolset } from './toolset.ts';

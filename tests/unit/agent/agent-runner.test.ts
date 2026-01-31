@@ -12,8 +12,8 @@ import {
 import { SimpleToolset } from '../../../src/agent/toolset.ts';
 import { createTextMessage, type Message } from '../../../src/agent/message.ts';
 import { BashToolSchema } from '../../../src/tools/bash-tool-schema.ts';
-import type { AnthropicClient } from '../../../src/agent/anthropic-client.ts';
-import type { StreamedMessagePart } from '../../../src/agent/anthropic-types.ts';
+import type { AnthropicClient } from '../../../src/providers/anthropic/anthropic-client.ts';
+import type { StreamedMessagePart } from '../../../src/providers/anthropic/anthropic-types.ts';
 
 function createMockClient(responses: StreamedMessagePart[][]): AnthropicClient {
   let callIndex = 0;
