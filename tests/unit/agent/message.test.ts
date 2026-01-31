@@ -9,10 +9,13 @@ import type Anthropic from '@anthropic-ai/sdk';
 import {
   type Message,
   type TextPart,
+  type MergeablePart,
   createTextMessage,
   extractText,
   toAnthropicMessage,
   toolResultToMessage,
+  mergePart,
+  appendToMessage,
 } from '../../../src/agent/message.ts';
 
 describe('Message', () => {
@@ -136,6 +139,76 @@ describe('Message', () => {
       expect(message.toolCallId).toBe('call1');
       expect(message.content).toHaveLength(1);
       expect((message.content[0] as TextPart).text).toBe('success');
+    });
+  });
+
+  describe('mergePart', () => {
+    it('should merge two text parts', () => {
+      const target: MergeablePart = { type: 'text', text: 'Hello' };
+      const source: MergeablePart = { type: 'text', text: ' world' };
+
+      const merged = mergePart(target, source);
+
+      expect(merged).toBe(true);
+      expect((target as TextPart).text).toBe('Hello world');
+    });
+
+    it('should not merge different types', () => {
+      const target: MergeablePart = { type: 'text', text: 'Hello' };
+      const source: MergeablePart = { type: 'thinking', content: 'thinking' };
+
+      const merged = mergePart(target, source);
+
+      expect(merged).toBe(false);
+      expect((target as TextPart).text).toBe('Hello');
+    });
+
+    it('should merge tool_call_delta into tool_call', () => {
+      const target: MergeablePart = {
+        type: 'tool_call',
+        id: 'call1',
+        name: 'Bash',
+        input: {},
+        _argumentsJson: '{"com',
+      };
+      const source: MergeablePart = { type: 'tool_call_delta', argumentsDelta: 'mand":"ls"}' };
+
+      const merged = mergePart(target, source);
+
+      expect(merged).toBe(true);
+      expect((target as any)._argumentsJson).toBe('{"command":"ls"}');
+    });
+  });
+
+  describe('appendToMessage', () => {
+    it('should append text part to message content', () => {
+      const message: Message = { role: 'assistant', content: [] };
+      const part: MergeablePart = { type: 'text', text: 'Hello' };
+
+      appendToMessage(message, part);
+
+      expect(message.content).toHaveLength(1);
+      expect(message.content[0]).toEqual({ type: 'text', text: 'Hello' });
+    });
+
+    it('should append tool call to message', () => {
+      const message: Message = { role: 'assistant', content: [] };
+      const part: MergeablePart = {
+        type: 'tool_call',
+        id: 'call1',
+        name: 'Bash',
+        input: { command: 'ls' },
+        _argumentsJson: '{"command":"ls"}',
+      };
+
+      appendToMessage(message, part);
+
+      expect(message.toolCalls).toHaveLength(1);
+      expect(message.toolCalls![0]).toEqual({
+        id: 'call1',
+        name: 'Bash',
+        arguments: '{"command":"ls"}',
+      });
     });
   });
 });

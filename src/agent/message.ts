@@ -12,13 +12,20 @@
  * - ToolCall: Tool call request
  * - ToolResult: Tool execution result
  * - Message: Complete message structure
+ * - MergeablePart: Union type for mergeable stream parts
+ * - MergeableToolCallPart: Tool call part with accumulated JSON
  * - createTextMessage: Helper to create text messages
  * - extractText: Helper to extract text from message
  * - toAnthropicMessage: Convert Message to Anthropic.MessageParam
  * - toolResultToMessage: Convert ToolResult to Message
+ * - mergePart: Merge two stream parts
+ * - appendToMessage: Append a completed part to message
+ * - toMergeablePart: Convert StreamedMessagePart to MergeablePart
+ * - isToolCallPart: Type guard for tool call parts
  */
 
 import type Anthropic from '@anthropic-ai/sdk';
+import type { StreamedMessagePart, ToolCallPart, ToolCallDeltaPart, ThinkPart } from './anthropic-types.ts';
 
 /**
  * Message sender role
@@ -164,4 +171,99 @@ export function toolResultToMessage(result: ToolResult): Message {
     content: [{ type: 'text', text: result.output }],
     toolCallId: result.toolCallId,
   };
+}
+
+// ===== Stream Merging Types and Functions =====
+
+/**
+ * Extended tool call part for merging (includes accumulated JSON)
+ */
+export interface MergeableToolCallPart extends ToolCallPart {
+  _argumentsJson: string;
+}
+
+/**
+ * Union type for parts that can be merged
+ * Uses ThinkPart from anthropic-types for streaming compatibility
+ */
+export type MergeablePart =
+  | TextPart
+  | ThinkPart
+  | MergeableToolCallPart
+  | ToolCallDeltaPart;
+
+/**
+ * Check if a part is a tool call
+ */
+export function isToolCallPart(part: MergeablePart): part is MergeableToolCallPart {
+  return part.type === 'tool_call';
+}
+
+/**
+ * Merge source part into target part in place.
+ * Returns true if merge was successful, false otherwise.
+ */
+export function mergePart(target: MergeablePart, source: MergeablePart): boolean {
+  // Text + Text
+  if (target.type === 'text' && source.type === 'text') {
+    target.text += source.text;
+    return true;
+  }
+
+  // Thinking + Thinking
+  if (target.type === 'thinking' && source.type === 'thinking') {
+    if (target.signature) return false;
+    target.content += source.content;
+    if (source.signature) target.signature = source.signature;
+    return true;
+  }
+
+  // ToolCall + ToolCallDelta
+  if (target.type === 'tool_call' && source.type === 'tool_call_delta') {
+    (target as MergeableToolCallPart)._argumentsJson += source.argumentsDelta;
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Convert StreamedMessagePart to MergeablePart
+ */
+export function toMergeablePart(part: StreamedMessagePart): MergeablePart {
+  if (part.type === 'tool_call') {
+    return {
+      ...part,
+      _argumentsJson: JSON.stringify(part.input),
+    } as MergeableToolCallPart;
+  }
+  return part as MergeablePart;
+}
+
+/**
+ * Append a completed part to a message
+ */
+export function appendToMessage(message: Message, part: MergeablePart): void {
+  if (part.type === 'text') {
+    message.content.push({ type: 'text', text: part.text });
+    return;
+  }
+
+  if (part.type === 'thinking') {
+    message.content.push({ type: 'thinking', content: part.content, signature: part.signature });
+    return;
+  }
+
+  if (part.type === 'tool_call') {
+    if (!message.toolCalls) message.toolCalls = [];
+    const toolCallPart = part as MergeableToolCallPart;
+    message.toolCalls.push({
+      id: toolCallPart.id,
+      name: toolCallPart.name,
+      arguments: toolCallPart._argumentsJson,
+    });
+    return;
+  }
+
+  // Ignore orphaned tool_call_delta
 }
