@@ -12,10 +12,10 @@
  * - ToolCallInfo: Tool call info for callbacks
  */
 
-import type { LlmResponse, LlmToolCall } from './llm-client.ts';
 import type { ContextManager } from './context-manager.ts';
 import type { ToolCallInput, ToolExecutionResult } from './tool-executor.ts';
 import type { ToolResultContent } from './context-manager.ts';
+import type { StreamedMessagePart, TokenUsage } from './anthropic-types.ts';
 import type Anthropic from '@anthropic-ai/sdk';
 import { createLogger } from '../utils/logger.ts';
 import { AUTO_ENHANCE_PROMPT } from './system-prompt.ts';
@@ -36,14 +36,32 @@ const DEFAULT_MAX_CONSECUTIVE_TOOL_FAILURES =
 export type OutputMode = 'streaming' | 'silent';
 
 /**
+ * Tool call type for internal use
+ */
+interface LlmToolCall {
+  id: string;
+  name: string;
+  input: Record<string, unknown>;
+}
+
+/**
+ * Streamed message interface for LLM responses
+ */
+export interface AgentRunnerStreamedMessage {
+  id: string | null;
+  usage: TokenUsage;
+  [Symbol.asyncIterator](): AsyncIterator<StreamedMessagePart>;
+}
+
+/**
  * LLM Client interface
  */
 export interface AgentRunnerLlmClient {
-  sendMessage: (
-    messages: Anthropic.MessageParam[],
+  generate: (
     systemPrompt: string,
-    tools?: Anthropic.Tool[]
-  ) => Promise<LlmResponse>;
+    messages: Anthropic.MessageParam[],
+    tools: Anthropic.Tool[]
+  ) => Promise<AgentRunnerStreamedMessage>;
 }
 
 /**
@@ -241,9 +259,9 @@ export class AgentRunner {
       logger.info(`Sending ${messages.length} message(s) to LLM`);
 
       // Call LLM
-      let response: LlmResponse;
+      let stream: AgentRunnerStreamedMessage;
       try {
-        response = await this.llmClient.sendMessage(messages, this.systemPrompt, this.tools);
+        stream = await this.llmClient.generate(this.systemPrompt, messages, this.tools);
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown error';
         logger.error('LLM request failed', {
@@ -254,20 +272,59 @@ export class AgentRunner {
         throw error;
       }
 
-      // Collect text content
-      if (response.content) {
-        finalResponse = response.content;
+      // Collect response from stream
+      const textContent: string[] = [];
+      const toolCalls: LlmToolCall[] = [];
+      let currentToolCall: { id: string; name: string; argumentsJson: string } | null = null;
 
-        // Output text in streaming mode
-        if (this.outputMode === 'streaming' && response.content.trim() && this.onText) {
-          this.onText(response.content);
+      for await (const part of stream) {
+        switch (part.type) {
+          case 'text':
+            textContent.push(part.text);
+            if (this.outputMode === 'streaming' && this.onText) {
+              this.onText(part.text);
+            }
+            break;
+          case 'tool_call':
+            // Finalize previous tool call if exists
+            if (currentToolCall) {
+              toolCalls.push({
+                id: currentToolCall.id,
+                name: currentToolCall.name,
+                input: JSON.parse(currentToolCall.argumentsJson || '{}'),
+              });
+            }
+            currentToolCall = { id: part.id, name: part.name, argumentsJson: JSON.stringify(part.input) };
+            break;
+          case 'tool_call_delta':
+            if (currentToolCall) {
+              currentToolCall.argumentsJson += part.argumentsDelta;
+            }
+            break;
+          case 'thinking':
+            // Optionally handle thinking output
+            break;
         }
       }
 
+      // Finalize last tool call
+      if (currentToolCall) {
+        toolCalls.push({
+          id: currentToolCall.id,
+          name: currentToolCall.name,
+          input: JSON.parse(currentToolCall.argumentsJson || '{}'),
+        });
+      }
+
+      const responseContent = textContent.join('');
+      if (responseContent) {
+        finalResponse = responseContent;
+      }
+
       // Check for tool calls
-      if (response.toolCalls.length === 0) {
+      if (toolCalls.length === 0) {
         // No tool calls, add assistant response
-        this.contextManager.addAssistantMessage(response.content);
+        this.contextManager.addAssistantMessage(responseContent);
 
         // Check if auto-enhance should be triggered
         if (this.triggerAutoEnhance()) {
@@ -279,10 +336,10 @@ export class AgentRunner {
       }
 
       // Add assistant response with tool calls
-      this.contextManager.addAssistantToolCall(response.content, response.toolCalls);
+      this.contextManager.addAssistantToolCall(responseContent, toolCalls);
 
       // Execute tools
-      const toolInputs: ToolCallInput[] = response.toolCalls.map((call: LlmToolCall) => ({
+      const toolInputs: ToolCallInput[] = toolCalls.map((call: LlmToolCall) => ({
         id: call.id,
         name: call.name,
         input: call.input,

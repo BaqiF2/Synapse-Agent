@@ -229,9 +229,16 @@ Respond with JSON only in this format:
       const messages = [{ role: 'user' as const, content: `Search for skills matching: "${query}"` }];
 
       try {
-        const response = await this.llmClient.sendMessage(messages, systemPrompt);
-        const parsed = this.parseJsonResult<SkillSearchResult>(response.content, { matched_skills: [] });
-        return this.normalizeSearchResult(parsed, response.content);
+        const stream = await this.llmClient.generate(systemPrompt, messages, []);
+        const textContent: string[] = [];
+        for await (const part of stream) {
+          if (part.type === 'text') {
+            textContent.push(part.text);
+          }
+        }
+        const responseContent = textContent.join('');
+        const parsed = this.parseJsonResult<SkillSearchResult>(responseContent, { matched_skills: [] });
+        return this.normalizeSearchResult(parsed, responseContent);
       } catch (error) {
         logger.warn('Semantic search failed', { error });
         return { matched_skills: [] };

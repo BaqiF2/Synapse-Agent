@@ -5,9 +5,25 @@
  */
 
 import { describe, expect, it, beforeEach, mock } from 'bun:test';
-import { AgentRunner, type AgentRunnerOptions } from '../../../src/agent/agent-runner.ts';
+import { AgentRunner, type AgentRunnerOptions, type AgentRunnerStreamedMessage } from '../../../src/agent/agent-runner.ts';
 import { ContextManager } from '../../../src/agent/context-manager.ts';
 import { BashToolSchema } from '../../../src/tools/bash-tool-schema.ts';
+import type { StreamedMessagePart, TokenUsage } from '../../../src/agent/anthropic-types.ts';
+
+/**
+ * Create a mock streamed message for testing
+ */
+function createMockStream(parts: StreamedMessagePart[]): AgentRunnerStreamedMessage {
+  return {
+    id: 'msg_test',
+    usage: { inputOther: 100, output: 50, inputCacheRead: 0, inputCacheCreation: 0 },
+    async *[Symbol.asyncIterator]() {
+      for (const part of parts) {
+        yield part;
+      }
+    },
+  };
+}
 
 describe('AgentRunner', () => {
   let mockLlmClient: AgentRunnerOptions['llmClient'];
@@ -16,12 +32,10 @@ describe('AgentRunner', () => {
 
   beforeEach(() => {
     mockLlmClient = {
-      sendMessage: mock(() =>
-        Promise.resolve({
-          content: 'Test response',
-          toolCalls: [],
-          stopReason: 'end_turn',
-        })
+      generate: mock(() =>
+        Promise.resolve(
+          createMockStream([{ type: 'text', text: 'Test response' }])
+        )
       ),
     };
 
@@ -92,22 +106,26 @@ describe('AgentRunner', () => {
       const response = await runner.run('Hello');
 
       expect(response).toBe('Test response');
-      expect(mockLlmClient.sendMessage).toHaveBeenCalled();
+      expect(mockLlmClient.generate).toHaveBeenCalled();
     });
 
     it('should execute tools when LLM returns tool calls', async () => {
+      let callCount = 0;
       const toolCallLlmClient = {
-        sendMessage: mock()
-          .mockResolvedValueOnce({
-            content: 'Let me run that',
-            toolCalls: [{ id: 'call1', name: 'Bash', input: { command: 'echo hi' } }],
-            stopReason: 'tool_use',
-          })
-          .mockResolvedValueOnce({
-            content: 'Done!',
-            toolCalls: [],
-            stopReason: 'end_turn',
-          }),
+        generate: mock(() => {
+          callCount++;
+          if (callCount === 1) {
+            return Promise.resolve(
+              createMockStream([
+                { type: 'text', text: 'Let me run that' },
+                { type: 'tool_call', id: 'call1', name: 'Bash', input: { command: 'echo hi' } },
+              ])
+            );
+          }
+          return Promise.resolve(
+            createMockStream([{ type: 'text', text: 'Done!' }])
+          );
+        }),
       };
 
       const toolExecutor = {
@@ -171,14 +189,15 @@ describe('AgentRunner', () => {
     });
 
     it('should stop after consecutive tool failures', async () => {
-      const toolCallResponse = {
-        content: 'Running tools',
-        toolCalls: [{ id: 'call1', name: 'Bash', input: { command: 'false' } }],
-        stopReason: 'tool_use',
-      };
-
       const failingLlmClient = {
-        sendMessage: mock(() => Promise.resolve(toolCallResponse)),
+        generate: mock(() =>
+          Promise.resolve(
+            createMockStream([
+              { type: 'text', text: 'Running tools' },
+              { type: 'tool_call', id: 'call1', name: 'Bash', input: { command: 'false' } },
+            ])
+          )
+        ),
       };
 
       const failingToolExecutor = {
@@ -203,7 +222,7 @@ describe('AgentRunner', () => {
       const response = await runner.run('Run failing tools');
 
       expect(response).toBe('工具执行连续失败，已停止。');
-      expect(failingLlmClient.sendMessage).toHaveBeenCalledTimes(3);
+      expect(failingLlmClient.generate).toHaveBeenCalledTimes(3);
     });
   });
 });

@@ -9,6 +9,23 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
 import { SkillSubAgent } from '../../../src/skill-sub-agent/skill-sub-agent.ts';
+import type { AgentRunnerStreamedMessage } from '../../../src/agent/agent-runner.ts';
+import type { StreamedMessagePart } from '../../../src/agent/anthropic-types.ts';
+
+/**
+ * Create a mock streamed message for testing
+ */
+function createMockStream(parts: StreamedMessagePart[]): AgentRunnerStreamedMessage {
+  return {
+    id: 'msg_test',
+    usage: { inputOther: 100, output: 50, inputCacheRead: 0, inputCacheCreation: 0 },
+    async *[Symbol.asyncIterator]() {
+      for (const part of parts) {
+        yield part;
+      }
+    },
+  };
+}
 
 describe('SkillSubAgent', () => {
   let testDir: string;
@@ -58,8 +75,8 @@ Instructions for creating skills.
   describe('constructor', () => {
     it('should initialize with skills loaded', () => {
       const mockLlmClient = {
-        sendMessage: mock(() =>
-          Promise.resolve({ content: '{}', toolCalls: [], stopReason: 'end_turn' })
+        generate: mock(() =>
+          Promise.resolve(createMockStream([{ type: 'text', text: '{}' }]))
         ),
       };
 
@@ -82,8 +99,8 @@ Instructions for creating skills.
   describe('getSkillContent', () => {
     it('should return skill content', () => {
       const mockLlmClient = {
-        sendMessage: mock(() =>
-          Promise.resolve({ content: '{}', toolCalls: [], stopReason: 'end_turn' })
+        generate: mock(() =>
+          Promise.resolve(createMockStream([{ type: 'text', text: '{}' }]))
         ),
       };
 
@@ -107,8 +124,8 @@ Instructions for creating skills.
   describe('default skillsDir', () => {
     it('should use DEFAULT_SKILLS_DIR when skillsDir is not provided', () => {
       const mockLlmClient = {
-        sendMessage: mock(() =>
-          Promise.resolve({ content: '{}', toolCalls: [], stopReason: 'end_turn' })
+        generate: mock(() =>
+          Promise.resolve(createMockStream([{ type: 'text', text: '{}' }]))
         ),
       };
 

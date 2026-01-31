@@ -212,7 +212,7 @@ This skill helps you create new skills.
 
       // Create mock LLM client that returns semantic search results
       const mockLlmClient: AgentRunnerLlmClient = {
-        sendMessage: async (messages, _systemPrompt, _tools) => {
+        generate: async (_systemPrompt: string, messages: { role: string; content: string | unknown[] }[], _tools: unknown[]) => {
           searchCallCount++;
           // Simulate LLM understanding "创建新技能" means "create skill"
           const lastMessage = messages[messages.length - 1];
@@ -220,35 +220,31 @@ This skill helps you create new skills.
             ? lastMessage.content
             : '';
 
+          let responseContent: string;
+
           // If query contains Chinese for "create skill", return skill-creator
           if (query.includes('创建新技能') || query.includes('create skill')) {
-            return {
-              content: JSON.stringify({
-                matched_skills: [
-                  { name: 'skill-creator', description: 'Guide for creating effective skills' }
-                ]
-              }),
-              toolCalls: [],
-              stopReason: 'end_turn',
-            };
-          }
-
-          if (query.includes('invalid')) {
-            return {
-              content: JSON.stringify({
-                skills: [
-                  { name: 'bad-shape', description: 'Invalid payload shape' }
-                ]
-              }),
-              toolCalls: [],
-              stopReason: 'end_turn',
-            };
+            responseContent = JSON.stringify({
+              matched_skills: [
+                { name: 'skill-creator', description: 'Guide for creating effective skills' }
+              ]
+            });
+          } else if (query.includes('invalid')) {
+            responseContent = JSON.stringify({
+              skills: [
+                { name: 'bad-shape', description: 'Invalid payload shape' }
+              ]
+            });
+          } else {
+            responseContent = JSON.stringify({ matched_skills: [] });
           }
 
           return {
-            content: JSON.stringify({ matched_skills: [] }),
-            toolCalls: [],
-            stopReason: 'end_turn',
+            id: 'msg_test',
+            usage: { inputOther: 100, output: 50, inputCacheRead: 0, inputCacheCreation: 0 },
+            async *[Symbol.asyncIterator]() {
+              yield { type: 'text' as const, text: responseContent };
+            },
           };
         }
       };

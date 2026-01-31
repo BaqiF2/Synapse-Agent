@@ -19,7 +19,7 @@ import * as os from 'node:os';
 import chalk from 'chalk';
 
 // Agent imports
-import { LlmClient } from '../agent/llm-client.ts';
+import { AnthropicClient } from '../agent/anthropic-client.ts';
 import { ContextManager, type ConversationMessage } from '../agent/context-manager.ts';
 import { ToolExecutor } from '../agent/tool-executor.ts';
 import { buildSystemPrompt } from '../agent/system-prompt.ts';
@@ -608,7 +608,7 @@ export async function startRepl(): Promise<void> {
   terminalRenderer = new TerminalRenderer();
 
   try {
-    const llmClient = new LlmClient();
+    const llmClient = new AnthropicClient();
 
     // Initialize persistence if enabled (before ToolExecutor for callback)
     if (PERSISTENCE_ENABLED) {
