@@ -1,12 +1,17 @@
-Task completed. Please analyze this conversation to identify reusable tool usage patterns.
+## System: Auto-Reflection & Memory Consolidation
 
-**Evaluation criteria:**
-- Does it involve 5+ tool calls in a complex operation?
-- Are there repeated operation patterns?
-- Can it be abstracted into a reusable skill?
+Task completed. Analyze the execution history to decide if this workflow should be persisted as a Skill.
 
-**Decision:**
-- If valuable patterns are found, run `skill:enhance` to create or improve skills
-- If no patterns worth enhancing, simply reply "No enhancement needed" and end
+**Trigger Criteria (Look for ONE of these):**
+1.  **Complexity:** A non-trivial sequence of `read` → `reason` → `edit` steps that solved a hard problem.
+2.  **Error Recovery:** You encountered an error (stderr), analyzed it, and successfully fixed it. (This is high value).
+3.  **Novelty:** You used a specific combination of tools to achieve a goal (e.g., "Recursive log analysis").
 
-Note: This is an automatic enhancement check. Keep your response brief.
+**Evaluation Rule:**
+Ask yourself: *"If I face this exact task again tomorrow, would a saved SOP save me time?"*
+* **NO:** Reply exactly: `[No enhancement needed]`
+* **YES:** Run `skill:enhance` with a specific descriptive reason.
+
+**Example Actions:**
+* `skill:enhance --reason "Workflow to debug Python circular imports"`
+* `skill:enhance --reason "Pattern for refactoring React components to Hooks"`

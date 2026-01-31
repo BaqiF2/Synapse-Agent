@@ -27,8 +27,6 @@ export const AUTO_ENHANCE_PROMPT = loadDesc(
  * Options for building the system prompt
  */
 export interface SystemPromptOptions {
-  /** Custom instructions to append */
-  customInstructions?: string;
   /** Current working directory */
   cwd?: string;
 }
@@ -51,20 +49,12 @@ export function buildSystemPrompt(options?: SystemPromptOptions): string {
   // 4. Skills
   sections.push(loadDesc(path.join(PROMPTS_DIR, 'skills.md')));
 
-  // 5. Constraints
-  sections.push(loadDesc(path.join(PROMPTS_DIR, 'constraints.md')));
-
-  // 6. Ultimate Reminders
+  // 5. Ultimate Reminders
   sections.push(loadDesc(path.join(PROMPTS_DIR, 'ultimate-reminders.md')));
 
   // Current working directory (if provided)
   if (options?.cwd) {
-    sections.push(`## Current Working Directory\n\n\`${options.cwd}\``);
-  }
-
-  // Custom instructions (optional)
-  if (options?.customInstructions) {
-    sections.push(`## Additional Instructions\n\n${options.customInstructions}`);
+    sections.push(`# Current Working Directory\n\n\`${options.cwd}\``);
   }
 
   return sections.join('\n\n');

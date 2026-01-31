@@ -1,61 +1,38 @@
-# Shell Commands
+# Shell Command System
 
-Shell commands are organized into three layers. Use `command:search` to discover available commands.
+You operate in a tiered shell environment. **Always prioritize "Agent Core Commands" over "Native Shell Commands" for file operations** to ensure safety and parsing reliability.
 
-## Command Discovery
+## 0. Command Discovery (Start Here)
+Unsure which tool to use? Start by searching.
+* **`command:search <keyword>`**: Search all available commands (Native, Core, Skills, MCP) by name or description.
+    * *Example:* `command:search "git"`, `command:search "json"`, `command:search "test"`
+* **`--help` / `-h`**: All commands support this flag. **Use it liberally** before executing an unfamiliar command.
 
-### command:search - Search for available commands
-```
-Usage: command:search [pattern]
+## 1. Agent Core Commands (High Priority)
+Optimized utilities for file manipulation and self-evolution. **Use these instead of `cat`, `grep`, `sed`.**
 
-Arguments:
-  [pattern]        Search pattern (string, supports regex). Matches command name and description.
+| Category | Command | Syntax / Hint | Description |
+| :--- | :--- | :--- | :--- |
+| **File Ops** | **`read`** | `read <file> [options]` | **Preferred over `cat`.** Safe reading with line numbers. |
+| | **`write`** | `write <file> <content>` | **Preferred over `echo >`.** Overwrites file content completely. |
+| | **`edit`** | `edit <file> <old> <new>` | **Preferred over `sed`.** Atomic string replacement. |
+| | **`glob`** | `glob <pattern>` | **Preferred over `find`.** safe recursive matching. |
+| | **`search`** | `search <pattern> <path>` | **Preferred over `grep`.** Smart ignore (binary/.git). |
+| **Skills** | **`skill:search`** | `skill:search <query>` | Find installed capabilities/knowledge modules. |
+| | **`skill:load`** | `skill:load <name>` | Load a specific skill context into memory. |
+| | **`skill:enhance`** | `skill:enhance [target]` | Meta-tool to refine or debug existing skills. |
 
-Options:
-  -h, --help       Show help message
+## 2. Native Shell Commands (Standard)
+Standard Linux binaries are available (e.g., `git`, `npm`, `ls`, `curl`, `python`).
+* **Restriction:** Do not run interactive TUI commands (e.g., `vim`, `nano`, `top`).
+* **Tip:** If a complex native command fails, check `man` or `--help`.
 
-Examples:
-  command:search file          # Search commands related to "file"
-  command:search git           # Search for git-related commands
-  command:search "skill.*"     # Search with regex pattern
-```
+## 3. Extended Commands (Dynamic)
+Tools dynamically mounted via MCP (Model Context Protocol) or Skill Scripts.
+* **Syntax:** `namespace:context:action`
+* **Examples:**
+    * `mcp:github:create_issue`
+    * `mcp:postgres:query`
+    * `skill:writing:outline_generator`
 
-## 1. Native Shell Commands
-
-Standard Unix/Linux commands available in your environment.
-
-Common examples: `ls`, `cd`, `pwd`, `mkdir`, `rm`, `cp`, `mv`, `git`, `npm`, `python`, etc.
-
-Use `-h` or `--help` to learn how to use any native command.
-
-## 2. Agent Shell Commands
-
-Built-in commands for file operations and skill management.
-
-| Command | Description |
-|---------|-------------|
-| `read` | Read file contents |
-| `write` | Write content to a file |
-| `edit` | Replace strings in a file |
-| `glob` | Find files matching a pattern |
-| `search` | Search for patterns in files |
-| `skill:search` | Search for skills |
-| `skill:load` | Load a skill's content |
-| `skill:enhance` | Analyze and enhance skills |
-
-**Use `-h` or `--help` to see detailed usage for each command.**
-
-Example:
-```bash
-read --help
-skill:search -h
-```
-
-## 3. Extend Shell Commands
-
-Additional commands provided by MCP servers and Skill scripts.
-
-- **MCP tools**: `mcp:<server>:<command>`
-- **Skill tools**: `skill:<skill-name>:<command>`
-
-Use `command:search` to discover available extend commands.
+> **Pro Tip:** Use `command:search` to find these extensions. Do not guess their names.
