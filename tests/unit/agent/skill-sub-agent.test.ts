@@ -27,6 +27,15 @@ function createMockStream(parts: StreamedMessagePart[]): AgentRunnerStreamedMess
   };
 }
 
+function createMockToolExecutor() {
+  return {
+    name: 'Bash',
+    description: 'Mock bash tool',
+    toolDefinition: { name: 'Bash', description: 'Mock', input_schema: { type: 'object', properties: {} } },
+    call: mock(() => Promise.resolve({ isError: false, output: '', message: '', brief: '' })),
+  } as any;
+}
+
 describe('SkillSubAgent', () => {
   let testDir: string;
   let skillsDir: string;
@@ -80,10 +89,7 @@ Instructions for creating skills.
         ),
       };
 
-      const mockToolExecutor = {
-        executeTools: mock(() => Promise.resolve([])),
-        formatResultsForLlm: mock(() => []),
-      };
+      const mockToolExecutor = createMockToolExecutor();
 
       const agent = new SkillSubAgent({
         skillsDir,
@@ -104,10 +110,7 @@ Instructions for creating skills.
         ),
       };
 
-      const mockToolExecutor = {
-        executeTools: mock(() => Promise.resolve([])),
-        formatResultsForLlm: mock(() => []),
-      };
+      const mockToolExecutor = createMockToolExecutor();
 
       const agent = new SkillSubAgent({
         skillsDir,
@@ -129,10 +132,7 @@ Instructions for creating skills.
         ),
       };
 
-      const mockToolExecutor = {
-        executeTools: mock(() => Promise.resolve([])),
-        formatResultsForLlm: mock(() => []),
-      };
+      const mockToolExecutor = createMockToolExecutor();
 
       // This test verifies that the agent can be created without skillsDir
       // It will use ~/.synapse/skills as default

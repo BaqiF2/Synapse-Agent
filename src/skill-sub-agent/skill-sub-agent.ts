@@ -19,10 +19,9 @@ import { createLogger } from '../utils/logger.ts';
 import { SkillMemoryStore } from './skill-memory-store.ts';
 import { buildSkillSubAgentPrompt } from './skill-sub-agent-prompt.ts';
 import { AgentRunner } from '../agent/agent-runner.ts';
-import { BashToolset } from '../agent/toolset.ts';
+import { CallableToolset } from '../agent/toolset.ts';
 import type { AnthropicClient } from '../providers/anthropic/anthropic-client.ts';
-import type { ToolExecutor } from '../agent/tool-executor.ts';
-import { BashToolSchema } from '../tools/bash-tool-schema.ts';
+import type { BashTool } from '../tools/bash-tool.ts';
 import { SkillDocParser } from '../skills/skill-schema.ts';
 import { SkillSearchResultSchema } from './skill-sub-agent-types.ts';
 import type {
@@ -60,7 +59,7 @@ export interface SkillSubAgentOptions {
   /** LLM client (optional - required for LLM-based operations) */
   llmClient?: AnthropicClient;
   /** Tool executor (optional - required for LLM-based operations) */
-  toolExecutor?: ToolExecutor;
+  toolExecutor?: BashTool;
   /** Maximum iterations for Agent Loop */
   maxIterations?: number;
 }
@@ -88,7 +87,7 @@ export class SkillSubAgent {
   private memoryStore: SkillMemoryStore;
   private agentRunner: AgentRunner | null = null;
   private llmClient: AnthropicClient | null = null;
-  private toolExecutor: ToolExecutor | null = null;
+  private toolExecutor: BashTool | null = null;
   private docParser: SkillDocParser;
   private initialized: boolean = false;
   private running: boolean = false;
@@ -121,20 +120,7 @@ export class SkillSubAgent {
 
     // Create AgentRunner (only if llmClient and toolExecutor provided)
     if (options.llmClient && options.toolExecutor) {
-      const toolExecutor = options.toolExecutor;
-      const toolset = new BashToolset([BashToolSchema], async (toolCall) => {
-        const result = await toolExecutor.executeTools([{
-          id: toolCall.id,
-          name: toolCall.name,
-          input: JSON.parse(toolCall.arguments),
-        }]);
-        const first = result[0];
-        return {
-          toolCallId: first?.toolUseId ?? toolCall.id,
-          output: first?.output ?? '',
-          isError: first?.isError ?? false,
-        };
-      });
+      const toolset = new CallableToolset([options.toolExecutor]);
 
       this.agentRunner = new AgentRunner({
         client: options.llmClient,

@@ -10,7 +10,7 @@
  * - TextPart: Text content part
  * - ThinkingPart: Thinking content part
  * - ToolCall: Tool call request
- * - ToolResult: Tool execution result
+ * - ToolResult: Tool execution result (wraps ToolReturnValue)
  * - Message: Complete message structure
  * - MergeablePart: Union type for mergeable stream parts
  * - MergeableToolCallPart: Tool call part with accumulated JSON
@@ -26,6 +26,7 @@
 
 import type Anthropic from '@anthropic-ai/sdk';
 import type { StreamedMessagePart, ToolCallPart, ToolCallDeltaPart, ThinkPart } from '../providers/anthropic/anthropic-types.ts';
+import type { ToolReturnValue } from './callable-tool.ts';
 
 /**
  * Message sender role
@@ -76,8 +77,7 @@ export interface ToolCall {
  */
 export interface ToolResult {
   toolCallId: string;
-  output: string;
-  isError: boolean;
+  returnValue: ToolReturnValue;
 }
 
 /**
@@ -166,9 +166,15 @@ export function toAnthropicMessage(message: Message): Anthropic.MessageParam {
  * Convert ToolResult to Message
  */
 export function toolResultToMessage(result: ToolResult): Message {
+  // Combine output and message for the model
+  const rv = result.returnValue;
+  const parts: string[] = [];
+  if (rv.output) parts.push(rv.output);
+  if (rv.message) parts.push(rv.message);
+  const text = parts.join('\n');
   return {
     role: 'tool',
-    content: [{ type: 'text', text: result.output }],
+    content: [{ type: 'text', text }],
     toolCallId: result.toolCallId,
   };
 }

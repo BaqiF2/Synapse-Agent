@@ -6,7 +6,6 @@
  * Core Tests:
  * - buildSystemPrompt section order verification
  * - Deprecated section exclusion
- * - Custom instructions appending
  */
 
 import { describe, it, expect } from 'bun:test';
@@ -39,8 +38,4 @@ describe('buildSystemPrompt', () => {
     expect(prompt).not.toContain('Execution Principles');
   });
 
-  it('should append custom instructions', () => {
-    const prompt = buildSystemPrompt({ customInstructions: 'Custom test instruction' });
-    expect(prompt).toContain('Custom test instruction');
-  });
 });

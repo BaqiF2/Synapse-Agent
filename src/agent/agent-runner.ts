@@ -150,7 +150,7 @@ export class AgentRunner {
       }
 
       // Check for failures
-      const hasFailure = toolResults.some((r) => r.isError);
+      const hasFailure = toolResults.some((r) => r.returnValue.isError);
       if (hasFailure) {
         consecutiveFailures++;
         logger.warn(

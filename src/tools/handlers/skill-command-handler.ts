@@ -15,7 +15,7 @@ import * as os from 'node:os';
 import type { CommandResult } from './base-bash-handler.ts';
 import { SkillSubAgent } from '../../skill-sub-agent/skill-sub-agent.ts';
 import type { AnthropicClient } from '../../providers/anthropic/anthropic-client.ts';
-import type { ToolExecutor } from '../../agent/tool-executor.ts';
+import type { BashTool } from '../bash-tool.ts';
 import { SettingsManager } from '../../config/settings-manager.ts';
 import { createLogger } from '../../utils/logger.ts';
 
@@ -150,7 +150,7 @@ export interface SkillCommandHandlerOptions {
   /** LLM client for semantic skill search */
   llmClient?: AnthropicClient;
   /** Tool executor for skill sub-agent (required for enhance operation) */
-  toolExecutor?: ToolExecutor;
+  toolExecutor?: BashTool;
   /** Callback to get current conversation path */
   getConversationPath?: () => string | null;
 }
@@ -169,7 +169,7 @@ export class SkillCommandHandler {
   private settings: SettingsManager;
   private skillsDir: string;
   private llmClient: AnthropicClient | undefined;
-  private toolExecutor: ToolExecutor | undefined;
+  private toolExecutor: BashTool | undefined;
   private getConversationPath: (() => string | null) | undefined;
 
   /**

@@ -18,7 +18,7 @@ import { McpConfigParser, McpClient, McpWrapperGenerator, McpInstaller } from '.
 import { SkillStructure, DocstringParser, SkillWrapperGenerator } from './converters/skill/index.ts';
 import { SkillCommandHandler } from './handlers/skill-command-handler.ts';
 import type { AnthropicClient } from '../providers/anthropic/anthropic-client.ts';
-import type { ToolExecutor } from '../agent/tool-executor.ts';
+import type { BashTool } from './bash-tool.ts';
 
 /**
  * Command types in the three-layer Bash architecture
@@ -64,7 +64,7 @@ export interface BashRouterOptions {
   /** LLM client for semantic skill search */
   llmClient?: AnthropicClient;
   /** Tool executor for skill sub-agent */
-  toolExecutor?: ToolExecutor;
+  toolExecutor?: BashTool;
   /** Callback to get current conversation path */
   getConversationPath?: () => string | null;
 }
@@ -87,7 +87,7 @@ export class BashRouter {
   private skillsDir: string;
   private synapseDir: string;
   private llmClient: AnthropicClient | undefined;
-  private toolExecutor: ToolExecutor | undefined;
+  private toolExecutor: BashTool | undefined;
   private getConversationPath: (() => string | null) | undefined;
 
   constructor(private session: BashSession, options: BashRouterOptions = {}) {
@@ -617,12 +617,12 @@ export class BashRouter {
   }
 
   /**
-   * Set the tool executor (for delayed binding to avoid circular dependencies)
-   * This allows ToolExecutor to pass itself after BashRouter is created.
+   * Set the BashTool instance (for delayed binding to avoid circular dependencies)
+   * This allows BashTool to pass itself after BashRouter is created.
    *
    * @param executor - The tool executor instance
    */
-  setToolExecutor(executor: ToolExecutor): void {
+  setToolExecutor(executor: BashTool): void {
     this.toolExecutor = executor;
     // Reset skill command handler to pick up the new executor on next use
     if (this.skillCommandHandler) {

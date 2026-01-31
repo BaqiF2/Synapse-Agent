@@ -23,9 +23,8 @@ import { AnthropicClient } from '../providers/anthropic/anthropic-client.ts';
 import { buildSystemPrompt } from '../agent/system-prompt.ts';
 import { ContextPersistence } from '../agent/context-persistence.ts';
 import { AgentRunner } from '../agent/agent-runner.ts';
-import { BashToolset } from '../agent/toolset.ts';
-import { BashToolSchema } from '../tools/bash-tool-schema.ts';
-import { ToolExecutor } from '../agent/tool-executor.ts';
+import { CallableToolset } from '../agent/toolset.ts';
+import { BashTool } from '../tools/bash-tool.ts';
 import { McpInstaller, initializeMcpTools } from '../tools/converters/mcp/index.ts';
 import { initializeSkillTools } from '../tools/converters/skill/index.ts';
 import { createLogger } from '../utils/logger.ts';
@@ -51,7 +50,7 @@ function printSectionHeader(title: string): void {
  * Environment variable configuration
  */
 const MAX_TOOL_ITERATIONS = parseInt(process.env.SYNAPSE_MAX_TOOL_ITERATIONS || '50', 10);
-const PERSISTENCE_ENABLED = process.env.SYNAPSE_PERSISTENCE_ENABLED !== 'false';
+const PERSISTENCE_ENABLED = true;
 
 /**
  * REPL State
@@ -419,26 +418,17 @@ export async function startRepl(): Promise<void> {
       persistence = new ContextPersistence();
     }
 
-    // Create ToolExecutor for tool handling
-    const toolExecutor = new ToolExecutor({
+    // Create BashTool for tool handling
+    const bashTool = new BashTool({
       llmClient,
       getConversationPath: () => persistence?.getSessionPath() ?? null,
     });
 
-    // Create toolset with handler
-    const toolset = new BashToolset([BashToolSchema], async (toolCall) => {
-      const result = await toolExecutor.executeTools([{
-        id: toolCall.id,
-        name: toolCall.name,
-        input: JSON.parse(toolCall.arguments),
-      }]);
-      const first = result[0];
-      return {
-        toolCallId: first?.toolUseId ?? toolCall.id,
-        output: first?.output ?? '',
-        isError: first?.isError ?? false,
-      };
-    });
+    // Delayed binding: pass BashTool to its own router for skill sub-agent
+    bashTool.getRouter().setToolExecutor(bashTool);
+
+    // Create toolset
+    const toolset = new CallableToolset([bashTool]);
 
     // Build system prompt
     const systemPrompt = buildSystemPrompt({
@@ -458,8 +448,8 @@ export async function startRepl(): Promise<void> {
       onToolResult: (result) => {
         terminalRenderer.renderToolEnd({
           id: result.toolCallId,
-          success: !result.isError,
-          output: result.output,
+          success: !result.returnValue.isError,
+          output: result.returnValue.output,
         });
       },
     });

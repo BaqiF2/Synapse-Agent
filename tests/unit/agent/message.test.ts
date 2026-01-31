@@ -132,7 +132,7 @@ describe('Message', () => {
 
   describe('toolResultToMessage', () => {
     it('should convert tool result to message', () => {
-      const result = { toolCallId: 'call1', output: 'success', isError: false };
+      const result = { toolCallId: 'call1', returnValue: { isError: false, output: 'success', message: '', brief: '' } };
       const message = toolResultToMessage(result);
 
       expect(message.role).toBe('tool');

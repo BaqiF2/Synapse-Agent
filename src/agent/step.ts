@@ -16,6 +16,7 @@ import type { TokenUsage } from '../providers/anthropic/anthropic-types.ts';
 import { generate, type OnMessagePart } from './generate.ts';
 import type { Message, ToolCall, ToolResult } from './message.ts';
 import type { Toolset } from './toolset.ts';
+import { ToolError } from './callable-tool.ts';
 import { createLogger } from '../utils/logger.ts';
 
 const logger = createLogger('step');
@@ -108,8 +109,10 @@ export async function step(
             const message = error instanceof Error ? error.message : 'Unknown error';
             results.push({
               toolCallId: toolCall.id,
-              output: `Tool execution failed: ${message}`,
-              isError: true,
+              returnValue: ToolError({
+                message: `Tool execution failed: ${message}`,
+                brief: 'Tool execution failed',
+              }),
             });
           }
         }

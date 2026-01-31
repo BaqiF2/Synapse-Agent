@@ -2,23 +2,20 @@
  * Toolset Interface
  *
  * Defines the interface for tool execution in the agent system.
+ * Uses CallableTool as the base unit for tool registration and dispatch.
  *
  * Core Exports:
  * - Toolset: Interface for tool collections
  * - ToolResult: Tool execution result type (re-exported from message.ts)
- * - ToolHandler: Tool handler function type
- * - SimpleToolset: Basic toolset implementation
+ * - CallableToolset: Toolset implementation backed by CallableTool instances
  */
 
 import type Anthropic from '@anthropic-ai/sdk';
 import type { ToolCall, ToolResult } from './message.ts';
+import type { CallableTool, ToolReturnValue } from './callable-tool.ts';
+import { ToolError } from './callable-tool.ts';
 
 export type { ToolResult };
-
-/**
- * Tool handler function type
- */
-export type ToolHandler = (toolCall: ToolCall) => Promise<ToolResult>;
 
 /**
  * Toolset interface for managing and executing tools
@@ -32,18 +29,41 @@ export interface Toolset {
 }
 
 /**
- * Simple toolset implementation with a single handler
+ * Toolset implementation backed by CallableTool instances.
+ * Routes tool calls to the matching CallableTool by name.
  */
-export class BashToolset implements Toolset {
+export class CallableToolset implements Toolset {
   readonly tools: Anthropic.Tool[];
-  private handler: ToolHandler;
+  private toolMap: Map<string, CallableTool<unknown>>;
 
-  constructor(tools: Anthropic.Tool[], handler: ToolHandler) {
-    this.tools = tools;
-    this.handler = handler;
+  constructor(callableTools: CallableTool<unknown>[]) {
+    this.toolMap = new Map();
+    this.tools = [];
+
+    for (const tool of callableTools) {
+      this.toolMap.set(tool.name, tool);
+      this.tools.push(tool.toolDefinition);
+    }
   }
 
   async handle(toolCall: ToolCall): Promise<ToolResult> {
-    return this.handler(toolCall);
+    const tool = this.toolMap.get(toolCall.name);
+
+    let returnValue: ToolReturnValue;
+
+    if (!tool) {
+      returnValue = ToolError({
+        message: `Unknown tool: ${toolCall.name}`,
+        brief: 'Unknown tool',
+      });
+    } else {
+      const args = JSON.parse(toolCall.arguments);
+      returnValue = await tool.call(args);
+    }
+
+    return {
+      toolCallId: toolCall.id,
+      returnValue,
+    };
   }
 }

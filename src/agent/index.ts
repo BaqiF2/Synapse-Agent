@@ -8,10 +8,10 @@
  * - generate: 单次 LLM 生成函数
  * - step: 生成 + 工具执行函数
  * - Toolset: 工具集接口
+ * - CallableTool: 工具基类
  * - AgentRunner: Agent 循环实现
  * - ContextManager: 上下文管理器
  * - ContextPersistence: 对话历史持久化
- * - ToolExecutor: 工具执行器
  * - buildSystemPrompt: 系统提示词构建函数
  */
 
@@ -38,6 +38,15 @@ export {
   isToolCallPart,
 } from './message.ts';
 
+// Callable Tool base class and return value types
+export {
+  CallableTool,
+  ToolOk,
+  ToolError,
+  ToolValidateError,
+  type ToolReturnValue,
+} from './callable-tool.ts';
+
 // Generate function
 export {
   generate,
@@ -50,9 +59,8 @@ export {
 // Toolset interface
 export {
   type Toolset,
-  type ToolHandler,
   type ToolResult as ToolsetToolResult,
-  BashToolset,
+  CallableToolset,
 } from './toolset.ts';
 
 // Step function
@@ -83,9 +91,6 @@ export {
   type PersistentMessage,
   type SessionsIndex,
 } from './context-persistence.ts';
-
-// Tool Execution
-export { ToolExecutor, type ToolCallInput, type ToolExecutionResult } from './tool-executor.ts';
 
 // System Prompt
 export {
