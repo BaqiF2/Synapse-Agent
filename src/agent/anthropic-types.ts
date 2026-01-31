@@ -68,3 +68,33 @@ export class APIEmptyResponseError extends ChatProviderError {
     this.name = 'APIEmptyResponseError';
   }
 }
+
+// ===== Token Usage =====
+
+/**
+ * Token usage statistics
+ */
+export interface TokenUsage {
+  /** Input tokens excluding cache read and cache creation */
+  inputOther: number;
+  /** Total output tokens */
+  output: number;
+  /** Cached input tokens (read from cache) */
+  inputCacheRead: number;
+  /** Input tokens used for cache creation */
+  inputCacheCreation: number;
+}
+
+/**
+ * Get total input tokens
+ */
+export function getTokenUsageInput(usage: TokenUsage): number {
+  return usage.inputOther + usage.inputCacheRead + usage.inputCacheCreation;
+}
+
+/**
+ * Get total tokens (input + output)
+ */
+export function getTokenUsageTotal(usage: TokenUsage): number {
+  return getTokenUsageInput(usage) + usage.output;
+}

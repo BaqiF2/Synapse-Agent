@@ -11,6 +11,9 @@ import {
   APITimeoutError,
   APIStatusError,
   APIEmptyResponseError,
+  type TokenUsage,
+  getTokenUsageInput,
+  getTokenUsageTotal,
 } from '../../../src/agent/anthropic-types.ts';
 
 describe('Error Classes', () => {
@@ -62,6 +65,27 @@ describe('Error Classes', () => {
     it('should accept custom message', () => {
       const error = new APIEmptyResponseError('Custom empty');
       expect(error.message).toBe('Custom empty');
+    });
+  });
+});
+
+describe('TokenUsage', () => {
+  const usage: TokenUsage = {
+    inputOther: 100,
+    output: 50,
+    inputCacheRead: 200,
+    inputCacheCreation: 30,
+  };
+
+  describe('getTokenUsageInput', () => {
+    it('should sum all input tokens', () => {
+      expect(getTokenUsageInput(usage)).toBe(330); // 100 + 200 + 30
+    });
+  });
+
+  describe('getTokenUsageTotal', () => {
+    it('should sum input and output tokens', () => {
+      expect(getTokenUsageTotal(usage)).toBe(380); // 330 + 50
     });
   });
 });
