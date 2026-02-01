@@ -31,7 +31,7 @@ export enum CommandType {
 }
 
 const AGENT_SHELL_COMMANDS = ['read', 'write', 'edit', 'glob', 'search', 'bash'] as const;
-const SKILL_MANAGEMENT_COMMAND_PREFIXES = ['skill:search', 'skill:load', 'skill:enhance'] as const;
+const SKILL_MANAGEMENT_COMMAND_PREFIXES = ['skill:load'] as const;
 const COMMAND_SEARCH_PREFIX = 'command:search';
 const TASK_COMMAND_PREFIX = 'task:';
 
@@ -247,9 +247,6 @@ export class BashRouter {
       this.skillCommandHandler = new SkillCommandHandler({
         skillsDir: this.skillsDir,
         synapseDir: this.synapseDir,
-        llmClient: this.llmClient,
-        toolExecutor: this.toolExecutor,
-        getConversationPath: this.getConversationPath,
       });
     }
 
