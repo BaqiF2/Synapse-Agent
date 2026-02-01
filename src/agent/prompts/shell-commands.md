@@ -1,61 +1,76 @@
 # Shell Command System
 
-You operate in a tiered shell environment. **Always prioritize "Agent Core Commands" over "Native Shell Commands" for file operations** to ensure safety and parsing reliability.
+You operate in a tiered shell environment. Commands are organized into zones based on usage requirements.
 
-## 0. Command Discovery (Start Here)
-Unsure which tool to use? Start by searching.
-* **`command:search <keyword>`**: Search all available commands (Native, Core, Skills, MCP) by name or description.
-    * *Example:* `command:search "git"`, `command:search "json"`, `command:search "test"`
-* **`--help` / `-h`**: All commands support this flag. **Use it liberally** before executing an unfamiliar command.
+## Command Discovery
 
-## 1. Agent Core Commands (High Priority)
-Optimized utilities for file manipulation and self-evolution. **Use these instead of `cat`, `grep`, `sed`.**
+* **`command:search <keyword>`**: Search all available commands by name or description.
+* **`--help` / `-h`**: Check command usage. **Required for Zone B commands.**
 
-| Category | Command | Syntax / Hint | Description |
-| :--- | :--- | :--- | :--- |
-| **File Ops** | **`read`** | `read <file> [options]` | **Preferred over `cat`.** Safe reading with line numbers. |
-| | **`write`** | `write <file> <content>` | **Preferred over `echo >`.** Overwrites file content completely. |
-| | **`edit`** | `edit <file> <old> <new>` | **Preferred over `sed`.** Atomic string replacement. |
-| | **`glob`** | `glob <pattern>` | **Preferred over `find`.** safe recursive matching. |
-| | **`search`** | `search <pattern> <path>` | **Preferred over `grep`.** Smart ignore (binary/.git). |
-| **Skills** | **`skill:load`** | `skill:load <name>` | Load a specific skill context into memory. |
+---
 
-## 2. Task Commands (Sub-Agents)
-Launch specialized sub-agents for complex, multi-step tasks.
+## Zone A: Ready to Use
 
-| Agent Type | Command | Description |
-| :--- | :--- | :--- |
-| **Skill Search** | `task:skill:search --prompt <query> --description <desc>` | Search for skills matching a query |
-| **Skill Enhance** | `task:skill:enhance --prompt <session-id> --description <desc>` | Analyze conversation and create/enhance skills |
-| **Explore** | `task:explore --prompt <task> --description <desc>` | Fast codebase exploration |
-| **General** | `task:general --prompt <task> --description <desc>` | General-purpose research agent |
+These commands can be executed directly. Their syntax is documented in the tools prompt.
 
-**Required Parameters:**
-* `--prompt, -p <text>`: Task prompt (required)
-* `--description, -d <text>`: Short description, 3-5 words (required)
+### Agent Core Commands (优先使用)
 
-**Optional Parameters:**
-* `--model <model>`: Model to use (inherits from parent by default)
-* `--max-turns <n>`: Maximum agent turns
+Optimized utilities for file operations. **Use these instead of `cat`, `grep`, `sed`, `find`.**
 
-**Examples:**
-```bash
-task:skill:search --prompt "code review" --description "Search skills"
-task:explore --prompt "Find authentication code" --description "Explore auth"
-task:general --prompt "Analyze error patterns" --description "Research task"
+| Command | Purpose | Example |
+|---------|---------|---------|
+| `read` | Read files safely | `read ./file.txt --limit 50` |
+| `write` | Create/overwrite files | `write ./file.txt "content"` |
+| `edit` | Replace strings | `edit ./file.txt "old" "new"` |
+| `glob` | Find files by pattern | `glob "**/*.ts"` |
+| `search` | Search file contents | `search "pattern" ./src` |
+| `skill:search` | Find skills | `skill:search "code review"` |
+| `skill:load` | Load skill context | `skill:load review-code` |
+
+### Simple Native Commands
+
+Basic shell commands with intuitive syntax:
+
+```
+ls, pwd, cd, mkdir, rmdir, rm, cp, mv, touch,
+cat, head, tail, echo, env, export, which,
+whoami, date, clear, true, false, exit
 ```
 
-## 3. Native Shell Commands (Standard)
-Standard Linux binaries are available (e.g., `git`, `npm`, `ls`, `curl`, `python`).
-* **Restriction:** Do not run interactive TUI commands (e.g., `vim`, `nano`, `top`).
-* **Tip:** If a complex native command fails, check `man` or `--help`.
+---
 
-## 4. Extended Commands (Dynamic)
-Tools dynamically mounted via MCP (Model Context Protocol) or Skill Scripts.
-* **Syntax:** `namespace:context:action`
-* **Examples:**
-    * `mcp:github:create_issue`
-    * `mcp:postgres:query`
-    * `skill:writing:outline_generator`
+## Zone B: Help First (--help Required)
 
-> **Pro Tip:** Use `command:search` to find these extensions. Do not guess their names.
+**⚠️ You MUST run `<command> --help` before using these commands.**
+
+### Complex Native Commands
+
+| Category | Commands |
+|----------|----------|
+| Version Control | `git`, `svn`, `hg` |
+| Package Managers | `npm`, `yarn`, `pip`, `cargo`, `brew` |
+| Containers | `docker`, `podman`, `kubectl` |
+| Network | `curl`, `wget`, `ssh`, `scp`, `rsync` |
+| Data Processing | `jq`, `yq`, `tar`, `zip` |
+| Languages | `python`, `node`, `bun`, `ruby`, `go` |
+
+### Extension Commands
+
+Dynamically mounted via MCP or Skill system:
+
+- `mcp:<server>:<tool>` — MCP tools (e.g., `mcp:github:create_issue`)
+- `skill:<name>:<tool>` — Skill tools (e.g., `skill:analyzer:run`)
+
+> **Pro Tip:** Use `command:search` to discover extensions. Do not guess names.
+
+---
+
+## Quick Reference
+
+| Situation | Action |
+|-----------|--------|
+| File operations | Use `read`, `write`, `edit`, `glob`, `search` |
+| Simple shell tasks | Use whitelist commands directly |
+| Complex commands (git, docker, curl...) | Run `--help` first |
+| Extension commands (mcp:*, skill:*:*) | Run `--help` first |
+| Command failed | Follow the `--help` hint in error message |
