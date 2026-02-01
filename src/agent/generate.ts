@@ -78,7 +78,6 @@ export async function generate(
 
   // Convert history to Anthropic format
   const anthropicMessages = history.map(toAnthropicMessage);
-  logger.debug('Generating with history', { messageCount: history.length });
 
   // Call LLM
   const stream = await client.generate(systemPrompt, anthropicMessages, tools);

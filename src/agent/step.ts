@@ -84,29 +84,69 @@ export async function step(
 
   const toolCalls: ToolCall[] = [];
   const toolResultTasks: Map<string, ToolResultTask> = new Map();
+  let cancelled = false;
+
+  const notifyToolResult = (promise: Promise<ToolResult>) => {
+    if (!onToolResult) {
+      return;
+    }
+
+    promise
+      .then((result) => {
+        if (cancelled) {
+          return;
+        }
+        return Promise.resolve()
+          .then(() => onToolResult(result))
+          .catch((error) => {
+            logger.warn('onToolResult callback failed', { error });
+          });
+      })
+      .catch((error) => {
+        logger.warn('Tool result promise rejected', { error });
+      });
+  };
 
   // Tool call callback - start execution immediately
   const handleToolCall = async (toolCall: ToolCall) => {
     logger.debug('Tool call received', { id: toolCall.id, name: toolCall.name });
     toolCalls.push(toolCall);
 
-    const promise = toolset.handle(toolCall)
-      .catch((error) => toToolErrorResult(toolCall.id, error));
-    toolResultTasks.set(toolCall.id, { promise, cancel: () => {} });
-
-    // Optional callback when result is ready
-    if (onToolResult) {
-      promise.then(onToolResult).catch(() => {
-        // Ignore - error will be captured in toolResults()
-      });
+    let rawResult: Promise<ToolResult> | ToolResult;
+    try {
+      rawResult = toolset.handle(toolCall);
+    } catch (error) {
+      rawResult = toToolErrorResult(toolCall.id, error);
     }
+
+    const cancel =
+      typeof (rawResult as { cancel?: unknown }).cancel === 'function'
+        ? (rawResult as { cancel: () => void }).cancel.bind(rawResult)
+        : () => {};
+
+    const promise = Promise.resolve(rawResult)
+      .catch((error) => toToolErrorResult(toolCall.id, error));
+
+    toolResultTasks.set(toolCall.id, { promise, cancel });
+    notifyToolResult(promise);
   };
 
   // Generate response
-  const result = await generate(client, systemPrompt, toolset.tools, history, {
-    onMessagePart,
-    onToolCall: handleToolCall,
-  });
+  let result: Awaited<ReturnType<typeof generate>>;
+  try {
+    result = await generate(client, systemPrompt, toolset.tools, history, {
+      onMessagePart,
+      onToolCall: handleToolCall,
+    });
+  } catch (error) {
+    cancelled = true;
+    const tasks = [...toolResultTasks.values()];
+    for (const task of tasks) {
+      task.cancel();
+    }
+    await Promise.allSettled(tasks.map((task) => task.promise));
+    throw error;
+  }
 
   return {
     id: result.id,
@@ -119,20 +159,17 @@ export async function step(
         return [];
       }
 
-      const results: ToolResult[] = [];
+      const tasks: ToolResultTask[] = toolCalls
+        .map((toolCall) => toolResultTasks.get(toolCall.id))
+        .filter((task): task is ToolResultTask => Boolean(task));
+
+      if (tasks.length === 0) {
+        return [];
+      }
 
       try {
-        for (const toolCall of toolCalls) {
-          const task = toolResultTasks.get(toolCall.id);
-          if (!task) {
-            continue;
-          }
-
-          results.push(await task.promise);
-        }
-        return results;
+        return await Promise.all(tasks.map((task) => task.promise));
       } finally {
-        const tasks = [...toolResultTasks.values()];
         for (const task of tasks) {
           task.cancel();
         }
