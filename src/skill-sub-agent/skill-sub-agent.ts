@@ -19,6 +19,7 @@ import { createLogger } from '../utils/logger.ts';
 import { SkillMemoryStore } from './skill-memory-store.ts';
 import { buildSkillSubAgentPrompt } from './skill-sub-agent-prompt.ts';
 import { AgentRunner } from '../agent/agent-runner.ts';
+import { createTextMessage, type Message } from '../providers/message.ts';
 import { CallableToolset } from '../tools/toolset.ts';
 import type { AnthropicClient } from '../providers/anthropic/anthropic-client.ts';
 import type { BashTool } from '../tools/bash-tool.ts';
@@ -210,7 +211,7 @@ ${this.memoryStore.getDescriptions()}
 Respond with JSON only in this format:
 {"matched_skills": [{"name": "skill-name", "description": "description"}]}`;
 
-      const messages = [{ role: 'user' as const, content: `Search for skills matching: "${query}"` }];
+      const messages: Message[] = [createTextMessage('user', `Search for skills matching: "${query}"`)];
 
       try {
         const stream = await this.llmClient.generate(systemPrompt, messages, []);

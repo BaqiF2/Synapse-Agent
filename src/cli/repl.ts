@@ -228,16 +228,17 @@ function showSkillEnhanceHelp(): void {
  */
 export async function executeShellCommand(command: string): Promise<number> {
   return new Promise((resolve) => {
+    // 使用 spawn 创建子进程来执行传入的命令
     const child = spawn(command, {
       shell: true,
       stdio: ['inherit', 'inherit', 'inherit'],
     });
-
+    // 监听子进程的错误事件，如果出现错误则打印红色错误信息并返回退出码 1
     child.on('error', (error) => {
       console.error(chalk.red(`Shell command error: ${error.message}`));
       resolve(1);
     });
-
+    // 监听子进程的退出事件，获取实际的退出码（如果为 null 则默认为 0）
     child.on('exit', (code) => {
       const exitCode = code ?? 0;
       if (exitCode !== 0) {
@@ -504,6 +505,7 @@ async function handleLineInput(
 ): Promise<void> {
   const trimmedInput = input.trim();
 
+  // 处理空输入
   if (!trimmedInput) {
     promptUser();
     return;
@@ -575,12 +577,15 @@ async function handleLineInput(
  * Start the REPL (Read-Eval-Print-Loop) interactive mode
  */
 export async function startRepl(): Promise<void> {
+  // 上下文持久化管理
   const persistence = new ContextPersistence();
 
-  // Initialize components
-  const agentRunner = initializeAgent(persistence);
+  // 初始化工具
   await initializeMcp();
   await initializeSkills();
+
+  // 初始化agent
+  const agentRunner = initializeAgent(persistence);
 
   // State
   const state: ReplState = { isProcessing: false };

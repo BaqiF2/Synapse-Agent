@@ -29,13 +29,12 @@ export {
   type MergeableToolCallPart,
   createTextMessage,
   extractText,
-  toAnthropicMessage,
   toolResultToMessage,
   mergePart,
   appendToMessage,
   toMergeablePart,
   isToolCallPart,
-} from './message.ts';
+} from '../providers/message.ts';
 
 // Callable Tool base class and return value types
 export {
@@ -53,7 +52,7 @@ export {
   type GenerateOptions,
   type OnMessagePart,
   type OnToolCall,
-} from './generate.ts';
+} from '../providers/generate.ts';
 
 // Toolset interface
 export {

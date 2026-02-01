@@ -16,7 +16,6 @@
  * - MergeableToolCallPart: Tool call part with accumulated JSON
  * - createTextMessage: Helper to create text messages
  * - extractText: Helper to extract text from message
- * - toAnthropicMessage: Convert Message to Anthropic.MessageParam
  * - toolResultToMessage: Convert ToolResult to Message
  * - mergePart: Merge two stream parts
  * - appendToMessage: Append a completed part to message
@@ -24,8 +23,7 @@
  * - isToolCallPart: Type guard for tool call parts
  */
 
-import type Anthropic from '@anthropic-ai/sdk';
-import type { StreamedMessagePart, ToolCallPart, ToolCallDeltaPart, ThinkPart } from '../providers/anthropic/anthropic-types.ts';
+import type { StreamedMessagePart, ToolCallPart, ToolCallDeltaPart, ThinkPart } from './anthropic/anthropic-types.ts';
 import type { ToolReturnValue } from '../tools/callable-tool.ts';
 
 /**
@@ -108,58 +106,6 @@ export function extractText(message: Message, separator: string = ''): string {
     .filter((part): part is TextPart => part.type === 'text')
     .map((part) => part.text)
     .join(separator);
-}
-
-/**
- * Convert Message to Anthropic.MessageParam
- */
-export function toAnthropicMessage(message: Message): Anthropic.MessageParam {
-  // Tool result message → user message with tool_result block
-  if (message.role === 'tool' && message.toolCallId) {
-    const text = extractText(message);
-    return {
-      role: 'user',
-      content: [
-        {
-          type: 'tool_result',
-          tool_use_id: message.toolCallId,
-          content: text,
-        },
-      ],
-    };
-  }
-
-  // Assistant message with tool calls
-  if (message.role === 'assistant' && message.toolCalls?.length) {
-    const content: Anthropic.ContentBlockParam[] = [];
-
-    // Add text parts
-    const text = extractText(message);
-    if (text) {
-      content.push({ type: 'text', text });
-    }
-
-    // Add tool use blocks
-    for (const call of message.toolCalls) {
-      content.push({
-        type: 'tool_use',
-        id: call.id,
-        name: call.name,
-        input: JSON.parse(call.arguments),
-      });
-    }
-
-    return { role: 'assistant', content };
-  }
-
-  // Simple text message
-  const text = extractText(message);
-  if (message.role === 'user' || message.role === 'assistant') {
-    return { role: message.role, content: text };
-  }
-
-  // System message (convert to user for Anthropic)
-  return { role: 'user', content: `<system>${text}</system>` };
 }
 
 /**

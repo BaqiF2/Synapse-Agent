@@ -12,14 +12,13 @@
  */
 
 import type Anthropic from '@anthropic-ai/sdk';
-import type { AnthropicClient } from '../providers/anthropic/anthropic-client.ts';
-import type { StreamedMessagePart, TokenUsage } from '../providers/anthropic/anthropic-types.ts';
-import { APIEmptyResponseError } from '../providers/anthropic/anthropic-types.ts';
+import type { AnthropicClient } from './anthropic/anthropic-client.ts';
+import type { StreamedMessagePart, TokenUsage } from './anthropic/anthropic-types.ts';
+import { APIEmptyResponseError } from './anthropic/anthropic-types.ts';
 import {
   type Message,
   type ToolCall,
   type MergeablePart,
-  toAnthropicMessage,
   toMergeablePart,
   mergePart,
   appendToMessage,
@@ -76,11 +75,8 @@ export async function generate(
 ): Promise<GenerateResult> {
   const { onMessagePart, onToolCall } = options ?? {};
 
-  // Convert history to Anthropic format
-  const anthropicMessages = history.map(toAnthropicMessage);
-
   // Call LLM
-  const stream = await client.generate(systemPrompt, anthropicMessages, tools);
+  const stream = await client.generate(systemPrompt, history, tools);
 
   // Initialize message
   const message: Message = { role: 'assistant', content: [] };
@@ -88,7 +84,6 @@ export async function generate(
 
   // Process stream
   for await (const part of stream) {
-
     if (onMessagePart) {
       await onMessagePart(structuredClone(part));
     }

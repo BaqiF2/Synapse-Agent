@@ -6,7 +6,7 @@
 
 import { describe, expect, it, mock } from 'bun:test';
 import { step, type StepResult } from '../../../src/agent/step.ts';
-import { createTextMessage, type Message, type ToolCall, type ToolResult } from '../../../src/agent/message.ts';
+import { createTextMessage, type Message, type ToolCall, type ToolResult } from '../../../src/providers/message.ts';
 import { CallableToolset } from '../../../src/tools/toolset.ts';
 import { ToolOk, ToolError } from '../../../src/tools/callable-tool.ts';
 import type { CallableTool, ToolReturnValue } from '../../../src/tools/callable-tool.ts';

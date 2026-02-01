@@ -91,7 +91,6 @@ export class ContextPersistence {
     this.ensureDirectory();
 
     if (!sessionId) {
-      // New session, register in index
       this.registerSession();
     }
   }
@@ -102,7 +101,6 @@ export class ContextPersistence {
   private ensureDirectory(): void {
     if (!fs.existsSync(this.conversationsDir)) {
       fs.mkdirSync(this.conversationsDir, { recursive: true });
-      logger.info(`Created conversations directory: ${this.conversationsDir}`);
     }
   }
 

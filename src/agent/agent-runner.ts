@@ -10,8 +10,8 @@
 
 import type {AnthropicClient} from '../providers/anthropic/anthropic-client.ts';
 import {type OnToolResult, step} from './step.ts';
-import {type OnMessagePart} from './generate.ts';
-import {createTextMessage, extractText, type Message, toolResultToMessage,} from './message.ts';
+import {type OnMessagePart} from '../providers/generate.ts';
+import {createTextMessage, extractText, type Message, toolResultToMessage} from '../providers/message.ts';
 import type {Toolset} from '../tools/toolset.ts';
 import {createLogger} from '../utils/logger.ts';
 

@@ -12,7 +12,7 @@ import {
 import { CallableToolset } from '../../../src/tools/toolset.ts';
 import { ToolOk, ToolError } from '../../../src/tools/callable-tool.ts';
 import type { CallableTool, ToolReturnValue } from '../../../src/tools/callable-tool.ts';
-import { createTextMessage, type Message } from '../../../src/agent/message.ts';
+import { createTextMessage, type Message } from '../../../src/providers/message.ts';
 import { BashToolSchema } from '../../../src/tools/bash-tool-schema.ts';
 import type { AnthropicClient } from '../../../src/providers/anthropic/anthropic-client.ts';
 import type { StreamedMessagePart } from '../../../src/providers/anthropic/anthropic-types.ts';

@@ -7,10 +7,12 @@
  * Core Exports:
  * - AnthropicClient: Main client class for Anthropic API
  * - GenerationKwargs: Generation parameters interface
+ * - toAnthropicMessage(s): Convert internal Message to Anthropic wire format
  */
 
 import Anthropic from '@anthropic-ai/sdk';
 import { SettingsManager } from '../../config/settings-manager.ts';
+import type { ContentPart, ImageUrlPart, Message, ToolCall } from '../message.ts';
 import {
   type ThinkingEffort,
   ChatProviderError,
@@ -130,7 +132,7 @@ export class AnthropicClient {
    */
   async generate(
     systemPrompt: string,
-    messages: Anthropic.MessageParam[],
+    messages: readonly Message[],
     tools: Anthropic.Tool[]
   ): Promise<AnthropicStreamedMessage> {
     try {
@@ -145,8 +147,10 @@ export class AnthropicClient {
           ]
         : undefined;
 
+      const anthropicMessages = toAnthropicMessages(messages);
+
       // Inject cache_control into last message
-      const processedMessages = this.injectMessageCacheControl(messages);
+      const processedMessages = this.injectMessageCacheControl(anthropicMessages);
 
       // Inject cache_control into last tool
       const processedTools = this.injectToolsCacheControl(tools);
@@ -251,4 +255,188 @@ export class AnthropicClient {
     }
     return new ChatProviderError('Unknown error occurred');
   }
+}
+
+export function toAnthropicMessages(messages: readonly Message[]): Anthropic.MessageParam[] {
+  return messages.map((message) => toAnthropicMessage(message));
+}
+
+export function toAnthropicMessage(message: Message): Anthropic.MessageParam {
+  if (message.role === 'system') {
+    const text = extractTextFromParts(message.content, '\n');
+    return { role: 'user', content: `<system>${text}</system>` };
+  }
+
+  if (message.role === 'tool') {
+    if (!message.toolCallId) {
+      throw new ChatProviderError('Tool message missing `toolCallId`.');
+    }
+
+    return {
+      role: 'user',
+      content: [
+        {
+          type: 'tool_result',
+          tool_use_id: message.toolCallId,
+          content: convertToolResultContent(message.content),
+        },
+      ],
+    };
+  }
+
+  const hasToolCalls = message.role === 'assistant' && (message.toolCalls?.length ?? 0) > 0;
+  const hasNonTextParts = message.content.some((part) => part.type !== 'text');
+
+  if (!hasToolCalls && !hasNonTextParts) {
+    return { role: message.role, content: extractTextFromParts(message.content) };
+  }
+
+  const contentBlocks = convertContentParts(message.content);
+
+  if (message.role === 'assistant' && message.toolCalls?.length) {
+    for (const call of message.toolCalls) {
+      contentBlocks.push(convertToolCall(call));
+    }
+  }
+
+  if (!hasToolCalls && contentBlocks.length === 0) {
+    return { role: message.role, content: '' };
+  }
+
+  return { role: message.role, content: contentBlocks };
+}
+
+function extractTextFromParts(parts: ContentPart[], separator: string = ''): string {
+  return parts
+    .filter((part): part is { type: 'text'; text: string } => part.type === 'text')
+    .map((part) => part.text)
+    .join(separator);
+}
+
+function convertContentParts(parts: ContentPart[]): Anthropic.ContentBlockParam[] {
+  const blocks: Anthropic.ContentBlockParam[] = [];
+  for (const part of parts) {
+    const block = convertContentPart(part);
+    if (block) blocks.push(block);
+  }
+  return blocks;
+}
+
+function convertContentPart(part: ContentPart): Anthropic.ContentBlockParam | null {
+  switch (part.type) {
+    case 'text':
+      return { type: 'text', text: part.text };
+    case 'image_url':
+      return convertImageUrlPart(part);
+    case 'thinking':
+      if (!part.signature) return null;
+      return {
+        type: 'thinking',
+        thinking: part.content,
+        signature: part.signature,
+      };
+    default:
+      return null;
+  }
+}
+
+function convertToolCall(call: ToolCall): Anthropic.ToolUseBlockParam {
+  return {
+    type: 'tool_use',
+    id: call.id,
+    name: call.name,
+    input: parseToolInput(call.arguments),
+  };
+}
+
+function parseToolInput(argumentsJson: string): Record<string, unknown> {
+  const trimmed = argumentsJson.trim();
+  if (!trimmed) return {};
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch (error) {
+    throw new ChatProviderError('Tool call arguments must be valid JSON.');
+  }
+
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new ChatProviderError('Tool call arguments must be a JSON object.');
+  }
+
+  return parsed as Record<string, unknown>;
+}
+
+function convertToolResultContent(
+  parts: ContentPart[]
+): string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam> {
+  const blocks: Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam> = [];
+  let hasNonText = false;
+  let text = '';
+
+  for (const part of parts) {
+    switch (part.type) {
+      case 'text':
+        if (part.text) {
+          blocks.push({ type: 'text', text: part.text });
+          text += part.text;
+        }
+        break;
+      case 'image_url':
+        hasNonText = true;
+        blocks.push(convertImageUrlPart(part));
+        break;
+      default:
+        throw new ChatProviderError(
+          `Anthropic API does not support ${part.type} in tool result`
+        );
+    }
+  }
+
+  return hasNonText ? blocks : text;
+}
+
+function convertImageUrlPart(part: ImageUrlPart): Anthropic.ImageBlockParam {
+  const url = part.imageUrl.url;
+
+  if (url.startsWith('data:')) {
+    const payload = url.slice(5);
+    const separator = ';base64,';
+    const separatorIndex = payload.indexOf(separator);
+
+    if (separatorIndex === -1) {
+      throw new ChatProviderError(`Invalid data URL for image: ${url}`);
+    }
+
+    const mediaType = payload.slice(0, separatorIndex);
+    const data = payload.slice(separatorIndex + separator.length);
+
+    if (!mediaType || !data) {
+      throw new ChatProviderError(`Invalid data URL for image: ${url}`);
+    }
+
+    const supportedTypes = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
+    if (!supportedTypes.includes(mediaType)) {
+      throw new ChatProviderError(
+        `Unsupported media type for base64 image: ${mediaType}, url: ${url}`
+      );
+    }
+
+    return {
+      type: 'image',
+      source: {
+        type: 'base64',
+        data,
+        media_type: mediaType as 'image/png' | 'image/jpeg' | 'image/gif' | 'image/webp',
+      },
+    };
+  }
+
+  return {
+    type: 'image',
+    source: {
+      type: 'url',
+      url,
+    },
+  };
 }
