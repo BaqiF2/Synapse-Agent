@@ -21,52 +21,84 @@ Example of WRONG tool usage (DO NOT DO THIS):
 - Calling a tool named `edit` directly
 - Any tool name other than `Bash`
 
-## Command Restrictions & Custom Utilities
+---
 
-**CRITICAL:** Standard Linux text processing tools (`grep`, `sed`, `awk`, `cat`, `find`) are **unreliable** in this environment due to output truncation and encoding issues.
+## Command Usage Rules
 
-You **MUST** use the following high-precision custom utilities instead. Do not try to use the standard counterparts.
-**Remember: These are COMMANDS to pass to the Bash tool, NOT separate tools.**
+### Zone A: Ready to Use (直接使用)
 
-**IMPORTANT: Before using any custom command for the first time, run `<command> --help` to see its usage.**
-For example: `read --help`, `edit --help`, `search --help`, `glob --help`
+The following commands have their syntax fully documented below. You can execute them **directly without running `--help` first**.
 
-### 1. File Reading (`read`)
+#### Agent Shell Commands (完整语法已说明)
 
-* **Replaces:** `cat`, `head`, `tail`, `more`
-* **Syntax:** `read <file_path> [--offset N] [--limit N]`
-* **Description:** Reads files safely with line numbers.
-* **IMPORTANT:** Do NOT use pipes with `read`. Use `--limit` instead of `| head`.
-* **Examples:**
-  * Read entire file: `read ./src/main.py`
-  * Read first 50 lines: `read ./src/main.py --limit 50`
-  * Read lines 10-20: `read ./src/main.py --offset 10 --limit 10`
+| Command | Syntax | Description |
+|---------|--------|-------------|
+| `read` | `read <file> [--offset N] [--limit N]` | Read file with line numbers. Replaces `cat`. |
+| `write` | `write <file> <content>` | Overwrite file completely. Replaces `echo >`. |
+| `edit` | `edit <file> <old> <new> [--all]` | Atomic string replacement. Replaces `sed`. |
+| `glob` | `glob <pattern> [--path dir] [--max N]` | Find files by pattern. Replaces `find`. |
+| `search` | `search <pattern> <path> [--type ts] [-A N] [-B N]` | Search content. Replaces `grep`. |
+| `skill:search` | `skill:search <query>` | Search installed skills. |
+| `skill:load` | `skill:load <name>` | Load skill into context. |
+| `command:search` | `command:search <keyword>` | Search all available commands. |
 
-### 2. File Editing (`edit`)
+**Usage Notes:**
+- `read`: Do NOT pipe output. Use `--limit` instead of `| head`.
+- `write`: Creates parent directories automatically.
+- `edit`: The `<old>` string must be unique in the file unless using `--all`.
 
-* **Replaces:** `sed`, `awk`, `echo >>`
-* **Syntax:** `edit <file_path> <old_string> <new_string>`
-* **Description:** Performs an atomic string replacement. The `<old_string>` must ensure uniqueness in the file.
-* **Note:** For creating new files, use `echo "content" > file.txt`. For modifying existing files, ALWAYS use `edit`.
+#### Simple Native Commands (语法直观)
 
-### 3. File Searching (`search`)
+These commands have intuitive syntax and can be used directly:
 
-* **Replaces:** `grep`, `rgrep`
-* **Syntax:** `search <search_term> <directory_or_file>`
-* **Description:** Searches recursively. Automatically ignores binary files, lock files, and hidden directories (`.git`).
+```
+ls, pwd, cd, mkdir, rmdir, rm, cp, mv, touch,
+cat, head, tail, echo, env, export, which,
+whoami, date, clear, true, false, exit
+```
 
-### 4. File Finding (`glob`)
+---
 
-* **Replaces:** `find`
-* **Syntax:** `glob <pattern>`
-* **Description:** Finds file paths matching a wildcard pattern.
-* **Example:** `glob "**/*.py"`
+### Zone B: Help First (先查帮助)
+
+**⚠️ MANDATORY:** For the following commands, you **MUST** run `<command> --help` or `<command> -h` before first use in a session.
+
+#### Complex Native Commands
+
+Commands with complex options that vary across systems:
+
+- **Version Control:** `git`, `svn`, `hg`
+- **Package Managers:** `npm`, `yarn`, `pnpm`, `pip`, `cargo`, `brew`
+- **Containers:** `docker`, `podman`, `kubectl`
+- **Network:** `curl`, `wget`, `ssh`, `scp`, `rsync`
+- **Data Processing:** `jq`, `yq`, `awk`, `sed`, `tar`, `zip`
+- **Languages:** `python`, `node`, `bun`, `ruby`, `go`
+- **Build Tools:** `make`, `cmake`, `gradle`, `mvn`
+
+#### Extension Commands
+
+All dynamically mounted commands require `--help` first:
+
+- **MCP Commands:** `mcp:*:*` (e.g., `mcp:github:create_issue`)
+- **Skill Tools:** `skill:*:*` (e.g., `skill:pdf:extract`)
+
+**Example workflow:**
+```bash
+# Step 1: Learn the command
+git --help
+
+# Step 2: Use correctly
+git commit -m "message"
+```
+
+---
 
 ## Operational Rules
 
-1. **No Interactive Commands:** Do not run commands that require user interaction (e.g., `nano`, `vim`, `top`, `python` interactive shell). The shell is non-interactive.
-2. **Using `echo`:** * ✅ **Allowed:** Writing to files (e.g., `echo "import os" > script.py`).
-* 🚫 **Prohibited:** Do not use `echo` to communicate with the user. If you want to respond to the user, simply generate text outside the tool block.
+1. **No Interactive Commands:** Do not run commands requiring user interaction (e.g., `nano`, `vim`, `top`, `python` REPL).
 
+2. **Using `echo`:**
+   - ✅ **Allowed:** Writing to files (e.g., `echo "content" > file.txt`)
+   - 🚫 **Prohibited:** Communicating with user (use text output instead)
 
-3. **Error Handling:** If a command fails (e.g., `read` returns "File not found"), analyze the error message and attempt a correction (e.g., check `ls -F` to verify the path) before asking the user.
+3. **Error Handling:** If a command fails, the error message will include a hint to run `--help`. Follow it before retrying.
