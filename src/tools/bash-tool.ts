@@ -17,8 +17,10 @@ import { BashRouter, type BashRouterOptions } from './bash-router.ts';
 import { BashSession } from './bash-session.ts';
 import { loadDesc } from '../utils/load-desc.js';
 import type { AnthropicClient } from '../providers/anthropic/anthropic-client.ts';
+import { extractBaseCommand } from './constants.ts';
 
 const COMMAND_TIMEOUT_MARKER = 'Command execution timeout';
+const HELP_HINT_TEMPLATE = '\n\nHint: Run `{command} --help` to learn the correct usage before retrying.';
 
 /**
  * Zod schema for Bash tool parameters
@@ -110,9 +112,11 @@ export class BashTool extends CallableTool<BashToolParams> {
       if (result.exitCode === 0) {
         return ToolOk({ output });
       } else {
+        const baseCommand = extractBaseCommand(command);
+        const helpHint = HELP_HINT_TEMPLATE.replace('{command}', baseCommand);
         return ToolError({
           output,
-          message: `Command failed with exit code ${result.exitCode}`,
+          message: `Command failed with exit code ${result.exitCode}${helpHint}`,
           brief: 'Bash command failed',
         });
       }
