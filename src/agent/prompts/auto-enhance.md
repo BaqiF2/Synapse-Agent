@@ -10,8 +10,10 @@ Task completed. Analyze the execution history to decide if this workflow should 
 **Evaluation Rule:**
 Ask yourself: *"If I face this exact task again tomorrow, would a saved SOP save me time?"*
 * **NO:** Reply exactly: `[No enhancement needed]`
-* **YES:** Run `skill:enhance` with a specific descriptive reason.
+* **YES:** Run `task:skill:enhance` with a specific descriptive reason.
 
 **Example Actions:**
-* `skill:enhance --reason "Workflow to debug Python circular imports"`
-* `skill:enhance --reason "Pattern for refactoring React components to Hooks"`
+```bash
+Bash(command="task:skill:enhance --prompt 'Workflow to debug Python circular imports' --description 'Enhance skills'")
+Bash(command="task:skill:enhance --prompt 'Pattern for refactoring React to Hooks' --description 'Enhance skills'")
+```

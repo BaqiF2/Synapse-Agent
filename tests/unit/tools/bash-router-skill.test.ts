@@ -14,13 +14,16 @@ import { BashSession } from '../../../src/tools/bash-session.ts';
 
 describe('BashRouter Skill Commands', () => {
   let testDir: string;
+  let synapseDir: string;
   let skillsDir: string;
   let router: BashRouter;
   let session: BashSession;
 
   beforeEach(() => {
     testDir = fs.mkdtempSync(path.join(os.tmpdir(), 'synapse-router-skill-test-'));
-    skillsDir = path.join(testDir, 'skills');
+    // BashRouter 需要 synapseDir，内部会自动在其父目录下查找 .synapse/skills
+    synapseDir = path.join(testDir, '.synapse');
+    skillsDir = path.join(synapseDir, 'skills');
     fs.mkdirSync(skillsDir, { recursive: true });
 
     // Create test skill
@@ -38,7 +41,7 @@ description: A test skill
     );
 
     session = new BashSession();
-    router = new BashRouter(session, { skillsDir, synapseDir: testDir });
+    router = new BashRouter(session, { synapseDir });
   });
 
   afterEach(() => {

@@ -17,7 +17,8 @@ describe('SkillCommandHandler', () => {
 
   beforeEach(() => {
     testDir = fs.mkdtempSync(path.join(os.tmpdir(), 'synapse-skill-cmd-test-'));
-    skillsDir = path.join(testDir, 'skills');
+    // SkillLoader 需要 homeDir，会自动在其下查找 .synapse/skills
+    skillsDir = path.join(testDir, '.synapse', 'skills');
     fs.mkdirSync(skillsDir, { recursive: true });
 
     // Create test skill
@@ -36,7 +37,7 @@ Content here.
 `
     );
 
-    handler = new SkillCommandHandler({ skillsDir, synapseDir: testDir });
+    handler = new SkillCommandHandler({ homeDir: testDir });
   });
 
   afterEach(() => {

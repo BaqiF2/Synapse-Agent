@@ -1,42 +1,36 @@
 /**
  * Skill Command Handler
  *
- * 功能：处理 skill:load 命令，加载技能内容
+ * 功能：处理 skill:load 命令，使用 SkillLoader 加载技能内容
  *
  * 核心导出：
- * - SkillCommandHandler: 技能加载命令处理器
+ * - SkillCommandHandler: 技能加载命令处理器，内部使用 SkillLoader 实现带缓存的技能加载
  */
 
-import * as path from 'node:path';
 import * as os from 'node:os';
-import * as fs from 'node:fs';
 import type { CommandResult } from './base-bash-handler.ts';
 import { createLogger } from '../../utils/logger.ts';
+import { SkillLoader } from '../../skills/skill-loader.js';
 
 const logger = createLogger('skill-command-handler');
-
-/**
- * 默认 Synapse 目录
- */
-const DEFAULT_SYNAPSE_DIR = path.join(os.homedir(), '.synapse');
 
 /**
  * SkillCommandHandler 配置选项
  */
 export interface SkillCommandHandlerOptions {
-  skillsDir?: string;
-  synapseDir?: string;
+  /** 用户主目录，默认 os.homedir() */
+  homeDir?: string;
 }
 
 /**
  * SkillCommandHandler - 处理 skill:load 命令
  */
 export class SkillCommandHandler {
-  private skillsDir: string;
+  private skillLoader: SkillLoader;
 
   constructor(options: SkillCommandHandlerOptions = {}) {
-    const synapseDir = options.synapseDir ?? DEFAULT_SYNAPSE_DIR;
-    this.skillsDir = options.skillsDir ?? path.join(synapseDir, 'skills');
+    const homeDir = options.homeDir ?? os.homedir();
+    this.skillLoader = new SkillLoader(homeDir);
   }
 
   /**
@@ -84,33 +78,33 @@ EXAMPLES:
       };
     }
 
-    // 读取技能内容
-    const skillPath = path.join(this.skillsDir, skillName, 'SKILL.md');
+    // 使用 SkillLoader 加载技能
+    const skill = this.skillLoader.loadLevel2(skillName);
 
-    if (!fs.existsSync(skillPath)) {
+    if (!skill) {
+      logger.warn('Skill not found', { skillName });
       return {
         stdout: '',
-        stderr: `Skill '${skillName}' not found at ${skillPath}`,
+        stderr: `Skill '${skillName}' not found`,
         exitCode: 1,
       };
     }
 
-    try {
-      const content = fs.readFileSync(skillPath, 'utf-8');
-      return {
-        stdout: `# Skill: ${skillName}\n\n${content}`,
-        stderr: '',
-        exitCode: 0,
-      };
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      logger.error('Failed to read skill', { skillName, error: message });
+    // 检查是否有 SKILL.md 内容
+    if (!skill.rawContent) {
+      logger.warn('Skill SKILL.md not found', { skillName });
       return {
         stdout: '',
-        stderr: `Failed to load skill: ${message}`,
+        stderr: `Skill '${skillName}' not found (missing SKILL.md)`,
         exitCode: 1,
       };
     }
+
+    return {
+      stdout: `# Skill: ${skillName}\n\n${skill.rawContent}`,
+      stderr: '',
+      exitCode: 0,
+    };
   }
 
   /**

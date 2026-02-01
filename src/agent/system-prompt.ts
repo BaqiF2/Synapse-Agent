@@ -40,16 +40,13 @@ export function buildSystemPrompt(options?: SystemPromptOptions): string {
   // 1. Role
   sections.push(loadDesc(path.join(PROMPTS_DIR, 'role.md')));
 
-  // 2. Tools
-  sections.push(loadDesc(path.join(PROMPTS_DIR, 'tools.md')));
+  // 2. Command System (merged tools + shell-commands)
+  sections.push(loadDesc(path.join(PROMPTS_DIR, 'command-system.md')));
 
-  // 3. Shell Commands
-  sections.push(loadDesc(path.join(PROMPTS_DIR, 'shell-commands.md')));
-
-  // 4. Skills
+  // 3. Skills
   sections.push(loadDesc(path.join(PROMPTS_DIR, 'skills.md')));
 
-  // 5. Ultimate Reminders
+  // 4. Ultimate Reminders
   sections.push(loadDesc(path.join(PROMPTS_DIR, 'ultimate-reminders.md')));
 
   // Current working directory (if provided)

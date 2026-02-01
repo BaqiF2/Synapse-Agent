@@ -1,43 +1,77 @@
-# Skill System & Knowledge Base
+# Skill System
 
-Skills are **Standard Operating Procedures (SOPs)** and reusable workflows derived from past experiences. They act as your long-term memory and expert modules.
+Skills are reusable workflows and expert knowledge. Before improvising, **check if a skill exists first**.
 
-**Rule of Thumb:** Before improvising a solution for a complex task, **ALWAYS check if a Skill exists first.**
+---
 
-## Skill Lifecycle Commands
+## Loading Skills
 
-| Command | Purpose | When to use |
-| :--- | :--- | :--- |
-| **`skill:search`** | **Discovery** | At the start of ANY new or complex task. |
-| **`skill:load`** | **Activation** | When a relevant skill is found. Injects the `SKILL.md` into your context. |
-| **`skill:enhance`** | **Evolution** | After successfully solving a hard problem or debugging a new error. |
+Use `skill:load` to inject skill instructions into your context.
 
-## Workflow: From Discovery to Execution
+```bash
+# Load a skill
+Bash(command="skill:load code-analyzer")
 
-1.  **Search (Don't Guess):**
-    Use `skill:search <intent>` to find existing workflows.
-    ```bash
-    skill:search "react setup"
-    skill:search "error log analysis"
-    ```
+# Show help
+Bash(command="skill:load --help")
+```
 
-2.  **Load & Adopt:**
-    Use `skill:load <name>` to activate the skill.
-    * **Effect:** This retrieves the `SKILL.md` content (instructions, code snippets, checklists) into your active memory.
-    * **Instruction:** Once loaded, you MUST prioritize the strategies defined in `SKILL.md` over your general knowledge.
+Once loaded, follow the skill's instructions exactly.
 
-3.  **Execute:**
-    Follow the loaded workflow step-by-step.
+---
 
-## Continuous Learning (`skill:enhance`)
+## Searching Skills (via Task Agent)
 
-You are a self-evolving agent. Your goal is not just to solve the problem, but to **learn from the solution**.
+Use `task:skill:search` for semantic skill discovery.
 
-**Trigger `skill:enhance` when:**
-* You solved a difficult problem after multiple attempts (Trial & Error).
-* You created a new, useful script or one-liner.
-* You noticed a pattern that should be reused.
+```bash
+Bash(command="task:skill:search --prompt 'code review' --description 'Find review skills'")
+```
 
-**Example:**
-> "I just fixed a complex Kubernetes configuration error. I should save this diagnosis logic as a skill."
-> `skill:enhance --reason "Fixed K8s CrashLoopBackOff using log analysis"`
+**Parameters:**
+- `--prompt, -p` — Search query (required)
+- `--description, -d` — Short description, 3-5 words (required)
+
+---
+
+## Executing Skill Tools (Extension)
+
+Some skills provide executable scripts. **Must run `--help` first.**
+
+Format: `skill:<skill-name>:<tool-name> [args]`
+
+```bash
+# Learn usage first
+Bash(command="skill:analyzer:run --help")
+
+# Then execute
+Bash(command="skill:analyzer:run ./src --format json")
+```
+
+**Note:** `skill:load` loads instructions into context. `skill:name:tool` executes scripts. They are different.
+
+---
+
+## Enhancing Skills (via Task Agent)
+
+Use `task:skill:enhance` to create or improve skills from the current session.
+
+```bash
+Bash(command="task:skill:enhance --prompt 'Fixed K8s issue' --description 'Enhance skills'")
+```
+
+**Trigger when:**
+- Solved a difficult problem
+- Created a useful script
+- Noticed a reusable pattern
+
+---
+
+## Workflow Summary
+
+```
+1. Search:  task:skill:search --prompt "query" --description "..."
+2. Load:    skill:load <name>
+3. Follow:  Execute according to skill instructions
+4. Enhance: task:skill:enhance --prompt "reason" --description "..."
+```

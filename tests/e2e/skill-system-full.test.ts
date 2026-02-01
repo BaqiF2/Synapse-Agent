@@ -25,7 +25,7 @@ describe('Skill System Full Integration', () => {
     skillsDir = path.join(testDir, 'skills');
     fs.mkdirSync(skillsDir, { recursive: true });
 
-    handler = new SkillCommandHandler({ skillsDir, synapseDir: testDir });
+    handler = new SkillCommandHandler({ homeDir: testHomeDir });
   });
 
   afterEach(() => {
@@ -59,7 +59,7 @@ describe('Skill System Full Integration', () => {
 
       // 3. Create new handler to pick up new skill
       handler.shutdown();
-      handler = new SkillCommandHandler({ skillsDir, synapseDir: testDir });
+      handler = new SkillCommandHandler({ homeDir: testHomeDir });
 
       // 4. Load skill
       const loadResult = await handler.execute('skill:load file-processor');
@@ -92,7 +92,7 @@ describe('Skill System Full Integration', () => {
 
       // Restart handler to pick up new skills
       handler.shutdown();
-      handler = new SkillCommandHandler({ skillsDir, synapseDir: testDir });
+      handler = new SkillCommandHandler({ homeDir: testHomeDir });
 
       // Load each skill
       for (const skill of skills) {
@@ -211,7 +211,7 @@ describe('Skill System Full Integration', () => {
       });
 
       handler.shutdown();
-      handler = new SkillCommandHandler({ skillsDir, synapseDir: testDir });
+      handler = new SkillCommandHandler({ homeDir: testHomeDir });
 
       // Perform multiple loads
       const results = await Promise.all([

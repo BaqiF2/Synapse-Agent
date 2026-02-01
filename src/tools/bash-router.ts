@@ -61,7 +61,7 @@ function isSkillToolCommand(value: string): boolean {
  * BashRouter options
  */
 export interface BashRouterOptions {
-  skillsDir?: string;
+  /** Synapse 目录 (默认 ~/.synapse) */
   synapseDir?: string;
   /** LLM client for semantic skill search */
   llmClient?: AnthropicClient;
@@ -87,7 +87,6 @@ export class BashRouter {
   private skillCommandHandler: SkillCommandHandler | null = null;
   private taskCommandHandler: TaskCommandHandler | null = null;
   private agentHandlers: AgentHandlerEntry[];
-  private skillsDir: string;
   private synapseDir: string;
   private llmClient: AnthropicClient | undefined;
   private toolExecutor: BashTool | undefined;
@@ -95,7 +94,6 @@ export class BashRouter {
 
   constructor(private session: BashSession, options: BashRouterOptions = {}) {
     this.synapseDir = options.synapseDir ?? DEFAULT_SYNAPSE_DIR;
-    this.skillsDir = options.skillsDir ?? path.join(this.synapseDir, 'skills');
     this.llmClient = options.llmClient;
     this.toolExecutor = options.toolExecutor;
     this.getConversationPath = options.getConversationPath;
@@ -243,10 +241,10 @@ export class BashRouter {
    */
   private async executeSkillManagementCommand(command: string): Promise<CommandResult> {
     // Lazy initialize skill command handler
+    // synapseDir 的父目录即为 homeDir
     if (!this.skillCommandHandler) {
       this.skillCommandHandler = new SkillCommandHandler({
-        skillsDir: this.skillsDir,
-        synapseDir: this.synapseDir,
+        homeDir: path.dirname(this.synapseDir),
       });
     }
 

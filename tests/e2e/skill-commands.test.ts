@@ -27,9 +27,10 @@ describe('Skill Commands E2E', () => {
 
   beforeEach(() => {
     testDir = fs.mkdtempSync(path.join(os.tmpdir(), 'synapse-e2e-skill-cmd-'));
-    skillsDir = path.join(testDir, 'skills');
+    // SkillLoader 需要 homeDir，会自动在其下查找 .synapse/skills
+    skillsDir = path.join(testDir, '.synapse', 'skills');
     fs.mkdirSync(skillsDir, { recursive: true });
-    writeSettingsFile(testDir);
+    writeSettingsFile(path.join(testDir, '.synapse'));
 
     // Create test skills
     createTestSkill(skillsDir, 'code-analyzer', {
@@ -50,7 +51,7 @@ describe('Skill Commands E2E', () => {
       tags: ['testing', 'automation'],
     });
 
-    handler = new SkillCommandHandler({ skillsDir, synapseDir: testDir });
+    handler = new SkillCommandHandler({ homeDir: testDir });
   });
 
   afterEach(() => {
