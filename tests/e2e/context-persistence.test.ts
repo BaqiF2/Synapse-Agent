@@ -1,5 +1,5 @@
 /**
- * E2E Tests - Context Persistence
+ * E2E Tests - Session Management
  *
  * Tests session index and path handling including:
  * - Session creation and registration
@@ -13,9 +13,9 @@ import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
-import { ContextPersistence } from '../../src/agent/session.js';
+import { Session } from '../../src/agent/session.ts';
 
-describe('E2E: Context Persistence', () => {
+describe('E2E: Session Management', () => {
   let testDir: string;
 
   beforeEach(() => {
@@ -35,16 +35,15 @@ describe('E2E: Context Persistence', () => {
   });
 
   describe('Session Management', () => {
-    test('should create new session with generated ID', () => {
-      const persistence = new ContextPersistence(undefined, testDir);
-      const sessionId = persistence.getSessionId();
+    test('should create new session with generated ID', async () => {
+      const session = await Session.create({ sessionsDir: testDir });
+      const sessionId = session.id;
 
       expect(sessionId).toMatch(/^session-/);
-      // No messages yet, file may not exist
     });
 
-    test('should register session in index', () => {
-      new ContextPersistence(undefined, testDir);
+    test('should register session in index', async () => {
+      await Session.create({ sessionsDir: testDir });
 
       const indexPath = path.join(testDir, 'sessions.json');
       expect(fs.existsSync(indexPath)).toBe(true);
@@ -54,23 +53,23 @@ describe('E2E: Context Persistence', () => {
       expect(content.version).toBe('1.0.0');
     });
 
-    test('should provide session file path', () => {
-      const persistence = new ContextPersistence(undefined, testDir);
-      const sessionId = persistence.getSessionId();
-      const sessionPath = persistence.getSessionPath();
+    test('should provide session file path', async () => {
+      const session = await Session.create({ sessionsDir: testDir });
+      const sessionId = session.id;
+      const historyPath = session.historyPath;
 
-      expect(sessionPath).toBe(path.join(testDir, `${sessionId}.jsonl`));
+      expect(historyPath).toBe(path.join(testDir, `${sessionId}.jsonl`));
     });
   });
 
   describe('Error Handling', () => {
-    test('should handle corrupted index file gracefully', () => {
+    test('should handle corrupted index file gracefully', async () => {
       // Create corrupted index
       fs.writeFileSync(path.join(testDir, 'sessions.json'), 'not valid json', 'utf-8');
 
       // Should not throw, should create new index
-      const persistence = new ContextPersistence(undefined, testDir);
-      expect(persistence.getSessionId()).toMatch(/^session-/);
+      const session = await Session.create({ sessionsDir: testDir });
+      expect(session.id).toMatch(/^session-/);
     });
   });
 });

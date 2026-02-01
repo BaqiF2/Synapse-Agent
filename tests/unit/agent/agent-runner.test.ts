@@ -4,7 +4,10 @@
  * Tests for the refactored Agent Loop implementation using step().
  */
 
-import { describe, expect, it, mock } from 'bun:test';
+import { describe, expect, it, mock, beforeEach, afterEach } from 'bun:test';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import * as os from 'node:os';
 import {
   AgentRunner,
   type AgentRunnerOptions,
@@ -17,6 +20,7 @@ import { BashToolSchema } from '../../../src/tools/bash-tool-schema.ts';
 import type { AnthropicClient } from '../../../src/providers/anthropic/anthropic-client.ts';
 import type { StreamedMessagePart } from '../../../src/providers/anthropic/anthropic-types.ts';
 import { Logger } from '../../../src/utils/logger.ts';
+import { Session } from '../../../src/agent/session.ts';
 
 function createMockCallableTool(handler: (args: unknown) => Promise<ToolReturnValue>): CallableTool<unknown> {
   return {
@@ -210,5 +214,100 @@ describe('AgentRunner', () => {
       expect(response).toBe('Second');
       expect(runner.getHistory()).toHaveLength(4); // 2 user + 2 assistant
     });
+  });
+});
+
+describe('AgentRunner with Session', () => {
+  let testDir: string;
+
+  beforeEach(() => {
+    testDir = path.join(
+      os.tmpdir(),
+      `synapse-runner-test-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`
+    );
+    fs.mkdirSync(testDir, { recursive: true });
+  });
+
+  afterEach(() => {
+    if (fs.existsSync(testDir)) {
+      fs.rmSync(testDir, { recursive: true });
+    }
+  });
+
+  it('should create session on first run', async () => {
+    const client = createMockClient([[{ type: 'text', text: 'Hello!' }]]);
+    const toolset = new CallableToolset([createMockCallableTool(() =>
+      Promise.resolve(ToolOk({ output: '' }))
+    )]);
+
+    const runner = new AgentRunner({
+      client,
+      systemPrompt: 'Test',
+      toolset,
+      sessionsDir: testDir,
+    });
+
+    await runner.run('Hi');
+
+    const sessionId = runner.getSessionId();
+    expect(sessionId).toMatch(/^session-/);
+
+    const sessions = await Session.list({ sessionsDir: testDir });
+    expect(sessions.length).toBe(1);
+  });
+
+  it('should persist messages to session', async () => {
+    const client = createMockClient([[{ type: 'text', text: 'Hello!' }]]);
+    const toolset = new CallableToolset([createMockCallableTool(() =>
+      Promise.resolve(ToolOk({ output: '' }))
+    )]);
+
+    const runner = new AgentRunner({
+      client,
+      systemPrompt: 'Test',
+      toolset,
+      sessionsDir: testDir,
+    });
+
+    await runner.run('Hi');
+
+    const sessionId = runner.getSessionId();
+    const session = await Session.find(sessionId!, { sessionsDir: testDir });
+    const history = await session!.loadHistory();
+
+    expect(history.length).toBe(2); // user + assistant
+  });
+
+  it('should restore history when resuming session', async () => {
+    const client = createMockClient([
+      [{ type: 'text', text: 'First' }],
+      [{ type: 'text', text: 'Second' }],
+    ]);
+    const toolset = new CallableToolset([createMockCallableTool(() =>
+      Promise.resolve(ToolOk({ output: '' }))
+    )]);
+
+    // 第一个 runner
+    const runner1 = new AgentRunner({
+      client,
+      systemPrompt: 'Test',
+      toolset,
+      sessionsDir: testDir,
+    });
+    await runner1.run('Message 1');
+    const sessionId = runner1.getSessionId();
+
+    // 第二个 runner 恢复会话
+    const runner2 = new AgentRunner({
+      client,
+      systemPrompt: 'Test',
+      toolset,
+      sessionId,
+      sessionsDir: testDir,
+    });
+    await runner2.run('Message 2');
+
+    // 验证历史已合并
+    expect(runner2.getHistory().length).toBe(4); // 2 from first + 2 from second
   });
 });

@@ -14,6 +14,7 @@ import {type OnMessagePart} from '../providers/generate.ts';
 import {createTextMessage, extractText, type Message, toolResultToMessage} from '../providers/message.ts';
 import type {Toolset} from '../tools/toolset.ts';
 import {createLogger} from '../utils/logger.ts';
+import {Session} from './session.ts';
 
 const logger = createLogger('agent-runner');
 
@@ -45,6 +46,10 @@ export interface AgentRunnerOptions {
   onToolCall?: OnToolCall;
   /** Callback for tool results */
   onToolResult?: OnToolResult;
+  /** Session ID for resuming (optional) */
+  sessionId?: string;
+  /** Sessions directory (optional, for testing) */
+  sessionsDir?: string;
 }
 
 /**
@@ -74,6 +79,12 @@ export class AgentRunner {
   private onToolCall?: OnToolCall;
   private onToolResult?: OnToolResult;
 
+  /** Session management */
+  private session: Session | null = null;
+  private sessionId?: string;
+  private sessionsDir?: string;
+  private sessionInitialized = false;
+
   /** Conversation history */
   private history: Message[] = [];
 
@@ -87,6 +98,15 @@ export class AgentRunner {
     this.onMessagePart = options.onMessagePart;
     this.onToolCall = options.onToolCall;
     this.onToolResult = options.onToolResult;
+    this.sessionId = options.sessionId;
+    this.sessionsDir = options.sessionsDir;
+  }
+
+  /**
+   * Get current session ID
+   */
+  getSessionId(): string | null {
+    return this.session?.id ?? null;
   }
 
   /**
@@ -104,14 +124,48 @@ export class AgentRunner {
   }
 
   /**
+   * Initialize session (lazy, called on first run)
+   */
+  private async initSession(): Promise<void> {
+    if (this.sessionInitialized) return;
+
+    const options = this.sessionsDir ? { sessionsDir: this.sessionsDir } : {};
+
+    if (this.sessionId) {
+      // 恢复现有会话
+      this.session = await Session.find(this.sessionId, options);
+      if (this.session) {
+        // 加载历史消息
+        this.history = await this.session.loadHistory();
+        logger.info(`Resumed session: ${this.sessionId} (${this.history.length} messages)`);
+      } else {
+        logger.warn(`Session not found: ${this.sessionId}, creating new one`);
+        this.session = await Session.create(options);
+      }
+    } else {
+      // 创建新会话
+      this.session = await Session.create(options);
+    }
+
+    this.sessionInitialized = true;
+  }
+
+  /**
    * Run the Agent Loop for a user message
    *
    * @param userMessage - User message to process
    * @returns Final text response
    */
   async run(userMessage: string): Promise<string> {
+    // 延迟初始化 Session
+    await this.initSession();
+
     // 添加用户消息到聊天历史中
-    this.history.push(createTextMessage('user', userMessage));
+    const userMsg = createTextMessage('user', userMessage);
+    this.history.push(userMsg);
+    if (this.session) {
+      await this.session.appendMessage(userMsg);
+    }
 
     let iteration = 0;
     let consecutiveFailures = 0;
@@ -137,6 +191,9 @@ export class AgentRunner {
 
       // Add assistant message to history
       this.history.push(result.message);
+      if (this.session) {
+        await this.session.appendMessage(result.message);
+      }
 
       // done
       if (result.toolCalls.length === 0) {
@@ -150,7 +207,11 @@ export class AgentRunner {
 
       // Add tool results to history
       for (const tr of toolResults) {
-        this.history.push(toolResultToMessage(tr));
+        const toolMsg = toolResultToMessage(tr);
+        this.history.push(toolMsg);
+        if (this.session) {
+          await this.session.appendMessage(toolMsg);
+        }
       }
 
       // Check for failures

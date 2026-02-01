@@ -21,7 +21,7 @@ import chalk from 'chalk';
 // Agent imports
 import { AnthropicClient } from '../providers/anthropic/anthropic-client.ts';
 import { buildSystemPrompt } from '../agent/system-prompt.ts';
-import { ContextPersistence } from '../agent/session.ts';
+import { Session } from '../agent/session.ts';
 import { AgentRunner } from '../agent/agent-runner.ts';
 import { CallableToolset } from '../tools/toolset.ts';
 import { BashTool } from '../tools/bash-tool.ts';
@@ -70,6 +70,23 @@ function stripWrappingQuotes(value: string): string {
   return value;
 }
 
+/**
+ * 格式化相对时间
+ */
+function formatRelativeTime(dateString: string): string {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMins / 60);
+  const diffDays = Math.floor(diffHours / 24);
+
+  if (diffMins < 1) return 'just now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  return `${diffDays}d ago`;
+}
+
 function extractSkillDescription(content: string): string | null {
   const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
   if (frontmatterMatch?.[1]) {
@@ -104,6 +121,10 @@ function showHelp(): void {
   console.log(chalk.gray('  /clear           ') + chalk.white('Clear conversation history'));
   console.log(chalk.gray('  /tools           ') + chalk.white('List available tools'));
   console.log(chalk.gray('  /skills          ') + chalk.white('List all available skills'));
+  console.log();
+  console.log(chalk.white.bold('Session:'));
+  console.log(chalk.gray('  /resume          ') + chalk.white('List and resume a previous session'));
+  console.log(chalk.gray('  /resume --last   ') + chalk.white('Resume the most recent session'));
   console.log();
   console.log(chalk.white.bold('Skill:'));
   console.log(chalk.gray('  /skill enhance       ') + chalk.white('Show auto-enhance status'));
@@ -262,7 +283,7 @@ export function handleSpecialCommand(
   command: string,
   rl: readline.Interface,
   agentRunner?: AgentRunner | null,
-  options?: { skipExit?: boolean }
+  options?: { skipExit?: boolean; onResumeSession?: (sessionId: string) => void }
 ): boolean {
   const cmd = command.toLowerCase().trim();
   const parts = command.trim().split(/\s+/);
@@ -300,6 +321,17 @@ export function handleSpecialCommand(
       return true;
 
     default:
+      // /resume 命令
+      if (cmd === '/resume' || cmd.startsWith('/resume ')) {
+        const args = parts.slice(1);
+        if (options?.onResumeSession) {
+          handleResumeCommand(args, rl, options.onResumeSession);
+        } else {
+          console.log(chalk.yellow('\nResume not available in this context.\n'));
+        }
+        return true;
+      }
+
       if (parts[0]?.toLowerCase() === '/skill') {
         handleSkillEnhanceCommand(parts.slice(1), agentRunner);
         return true;
@@ -379,6 +411,91 @@ function handleSkillEnhanceCommand(args: string[], agentRunner?: AgentRunner | n
   console.log();
 }
 
+/**
+ * Handle /resume command
+ */
+async function handleResumeCommand(
+  args: string[],
+  rl: readline.Interface,
+  onSessionSelected: (sessionId: string) => void
+): Promise<void> {
+  // /resume --last
+  if (args.includes('--last')) {
+    const session = await Session.continue();
+    if (!session) {
+      console.log(chalk.yellow('\nNo previous sessions found.\n'));
+      return;
+    }
+    console.log(chalk.green(`\n✓ Resuming session: ${session.id}\n`));
+    onSessionSelected(session.id);
+    return;
+  }
+
+  // /resume <session-id>
+  const firstArg = args[0];
+  if (args.length > 0 && firstArg && !firstArg.startsWith('-')) {
+    const sessionId = firstArg;
+    const session = await Session.find(sessionId);
+    if (!session) {
+      console.log(chalk.red(`\nSession not found: ${sessionId}\n`));
+      return;
+    }
+    console.log(chalk.green(`\n✓ Resuming session: ${session.id}\n`));
+    onSessionSelected(session.id);
+    return;
+  }
+
+  // /resume (interactive list)
+  const sessions = await Session.list();
+
+  if (sessions.length === 0) {
+    console.log(chalk.yellow('\nNo previous sessions found.\n'));
+    return;
+  }
+
+  const displayCount = 10;
+  console.log(chalk.cyan('\nRecent Sessions:'));
+  sessions.slice(0, displayCount).forEach((s, i) => {
+    const title = s.title || '(untitled)';
+    const time = formatRelativeTime(s.updatedAt);
+    const idShort = s.id.substring(0, 20);
+    console.log(chalk.gray(`  ${i + 1}. `) + chalk.white(`[${idShort}] `) +
+      chalk.white(title) + chalk.gray(` (${time})`));
+  });
+  console.log();
+
+  rl.question(chalk.yellow('Enter number or session ID to resume (or press Enter to cancel): '),
+    async (answer) => {
+      const trimmed = answer.trim();
+      if (!trimmed) {
+        console.log(chalk.gray('Cancelled.\n'));
+        return;
+      }
+
+      let sessionId: string | undefined;
+
+      // 尝试解析为数字
+      const num = parseInt(trimmed, 10);
+      const sessionByIndex = sessions[num - 1];
+      if (!isNaN(num) && num >= 1 && sessionByIndex) {
+        sessionId = sessionByIndex.id;
+      } else {
+        // 尝试作为 session ID
+        const found = sessions.find((s) => s.id === trimmed || s.id.startsWith(trimmed));
+        sessionId = found?.id;
+      }
+
+      if (!sessionId) {
+        console.log(chalk.red(`\nInvalid selection: ${trimmed}\n`));
+        return;
+      }
+
+      console.log(chalk.green(`\n✓ Resuming session: ${sessionId}\n`));
+      onSessionSelected(sessionId);
+    }
+  );
+}
+
 // ════════════════════════════════════════════════════════════════════
 //  REPL Initialization Helpers
 // ════════════════════════════════════════════════════════════════════
@@ -386,13 +503,13 @@ function handleSkillEnhanceCommand(args: string[], agentRunner?: AgentRunner | n
 /**
  * Initialize the AgentRunner with LLM client and tools
  */
-function initializeAgent(persistence: ContextPersistence): AgentRunner | null {
+function initializeAgent(session: Session): AgentRunner | null {
   try {
     const llmClient = new AnthropicClient();
 
     const bashTool = new BashTool({
       llmClient,
-      getConversationPath: () => persistence?.getSessionPath() ?? null,
+      getConversationPath: () => session?.historyPath ?? null,
     });
 
     // Delayed binding: pass BashTool to its own router for skill sub-agent
@@ -408,6 +525,7 @@ function initializeAgent(persistence: ContextPersistence): AgentRunner | null {
       systemPrompt,
       toolset,
       maxIterations: MAX_TOOL_ITERATIONS,
+      sessionId: session.id,
       onMessagePart: (part) => {
         if (part.type === 'text' && part.text.trim()) {
           process.stdout.write(part.text);
@@ -510,7 +628,7 @@ function showWelcomeBanner(sessionId: string): void {
 async function handleLineInput(
   input: string,
   rl: readline.Interface,
-  agentRunner: AgentRunner,
+  agentRunner: AgentRunner | null,
   state: ReplState,
   promptUser: () => void
 ): Promise<void> {
@@ -556,7 +674,12 @@ async function handleLineInput(
   process.stdout.write(chalk.magenta('Agent> '));
 
   try {
-    await agentRunner.run(trimmedInput);
+    if (!agentRunner) {
+      // Echo mode when agent is not available
+      console.log(chalk.gray(`(echo) ${trimmedInput}`));
+    } else {
+      await agentRunner.run(trimmedInput);
+    }
     console.log();
     console.log();
   } catch (error) {
@@ -577,21 +700,21 @@ async function handleLineInput(
  * Start the REPL (Read-Eval-Print-Loop) interactive mode
  */
 export async function startRepl(): Promise<void> {
-  // 上下文持久化管理
-  const persistence = new ContextPersistence();
+  // 创建会话
+  let session = await Session.create();
 
   // 初始化工具
   await initializeMcp();
   await initializeSkills();
 
   // 初始化agent
-  const agentRunner = initializeAgent(persistence);
+  let agentRunner = initializeAgent(session);
 
   // State
   const state: ReplState = { isProcessing: false };
 
   // Welcome banner
-  showWelcomeBanner(persistence.getSessionId());
+  showWelcomeBanner(session.id);
 
   // Setup readline
   const rl = readline.createInterface({
@@ -605,8 +728,84 @@ export async function startRepl(): Promise<void> {
     rl.prompt();
   };
 
+  // 处理 resume 的回调
+  const handleResumeSession = async (sessionId: string) => {
+    // 查找并恢复会话
+    const resumedSession = await Session.find(sessionId);
+    if (resumedSession) {
+      session = resumedSession;
+      // 重新初始化 agent 使用恢复的 session
+      agentRunner = initializeAgent(session);
+      const history = await session.loadHistory();
+      console.log(chalk.green(`✓ Loaded ${history.length} messages from session\n`));
+    }
+    promptUser();
+  };
+
+  // 包装 handleLineInput 以传递 onResumeSession
+  const handleLine = async (input: string) => {
+    const trimmedInput = input.trim();
+
+    // 处理空输入
+    if (!trimmedInput) {
+      promptUser();
+      return;
+    }
+
+    // Shell commands (! prefix)
+    if (trimmedInput.startsWith('!')) {
+      const shellCommand = trimmedInput.slice(1).trim();
+      if (shellCommand) {
+        console.log();
+        await executeShellCommand(shellCommand);
+        console.log();
+      } else {
+        console.log(chalk.red('\nUsage: !<command>\n'));
+      }
+      promptUser();
+      return;
+    }
+
+    // Special commands (/ prefix)
+    if (trimmedInput.startsWith('/')) {
+      handleSpecialCommand(trimmedInput, rl, agentRunner, { onResumeSession: handleResumeSession });
+      promptUser();
+      return;
+    }
+
+    // Prevent concurrent requests
+    if (state.isProcessing) {
+      console.log(chalk.yellow('\nPlease wait for the current request to complete.\n'));
+      promptUser();
+      return;
+    }
+
+    // Agent conversation
+    state.isProcessing = true;
+    console.log();
+    process.stdout.write(chalk.magenta('Agent> '));
+
+    try {
+      if (!agentRunner) {
+        // Echo mode when agent is not available
+        console.log(chalk.gray(`(echo) ${trimmedInput}`));
+      } else {
+        await agentRunner.run(trimmedInput);
+      }
+      console.log();
+      console.log();
+    } catch (error) {
+      const message = getErrorMessage(error);
+      console.log(chalk.red(`\nError: ${message}\n`));
+      cliLogger.error('Agent request failed', { error: message });
+    } finally {
+      state.isProcessing = false;
+      promptUser();
+    }
+  };
+
   // Event handlers
-  rl.on('line', (input: string) => handleLineInput(input, rl, agentRunner, state, promptUser));
+  rl.on('line', handleLine);
 
   rl.on('close', () => {
     console.log(chalk.yellow('\nREPL session ended.\n'));

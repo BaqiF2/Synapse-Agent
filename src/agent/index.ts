@@ -10,7 +10,7 @@
  * - Toolset: 工具集接口
  * - CallableTool: 工具基类
  * - AgentRunner: Agent 循环实现
- * - ContextPersistence: 对话历史持久化
+ * - Session: 会话管理类
  * - buildSystemPrompt: 系统提示词构建函数
  */
 
@@ -75,11 +75,13 @@ export {
   type AgentRunnerOptions,
 } from './agent-runner.ts';
 
-// Context Persistence
+// Session Management
 export {
-  ContextPersistence,
+  Session,
   type SessionInfo,
   type SessionsIndex,
+  type SessionCreateOptions,
+  TITLE_MAX_LENGTH,
 } from './session.ts';
 
 // System Prompt
