@@ -80,7 +80,7 @@ export {
   ContextPersistence,
   type SessionInfo,
   type SessionsIndex,
-} from './context-persistence.ts';
+} from './session.ts';
 
 // System Prompt
 export {

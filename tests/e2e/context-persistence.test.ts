@@ -13,7 +13,7 @@ import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
-import { ContextPersistence } from '../../src/agent/context-persistence.js';
+import { ContextPersistence } from '../../src/agent/session.js';
 
 describe('E2E: Context Persistence', () => {
   let testDir: string;

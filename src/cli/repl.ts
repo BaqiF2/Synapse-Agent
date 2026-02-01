@@ -21,7 +21,7 @@ import chalk from 'chalk';
 // Agent imports
 import { AnthropicClient } from '../providers/anthropic/anthropic-client.ts';
 import { buildSystemPrompt } from '../agent/system-prompt.ts';
-import { ContextPersistence } from '../agent/context-persistence.ts';
+import { ContextPersistence } from '../agent/session.ts';
 import { AgentRunner } from '../agent/agent-runner.ts';
 import { CallableToolset } from '../tools/toolset.ts';
 import { BashTool } from '../tools/bash-tool.ts';
