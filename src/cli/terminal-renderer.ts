@@ -119,7 +119,7 @@ export class TerminalRenderer {
     // Render output line
     if (event.output) {
       const resultPrefix = this.treeBuilder.getResultPrefix(depth, isLast);
-      const outputColor = event.success ? chalk.gray : chalk.red;
+      const outputColor = event.success ? chalk.green : chalk.red;
       const lines = event.output.split('\n');
       const displayLines = lines.slice(0, MAX_OUTPUT_LINES);
       for (const lineText of displayLines) {
