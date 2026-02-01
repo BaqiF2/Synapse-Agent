@@ -18,16 +18,39 @@ Optimized utilities for file manipulation and self-evolution. **Use these instea
 | | **`edit`** | `edit <file> <old> <new>` | **Preferred over `sed`.** Atomic string replacement. |
 | | **`glob`** | `glob <pattern>` | **Preferred over `find`.** safe recursive matching. |
 | | **`search`** | `search <pattern> <path>` | **Preferred over `grep`.** Smart ignore (binary/.git). |
-| **Skills** | **`skill:search`** | `skill:search <query>` | Find installed capabilities/knowledge modules. |
-| | **`skill:load`** | `skill:load <name>` | Load a specific skill context into memory. |
-| | **`skill:enhance`** | `skill:enhance [target]` | Meta-tool to refine or debug existing skills. |
+| **Skills** | **`skill:load`** | `skill:load <name>` | Load a specific skill context into memory. |
 
-## 2. Native Shell Commands (Standard)
+## 2. Task Commands (Sub-Agents)
+Launch specialized sub-agents for complex, multi-step tasks.
+
+| Agent Type | Command | Description |
+| :--- | :--- | :--- |
+| **Skill Search** | `task:skill:search --prompt <query> --description <desc>` | Search for skills matching a query |
+| **Skill Enhance** | `task:skill:enhance --prompt <session-id> --description <desc>` | Analyze conversation and create/enhance skills |
+| **Explore** | `task:explore --prompt <task> --description <desc>` | Fast codebase exploration |
+| **General** | `task:general --prompt <task> --description <desc>` | General-purpose research agent |
+
+**Required Parameters:**
+* `--prompt, -p <text>`: Task prompt (required)
+* `--description, -d <text>`: Short description, 3-5 words (required)
+
+**Optional Parameters:**
+* `--model <model>`: Model to use (inherits from parent by default)
+* `--max-turns <n>`: Maximum agent turns
+
+**Examples:**
+```bash
+task:skill:search --prompt "code review" --description "Search skills"
+task:explore --prompt "Find authentication code" --description "Explore auth"
+task:general --prompt "Analyze error patterns" --description "Research task"
+```
+
+## 3. Native Shell Commands (Standard)
 Standard Linux binaries are available (e.g., `git`, `npm`, `ls`, `curl`, `python`).
 * **Restriction:** Do not run interactive TUI commands (e.g., `vim`, `nano`, `top`).
 * **Tip:** If a complex native command fails, check `man` or `--help`.
 
-## 3. Extended Commands (Dynamic)
+## 4. Extended Commands (Dynamic)
 Tools dynamically mounted via MCP (Model Context Protocol) or Skill Scripts.
 * **Syntax:** `namespace:context:action`
 * **Examples:**
