@@ -232,9 +232,10 @@ export function mergePart(target: MergeablePart, source: MergeablePart): boolean
  */
 export function toMergeablePart(part: StreamedMessagePart): MergeablePart {
   if (part.type === 'tool_call') {
+    const hasInput = Object.keys(part.input).length > 0;
     return {
       ...part,
-      _argumentsJson: JSON.stringify(part.input),
+      _argumentsJson: hasInput ? JSON.stringify(part.input) : '',
     } as MergeableToolCallPart;
   }
   return part as MergeablePart;
@@ -260,7 +261,7 @@ export function appendToMessage(message: Message, part: MergeablePart): void {
     message.toolCalls.push({
       id: toolCallPart.id,
       name: toolCallPart.name,
-      arguments: toolCallPart._argumentsJson,
+      arguments: toolCallPart._argumentsJson || '{}',
     });
     return;
   }

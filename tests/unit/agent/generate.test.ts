@@ -79,6 +79,38 @@ describe('generate', () => {
     expect(parts[0]).toEqual({ type: 'text', text: 'Hello' });
   });
 
+  it('should not mutate onMessagePart parts when merging', async () => {
+    const parts: StreamedMessagePart[] = [];
+    const client = createMockClient([
+      { type: 'text', text: 'Hello' },
+      { type: 'text', text: ' world' },
+    ]);
+    const history: Message[] = [createTextMessage('user', 'Hi')];
+
+    await generate(client, 'System prompt', [], history, {
+      onMessagePart: (part) => {
+        parts.push(part);
+      },
+    });
+
+    expect(parts).toHaveLength(2);
+    expect(parts[0]).toEqual({ type: 'text', text: 'Hello' });
+    expect(parts[1]).toEqual({ type: 'text', text: ' world' });
+  });
+
+  it('should assemble tool call arguments from deltas', async () => {
+    const client = createMockClient([
+      { type: 'tool_call', id: 'call1', name: 'Bash', input: {} },
+      { type: 'tool_call_delta', argumentsDelta: '{"command":"ls"}' },
+    ]);
+    const history: Message[] = [createTextMessage('user', 'List files')];
+
+    const result = await generate(client, 'System prompt', [], history);
+
+    expect(result.message.toolCalls).toHaveLength(1);
+    expect(result.message.toolCalls?.[0]?.arguments).toBe('{"command":"ls"}');
+  });
+
   it('should call onToolCall callback for complete tool calls', async () => {
     const toolCalls: any[] = [];
     const client = createMockClient([

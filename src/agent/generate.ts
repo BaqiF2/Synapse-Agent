@@ -88,11 +88,9 @@ export async function generate(
 
   // Process stream
   for await (const part of stream) {
-    logger.debug('Received part', { type: part.type });
 
-    // Raw callback
     if (onMessagePart) {
-      await onMessagePart(part);
+      await onMessagePart(structuredClone(part));
     }
 
     const mergeablePart = toMergeablePart(part);
@@ -113,7 +111,7 @@ export async function generate(
         await onToolCall({
           id: pendingPart.id,
           name: pendingPart.name,
-          arguments: pendingPart._argumentsJson,
+          arguments: pendingPart._argumentsJson || '{}',
         });
       }
 
@@ -129,7 +127,7 @@ export async function generate(
       await onToolCall({
         id: pendingPart.id,
         name: pendingPart.name,
-        arguments: pendingPart._argumentsJson,
+        arguments: pendingPart._argumentsJson || '{}',
       });
     }
   }
