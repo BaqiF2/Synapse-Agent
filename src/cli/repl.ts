@@ -499,7 +499,7 @@ function showWelcomeBanner(sessionId: string): void {
 async function handleLineInput(
   input: string,
   rl: readline.Interface,
-  agentRunner: AgentRunner | null,
+  agentRunner: AgentRunner,
   state: ReplState,
   promptUser: () => void
 ): Promise<void> {
@@ -528,17 +528,6 @@ async function handleLineInput(
   // Special commands (/ prefix)
   if (trimmedInput.startsWith('/')) {
     handleSpecialCommand(trimmedInput, rl, agentRunner);
-    promptUser();
-    return;
-  }
-
-  // Fallback: echo mode when agent is unavailable
-  if (!agentRunner) {
-    console.log();
-    console.log(
-      chalk.magenta('Agent> ') + chalk.white(`You said: ${trimmedInput}`)
-    );
-    console.log();
     promptUser();
     return;
   }
