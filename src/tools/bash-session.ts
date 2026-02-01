@@ -12,6 +12,7 @@ import type { CommandResult } from './handlers/base-bash-handler.ts';
 
 const COMMAND_TIMEOUT = parseInt(process.env.COMMAND_TIMEOUT || '30000', 10);
 const COMMAND_END_MARKER = '___SYNAPSE_COMMAND_END___';
+const EXIT_CODE_MARKER = '___SYNAPSE_EXIT_CODE___';
 
 /**
  * Manages a persistent Bash session
@@ -79,15 +80,13 @@ export class BashSession {
     this.stdoutBuffer = '';
     this.stderrBuffer = '';
 
-    // Send command with end marker
-    const commandWithMarker = `${command}\necho "${COMMAND_END_MARKER}"\n`;
+    // Send command with exit code capture and end marker
+    // 执行命令后获取真正的 exit code，使用 ${} 分隔变量名
+    const commandWithMarker = `${command}\n__synapse_ec__=$?; echo "${EXIT_CODE_MARKER}\${__synapse_ec__}${COMMAND_END_MARKER}"\n`;
     this.process.stdin.write(commandWithMarker);
 
     // Wait for command to complete
-    const { stdout, stderr } = await this.waitForCompletion();
-
-    // Determine exit code based on stderr content
-    const exitCode = stderr.trim() ? 1 : 0;
+    const { stdout, stderr, exitCode } = await this.waitForCompletion();
 
     return {
       stdout,
@@ -99,7 +98,7 @@ export class BashSession {
   /**
    * Wait for command completion
    */
-  private async waitForCompletion(): Promise<{ stdout: string; stderr: string }> {
+  private async waitForCompletion(): Promise<{ stdout: string; stderr: string; exitCode: number }> {
     const startTime = Date.now();
 
     return new Promise((resolve, reject) => {
@@ -115,14 +114,21 @@ export class BashSession {
         if (this.stdoutBuffer.includes(COMMAND_END_MARKER)) {
           clearInterval(checkInterval);
 
-          // Remove the end marker from output
+          // Parse exit code from output
+          // Format: ...___SYNAPSE_EXIT_CODE___<code>___SYNAPSE_COMMAND_END___
+          const exitCodeMatch = this.stdoutBuffer.match(
+            new RegExp(`${EXIT_CODE_MARKER}(\\d+)${COMMAND_END_MARKER}`)
+          );
+          const exitCode = exitCodeMatch ? parseInt(exitCodeMatch[1], 10) : 1;
+
+          // Remove the markers from output
           const stdout = this.stdoutBuffer
-            .split(COMMAND_END_MARKER)[0]
-            ?.trim() || '';
+            .replace(new RegExp(`${EXIT_CODE_MARKER}\\d+${COMMAND_END_MARKER}`), '')
+            .trim();
 
           const stderr = this.stderrBuffer.trim();
 
-          resolve({ stdout, stderr });
+          resolve({ stdout, stderr, exitCode });
         }
       }, 50); // Check every 50ms for better responsiveness
     });
