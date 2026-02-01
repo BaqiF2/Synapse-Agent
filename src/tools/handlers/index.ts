@@ -4,14 +4,11 @@
  * 功能：导出所有命令处理器
  *
  * 核心导出：
- * - SkillCommandHandler: 统一技能命令处理器
- * - parseSkillCommand: 技能命令解析函数
+ * - SkillCommandHandler: 技能加载命令处理器
  */
 
 export {
   SkillCommandHandler,
-  parseSkillCommand,
-  type ParsedSkillCommand,
   type SkillCommandHandlerOptions,
 } from './skill-command-handler.js';
 

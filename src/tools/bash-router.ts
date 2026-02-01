@@ -17,6 +17,7 @@ import { CommandSearchHandler } from './handlers/extend-bash/index.ts';
 import { McpConfigParser, McpClient, McpWrapperGenerator, McpInstaller } from './converters/mcp/index.ts';
 import { SkillStructure, DocstringParser, SkillWrapperGenerator } from './converters/skill/index.ts';
 import { SkillCommandHandler } from './handlers/skill-command-handler.ts';
+import { TaskCommandHandler } from './handlers/task-command-handler.ts';
 import type { AnthropicClient } from '../providers/anthropic/anthropic-client.ts';
 import type { BashTool } from './bash-tool.ts';
 
@@ -30,8 +31,9 @@ export enum CommandType {
 }
 
 const AGENT_SHELL_COMMANDS = ['read', 'write', 'edit', 'glob', 'search', 'bash'] as const;
-const SKILL_MANAGEMENT_COMMAND_PREFIXES = ['skill:search', 'skill:load', 'skill:enhance'] as const;
+const SKILL_MANAGEMENT_COMMAND_PREFIXES = ['skill:load'] as const;
 const COMMAND_SEARCH_PREFIX = 'command:search';
+const TASK_COMMAND_PREFIX = 'task:';
 
 /**
  * Default Synapse directory
@@ -83,6 +85,7 @@ export class BashRouter {
   private commandSearchHandler: CommandSearchHandler;
   private mcpInstaller: McpInstaller;
   private skillCommandHandler: SkillCommandHandler | null = null;
+  private taskCommandHandler: TaskCommandHandler | null = null;
   private agentHandlers: AgentHandlerEntry[];
   private skillsDir: string;
   private synapseDir: string;
@@ -157,6 +160,11 @@ export class BashRouter {
       return CommandType.AGENT_SHELL_COMMAND;
     }
 
+    // task:* → Agent Shell Command
+    if (trimmed.startsWith(TASK_COMMAND_PREFIX)) {
+      return CommandType.AGENT_SHELL_COMMAND;
+    }
+
     // Skill management commands: skill:search, skill:load, skill:enhance
     if (startsWithAny(trimmed, SKILL_MANAGEMENT_COMMAND_PREFIXES)) {
       return CommandType.AGENT_SHELL_COMMAND;
@@ -213,6 +221,11 @@ export class BashRouter {
       return this.commandSearchHandler.execute(command);
     }
 
+    // task:* commands
+    if (trimmed.startsWith(TASK_COMMAND_PREFIX)) {
+      return this.executeTaskCommand(command);
+    }
+
     // Skill management commands: skill:search, skill:load, skill:enhance
     if (startsWithAny(trimmed, SKILL_MANAGEMENT_COMMAND_PREFIXES)) {
       return this.executeSkillManagementCommand(command);
@@ -234,9 +247,6 @@ export class BashRouter {
       this.skillCommandHandler = new SkillCommandHandler({
         skillsDir: this.skillsDir,
         synapseDir: this.synapseDir,
-        llmClient: this.llmClient,
-        toolExecutor: this.toolExecutor,
-        getConversationPath: this.getConversationPath,
       });
     }
 
@@ -617,6 +627,29 @@ export class BashRouter {
   }
 
   /**
+   * Execute task command
+   */
+  private async executeTaskCommand(command: string): Promise<CommandResult> {
+    // Lazy initialize task command handler
+    if (!this.taskCommandHandler) {
+      if (!this.llmClient || !this.toolExecutor) {
+        return {
+          stdout: '',
+          stderr: 'Task commands require LLM client and tool executor',
+          exitCode: 1,
+        };
+      }
+
+      this.taskCommandHandler = new TaskCommandHandler({
+        client: this.llmClient,
+        bashTool: this.toolExecutor,
+      });
+    }
+
+    return this.taskCommandHandler.execute(command);
+  }
+
+  /**
    * Set the BashTool instance (for delayed binding to avoid circular dependencies)
    * This allows BashTool to pass itself after BashRouter is created.
    *
@@ -638,6 +671,10 @@ export class BashRouter {
     if (this.skillCommandHandler) {
       this.skillCommandHandler.shutdown();
       this.skillCommandHandler = null;
+    }
+    if (this.taskCommandHandler) {
+      this.taskCommandHandler.shutdown();
+      this.taskCommandHandler = null;
     }
   }
 }

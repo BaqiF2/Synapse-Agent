@@ -1,9 +1,8 @@
 /**
  * Skill Commands E2E Tests
  *
- * End-to-end tests for skill command functionality.
- * Tests skill:search, skill:load, and skill:enhance commands
- * with realistic skill setup.
+ * End-to-end tests for skill:load command functionality.
+ * Note: skill:search and skill:enhance have been moved to task:skill:* commands.
  */
 
 import { describe, expect, it, beforeEach, afterEach } from 'bun:test';
@@ -59,43 +58,6 @@ describe('Skill Commands E2E', () => {
     fs.rmSync(testDir, { recursive: true, force: true });
   });
 
-  describe('skill:search', () => {
-    it('should find skills by keyword in name', async () => {
-      const result = await handler.execute('skill:search code');
-
-      expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain('code-analyzer');
-    });
-
-    it('should find skills by description content', async () => {
-      const result = await handler.execute('skill:search errors');
-
-      expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain('log-parser');
-    });
-
-    it('should return JSON format for parsing', async () => {
-      const result = await handler.execute('skill:search test');
-
-      expect(result.stdout).toContain('matched_skills');
-      expect(result.stdout).toContain('"name"');
-    });
-
-    it('should handle no matches gracefully', async () => {
-      const result = await handler.execute('skill:search nonexistent');
-
-      expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain('No skills found');
-    });
-
-    it('should return error when no query provided', async () => {
-      const result = await handler.execute('skill:search');
-
-      expect(result.exitCode).toBe(1);
-      expect(result.stderr).toContain('<query> is required');
-    });
-  });
-
   describe('skill:load', () => {
     it('should load skill content', async () => {
       const result = await handler.execute('skill:load code-analyzer');
@@ -112,63 +74,43 @@ describe('Skill Commands E2E', () => {
       expect(result.stderr).toContain('not found');
     });
 
-    it('should require skill name', async () => {
+    it('should show help when called without arguments', async () => {
       const result = await handler.execute('skill:load');
 
       expect(result.exitCode).toBe(1);
-      expect(result.stderr).toContain('Usage');
-    });
-  });
-
-  describe('skill:enhance', () => {
-    it('should show status when called without arguments', async () => {
-      const result = await handler.execute('skill:enhance');
-
-      expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain('Status');
+      expect(result.stdout).toContain('skill:load');
+      expect(result.stdout).toContain('USAGE');
     });
 
-    it('should enable auto-enhance with --on', async () => {
-      const result = await handler.execute('skill:enhance --on');
-
-      expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain('enabled');
-    });
-
-    it('should disable auto-enhance with --off', async () => {
-      await handler.execute('skill:enhance --on');
-      const result = await handler.execute('skill:enhance --off');
-
-      expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain('disabled');
-    });
-
-    it('should persist enhance setting', async () => {
-      await handler.execute('skill:enhance --on');
-
-      // Create new handler to verify persistence
-      const handler2 = new SkillCommandHandler({ skillsDir, synapseDir: testDir });
-      const result = await handler2.execute('skill:enhance');
-
-      expect(result.stdout).toContain('enabled');
-      handler2.shutdown();
-    });
-  });
-
-  describe('skill:search --help', () => {
-    it('should show help message', async () => {
-      const result = await handler.execute('skill:search --help');
+    it('should show help with --help flag', async () => {
+      const result = await handler.execute('skill:load --help');
 
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain('USAGE');
-      expect(result.stdout).toContain('skill:search');
+      expect(result.stdout).toContain('skill:load');
     });
 
     it('should show help with -h flag', async () => {
-      const result = await handler.execute('skill:search -h');
+      const result = await handler.execute('skill:load -h');
 
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain('USAGE');
+    });
+  });
+
+  describe('unknown skill commands', () => {
+    it('should return error for unknown skill command', async () => {
+      const result = await handler.execute('skill:unknown test');
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain('Unknown skill command');
+    });
+
+    it('should suggest skill:load for invalid commands', async () => {
+      const result = await handler.execute('skill:invalid');
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain('skill:load');
     });
   });
 });
