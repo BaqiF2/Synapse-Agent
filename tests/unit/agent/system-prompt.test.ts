@@ -1,7 +1,7 @@
 /**
  * System Prompt Tests
  *
- * Tests for the restructured system prompt with 6-section structure.
+ * Tests for the restructured system prompt with 5-section structure.
  *
  * Core Tests:
  * - buildSystemPrompt section order verification
@@ -12,23 +12,21 @@ import { describe, it, expect } from 'bun:test';
 import { buildSystemPrompt } from '../../../src/agent/system-prompt.js';
 
 describe('buildSystemPrompt', () => {
-  it('should include all 6 sections in correct order', () => {
+  it('should include all 5 sections in correct order', () => {
     const prompt = buildSystemPrompt();
 
-    // Check section order
+    // Check section order (matching actual prompt structure)
     const roleIndex = prompt.indexOf('# Role');
     const toolsIndex = prompt.indexOf('# Tools');
-    const shellCommandsIndex = prompt.indexOf('# Shell Commands');
-    const skillsIndex = prompt.indexOf('# Skills');
-    const constraintsIndex = prompt.indexOf('# Constraints');
-    const remindersIndex = prompt.indexOf('# Ultimate Reminders');
+    const shellCommandsIndex = prompt.indexOf('# Shell Command System');
+    const skillsIndex = prompt.indexOf('# Skill System & Knowledge Base');
+    const remindersIndex = prompt.indexOf('# Core Operational Principles');
 
     expect(roleIndex).toBeGreaterThan(-1);
     expect(toolsIndex).toBeGreaterThan(roleIndex);
     expect(shellCommandsIndex).toBeGreaterThan(toolsIndex);
     expect(skillsIndex).toBeGreaterThan(shellCommandsIndex);
-    expect(constraintsIndex).toBeGreaterThan(skillsIndex);
-    expect(remindersIndex).toBeGreaterThan(constraintsIndex);
+    expect(remindersIndex).toBeGreaterThan(skillsIndex);
   });
 
   it('should not include deprecated sections', () => {

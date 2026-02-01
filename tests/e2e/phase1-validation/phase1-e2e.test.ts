@@ -248,7 +248,6 @@ function createMockReadline(): any {
  */
 function createMockReplState(): ReplState {
   return {
-    turnNumber: 1,
     isProcessing: false,
   };
 }
@@ -752,72 +751,62 @@ describe('Phase 1 E2E: TC-3 Tool Conversion System', () => {
 describe('Phase 1 E2E: TC-4 CLI and REPL', () => {
   describe('TC-4.2: Special Commands', () => {
     test('/help should show help information', () => {
-      const state = createMockReplState();
       const rl = createMockReadline();
 
-      const handled = handleSpecialCommand('/help', state, rl, null, { skipExit: true });
+      const handled = handleSpecialCommand('/help', rl, null, { skipExit: true });
       expect(handled).toBe(true);
     });
 
-    test('/clear should reset turn number', () => {
-      const state = createMockReplState();
-      state.turnNumber = 5;
+    test('/clear should be handled', () => {
       const rl = createMockReadline();
 
-      handleSpecialCommand('/clear', state, rl, null, { skipExit: true });
-
-      expect(state.turnNumber).toBe(1);
+      const handled = handleSpecialCommand('/clear', rl, null, { skipExit: true });
+      expect(handled).toBe(true);
     });
 
     test('/tools should be handled', () => {
-      const state = createMockReplState();
       const rl = createMockReadline();
 
-      const handled = handleSpecialCommand('/tools', state, rl, null, { skipExit: true });
+      const handled = handleSpecialCommand('/tools', rl, null, { skipExit: true });
       expect(handled).toBe(true);
     });
 
     test('/skills should be handled', () => {
-      const state = createMockReplState();
       const rl = createMockReadline();
 
-      const handled = handleSpecialCommand('/skills', state, rl, null, { skipExit: true });
+      const handled = handleSpecialCommand('/skills', rl, null, { skipExit: true });
       expect(handled).toBe(true);
     });
 
-    test('/sessions should be handled', () => {
-      const state = createMockReplState();
+    test('/resume should be handled', () => {
       const rl = createMockReadline();
 
-      const handled = handleSpecialCommand('/sessions', state, rl, null, { skipExit: true });
+      const handled = handleSpecialCommand('/resume', rl, null, { skipExit: true });
       expect(handled).toBe(true);
     });
 
     test('/exit should be handled', () => {
-      const state = createMockReplState();
       const rl = createMockReadline();
 
-      const handled = handleSpecialCommand('/exit', state, rl, null, { skipExit: true });
+      const handled = handleSpecialCommand('/exit', rl, null, { skipExit: true });
       expect(handled).toBe(true);
     });
 
     test('commands should be case insensitive', () => {
-      const state = createMockReplState();
       const rl = createMockReadline();
 
       const testCases = ['/HELP', '/Help', '/hElP', '/EXIT', '/Quit', '/Q'];
 
       for (const cmd of testCases) {
-        const handled = handleSpecialCommand(cmd, state, rl, null, { skipExit: true });
+        const handled = handleSpecialCommand(cmd, rl, null, { skipExit: true });
         expect(handled).toBe(true);
       }
     });
 
     test('regular input should not be treated as command', () => {
-      const state = createMockReplState();
       const rl = createMockReadline();
 
-      const handled = handleSpecialCommand('hello world', state, rl, null, { skipExit: true });
+      const handled = handleSpecialCommand('hello world', rl, null, { skipExit: true });
       expect(handled).toBe(false);
     });
   });

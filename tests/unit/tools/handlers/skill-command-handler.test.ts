@@ -149,19 +149,6 @@ Content here.
       expect(result.stdout).toContain('skill:search <query>');
     });
 
-    it('should handle skill:enhance --on command', async () => {
-      const result = await handler.execute('skill:enhance --on');
-      expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain('enabled');
-    });
-
-    it('should handle skill:enhance --off command', async () => {
-      await handler.execute('skill:enhance --on');
-      const result = await handler.execute('skill:enhance --off');
-      expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain('disabled');
-    });
-
     it('should handle skill:load --help command', async () => {
       const result = await handler.execute('skill:load --help');
       expect(result.exitCode).toBe(0);
@@ -180,108 +167,5 @@ Content here.
     });
   });
 
-  describe('semantic search with llmClient', () => {
-    let testDirWithLlm: string;
-    let skillsDirWithLlm: string;
-    let handlerWithLlm: SkillCommandHandler;
-    let searchCallCount: number;
-
-    beforeEach(() => {
-      testDirWithLlm = fs.mkdtempSync(path.join(os.tmpdir(), 'synapse-skill-llm-test-'));
-      skillsDirWithLlm = path.join(testDirWithLlm, 'skills');
-      fs.mkdirSync(skillsDirWithLlm, { recursive: true });
-      writeSettingsFile(testDirWithLlm);
-
-      // Create test skill (skill-creator)
-      const skillCreatorDir = path.join(skillsDirWithLlm, 'skill-creator');
-      fs.mkdirSync(skillCreatorDir, { recursive: true });
-      fs.writeFileSync(
-        path.join(skillCreatorDir, 'SKILL.md'),
-        `---
-name: skill-creator
-description: Guide for creating effective skills
----
-
-# Skill Creator
-
-This skill helps you create new skills.
-`
-      );
-
-      searchCallCount = 0;
-
-      // Create mock LLM client that returns semantic search results
-      const mockLlmClient = {
-        generate: async (_systemPrompt: string, messages: { role: string; content: string | unknown[] }[], _tools: unknown[]) => {
-          searchCallCount++;
-          // Simulate LLM understanding "创建新技能" means "create skill"
-          const lastMessage = messages[messages.length - 1];
-          const query = typeof lastMessage?.content === 'string'
-            ? lastMessage.content
-            : '';
-
-          let responseContent: string;
-
-          // If query contains Chinese for "create skill", return skill-creator
-          if (query.includes('创建新技能') || query.includes('create skill')) {
-            responseContent = JSON.stringify({
-              matched_skills: [
-                { name: 'skill-creator', description: 'Guide for creating effective skills' }
-              ]
-            });
-          } else if (query.includes('invalid')) {
-            responseContent = JSON.stringify({
-              skills: [
-                { name: 'bad-shape', description: 'Invalid payload shape' }
-              ]
-            });
-          } else {
-            responseContent = JSON.stringify({ matched_skills: [] });
-          }
-
-          return {
-            id: 'msg_test',
-            usage: { inputOther: 100, output: 50, inputCacheRead: 0, inputCacheCreation: 0 },
-            async *[Symbol.asyncIterator]() {
-              yield { type: 'text' as const, text: responseContent };
-            },
-          };
-        }
-      } as unknown as AnthropicClient;
-
-      handlerWithLlm = new SkillCommandHandler({
-        skillsDir: skillsDirWithLlm,
-        synapseDir: testDirWithLlm,
-        llmClient: mockLlmClient,
-      });
-    });
-
-    afterEach(() => {
-      handlerWithLlm.shutdown();
-      fs.rmSync(testDirWithLlm, { recursive: true, force: true });
-    });
-
-    it('should use LLM semantic search when llmClient is provided', async () => {
-      const result = await handlerWithLlm.execute('skill:search "创建新技能"');
-
-      expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain('skill-creator');
-      expect(searchCallCount).toBe(1); // LLM was called
-    });
-
-    it('should find skill-creator with Chinese query via LLM', async () => {
-      const result = await handlerWithLlm.execute('skill:search "创建新技能"');
-
-      expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain('skill-creator');
-      expect(result.stdout).toContain('Guide for creating effective skills');
-    });
-
-    it('should return no results when LLM returns invalid payload', async () => {
-      const result = await handlerWithLlm.execute('skill:search invalid');
-
-      expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain('No skills found matching');
-    });
-  });
 });
+

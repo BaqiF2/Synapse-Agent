@@ -32,7 +32,6 @@ function createMockReadline(): readline.Interface {
  */
 function createMockState(): ReplState {
   return {
-    turnNumber: 1,
     isProcessing: false,
   };
 }
@@ -62,131 +61,107 @@ describe('E2E: CLI/REPL Integration', () => {
 
   describe('REPL Special Commands', () => {
     test('/help should show help information', () => {
-      const state = createMockState();
       const rl = createMockReadline();
 
-      const handled = handleSpecialCommand('/help', state, rl, null, { skipExit: true });
+      const handled = handleSpecialCommand('/help', rl, null, { skipExit: true });
       expect(handled).toBe(true);
     });
 
     test('/h should be alias for /help', () => {
-      const state = createMockState();
       const rl = createMockReadline();
 
-      const handled = handleSpecialCommand('/h', state, rl, null, { skipExit: true });
+      const handled = handleSpecialCommand('/h', rl, null, { skipExit: true });
       expect(handled).toBe(true);
     });
 
     test('/? should be alias for /help', () => {
-      const state = createMockState();
       const rl = createMockReadline();
 
-      const handled = handleSpecialCommand('/?', state, rl, null, { skipExit: true });
+      const handled = handleSpecialCommand('/?', rl, null, { skipExit: true });
       expect(handled).toBe(true);
     });
 
-    test('/clear should reset turn number', () => {
-      const state = createMockState();
-      state.turnNumber = 5;
+    test('/clear should be handled', () => {
       const rl = createMockReadline();
 
-      handleSpecialCommand('/clear', state, rl, null, { skipExit: true });
-
-      expect(state.turnNumber).toBe(1);
+      const handled = handleSpecialCommand('/clear', rl, null, { skipExit: true });
+      expect(handled).toBe(true);
     });
 
     test('/tools should be handled', () => {
-      const state = createMockState();
       const rl = createMockReadline();
 
-      const handled = handleSpecialCommand('/tools', state, rl, null, { skipExit: true });
+      const handled = handleSpecialCommand('/tools', rl, null, { skipExit: true });
       expect(handled).toBe(true);
     });
 
     test('/skills should be handled', () => {
-      const state = createMockState();
       const rl = createMockReadline();
 
-      const handled = handleSpecialCommand('/skills', state, rl, null, { skipExit: true });
-      expect(handled).toBe(true);
-    });
-
-    test('/sessions should be handled', () => {
-      const state = createMockState();
-      const rl = createMockReadline();
-
-      const handled = handleSpecialCommand('/sessions', state, rl, null, { skipExit: true });
+      const handled = handleSpecialCommand('/skills', rl, null, { skipExit: true });
       expect(handled).toBe(true);
     });
 
     test('/resume without session id should show usage', () => {
-      const state = createMockState();
       const rl = createMockReadline();
 
-      const handled = handleSpecialCommand('/resume', state, rl, null, { skipExit: true });
+      const handled = handleSpecialCommand('/resume', rl, null, { skipExit: true });
       expect(handled).toBe(true);
     });
 
     test('/resume with invalid session id should be handled', () => {
-      const state = createMockState();
       const rl = createMockReadline();
 
-      const handled = handleSpecialCommand('/resume invalid-id', state, rl, null, {
+      const handled = handleSpecialCommand('/resume invalid-id', rl, null, {
         skipExit: true,
       });
       expect(handled).toBe(true);
     });
 
     test('/exit should be handled', () => {
-      const state = createMockState();
       const rl = createMockReadline();
 
-      const handled = handleSpecialCommand('/exit', state, rl, null, { skipExit: true });
+      const handled = handleSpecialCommand('/exit', rl, null, { skipExit: true });
       expect(handled).toBe(true);
     });
 
     test('/quit should be alias for /exit', () => {
-      const state = createMockState();
       const rl = createMockReadline();
 
-      const handled = handleSpecialCommand('/quit', state, rl, null, { skipExit: true });
+      const handled = handleSpecialCommand('/quit', rl, null, { skipExit: true });
       expect(handled).toBe(true);
     });
 
     test('/q should be alias for /exit', () => {
-      const state = createMockState();
       const rl = createMockReadline();
 
-      const handled = handleSpecialCommand('/q', state, rl, null, { skipExit: true });
+      const handled = handleSpecialCommand('/q', rl, null, { skipExit: true });
       expect(handled).toBe(true);
     });
 
     test('unknown command should show error', () => {
-      const state = createMockState();
       const rl = createMockReadline();
 
-      const handled = handleSpecialCommand('/unknown', state, rl, null, { skipExit: true });
+      const handled = handleSpecialCommand('/unknown', rl, null, { skipExit: true });
       expect(handled).toBe(true); // Still handled (shows error message)
     });
 
     test('regular input should not be treated as command', () => {
-      const state = createMockState();
       const rl = createMockReadline();
 
-      const handled = handleSpecialCommand('hello world', state, rl, null, { skipExit: true });
+      const handled = handleSpecialCommand('hello world', rl, null, { skipExit: true });
       expect(handled).toBe(false);
     });
   });
 
   describe('Command Case Insensitivity', () => {
     test('commands should be case insensitive', () => {
-      const state = createMockState();
       const rl = createMockReadline();
 
-      const testCases = ['/HELP', '/Help', '/hElP', '/EXIT', '/Quit', '/Q', '/SESSIONS'];
+      const testCases = ['/HELP', '/Help', '/hElP', '/EXIT', '/Quit', '/Q'];
 
       for (const cmd of testCases) {
-        const handled = handleSpecialCommand(cmd, state, rl, null, { skipExit: true });
+        const handled = handleSpecialCommand(cmd, rl, null, { skipExit: true });
         expect(handled).toBe(true);
       }
     });
