@@ -108,6 +108,12 @@ export class AnthropicStreamedMessage {
     stream: StreamResponse
   ): AsyncGenerator<StreamedMessagePart> {
     for await (const event of stream) {
+      // 记录原始流式事件用于调试
+      logger.trace('Raw stream event received', {
+        eventType: event.type,
+        eventKeys: Object.keys(event),
+        rawEvent: JSON.stringify(event).substring(0, 500),
+      });
       const part = this.processStreamEvent(event);
       if (part) yield part;
     }
@@ -159,7 +165,11 @@ export class AnthropicStreamedMessage {
   private handleBlockDelta(
     delta: Anthropic.RawContentBlockDeltaEvent['delta']
   ): StreamedMessagePart | null {
-    logger.trace('Block delta received', { deltaType: delta.type, delta });
+    logger.trace('Block delta received', {
+      deltaType: delta.type,
+      deltaKeys: Object.keys(delta),
+      rawDelta: JSON.stringify(delta).substring(0, 500),
+    });
     switch (delta.type) {
       case 'text_delta':
         return { type: 'text', text: delta.text };

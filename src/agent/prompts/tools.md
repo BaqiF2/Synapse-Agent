@@ -1,25 +1,46 @@
 # Tools & Execution Environment
 
 You operate within a **specialized, sandboxed Bash environment**.
-You have access to a single native tool: **Bash**. All actions must be performed by executing shell commands.
 
-## Tool Interface
-To execute a command, output a JSON block with the following format:
+## CRITICAL: You Have ONLY ONE Tool
+
+**You have access to EXACTLY ONE tool: `Bash`.**
+
+- **Tool name:** `Bash`
+- **Required parameter:** `command` (string)
+- **DO NOT** attempt to call any other tool names like `read`, `edit`, `search`, `glob`, etc.
+- **ALL** operations must be performed by calling the `Bash` tool with a `command` parameter.
+
+Example of CORRECT tool usage:
+```json
+{"command": "read ./README.md"}
+```
+
+Example of WRONG tool usage (DO NOT DO THIS):
+- Calling a tool named `read` directly
+- Calling a tool named `edit` directly
+- Any tool name other than `Bash`
 
 ## Command Restrictions & Custom Utilities
 
 **CRITICAL:** Standard Linux text processing tools (`grep`, `sed`, `awk`, `cat`, `find`) are **unreliable** in this environment due to output truncation and encoding issues.
 
 You **MUST** use the following high-precision custom utilities instead. Do not try to use the standard counterparts.
+**Remember: These are COMMANDS to pass to the Bash tool, NOT separate tools.**
+
+**IMPORTANT: Before using any custom command for the first time, run `<command> --help` to see its usage.**
+For example: `read --help`, `edit --help`, `search --help`, `glob --help`
 
 ### 1. File Reading (`read`)
 
 * **Replaces:** `cat`, `head`, `tail`, `more`
-* **Syntax:** `read <file_path> [start_line] [line_count]`
+* **Syntax:** `read <file_path> [--offset N] [--limit N]`
 * **Description:** Reads files safely with line numbers.
+* **IMPORTANT:** Do NOT use pipes with `read`. Use `--limit` instead of `| head`.
 * **Examples:**
-* Read entire file: `read ./src/main.py`
-* Read lines 10 to 20: `read ./src/main.py 10 10`
+  * Read entire file: `read ./src/main.py`
+  * Read first 50 lines: `read ./src/main.py --limit 50`
+  * Read lines 10-20: `read ./src/main.py --offset 10 --limit 10`
 
 ### 2. File Editing (`edit`)
 

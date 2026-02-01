@@ -17,13 +17,23 @@ bun install
 cp .env.example .env
 ```
 
-编辑 `.env`（最少需要设置 API Key）。当 `.env.example` 更新时，请同步新增配置项到 `.env`（保留自己的值）：
+LLM 配置已迁移至 `~/.synapse/settings.json`，示例：
 
-- `ANTHROPIC_API_KEY`：必填
-- `ANTHROPIC_BASE_URL`：默认 `https://api.minimaxi.chat/v1`
-- `MODEL`：默认 `minimax-2.1`
-- `MAX_TOKENS`：默认 `4096`
-- `MAX_CONTEXT_TOKENS`：默认 `200000`（上下文窗口上限）
+```json
+{
+  "env": {
+    "ANTHROPIC_API_KEY": "your_api_key_here",
+    "ANTHROPIC_BASE_URL": "https://api.minimaxi.com/anthropic"
+  },
+  "model": "MiniMax-M2.1"
+}
+```
+
+| 配置项 | 说明 |
+|--------|------|
+| `ANTHROPIC_API_KEY` | 必填，MiniMax API Key |
+| `ANTHROPIC_BASE_URL` | MiniMax Anthropic 兼容端点 |
+| `model` | 支持 `MiniMax-M2.1`、`MiniMax-M2.1-lightning`、`MiniMax-M2` |
 
 > 其他可选项见 `.env.example`，用于日志、持久化与增强策略等。
 

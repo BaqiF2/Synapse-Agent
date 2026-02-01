@@ -52,8 +52,12 @@ export class CallableToolset implements Toolset {
     let returnValue: ToolReturnValue;
 
     if (!tool) {
+      // 提供明确的纠正指导，告诉模型正确的工具调用方式
+      const correctionHint = toolCall.name !== 'Bash'
+        ? `\n\nCORRECTION: You can ONLY call the "Bash" tool. To use "${toolCall.name}", call Bash with command parameter:\nBash(command="${toolCall.name} <args>")\n\nExample: Bash(command="read ./README.md")`
+        : '';
       returnValue = ToolError({
-        message: `Unknown tool: ${toolCall.name}`,
+        message: `Unknown tool: ${toolCall.name}${correctionHint}`,
         brief: 'Unknown tool',
       });
     } else {
