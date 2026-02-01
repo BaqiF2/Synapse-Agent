@@ -13,12 +13,6 @@ export {
   Logger,
   LogLevel,
   createLogger,
-  logger,
-  agentLogger,
-  toolLogger,
-  skillLogger,
-  mcpLogger,
-  cliLogger,
   type LogEntry,
   type LoggerConfig,
 } from './logger.js';

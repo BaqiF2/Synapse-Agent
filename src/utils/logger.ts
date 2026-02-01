@@ -1,7 +1,7 @@
 /**
  * Logger - 分级日志系统
  *
- * 功能：提供分级日志功能（DEBUG, INFO, WARN, ERROR），支持文件和控制台输出
+ * 功能：提供分级日志功能（DEBUG, INFO, WARN, ERROR），支持文件输出
  *
  * 核心导出：
  * - Logger: 日志类
@@ -38,13 +38,25 @@ const LOG_LEVEL_NAMES: Record<LogLevel, string> = {
 };
 
 /**
+ * Expand ~ to home directory
+ */
+function expandHomePath(filePath: string): string {
+  if (filePath.startsWith('~/')) {
+    return path.join(os.homedir(), filePath.slice(2));
+  }
+  if (filePath === '~') {
+    return os.homedir();
+  }
+  return filePath;
+}
+
+/**
  * Environment variable configuration
  */
-const LOG_DIR = process.env.SYNAPSE_LOG_DIR || path.join(os.homedir(), '.synapse', 'logs');
+const LOG_DIR = expandHomePath(process.env.SYNAPSE_LOG_DIR || path.join(os.homedir(), '.synapse', 'logs'));
 const LOG_FILE = process.env.SYNAPSE_LOG_FILE || 'agent.log';
 const LOG_LEVEL = parseLogLevel(process.env.SYNAPSE_LOG_LEVEL || 'INFO');
 const LOG_TO_FILE = process.env.SYNAPSE_LOG_TO_FILE !== 'false';
-const LOG_TO_CONSOLE = false;
 const LOG_MAX_SIZE = parseInt(process.env.SYNAPSE_LOG_MAX_SIZE || '10485760', 10); // 10MB default
 
 /**
@@ -93,8 +105,6 @@ export interface LoggerConfig {
   category?: string;
   /** Whether to log to file */
   logToFile?: boolean;
-  /** Whether to log to console */
-  logToConsole?: boolean;
   /** Log directory */
   logDir?: string;
   /** Log filename */
@@ -108,7 +118,6 @@ export class Logger {
   private level: LogLevel;
   private category: string;
   private logToFile: boolean;
-  private logToConsole: boolean;
   private logDir: string;
   private logFile: string;
   private logPath: string;
@@ -117,7 +126,6 @@ export class Logger {
     this.level = config.level ?? LOG_LEVEL;
     this.category = config.category ?? 'default';
     this.logToFile = config.logToFile ?? LOG_TO_FILE;
-    this.logToConsole = config.logToConsole ?? LOG_TO_CONSOLE;
     this.logDir = config.logDir ?? LOG_DIR;
     this.logFile = config.logFile ?? LOG_FILE;
     this.logPath = path.join(this.logDir, this.logFile);
@@ -198,34 +206,6 @@ export class Logger {
   }
 
   /**
-   * Write log entry to console
-   */
-  private writeToConsole(level: LogLevel, entry: LogEntry): void {
-    if (!this.logToConsole) return;
-
-    const prefix = `[${entry.timestamp}] [${entry.level}] [${entry.category}]`;
-    const message = `${prefix} ${entry.message}`;
-
-    switch (level) {
-      case LogLevel.TRACE:
-        console.debug(message, entry.data ?? '');
-        break;
-      case LogLevel.DEBUG:
-        console.debug(message, entry.data ?? '');
-        break;
-      case LogLevel.INFO:
-        console.info(message, entry.data ?? '');
-        break;
-      case LogLevel.WARN:
-        console.warn(message, entry.data ?? '');
-        break;
-      case LogLevel.ERROR:
-        console.error(message, entry.data ?? '');
-        break;
-    }
-  }
-
-  /**
    * Log a message at the specified level
    */
   private log(level: LogLevel, message: string, data?: unknown): void {
@@ -233,7 +213,6 @@ export class Logger {
 
     const entry = this.formatEntry(level, message, data);
     this.writeToFile(entry);
-    this.writeToConsole(level, entry);
   }
 
   /**
@@ -271,33 +250,6 @@ export class Logger {
     this.log(LogLevel.ERROR, message, data);
   }
 
-  /**
-   * Create a child logger with a sub-category
-   */
-  child(subCategory: string): Logger {
-    return new Logger({
-      level: this.level,
-      category: `${this.category}:${subCategory}`,
-      logToFile: this.logToFile,
-      logToConsole: this.logToConsole,
-      logDir: this.logDir,
-      logFile: this.logFile,
-    });
-  }
-
-  /**
-   * Set the log level
-   */
-  setLevel(level: LogLevel): void {
-    this.level = level;
-  }
-
-  /**
-   * Get the current log level
-   */
-  getLevel(): LogLevel {
-    return this.level;
-  }
 }
 
 /**
@@ -313,13 +265,3 @@ export function createLogger(category: string, config?: Partial<LoggerConfig>): 
     category,
   });
 }
-
-// Pre-configured loggers for common modules
-export const agentLogger = createLogger('agent');
-export const toolLogger = createLogger('tool');
-export const skillLogger = createLogger('skill');
-export const mcpLogger = createLogger('mcp');
-export const cliLogger = createLogger('cli');
-
-// Default logger export
-export const logger = createLogger('synapse');
