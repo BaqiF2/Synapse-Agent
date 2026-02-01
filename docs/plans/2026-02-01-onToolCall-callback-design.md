@@ -85,7 +85,7 @@ return new AgentRunner({
   onToolCall: (toolCall) => {
     terminalRenderer.renderToolStart({
       id: toolCall.id,
-      command: toolCall.name === 'bash'
+      command: toolCall.name === 'Bash'
         ? JSON.parse(toolCall.arguments).command
         : toolCall.name,
       depth: 0,

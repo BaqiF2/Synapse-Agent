@@ -8,6 +8,7 @@
  * - step: Async function for one agent step
  * - StepResult: Result type with message and tool results
  * - StepOptions: Options for step execution
+ * - OnToolCall: Callback type for tool calls
  * - OnToolResult: Callback type for tool results
  */
 
@@ -38,6 +39,11 @@ function toToolErrorResult(toolCallId: string, error: unknown): ToolResult {
 }
 
 /**
+ * Callback for tool calls (before execution)
+ */
+export type OnToolCall = (toolCall: ToolCall) => void;
+
+/**
  * Callback for tool execution results
  */
 export type OnToolResult = (result: ToolResult) => void;
@@ -47,6 +53,7 @@ export type OnToolResult = (result: ToolResult) => void;
  */
 export interface StepOptions {
   onMessagePart?: OnMessagePart;
+  onToolCall?: OnToolCall;
   onToolResult?: OnToolResult;
 }
 
@@ -80,7 +87,7 @@ export async function step(
   history: readonly Message[],
   options?: StepOptions
 ): Promise<StepResult> {
-  const { onMessagePart, onToolResult } = options ?? {};
+  const { onMessagePart, onToolCall, onToolResult } = options ?? {};
 
   const toolCalls: ToolCall[] = [];
   const toolResultTasks: Map<string, ToolResultTask> = new Map();
@@ -111,6 +118,15 @@ export async function step(
   const handleToolCall = async (toolCall: ToolCall) => {
     logger.debug('Tool call received', { id: toolCall.id, name: toolCall.name });
     toolCalls.push(toolCall);
+
+    // 触发外部回调（工具执行前）
+    if (onToolCall) {
+      try {
+        onToolCall(toolCall);
+      } catch (error) {
+        logger.warn('onToolCall callback failed', { error });
+      }
+    }
 
     let rawResult: Promise<ToolResult> | ToolResult;
     try {

@@ -413,6 +413,17 @@ function initializeAgent(persistence: ContextPersistence): AgentRunner | null {
           process.stdout.write(part.text);
         }
       },
+      onToolCall: (toolCall) => {
+        const command =
+          toolCall.name === 'Bash'
+            ? JSON.parse(toolCall.arguments).command
+            : toolCall.name;
+        terminalRenderer.renderToolStart({
+          id: toolCall.id,
+          command,
+          depth: 0,
+        });
+      },
       onToolResult: (result) => {
         terminalRenderer.renderToolEnd({
           id: result.toolCallId,

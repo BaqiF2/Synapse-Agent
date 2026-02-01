@@ -9,7 +9,7 @@
  */
 
 import type {AnthropicClient} from '../providers/anthropic/anthropic-client.ts';
-import {type OnToolResult, step} from './step.ts';
+import {type OnToolCall, type OnToolResult, step} from './step.ts';
 import {type OnMessagePart} from '../providers/generate.ts';
 import {createTextMessage, extractText, type Message, toolResultToMessage} from '../providers/message.ts';
 import type {Toolset} from '../tools/toolset.ts';
@@ -41,6 +41,8 @@ export interface AgentRunnerOptions {
   maxConsecutiveToolFailures?: number;
   /** Callback for streamed message parts */
   onMessagePart?: OnMessagePart;
+  /** Callback for tool calls (before execution) */
+  onToolCall?: OnToolCall;
   /** Callback for tool results */
   onToolResult?: OnToolResult;
 }
@@ -69,6 +71,7 @@ export class AgentRunner {
   private maxIterations: number;
   private maxConsecutiveToolFailures: number;
   private onMessagePart?: OnMessagePart;
+  private onToolCall?: OnToolCall;
   private onToolResult?: OnToolResult;
 
   /** Conversation history */
@@ -82,6 +85,7 @@ export class AgentRunner {
     this.maxConsecutiveToolFailures =
       options.maxConsecutiveToolFailures ?? DEFAULT_MAX_CONSECUTIVE_TOOL_FAILURES;
     this.onMessagePart = options.onMessagePart;
+    this.onToolCall = options.onToolCall;
     this.onToolResult = options.onToolResult;
   }
 
@@ -126,6 +130,7 @@ export class AgentRunner {
         this.history,
         {
           onMessagePart: this.onMessagePart,
+          onToolCall: this.onToolCall,
           onToolResult: this.onToolResult,
         }
       );
