@@ -166,15 +166,9 @@ export function toAnthropicMessage(message: Message): Anthropic.MessageParam {
  * Convert ToolResult to Message
  */
 export function toolResultToMessage(result: ToolResult): Message {
-  // Combine output and message for the model
-  const rv = result.returnValue;
-  const parts: string[] = [];
-  if (rv.output) parts.push(rv.output);
-  if (rv.message) parts.push(rv.message);
-  const text = parts.join('\n');
   return {
     role: 'tool',
-    content: [{ type: 'text', text }],
+    content: [{ type: 'text', text: result.returnValue.output }],
     toolCallId: result.toolCallId,
   };
 }

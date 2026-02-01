@@ -21,6 +21,22 @@ import { createLogger } from '../utils/logger.ts';
 
 const logger = createLogger('step');
 
+type ToolResultTask = {
+  promise: Promise<ToolResult>;
+  cancel: () => void;
+};
+
+function toToolErrorResult(toolCallId: string, error: unknown): ToolResult {
+  const message = error instanceof Error ? error.message : 'Unknown error';
+  return {
+    toolCallId,
+    returnValue: ToolError({
+      message: `Tool execution failed: ${message}`,
+      brief: 'Tool execution failed',
+    }),
+  };
+}
+
 /**
  * Callback for tool execution results
  */
@@ -67,15 +83,16 @@ export async function step(
   const { onMessagePart, onToolResult } = options ?? {};
 
   const toolCalls: ToolCall[] = [];
-  const toolResultPromises: Map<string, Promise<ToolResult>> = new Map();
+  const toolResultTasks: Map<string, ToolResultTask> = new Map();
 
   // Tool call callback - start execution immediately
   const handleToolCall = async (toolCall: ToolCall) => {
     logger.debug('Tool call received', { id: toolCall.id, name: toolCall.name });
     toolCalls.push(toolCall);
 
-    const promise = toolset.handle(toolCall);
-    toolResultPromises.set(toolCall.id, promise);
+    const promise = toolset.handle(toolCall)
+      .catch((error) => toToolErrorResult(toolCall.id, error));
+    toolResultTasks.set(toolCall.id, { promise, cancel: () => {} });
 
     // Optional callback when result is ready
     if (onToolResult) {
@@ -98,26 +115,29 @@ export async function step(
     toolCalls,
 
     async toolResults(): Promise<ToolResult[]> {
-      const results: ToolResult[] = [];
-      for (const toolCall of toolCalls) {
-        const promise = toolResultPromises.get(toolCall.id);
-        if (promise) {
-          try {
-            results.push(await promise);
-          } catch (error) {
-            // Convert error to ToolResult
-            const message = error instanceof Error ? error.message : 'Unknown error';
-            results.push({
-              toolCallId: toolCall.id,
-              returnValue: ToolError({
-                message: `Tool execution failed: ${message}`,
-                brief: 'Tool execution failed',
-              }),
-            });
-          }
-        }
+      if (toolCalls.length === 0) {
+        return [];
       }
-      return results;
+
+      const results: ToolResult[] = [];
+
+      try {
+        for (const toolCall of toolCalls) {
+          const task = toolResultTasks.get(toolCall.id);
+          if (!task) {
+            continue;
+          }
+
+          results.push(await task.promise);
+        }
+        return results;
+      } finally {
+        const tasks = [...toolResultTasks.values()];
+        for (const task of tasks) {
+          task.cancel();
+        }
+        await Promise.allSettled(tasks.map((task) => task.promise));
+      }
     },
   };
 }

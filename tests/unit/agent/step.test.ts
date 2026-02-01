@@ -6,7 +6,7 @@
 
 import { describe, expect, it, mock } from 'bun:test';
 import { step, type StepResult } from '../../../src/agent/step.ts';
-import { createTextMessage, type Message, type ToolCall } from '../../../src/agent/message.ts';
+import { createTextMessage, type Message, type ToolCall, type ToolResult } from '../../../src/agent/message.ts';
 import { CallableToolset } from '../../../src/tools/toolset.ts';
 import { ToolOk, ToolError } from '../../../src/tools/callable-tool.ts';
 import type { CallableTool, ToolReturnValue } from '../../../src/tools/callable-tool.ts';
@@ -117,5 +117,31 @@ describe('step', () => {
     await result.toolResults();
     expect(results).toHaveLength(1);
     expect(results[0]?.returnValue.output).toBe('done');
+  });
+
+  it('should still collect later tool results even if one fails', async () => {
+    const client = createMockClient([
+      { type: 'tool_call', id: 'call1', name: 'Bash', input: { command: 'fail' } },
+      { type: 'tool_call', id: 'call2', name: 'Bash', input: { command: 'slow' } },
+    ]);
+    const toolHandler = mock((args: { command?: string }) => {
+      if (args.command === 'fail') {
+        return Promise.reject(new Error('boom'));
+      }
+      return new Promise<ToolReturnValue>((resolve) =>
+        setTimeout(() => resolve(ToolOk({ output: 'ok' })), 10)
+      );
+    });
+    const toolset = new CallableToolset([createMockCallableTool(toolHandler)]);
+    const history: Message[] = [createTextMessage('user', 'Run')];
+
+    const result = await step(client, 'System', toolset, history);
+    const toolResults = await result.toolResults();
+
+    expect(toolResults).toHaveLength(2);
+    expect(toolResults[0]?.returnValue.isError).toBe(true);
+    expect(toolResults[0]?.returnValue.message).toContain('Tool execution failed');
+    expect(toolResults[1]?.returnValue.isError).toBe(false);
+    expect(toolResults[1]?.returnValue.output).toBe('ok');
   });
 });

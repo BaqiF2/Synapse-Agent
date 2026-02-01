@@ -133,7 +133,7 @@ export class AgentRunner {
       // Add assistant message to history
       this.history.push(result.message);
 
-      // No tool calls - done
+      // done
       if (result.toolCalls.length === 0) {
         finalResponse = extractText(result.message);
         logger.info(`Agent loop completed, no tool calls，messages : ${finalResponse}`);
