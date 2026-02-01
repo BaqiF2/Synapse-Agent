@@ -1,7 +1,6 @@
 /**
  * Agent Runner
  *
- * Refactored Agent Loop implementation using step() function.
  * Maintains conversation history internally and runs until no tool calls.
  *
  * Core Exports:

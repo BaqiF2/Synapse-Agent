@@ -31,33 +31,193 @@ import { createLogger } from '../utils/logger.ts';
 import { SettingsManager } from '../config/settings-manager.ts';
 import { TerminalRenderer } from './terminal-renderer.ts';
 
+// ════════════════════════════════════════════════════════════════════
+//  Constants & Configuration
+// ════════════════════════════════════════════════════════════════════
+
 const cliLogger = createLogger('cli');
+const MAX_TOOL_ITERATIONS = parseInt(process.env.SYNAPSE_MAX_TOOL_ITERATIONS || '50', 10);
+
+// ════════════════════════════════════════════════════════════════════
+//  Types
+// ════════════════════════════════════════════════════════════════════
+
+export interface ReplState {
+  isProcessing: boolean;
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  Utility Helpers
+// ════════════════════════════════════════════════════════════════════
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'Unknown error';
 }
 
-/**
- * Print a section header with consistent formatting
- */
 function printSectionHeader(title: string): void {
   console.log();
   console.log(chalk.cyan.bold(title));
   console.log(chalk.cyan('═'.repeat(50)));
 }
 
-/**
- * Environment variable configuration
- */
-const MAX_TOOL_ITERATIONS = parseInt(process.env.SYNAPSE_MAX_TOOL_ITERATIONS || '50', 10);
-
-/**
- * REPL State
- */
-export interface ReplState {
-  turnNumber: number;
-  isProcessing: boolean;
+function stripWrappingQuotes(value: string): string {
+  if (
+    (value.startsWith('"') && value.endsWith('"')) ||
+    (value.startsWith("'") && value.endsWith("'"))
+  ) {
+    return value.slice(1, -1);
+  }
+  return value;
 }
+
+function extractSkillDescription(content: string): string | null {
+  const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
+  if (frontmatterMatch?.[1]) {
+    const lines = frontmatterMatch[1].split('\n');
+    for (const line of lines) {
+      const colonIndex = line.indexOf(':');
+      if (colonIndex <= 0) continue;
+      const key = line.slice(0, colonIndex).trim();
+      if (key !== 'description') continue;
+      const rawValue = line.slice(colonIndex + 1).trim();
+      if (!rawValue) return null;
+      return stripWrappingQuotes(rawValue);
+    }
+  }
+
+  const markdownDesc =
+    content.match(/\*\*描述\*\*:\s*(.+)/)?.[1] ??
+    content.match(/\*\*Description\*\*:\s*(.+)/i)?.[1];
+  return markdownDesc ? markdownDesc.trim() : null;
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  Display Functions
+// ════════════════════════════════════════════════════════════════════
+
+function showHelp(): void {
+  printSectionHeader('Synapse Agent - Help');
+  console.log();
+  console.log(chalk.white.bold('Common:'));
+  console.log(chalk.gray('  /help, /h, /?    ') + chalk.white('Show this help message'));
+  console.log(chalk.gray('  /exit, /quit, /q ') + chalk.white('Exit the REPL'));
+  console.log(chalk.gray('  /clear           ') + chalk.white('Clear conversation history'));
+  console.log(chalk.gray('  /tools           ') + chalk.white('List available tools'));
+  console.log(chalk.gray('  /skills          ') + chalk.white('List all available skills'));
+  console.log();
+  console.log(chalk.white.bold('Skill:'));
+  console.log(chalk.gray('  /skill enhance       ') + chalk.white('Show auto-enhance status'));
+  console.log(chalk.gray('  /skill enhance --on  ') + chalk.white('Enable auto skill enhance'));
+  console.log(chalk.gray('  /skill enhance --off ') + chalk.white('Disable auto skill enhance'));
+  console.log(chalk.gray('  /skill enhance -h    ') + chalk.white('Show skill enhance help'));
+  console.log();
+  console.log(chalk.white.bold('Execute:'));
+  console.log(chalk.gray('  !<command>       ') + chalk.white('Execute a shell command directly'));
+  console.log(chalk.gray('                   ') + chalk.white('Example: !ls -la, !git status'));
+  console.log();
+  console.log(chalk.white.bold('Keyboard Shortcuts:'));
+  console.log(chalk.gray('  Ctrl+C           ') + chalk.white('Prompt for exit confirmation'));
+  console.log(chalk.gray('  Ctrl+D           ') + chalk.white('Exit immediately'));
+  console.log();
+}
+
+function showToolsList(): void {
+  printSectionHeader('Available Tools');
+  console.log();
+  const installer = new McpInstaller();
+  const result = installer.search({ pattern: '*', type: 'all' });
+  const output = installer.formatSearchResult(result);
+  const lines = output.split('\n');
+  if (lines[0]?.startsWith('Found ')) {
+    lines.shift();
+    if (lines[0] === '') {
+      lines.shift();
+    }
+  }
+  console.log(lines.join('\n'));
+  console.log();
+}
+
+function showSkillsList(): void {
+  printSectionHeader('Available Skills');
+
+  const skillsDir = path.join(os.homedir(), '.synapse', 'skills');
+
+  if (!fs.existsSync(skillsDir)) {
+    console.log(chalk.gray('  No skills directory found.'));
+    console.log(chalk.gray(`  Create skills in: ${skillsDir}`));
+    console.log();
+    return;
+  }
+
+  try {
+    const entries = fs.readdirSync(skillsDir, { withFileTypes: true });
+    const skills = entries.filter((e) => e.isDirectory() && !e.name.startsWith('.'));
+
+    if (skills.length === 0) {
+      console.log(chalk.gray('  No skills installed.'));
+      console.log(chalk.gray(`  Create skills in: ${skillsDir}`));
+      console.log();
+      return;
+    }
+
+    for (const skill of skills) {
+      const skillMdPath = path.join(skillsDir, skill.name, 'SKILL.md');
+      let description = chalk.gray('(No description)');
+
+      if (fs.existsSync(skillMdPath)) {
+        try {
+          const content = fs.readFileSync(skillMdPath, 'utf-8');
+          const parsedDescription = extractSkillDescription(content);
+          if (parsedDescription) {
+            description = chalk.white(parsedDescription);
+          }
+        } catch {
+          // Ignore read errors
+        }
+      }
+
+      console.log(chalk.green(`  ${skill.name}`));
+      console.log(`    ${description}`);
+    }
+
+    console.log();
+  } catch (error) {
+    const message = getErrorMessage(error);
+    console.log(chalk.red(`  Error reading skills: ${message}`));
+    console.log();
+  }
+}
+
+function showSkillEnhanceHelp(): void {
+  printSectionHeader('Skill Enhance - Help');
+  console.log();
+  console.log(chalk.white.bold('Description:'));
+  console.log(chalk.white('  Manage automatic skill enhancement based on conversation history.'));
+  console.log(chalk.white('  When enabled, the system analyzes completed tasks and may'));
+  console.log(chalk.white('  create or enhance skills to improve future performance.'));
+  console.log();
+  console.log(chalk.white.bold('Usage:'));
+  console.log(chalk.gray('  /skill enhance                   ') + chalk.white('Show current status'));
+  console.log(chalk.gray('  /skill enhance --on              ') + chalk.white('Enable auto-enhance'));
+  console.log(chalk.gray('  /skill enhance --off             ') + chalk.white('Disable auto-enhance'));
+  console.log(
+    chalk.gray('  /skill enhance --conversation <path>  ') + chalk.white('Manual enhance from file')
+  );
+  console.log(chalk.gray('  /skill enhance -h, --help        ') + chalk.white('Show this help'));
+  console.log();
+  console.log(chalk.white.bold('Examples:'));
+  console.log(chalk.gray('  /skill enhance --on'));
+  console.log(chalk.gray('  /skill enhance --conversation ~/.synapse/conversations/session.jsonl'));
+  console.log();
+  console.log(chalk.white.bold('Note:'));
+  console.log(chalk.yellow('  Auto-enhance consumes additional tokens for LLM analysis.'));
+  console.log();
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  Command Handlers
+// ════════════════════════════════════════════════════════════════════
 
 /**
  * Execute a shell command directly (for ! prefix)
@@ -92,7 +252,6 @@ export async function executeShellCommand(command: string): Promise<number> {
  * Handle special REPL commands (/ prefix)
  *
  * @param command - The command (with / prefix)
- * @param state - Current REPL state
  * @param rl - Readline interface
  * @param agentRunner - Optional agent runner for context access
  * @param options - Optional settings for testing
@@ -100,7 +259,6 @@ export async function executeShellCommand(command: string): Promise<number> {
  */
 export function handleSpecialCommand(
   command: string,
-  state: ReplState,
   rl: readline.Interface,
   agentRunner?: AgentRunner | null,
   options?: { skipExit?: boolean }
@@ -126,8 +284,6 @@ export function handleSpecialCommand(
       return true;
 
     case '/clear':
-      state.turnNumber = 1;
-      // Also clear agent history if available
       if (agentRunner) {
         agentRunner.clearHistory();
       }
@@ -143,7 +299,6 @@ export function handleSpecialCommand(
       return true;
 
     default:
-      // Handle /skill enhance commands
       if (parts[0]?.toLowerCase() === '/skill') {
         handleSkillEnhanceCommand(parts.slice(1), agentRunner);
         return true;
@@ -167,7 +322,6 @@ export function handleSpecialCommand(
 function handleSkillEnhanceCommand(args: string[], agentRunner?: AgentRunner | null): void {
   const subcommand = args[0]?.toLowerCase();
 
-  // Only support 'enhance' subcommand for user slash commands
   if (subcommand !== 'enhance') {
     console.log(chalk.red(`\nUnknown skill command: ${subcommand || '(none)'}`));
     console.log(chalk.gray('Available commands:'));
@@ -181,13 +335,11 @@ function handleSkillEnhanceCommand(args: string[], agentRunner?: AgentRunner | n
   const enhanceArgs = args.slice(1);
   const settingsManager = new SettingsManager();
 
-  // Check for help flag
   if (enhanceArgs.includes('-h') || enhanceArgs.includes('--help')) {
     showSkillEnhanceHelp();
     return;
   }
 
-  // Check for --on flag
   if (enhanceArgs.includes('--on')) {
     settingsManager.setAutoEnhance(true);
     console.log(chalk.green('\nAuto skill enhance enabled.'));
@@ -197,23 +349,19 @@ function handleSkillEnhanceCommand(args: string[], agentRunner?: AgentRunner | n
     return;
   }
 
-  // Check for --off flag
   if (enhanceArgs.includes('--off')) {
     settingsManager.setAutoEnhance(false);
     console.log(chalk.yellow('\nAuto skill enhance disabled.\n'));
     return;
   }
 
-  // Check for --conversation flag
-  const convIndex = enhanceArgs.indexOf('--conversation');
-  if (convIndex !== -1) {
-    // Manual enhance is temporarily disabled during refactoring
+  if (enhanceArgs.indexOf('--conversation') !== -1) {
     console.log(chalk.yellow('\nManual enhance is temporarily unavailable.\n'));
     console.log(chalk.gray('Use auto-enhance with --on flag instead.\n'));
     return;
   }
 
-  // No flags - show current status
+  // No flags — show current status
   const isEnabled = settingsManager.isAutoEnhanceEnabled();
   printSectionHeader('Skill Auto-Enhance Status');
   console.log();
@@ -230,206 +378,31 @@ function handleSkillEnhanceCommand(args: string[], agentRunner?: AgentRunner | n
   console.log();
 }
 
-/**
- * Show skill enhance help
- */
-function showSkillEnhanceHelp(): void {
-  printSectionHeader('Skill Enhance - Help');
-  console.log();
-  console.log(chalk.white.bold('Description:'));
-  console.log(chalk.white('  Manage automatic skill enhancement based on conversation history.'));
-  console.log(chalk.white('  When enabled, the system analyzes completed tasks and may'));
-  console.log(chalk.white('  create or enhance skills to improve future performance.'));
-  console.log();
-  console.log(chalk.white.bold('Usage:'));
-  console.log(chalk.gray('  /skill enhance                   ') + chalk.white('Show current status'));
-  console.log(chalk.gray('  /skill enhance --on              ') + chalk.white('Enable auto-enhance'));
-  console.log(chalk.gray('  /skill enhance --off             ') + chalk.white('Disable auto-enhance'));
-  console.log(
-    chalk.gray('  /skill enhance --conversation <path>  ') + chalk.white('Manual enhance from file')
-  );
-  console.log(chalk.gray('  /skill enhance -h, --help        ') + chalk.white('Show this help'));
-  console.log();
-  console.log(chalk.white.bold('Examples:'));
-  console.log(chalk.gray('  /skill enhance --on'));
-  console.log(chalk.gray('  /skill enhance --conversation ~/.synapse/conversations/session.jsonl'));
-  console.log();
-  console.log(chalk.white.bold('Note:'));
-  console.log(chalk.yellow('  Auto-enhance consumes additional tokens for LLM analysis.'));
-  console.log();
-}
+// ════════════════════════════════════════════════════════════════════
+//  REPL Initialization Helpers
+// ════════════════════════════════════════════════════════════════════
 
 /**
- * Show help information
+ * Initialize the AgentRunner with LLM client and tools
  */
-function showHelp(): void {
-  printSectionHeader('Synapse Agent - Help');
-  console.log();
-  console.log(chalk.white.bold('Common:'));
-  console.log(chalk.gray('  /help, /h, /?    ') + chalk.white('Show this help message'));
-  console.log(chalk.gray('  /exit, /quit, /q ') + chalk.white('Exit the REPL'));
-  console.log(chalk.gray('  /clear           ') + chalk.white('Clear conversation history'));
-  console.log(chalk.gray('  /tools           ') + chalk.white('List available tools'));
-  console.log(chalk.gray('  /skills          ') + chalk.white('List all available skills'));
-  console.log();
-  console.log(chalk.white.bold('Skill:'));
-  console.log(chalk.gray('  /skill enhance       ') + chalk.white('Show auto-enhance status'));
-  console.log(chalk.gray('  /skill enhance --on  ') + chalk.white('Enable auto skill enhance'));
-  console.log(chalk.gray('  /skill enhance --off ') + chalk.white('Disable auto skill enhance'));
-  console.log(chalk.gray('  /skill enhance -h    ') + chalk.white('Show skill enhance help'));
-  console.log();
-  console.log(chalk.white.bold('Execute:'));
-  console.log(chalk.gray('  !<command>       ') + chalk.white('Execute a shell command directly'));
-  console.log(chalk.gray('                   ') + chalk.white('Example: !ls -la, !git status'));
-  console.log();
-  console.log(chalk.white.bold('Keyboard Shortcuts:'));
-  console.log(chalk.gray('  Ctrl+C           ') + chalk.white('Prompt for exit confirmation'));
-  console.log(chalk.gray('  Ctrl+D           ') + chalk.white('Exit immediately'));
-  console.log();
-}
-
-/**
- * Show available tools list
- */
-function showToolsList(): void {
-  printSectionHeader('Available Tools');
-  console.log();
-  const installer = new McpInstaller();
-  const result = installer.search({ pattern: '*', type: 'all' });
-  const output = installer.formatSearchResult(result);
-  const lines = output.split('\n');
-  if (lines[0]?.startsWith('Found ')) {
-    lines.shift();
-    if (lines[0] === '') {
-      lines.shift();
-    }
-  }
-  console.log(lines.join('\n'));
-  console.log();
-}
-
-/**
- * Show available skills list
- */
-function showSkillsList(): void {
-  printSectionHeader('Available Skills');
-
-  // Check if skills directory exists
-  const skillsDir = path.join(os.homedir(), '.synapse', 'skills');
-
-  if (!fs.existsSync(skillsDir)) {
-    console.log(chalk.gray('  No skills directory found.'));
-    console.log(chalk.gray(`  Create skills in: ${skillsDir}`));
-    console.log();
-    return;
-  }
-
-  // Read skill directories
-  try {
-    const entries = fs.readdirSync(skillsDir, { withFileTypes: true });
-    const skills = entries.filter((e) => e.isDirectory() && !e.name.startsWith('.'));
-
-    if (skills.length === 0) {
-      console.log(chalk.gray('  No skills installed.'));
-      console.log(chalk.gray(`  Create skills in: ${skillsDir}`));
-      console.log();
-      return;
-    }
-
-    for (const skill of skills) {
-      const skillPath = path.join(skillsDir, skill.name);
-      const skillMdPath = path.join(skillPath, 'SKILL.md');
-
-      let description = chalk.gray('(No description)');
-
-      // Try to read skill description from SKILL.md
-      if (fs.existsSync(skillMdPath)) {
-        try {
-          const content = fs.readFileSync(skillMdPath, 'utf-8');
-          const parsedDescription = extractSkillDescription(content);
-          if (parsedDescription) {
-            description = chalk.white(parsedDescription);
-          }
-        } catch {
-          // Ignore read errors
-        }
-      }
-
-      console.log(chalk.green(`  ${skill.name}`));
-      console.log(`    ${description}`);
-    }
-
-    console.log();
-  } catch (error) {
-    const message = getErrorMessage(error);
-    console.log(chalk.red(`  Error reading skills: ${message}`));
-    console.log();
-  }
-}
-
-function extractSkillDescription(content: string): string | null {
-  const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
-  if (frontmatterMatch?.[1]) {
-    const lines = frontmatterMatch[1].split('\n');
-    for (const line of lines) {
-      const colonIndex = line.indexOf(':');
-      if (colonIndex <= 0) continue;
-      const key = line.slice(0, colonIndex).trim();
-      if (key !== 'description') continue;
-      const rawValue = line.slice(colonIndex + 1).trim();
-      if (!rawValue) return null;
-      return stripWrappingQuotes(rawValue);
-    }
-  }
-
-  const markdownDesc =
-    content.match(/\*\*描述\*\*:\s*(.+)/)?.[1] ??
-    content.match(/\*\*Description\*\*:\s*(.+)/i)?.[1];
-  return markdownDesc ? markdownDesc.trim() : null;
-}
-
-function stripWrappingQuotes(value: string): string {
-  if (
-    (value.startsWith('"') && value.endsWith('"')) ||
-    (value.startsWith("'") && value.endsWith("'"))
-  ) {
-    return value.slice(1, -1);
-  }
-  return value;
-}
-
-/**
- * Start the REPL (Read-Eval-Print-Loop) interactive mode
- */
-export async function startRepl(): Promise<void> {
-  // Initialize Agent components
-  let agentRunner: AgentRunner | null = null;
-
-  // Initialize terminal renderer for tool output
-  const terminalRenderer = new TerminalRenderer();
-  const persistence = new ContextPersistence();
-
+function initializeAgent(persistence: ContextPersistence): AgentRunner | null {
   try {
     const llmClient = new AnthropicClient();
 
-    // Create BashTool for tool handling
     const bashTool = new BashTool({
       llmClient,
       getConversationPath: () => persistence?.getSessionPath() ?? null,
     });
 
-    // Delayed binding: pass BashTool to its own router for skill sub-agent todo 子代理优化
+    // Delayed binding: pass BashTool to its own router for skill sub-agent
     bashTool.getRouter().setToolExecutor(bashTool);
 
-    // Create toolset
     const toolset = new CallableToolset([bashTool]);
+    const systemPrompt = buildSystemPrompt({ cwd: process.cwd() });
 
-    // Build system prompt
-    const systemPrompt = buildSystemPrompt({
-      cwd: process.cwd(),
-    });
+    const terminalRenderer = new TerminalRenderer();
 
-    agentRunner = new AgentRunner({
+    return new AgentRunner({
       client: llmClient,
       systemPrompt,
       toolset,
@@ -447,15 +420,19 @@ export async function startRepl(): Promise<void> {
         });
       },
     });
-
   } catch (error) {
     const message = getErrorMessage(error);
     console.log(chalk.yellow(`\nAgent mode unavailable: ${message}`));
     console.log(chalk.yellow('Running in echo mode (responses will be echoed back).\n'));
     cliLogger.warn(`Agent initialization failed: ${message}`);
+    return null;
   }
+}
 
-  // Initialize MCP tools from configuration
+/**
+ * Initialize MCP tools from configuration
+ */
+async function initializeMcp(): Promise<void> {
   try {
     console.log(chalk.gray('Initializing MCP tools...'));
     const mcpResult = await initializeMcpTools({ skipFailedServers: true });
@@ -474,8 +451,12 @@ export async function startRepl(): Promise<void> {
     const message = getErrorMessage(error);
     console.log(chalk.yellow(`⚠ MCP tools unavailable: ${message}`));
   }
+}
 
-  // Initialize Skill tools from skills directory
+/**
+ * Initialize Skill tools from skills directory
+ */
+async function initializeSkills(): Promise<void> {
   try {
     const skillResult = await initializeSkillTools();
     if (skillResult.totalToolsInstalled > 0) {
@@ -491,30 +472,123 @@ export async function startRepl(): Promise<void> {
     const message = getErrorMessage(error);
     console.log(chalk.yellow(`⚠ Skill tools unavailable: ${message}`));
   }
+}
 
-  // Initialize state
-  const initialTurnNumber = agentRunner
-    ? Math.floor(agentRunner.getHistory().length / 2) + 1
-    : 1;
-
-  const state: ReplState = {
-    turnNumber: initialTurnNumber,
-    isProcessing: false,
-  };
-
-  // Display welcome message
+/**
+ * Display the REPL welcome banner
+ */
+function showWelcomeBanner(sessionId: string): void {
   console.log(chalk.blue.bold('╭──────────────────────────────────────────╮'));
   console.log(chalk.blue.bold('│     Synapse Agent - Interactive Mode     │'));
   console.log(chalk.blue.bold('╰──────────────────────────────────────────╯'));
   console.log();
   console.log(chalk.gray('Type /help for commands, /exit to quit'));
   console.log(chalk.gray('Use !<command> to execute shell commands directly'));
-  console.log(chalk.gray(`Session: ${persistence.getSessionId()}`));
-  if (initialTurnNumber > 1) {
-      console.log(chalk.green(`✓ Resumed with ${initialTurnNumber - 1} previous turn(s)`));
-  }
+  console.log(chalk.gray(`Session: ${sessionId}`));
   console.log();
+}
 
+// ════════════════════════════════════════════════════════════════════
+//  REPL Input Handler
+// ════════════════════════════════════════════════════════════════════
+
+/**
+ * Process a single line of user input
+ */
+async function handleLineInput(
+  input: string,
+  rl: readline.Interface,
+  agentRunner: AgentRunner | null,
+  state: ReplState,
+  promptUser: () => void
+): Promise<void> {
+  const trimmedInput = input.trim();
+
+  if (!trimmedInput) {
+    promptUser();
+    return;
+  }
+
+  // Shell commands (! prefix)
+  if (trimmedInput.startsWith('!')) {
+    const shellCommand = trimmedInput.slice(1).trim();
+    if (shellCommand) {
+      console.log();
+      await executeShellCommand(shellCommand);
+      console.log();
+    } else {
+      console.log(chalk.red('\nUsage: !<command>\n'));
+    }
+    promptUser();
+    return;
+  }
+
+  // Special commands (/ prefix)
+  if (trimmedInput.startsWith('/')) {
+    handleSpecialCommand(trimmedInput, rl, agentRunner);
+    promptUser();
+    return;
+  }
+
+  // Fallback: echo mode when agent is unavailable
+  if (!agentRunner) {
+    console.log();
+    console.log(
+      chalk.magenta('Agent> ') + chalk.white(`You said: ${trimmedInput}`)
+    );
+    console.log();
+    promptUser();
+    return;
+  }
+
+  // Prevent concurrent requests
+  if (state.isProcessing) {
+    console.log(chalk.yellow('\nPlease wait for the current request to complete.\n'));
+    promptUser();
+    return;
+  }
+
+  // Agent conversation
+  state.isProcessing = true;
+  console.log();
+  process.stdout.write(chalk.magenta('Agent> '));
+
+  try {
+    await agentRunner.run(trimmedInput);
+    console.log();
+    console.log();
+  } catch (error) {
+    const message = getErrorMessage(error);
+    console.log(chalk.red(`\nError: ${message}\n`));
+    cliLogger.error('Agent request failed', { error: message });
+  } finally {
+    state.isProcessing = false;
+    promptUser();
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  REPL Entry Point
+// ════════════════════════════════════════════════════════════════════
+
+/**
+ * Start the REPL (Read-Eval-Print-Loop) interactive mode
+ */
+export async function startRepl(): Promise<void> {
+  const persistence = new ContextPersistence();
+
+  // Initialize components
+  const agentRunner = initializeAgent(persistence);
+  await initializeMcp();
+  await initializeSkills();
+
+  // State
+  const state: ReplState = { isProcessing: false };
+
+  // Welcome banner
+  showWelcomeBanner(persistence.getSessionId());
+
+  // Setup readline
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
@@ -522,90 +596,19 @@ export async function startRepl(): Promise<void> {
   });
 
   const promptUser = () => {
-    rl.setPrompt(chalk.green(`You (${state.turnNumber})> `));
+    rl.setPrompt(chalk.green('You> '));
     rl.prompt();
   };
 
-  rl.on('line', async (input: string) => {
-    const trimmedInput = input.trim();
-
-    // Handle empty input
-    if (!trimmedInput) {
-      promptUser();
-      return;
-    }
-
-    // Handle shell commands (! prefix)
-    if (trimmedInput.startsWith('!')) {
-      const shellCommand = trimmedInput.slice(1).trim();
-      if (shellCommand) {
-        console.log();
-        await executeShellCommand(shellCommand);
-        console.log();
-      } else {
-        console.log(chalk.red('\nUsage: !<command>\n'));
-      }
-      promptUser();
-      return;
-    }
-
-    // Handle special commands (/ prefix)
-    if (trimmedInput.startsWith('/')) {
-      handleSpecialCommand(trimmedInput, state, rl, agentRunner);
-      promptUser();
-      return;
-    }
-
-    // Check if agent mode is available
-    if (!agentRunner) {
-      // Fallback: echo mode
-      console.log();
-      console.log(
-        chalk.magenta(`Agent (${state.turnNumber})> `) + chalk.white(`You said: ${trimmedInput}`)
-      );
-      console.log();
-      state.turnNumber++;
-      promptUser();
-      return;
-    }
-
-    // Prevent concurrent requests
-    if (state.isProcessing) {
-      console.log(chalk.yellow('\nPlease wait for the current request to complete.\n'));
-      promptUser();
-      return;
-    }
-
-    state.isProcessing = true;
-    console.log();
-    process.stdout.write(chalk.magenta(`Agent (${state.turnNumber})> `));
-
-    try {
-      const response = await agentRunner.run(trimmedInput);
-
-      // Ensure newline after response
-      console.log();
-      console.log();
-
-    } catch (error) {
-      const message = getErrorMessage(error);
-      console.log(chalk.red(`\nError: ${message}\n`));
-      cliLogger.error('Agent request failed', { error: message });
-    } finally {
-      state.isProcessing = false;
-      state.turnNumber++;
-      promptUser();
-    }
-  });
+  // Event handlers
+  rl.on('line', (input: string) => handleLineInput(input, rl, agentRunner, state, promptUser));
 
   rl.on('close', () => {
     console.log(chalk.yellow('\nREPL session ended.\n'));
     process.exit(0);
   });
 
-  // Handle Ctrl+C
   rl.on('SIGINT', () => {
-    // If processing, show cancel message
     if (state.isProcessing) {
       console.log(chalk.yellow('\n\n[Request cancelled]\n'));
       state.isProcessing = false;
@@ -625,6 +628,6 @@ export async function startRepl(): Promise<void> {
     });
   });
 
-  // Start the REPL
+  // Start
   promptUser();
 }

@@ -10,7 +10,6 @@
  * - Toolset: 工具集接口
  * - CallableTool: 工具基类
  * - AgentRunner: Agent 循环实现
- * - ContextManager: 上下文管理器
  * - ContextPersistence: 对话历史持久化
  * - buildSystemPrompt: 系统提示词构建函数
  */
@@ -77,18 +76,10 @@ export {
   type AgentRunnerOptions,
 } from './agent-runner.ts';
 
-// Context Management
-export {
-  ContextManager,
-  type ConversationMessage,
-  type ToolResultContent,
-  type ToolCall as ContextToolCall,
-  type ContextManagerOptions,
-} from './context-manager.ts';
+// Context Persistence
 export {
   ContextPersistence,
   type SessionInfo,
-  type PersistentMessage,
   type SessionsIndex,
 } from './context-persistence.ts';
 

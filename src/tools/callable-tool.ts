@@ -13,7 +13,7 @@
  */
 
 import type Anthropic from '@anthropic-ai/sdk';
-import { type ZodType, toJSONSchema } from 'zod';
+import {toJSONSchema, type ZodType} from 'zod';
 
 /**
  * Structured return value of a tool execution.
@@ -129,8 +129,7 @@ export abstract class CallableTool<Params> {
     if (!parseResult.success) {
       return ToolValidateError(parseResult.error.message);
     }
-    const result = await this.execute(parseResult.data as Params);
-    return result;
+    return await this.execute(parseResult.data as Params);
   }
 
   /**
