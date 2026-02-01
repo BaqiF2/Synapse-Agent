@@ -16,6 +16,7 @@ import { createTextMessage, type Message } from '../../../src/agent/message.ts';
 import { BashToolSchema } from '../../../src/tools/bash-tool-schema.ts';
 import type { AnthropicClient } from '../../../src/providers/anthropic/anthropic-client.ts';
 import type { StreamedMessagePart } from '../../../src/providers/anthropic/anthropic-types.ts';
+import { Logger } from '../../../src/utils/logger.ts';
 
 function createMockCallableTool(handler: (args: unknown) => Promise<ToolReturnValue>): CallableTool<unknown> {
   return {
@@ -109,11 +110,64 @@ describe('AgentRunner', () => {
       expect(parts.length).toBeGreaterThan(0);
     });
 
+    it('should log tool failure details', async () => {
+      const originalWarn = Logger.prototype.warn;
+      const originalInfo = Logger.prototype.info;
+      const originalError = Logger.prototype.error;
+      const warnSpy = mock(() => {});
+
+      Logger.prototype.warn = warnSpy as unknown as Logger['warn'];
+      Logger.prototype.info = mock(() => {}) as unknown as Logger['info'];
+      Logger.prototype.error = mock(() => {}) as unknown as Logger['error'];
+
+      try {
+        const client = createMockClient([
+          [{ type: 'tool_call', id: 'c1', name: 'Bash', input: { command: 'fail' } }],
+          [{ type: 'text', text: 'Done!' }],
+        ]);
+
+        const toolset = new CallableToolset([createMockCallableTool(() =>
+          Promise.resolve(ToolError({
+            message: 'boom',
+            output: 'bad-output',
+            brief: 'bad-brief',
+            extras: { code: 500 },
+          }))
+        )]);
+
+        const runner = new AgentRunner({
+          client,
+          systemPrompt: 'Test',
+          toolset,
+        });
+
+        await runner.run('Fail');
+
+        expect(warnSpy).toHaveBeenCalled();
+        const [message, data] = warnSpy.mock.calls[0] ?? [];
+        expect(message).toContain('Tool execution failed');
+        expect(data).toEqual(expect.objectContaining({
+          errors: [
+            expect.objectContaining({
+              toolCallId: 'c1',
+              message: 'boom',
+              brief: 'bad-brief',
+              output: 'bad-output',
+              extras: { code: 500 },
+            }),
+          ],
+        }));
+      } finally {
+        Logger.prototype.warn = originalWarn;
+        Logger.prototype.info = originalInfo;
+        Logger.prototype.error = originalError;
+      }
+    });
+
     it('should stop after consecutive tool failures', async () => {
       const client = createMockClient([
         [{ type: 'tool_call', id: 'c1', name: 'Bash', input: { command: 'fail' } }],
         [{ type: 'tool_call', id: 'c2', name: 'Bash', input: { command: 'fail' } }],
-        [{ type: 'tool_call', id: 'c3', name: 'Bash', input: { command: 'fail' } }],
       ]);
 
       const toolset = new CallableToolset([createMockCallableTool(() =>
@@ -124,12 +178,15 @@ describe('AgentRunner', () => {
         client,
         systemPrompt: 'Test',
         toolset,
-        maxConsecutiveToolFailures: 3,
+        maxConsecutiveToolFailures: 2,
       });
 
       const response = await runner.run('Fail');
 
-      expect(response).toContain('失败');
+      expect(response).toContain('Consecutive tool execution failures');
+      const history = runner.getHistory();
+      expect(history).toHaveLength(5);
+      expect(history.at(-1)?.role).toBe('tool');
     });
 
     it('should maintain history across calls', async () => {

@@ -149,17 +149,24 @@ export class AgentRunner {
       }
 
       // Check for failures
-      const hasFailure = toolResults.some((r) => r.returnValue.isError);
+      const failedResults = toolResults.filter((r) => r.returnValue.isError);
+      const hasFailure = failedResults.length > 0;
       if (hasFailure) {
         consecutiveFailures++;
+        const errors = failedResults.map((result) => ({
+          toolCallId: result.toolCallId,
+          message: result.returnValue.message,
+          brief: result.returnValue.brief,
+          output: result.returnValue.output,
+          extras: result.returnValue.extras,
+        }));
         logger.warn(
-          `Tool execution failed (consecutive: ${consecutiveFailures}/${this.maxConsecutiveToolFailures})`
+          `Tool execution failed (consecutive: ${consecutiveFailures}/${this.maxConsecutiveToolFailures})`,
+          { errors }
         );
 
         if (consecutiveFailures >= this.maxConsecutiveToolFailures) {
-          const stopMessage = 'Consecutive tool execution failures; stopping.';
-          this.history.push(createTextMessage('assistant', stopMessage));
-          finalResponse = stopMessage;
+          finalResponse = 'Consecutive tool execution failures; stopping.';
           break;
         }
       } else {
@@ -168,14 +175,12 @@ export class AgentRunner {
     }
 
     if (iteration >= this.maxIterations) {
-      logger.error(`Agent loop reached maximum iterations: ${this.maxIterations}`);
       const stopMessage = `Reached tool iteration limit (${this.maxIterations}); stopping.`;
-      this.history.push(createTextMessage('assistant', stopMessage));
+      logger.error(stopMessage);
       finalResponse = stopMessage;
+      this.history.push(createTextMessage('assistant', stopMessage));
     }
 
     return finalResponse;
   }
 }
-
-export default AgentRunner;
