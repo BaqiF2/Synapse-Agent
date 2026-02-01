@@ -25,6 +25,9 @@
 
 import type { StreamedMessagePart, ToolCallPart, ToolCallDeltaPart, ThinkPart } from './anthropic/anthropic-types.ts';
 import type { ToolReturnValue } from '../tools/callable-tool.ts';
+import { createLogger } from '../utils/logger.ts';
+
+const logger = createLogger('message');
 
 /**
  * Message sender role
@@ -166,7 +169,21 @@ export function mergePart(target: MergeablePart, source: MergeablePart): boolean
 
   // ToolCall + ToolCallDelta
   if (target.type === 'tool_call' && source.type === 'tool_call_delta') {
-    (target as MergeableToolCallPart)._argumentsJson += source.argumentsDelta;
+    const toolCallTarget = target as MergeableToolCallPart;
+    const beforeJson = toolCallTarget._argumentsJson;
+    // 关键调试点：记录合并前后的状态
+    logger.trace('Merging tool_call_delta', {
+      toolId: toolCallTarget.id,
+      toolName: toolCallTarget.name,
+      beforeArgumentsJson: beforeJson,
+      argumentsDelta: source.argumentsDelta,
+      argumentsDeltaType: typeof source.argumentsDelta,
+    });
+    toolCallTarget._argumentsJson += source.argumentsDelta;
+    logger.trace('After merge tool_call_delta', {
+      toolId: toolCallTarget.id,
+      afterArgumentsJson: toolCallTarget._argumentsJson,
+    });
     return true;
   }
 
@@ -179,9 +196,18 @@ export function mergePart(target: MergeablePart, source: MergeablePart): boolean
 export function toMergeablePart(part: StreamedMessagePart): MergeablePart {
   if (part.type === 'tool_call') {
     const hasInput = Object.keys(part.input).length > 0;
+    const argumentsJson = hasInput ? JSON.stringify(part.input) : '';
+    // 关键调试点：记录 tool_call 转换
+    logger.trace('Converting tool_call to MergeablePart', {
+      toolId: part.id,
+      toolName: part.name,
+      hasInput,
+      inputKeys: Object.keys(part.input),
+      initialArgumentsJson: argumentsJson,
+    });
     return {
       ...part,
-      _argumentsJson: hasInput ? JSON.stringify(part.input) : '',
+      _argumentsJson: argumentsJson,
     } as MergeableToolCallPart;
   }
   return part as MergeablePart;
@@ -204,10 +230,19 @@ export function appendToMessage(message: Message, part: MergeablePart): void {
   if (part.type === 'tool_call') {
     if (!message.toolCalls) message.toolCalls = [];
     const toolCallPart = part as MergeableToolCallPart;
+    const finalArguments = toolCallPart._argumentsJson || '{}';
+    // 关键调试点：记录最终的工具调用参数
+    logger.trace('Appending tool_call to message', {
+      toolId: toolCallPart.id,
+      toolName: toolCallPart.name,
+      rawArgumentsJson: toolCallPart._argumentsJson,
+      finalArguments,
+      argumentsLength: finalArguments.length,
+    });
     message.toolCalls.push({
       id: toolCallPart.id,
       name: toolCallPart.name,
-      arguments: toolCallPart._argumentsJson || '{}',
+      arguments: finalArguments,
     });
     return;
   }

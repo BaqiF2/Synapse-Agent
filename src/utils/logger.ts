@@ -17,17 +17,19 @@ import * as os from 'node:os';
  * Log levels with numeric values for comparison
  */
 export enum LogLevel {
-  DEBUG = 0,
-  INFO = 1,
-  WARN = 2,
-  ERROR = 3,
-  NONE = 4,
+  TRACE = 0,
+  DEBUG = 1,
+  INFO = 2,
+  WARN = 3,
+  ERROR = 4,
+  NONE = 5,
 }
 
 /**
  * Log level names for display
  */
 const LOG_LEVEL_NAMES: Record<LogLevel, string> = {
+  [LogLevel.TRACE]: 'TRACE',
   [LogLevel.DEBUG]: 'DEBUG',
   [LogLevel.INFO]: 'INFO',
   [LogLevel.WARN]: 'WARN',
@@ -51,6 +53,8 @@ const LOG_MAX_SIZE = parseInt(process.env.SYNAPSE_LOG_MAX_SIZE || '10485760', 10
 function parseLogLevel(level: string): LogLevel {
   const upperLevel = level.toUpperCase();
   switch (upperLevel) {
+    case 'TRACE':
+      return LogLevel.TRACE;
     case 'DEBUG':
       return LogLevel.DEBUG;
     case 'INFO':
@@ -203,6 +207,9 @@ export class Logger {
     const message = `${prefix} ${entry.message}`;
 
     switch (level) {
+      case LogLevel.TRACE:
+        console.debug(message, entry.data ?? '');
+        break;
       case LogLevel.DEBUG:
         console.debug(message, entry.data ?? '');
         break;
@@ -227,6 +234,13 @@ export class Logger {
     const entry = this.formatEntry(level, message, data);
     this.writeToFile(entry);
     this.writeToConsole(level, entry);
+  }
+
+  /**
+   * Log a trace message (most verbose level)
+   */
+  trace(message: string, data?: unknown): void {
+    this.log(LogLevel.TRACE, message, data);
   }
 
   /**

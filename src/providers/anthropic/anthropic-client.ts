@@ -20,6 +20,9 @@ import {
   APIStatusError,
 } from './anthropic-types.ts';
 import { AnthropicStreamedMessage } from './anthropic-streamed-message.ts';
+import { createLogger } from '../../utils/logger.ts';
+
+const logger = createLogger('anthropic-client');
 
 const DEFAULT_MAX_TOKENS = parseInt(process.env.MAX_TOKENS || '4096', 10);
 
@@ -341,6 +344,11 @@ function convertContentPart(part: ContentPart): Anthropic.ContentBlockParam | nu
 }
 
 function convertToolCall(call: ToolCall): Anthropic.ToolUseBlockParam {
+  logger.trace('Converting ToolCall to Anthropic format', {
+    toolId: call.id,
+    toolName: call.name,
+    argumentsLength: call.arguments?.length ?? 'undefined',
+  });
   return {
     type: 'tool_use',
     id: call.id,
@@ -350,20 +358,46 @@ function convertToolCall(call: ToolCall): Anthropic.ToolUseBlockParam {
 }
 
 function parseToolInput(argumentsJson: string): Record<string, unknown> {
+  // 关键调试点：记录输入的参数 JSON
+  logger.trace('Parsing tool input arguments', {
+    argumentsJson,
+    argumentsJsonLength: argumentsJson?.length ?? 'undefined',
+    argumentsJsonType: typeof argumentsJson,
+    first100Chars: argumentsJson?.substring(0, 100),
+  });
+
   const trimmed = argumentsJson.trim();
-  if (!trimmed) return {};
+  if (!trimmed) {
+    logger.trace('Empty arguments, returning empty object');
+    return {};
+  }
 
   let parsed: unknown;
   try {
     parsed = JSON.parse(trimmed);
   } catch (error) {
+    // 关键调试点：记录 JSON 解析失败的详细信息
+    logger.error('Failed to parse tool call arguments as JSON', {
+      argumentsJson,
+      trimmedJson: trimmed,
+      trimmedLength: trimmed.length,
+      first100Chars: trimmed.substring(0, 100),
+      last100Chars: trimmed.substring(Math.max(0, trimmed.length - 100)),
+      error: error instanceof Error ? error.message : String(error),
+    });
     throw new ChatProviderError('Tool call arguments must be valid JSON.');
   }
 
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    logger.error('Parsed tool arguments is not an object', {
+      parsedType: typeof parsed,
+      isArray: Array.isArray(parsed),
+      parsed,
+    });
     throw new ChatProviderError('Tool call arguments must be a JSON object.');
   }
 
+  logger.trace('Successfully parsed tool input', { parsedKeys: Object.keys(parsed) });
   return parsed as Record<string, unknown>;
 }
 

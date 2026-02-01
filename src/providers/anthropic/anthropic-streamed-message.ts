@@ -9,6 +9,9 @@
 
 import type Anthropic from '@anthropic-ai/sdk';
 import type { TokenUsage, StreamedMessagePart } from './anthropic-types.ts';
+import { createLogger } from '../../utils/logger.ts';
+
+const logger = createLogger('anthropic-stream');
 
 /** Stream response type - async iterable of raw message events */
 type StreamResponse = AsyncIterable<Anthropic.RawMessageStreamEvent>;
@@ -139,12 +142,14 @@ export class AnthropicStreamedMessage {
   private handleBlockStart(
     block: Anthropic.RawContentBlockStartEvent['content_block']
   ): StreamedMessagePart | null {
+    logger.trace('Block start received', { blockType: block.type, block });
     switch (block.type) {
       case 'text':
         return { type: 'text', text: block.text };
       case 'thinking':
         return { type: 'thinking', content: (block as { thinking: string }).thinking };
       case 'tool_use':
+        logger.trace('Tool use block start', { id: block.id, name: block.name });
         return { type: 'tool_call', id: block.id, name: block.name, input: {} };
       default:
         return null;
@@ -154,12 +159,19 @@ export class AnthropicStreamedMessage {
   private handleBlockDelta(
     delta: Anthropic.RawContentBlockDeltaEvent['delta']
   ): StreamedMessagePart | null {
+    logger.trace('Block delta received', { deltaType: delta.type, delta });
     switch (delta.type) {
       case 'text_delta':
         return { type: 'text', text: delta.text };
       case 'thinking_delta':
         return { type: 'thinking', content: delta.thinking };
       case 'input_json_delta':
+        // 关键调试点：记录 partial_json 的原始值
+        logger.trace('Tool call input_json_delta', {
+          partialJson: delta.partial_json,
+          partialJsonType: typeof delta.partial_json,
+          partialJsonLength: delta.partial_json?.length ?? 'undefined',
+        });
         return { type: 'tool_call_delta', argumentsDelta: delta.partial_json };
       case 'signature_delta':
         return { type: 'thinking', content: '', signature: delta.signature };

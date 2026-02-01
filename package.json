@@ -2,7 +2,6 @@
   "name": "synapse-agent",
   "version": "0.1.0",
   "description": "A self-growing AI agent framework based on unified Bash abstraction",
-  "module": "index.ts",
   "type": "module",
   "private": true,
   "scripts": {
