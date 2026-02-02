@@ -1,0 +1,316 @@
+[
+  {
+    "category": "functional",
+    "prd": "2026-02-02-stop-hooks-design.md#类型定义",
+    "description": "Stop Hooks 类型定义",
+    "bdd": [
+      {
+        "title": "StopHookContext 类型包含所有必需字段",
+        "description": "验证 StopHookContext 接口定义的完整性",
+        "steps": [
+          "导入 StopHookContext 类型",
+          "创建符合该类型的对象"
+        ],
+        "expected": "对象必须包含 sessionId, cwd, messages, finalResponse 字段，类型检查通过"
+      },
+      {
+        "title": "HookResult 类型支持可选字段",
+        "description": "验证 HookResult 接口定义的灵活性",
+        "steps": [
+          "导入 HookResult 类型",
+          "创建空对象 {}",
+          "创建仅含 message 的对象",
+          "创建含 message 和 data 的对象"
+        ],
+        "expected": "所有三种对象均符合 HookResult 类型，类型检查通过"
+      },
+      {
+        "title": "StopHook 类型支持同步和异步函数",
+        "description": "验证 StopHook 类型定义的返回值灵活性",
+        "steps": [
+          "定义同步钩子函数返回 void",
+          "定义同步钩子函数返回 HookResult",
+          "定义异步钩子函数返回 Promise<void>",
+          "定义异步钩子函数返回 Promise<HookResult>"
+        ],
+        "expected": "所有四种函数均符合 StopHook 类型，类型检查通过"
+      }
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-02-stop-hooks-design.md#配置选项",
+    "description": "AgentRunnerOptions 配置扩展",
+    "bdd": [
+      {
+        "title": "AgentRunnerOptions 支持 stopHooks 可选配置",
+        "description": "验证配置选项的可选性",
+        "steps": [
+          "创建 AgentRunner 实例，不传入 stopHooks 配置",
+          "检查实例创建是否成功"
+        ],
+        "expected": "实例创建成功，stopHooks 默认为空数组"
+      },
+      {
+        "title": "AgentRunnerOptions 接受 stopHooks 数组",
+        "description": "验证配置选项的接受性",
+        "steps": [
+          "创建包含多个钩子函数的数组",
+          "将数组作为 stopHooks 传入 AgentRunner 构造函数"
+        ],
+        "expected": "实例创建成功，stopHooks 被正确存储"
+      }
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-02-stop-hooks-design.md#执行逻辑",
+    "description": "Stop Hooks 触发条件",
+    "bdd": [
+      {
+        "title": "正常完成时触发 Stop Hooks",
+        "description": "验证 Agent 正常结束响应时钩子被执行",
+        "steps": [
+          "注册一个记录调用的 StopHook",
+          "调用 AgentRunner.run() 并让其正常完成",
+          "检查钩子是否被调用"
+        ],
+        "expected": "钩子被调用一次"
+      },
+      {
+        "title": "用户中断时不触发 Stop Hooks",
+        "description": "验证用户手动中断（如 Ctrl+C）时钩子不被执行",
+        "steps": [
+          "注册一个记录调用的 StopHook",
+          "调用 AgentRunner.run()",
+          "在执行过程中模拟用户中断",
+          "检查钩子是否被调用"
+        ],
+        "expected": "钩子未被调用"
+      },
+      {
+        "title": "达到最大迭代次数时仍触发 Stop Hooks",
+        "description": "验证因 maxIterations 停止时钩子仍被执行",
+        "steps": [
+          "注册一个 StopHook",
+          "配置较小的 maxIterations",
+          "运行会导致迭代超限的任务"
+        ],
+        "expected": "钩子被调用"
+      }
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-02-stop-hooks-design.md#执行逻辑",
+    "description": "Stop Hooks LIFO 执行顺序",
+    "bdd": [
+      {
+        "title": "钩子按 LIFO 顺序执行",
+        "description": "验证后注册的钩子先执行",
+        "steps": [
+          "创建执行顺序记录数组",
+          "注册钩子 A（记录 'A'）",
+          "注册钩子 B（记录 'B'）",
+          "注册钩子 C（记录 'C'）",
+          "运行 Agent 并等待完成",
+          "检查记录数组"
+        ],
+        "expected": "记录数组为 ['C', 'B', 'A']，即后注册的先执行"
+      },
+      {
+        "title": "单个钩子正常执行",
+        "description": "验证只有一个钩子时的正常执行",
+        "steps": [
+          "注册单个钩子",
+          "运行 Agent"
+        ],
+        "expected": "该钩子被执行一次"
+      }
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-02-stop-hooks-design.md#执行逻辑",
+    "description": "Stop Hooks 空列表处理",
+    "bdd": [
+      {
+        "title": "空钩子列表静默跳过",
+        "description": "验证无钩子时不产生任何输出",
+        "steps": [
+          "创建 AgentRunner 实例，不配置任何 stopHooks",
+          "运行 Agent 并捕获所有日志输出"
+        ],
+        "expected": "无 [StopHook] 相关日志输出，执行正常完成"
+      },
+      {
+        "title": "显式传入空数组时静默跳过",
+        "description": "验证 stopHooks: [] 时的行为",
+        "steps": [
+          "创建 AgentRunner 实例，配置 stopHooks: []",
+          "运行 Agent"
+        ],
+        "expected": "无 [StopHook] 相关日志输出，执行正常完成"
+      }
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-02-stop-hooks-design.md#执行逻辑",
+    "description": "Stop Hooks 错误处理",
+    "bdd": [
+      {
+        "title": "单个钩子失败不影响其他钩子执行",
+        "description": "验证错误隔离机制",
+        "steps": [
+          "创建执行记录数组",
+          "注册钩子 A（记录 'A'）",
+          "注册钩子 B（抛出异常）",
+          "注册钩子 C（记录 'C'）",
+          "运行 Agent"
+        ],
+        "expected": "记录数组包含 'C' 和 'A'，说明钩子 B 的异常未阻止其他钩子执行"
+      },
+      {
+        "title": "钩子失败时记录错误日志",
+        "description": "验证错误被正确记录",
+        "steps": [
+          "注册一个抛出错误的钩子",
+          "运行 Agent 并捕获错误日志"
+        ],
+        "expected": "错误日志包含 'Stop hook execution failed' 信息"
+      },
+      {
+        "title": "异步钩子 reject 时继续执行",
+        "description": "验证 Promise rejection 的处理",
+        "steps": [
+          "注册一个返回 rejected Promise 的异步钩子",
+          "注册另一个正常钩子",
+          "运行 Agent"
+        ],
+        "expected": "正常钩子仍被执行，异常被记录"
+      }
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-02-stop-hooks-design.md#stophookcontext",
+    "description": "Stop Hooks 上下文传递",
+    "bdd": [
+      {
+        "title": "上下文包含正确的 sessionId",
+        "description": "验证 sessionId 字段",
+        "steps": [
+          "创建带 sessionId 的会话",
+          "注册检查 context.sessionId 的钩子",
+          "运行 Agent"
+        ],
+        "expected": "context.sessionId 与会话 ID 一致"
+      },
+      {
+        "title": "上下文包含当前工作目录",
+        "description": "验证 cwd 字段",
+        "steps": [
+          "注册检查 context.cwd 的钩子",
+          "运行 Agent"
+        ],
+        "expected": "context.cwd 为当前工作目录路径"
+      },
+      {
+        "title": "上下文包含完整消息历史",
+        "description": "验证 messages 字段",
+        "steps": [
+          "发送用户消息",
+          "Agent 响应后注册检查 context.messages 的钩子",
+          "运行 Agent"
+        ],
+        "expected": "context.messages 包含用户消息和 Agent 响应"
+      },
+      {
+        "title": "上下文包含最终响应文本",
+        "description": "验证 finalResponse 字段",
+        "steps": [
+          "注册检查 context.finalResponse 的钩子",
+          "运行 Agent"
+        ],
+        "expected": "context.finalResponse 为 Agent 的最终文本响应"
+      }
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-02-stop-hooks-design.md#hookresult",
+    "description": "Stop Hooks 返回值处理",
+    "bdd": [
+      {
+        "title": "钩子返回 message 时输出日志",
+        "description": "验证 HookResult.message 的日志输出",
+        "steps": [
+          "注册返回 { message: 'Test log' } 的钩子",
+          "运行 Agent 并捕获日志"
+        ],
+        "expected": "日志输出包含 '[StopHook] Test log'"
+      },
+      {
+        "title": "钩子返回 void 时无日志输出",
+        "description": "验证无返回值时的静默行为",
+        "steps": [
+          "注册返回 void 的钩子",
+          "运行 Agent 并捕获日志"
+        ],
+        "expected": "无 [StopHook] 日志输出"
+      },
+      {
+        "title": "钩子返回 undefined message 时无日志输出",
+        "description": "验证 message 为 undefined 时的行为",
+        "steps": [
+          "注册返回 { data: { foo: 'bar' } } 的钩子（无 message）",
+          "运行 Agent 并捕获日志"
+        ],
+        "expected": "无 [StopHook] 日志输出"
+      }
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-02-stop-hooks-design.md#文件组织",
+    "description": "Stop Hooks 文件组织",
+    "bdd": [
+      {
+        "title": "类型定义文件存在且可导入",
+        "description": "验证 src/hooks/types.ts 文件",
+        "steps": [
+          "检查 src/hooks/types.ts 文件存在",
+          "从该文件导入 StopHookContext, HookResult, StopHook 类型"
+        ],
+        "expected": "文件存在，所有类型可正确导入"
+      },
+      {
+        "title": "模块入口文件正确导出",
+        "description": "验证 src/hooks/index.ts 导出",
+        "steps": [
+          "从 src/hooks 导入所有类型"
+        ],
+        "expected": "所有 hooks 相关类型可从 src/hooks 导入"
+      },
+      {
+        "title": "AgentRunner 已集成 stopHooks",
+        "description": "验证 agent-runner.ts 的修改",
+        "steps": [
+          "检查 AgentRunner 类是否接受 stopHooks 选项",
+          "检查 run() 方法是否调用 executeStopHooks"
+        ],
+        "expected": "AgentRunner 支持 stopHooks 配置并在适当时机执行"
+      }
+    ],
+    "passes": true
+  }
+]

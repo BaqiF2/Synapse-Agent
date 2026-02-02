@@ -15,6 +15,7 @@ import {createTextMessage, extractText, type Message, toolResultToMessage} from 
 import type {Toolset} from '../tools/toolset.ts';
 import {createLogger} from '../utils/logger.ts';
 import {Session} from './session.ts';
+import type {StopHook, StopHookContext} from '../hooks/index.ts';
 
 const logger = createLogger('agent-runner');
 
@@ -50,6 +51,8 @@ export interface AgentRunnerOptions {
   sessionId?: string;
   /** Sessions directory (optional, for testing) */
   sessionsDir?: string;
+  /** Stop Hooks - executed when Agent completes normally (LIFO order) */
+  stopHooks?: StopHook[];
 }
 
 /**
@@ -78,6 +81,7 @@ export class AgentRunner {
   private onMessagePart?: OnMessagePart;
   private onToolCall?: OnToolCall;
   private onToolResult?: OnToolResult;
+  private stopHooks: StopHook[];
 
   /** Session management */
   private session: Session | null = null;
@@ -100,6 +104,7 @@ export class AgentRunner {
     this.onToolResult = options.onToolResult;
     this.sessionId = options.sessionId;
     this.sessionsDir = options.sessionsDir;
+    this.stopHooks = options.stopHooks ?? [];
   }
 
   /**
@@ -247,6 +252,44 @@ export class AgentRunner {
       this.history.push(createTextMessage('assistant', stopMessage));
     }
 
+    // 执行 Stop Hooks（正常完成时）
+    await this.executeStopHooks({
+      sessionId: this.getSessionId(),
+      cwd: process.cwd(),
+      messages: this.history,
+      finalResponse,
+    });
+
     return finalResponse;
+  }
+
+  /**
+   * Execute Stop Hooks in LIFO order
+   *
+   * - Empty hook list: silently skip
+   * - Single hook failure: log error and continue with other hooks
+   * - LIFO order: last registered hook executes first
+   *
+   * @param context - Stop hook context
+   */
+  private async executeStopHooks(context: StopHookContext): Promise<void> {
+    // 空列表静默跳过
+    if (this.stopHooks.length === 0) {
+      return;
+    }
+
+    // LIFO 顺序：从后向前执行
+    for (let i = this.stopHooks.length - 1; i >= 0; i--) {
+      const hook = this.stopHooks[i]!;
+      try {
+        const result = await hook(context);
+        if (result?.message) {
+          logger.info(`[StopHook] ${result.message}`);
+        }
+      } catch (error) {
+        logger.error(`Stop hook execution failed: ${error}`);
+        // 继续执行下一个钩子
+      }
+    }
   }
 }

@@ -12,6 +12,7 @@
  * - AgentRunner: Agent 循环实现
  * - Session: 会话管理类
  * - buildSystemPrompt: 系统提示词构建函数
+ * - StopHook: Stop Hooks 相关类型
  */
 
 
@@ -95,3 +96,10 @@ export {
   AutoEnhanceTrigger,
   type AutoEnhanceTriggerOptions,
 } from './auto-enhance-trigger.ts';
+
+// Stop Hooks types
+export type {
+  StopHook,
+  StopHookContext,
+  HookResult,
+} from '../hooks/index.ts';
