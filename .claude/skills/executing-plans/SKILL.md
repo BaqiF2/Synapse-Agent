@@ -34,6 +34,10 @@ Load plan, review critically, execute tasks in batches, report for review betwee
 ]
 ```
 
+**命名规则：**
+- 计划文件名必须包含 PRD 文件基名，格式：`{prd_basename}-{number}.json`
+- `{prd_basename}` = PRD 文件名去掉扩展名（如 `02-architecture-and-features.md` → `02-architecture-and-features`）
+
 **Field descriptions:**
 - `category`: Task category (functional, refactor, infrastructure, etc.)
 - `prd`: PRD reference, format: `filename#anchor`
@@ -68,7 +72,7 @@ Load plan, review critically, execute tasks in batches, report for review betwee
 ## The Process
 
 ### Step 1: Load and Review Plan
-1. Read plan file (`features.json` format)
+1. Read plan file (JSON format above)
 2. Review critically - identify any questions or concerns about the plan
 3. If concerns: Raise them with your human partner before starting
 4. If no concerns: Create TodoWrite and proceed (one todo per feature)
@@ -82,7 +86,7 @@ For each task:
 3. Run verifications as specified (execute BDD test steps)
 4. Mark as completed
 
-> **⚠ `passes` 字段规则：** 禁止在单个任务完成时更新 `passes`。只有当 features.json 中**所有任务**都完成且验证通过后，才能批量将 `passes` 更新为 `true`。
+> **⚠ `passes` 字段规则：** 禁止在单个任务完成时更新 `passes`。只有当计划文件中**所有任务**都完成且验证通过后，才能批量将 `passes` 更新为 `true`。
 
 ### Step 3: Report
 When batch complete:
@@ -101,7 +105,7 @@ Based on feedback:
 **Before updating `passes` fields, systematically verify each feature:**
 
 1. Create a TodoWrite with one item per feature for verification tracking
-2. For each feature in `features.json`:
+2. For each feature in the plan file:
    - Mark feature as in_progress
    - Execute each BDD test case's steps
    - Verify the expected result is achieved
@@ -139,7 +143,7 @@ console.log('Pass:', result === expectedValue);
 
 After ALL features verified:
 
-1. **Batch update** all `passes` fields to `true` in `features.json`
+1. **Batch update** all `passes` fields to `true` in the plan file
    - Use Write tool to update the entire file
    - Never update `passes` individually during execution
 
@@ -191,8 +195,8 @@ After ALL features verified:
 
 **Required workflow skills:**
 - **superpowers:using-git-worktrees** - REQUIRED: Set up isolated workspace before starting
-- **superpowers:writing-plans** - Generates plan files following `features.json` template structure
+- **superpowers:writing-plans** - Generates plan files following the JSON template structure in this skill
 - **superpowers:finishing-a-development-branch** - Complete development after all tasks
 
 **Plan file location conventions:**
-- Project plans: `./plans/features-{number}.json`
+- Project plans: `./plans/{prd_basename}-{number}.json`
