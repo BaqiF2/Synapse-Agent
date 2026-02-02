@@ -1,0 +1,597 @@
+[
+  {
+    "category": "functional",
+    "prd": "2026-02-02-skill-enhance-on-loop-exit-design.md#stop-hook-registry",
+    "description": "StopHookRegistry - Hook 注册与管理",
+    "bdd": [
+      {
+        "title": "注册单个 Hook",
+        "description": "验证 Hook 可以通过唯一名称注册到 Registry",
+        "steps": [
+          "创建 StopHookRegistry 实例",
+          "调用 register('skill-enhance', hookFunction)",
+          "调用 has('skill-enhance')"
+        ],
+        "expected": "has() 返回 true"
+      },
+      {
+        "title": "注册多个 Hook",
+        "description": "验证 Registry 可以管理多个 Hook",
+        "steps": [
+          "创建 StopHookRegistry 实例",
+          "注册 hook-a",
+          "注册 hook-b",
+          "注册 hook-c",
+          "调用 getRegisteredHooks()"
+        ],
+        "expected": "返回 ['hook-a', 'hook-b', 'hook-c']"
+      },
+      {
+        "title": "重复名称注册覆盖",
+        "description": "验证相同名称的 Hook 会被覆盖",
+        "steps": [
+          "创建 StopHookRegistry 实例",
+          "注册名为 'test' 的 hook1（返回 'result1'）",
+          "注册名为 'test' 的 hook2（返回 'result2'）",
+          "执行 executeAll()"
+        ],
+        "expected": "只有 hook2 被执行，返回 ['result2']"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-02-skill-enhance-on-loop-exit-design.md#stop-hook-registry",
+    "description": "StopHookRegistry - LIFO 执行顺序",
+    "bdd": [
+      {
+        "title": "Hook 按 LIFO 顺序执行",
+        "description": "验证 Hook 按后注册先执行的顺序执行",
+        "steps": [
+          "创建 StopHookRegistry 实例",
+          "创建执行顺序记录数组 executionOrder",
+          "注册 hook-first（执行时 push 'first'）",
+          "注册 hook-second（执行时 push 'second'）",
+          "注册 hook-third（执行时 push 'third'）",
+          "调用 executeAll(context)"
+        ],
+        "expected": "executionOrder 为 ['third', 'second', 'first']"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-02-skill-enhance-on-loop-exit-design.md#stop-hook-registry",
+    "description": "StopHookRegistry - 错误隔离",
+    "bdd": [
+      {
+        "title": "单个 Hook 失败不影响其他 Hook",
+        "description": "验证 Hook 执行失败时其他 Hook 仍能正常执行",
+        "steps": [
+          "创建 StopHookRegistry 实例",
+          "注册 hook-success-1（返回 'success1'）",
+          "注册 hook-fail（抛出 Error）",
+          "注册 hook-success-2（返回 'success2'）",
+          "调用 executeAll(context)"
+        ],
+        "expected": "返回结果包含 hook-success-1 和 hook-success-2 的结果，hook-fail 的错误被捕获但不阻止其他 Hook 执行"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-02-skill-enhance-on-loop-exit-design.md#stop-hook-registry",
+    "description": "StopHookRegistry - 全局单例导出",
+    "bdd": [
+      {
+        "title": "导出全局单例实例",
+        "description": "验证模块导出 stopHookRegistry 单例",
+        "steps": [
+          "从 'stop-hook-registry' 模块导入 stopHookRegistry",
+          "从同一模块再次导入 stopHookRegistry as registry2",
+          "比较两个引用"
+        ],
+        "expected": "stopHookRegistry === registry2 为 true"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-02-skill-enhance-on-loop-exit-design.md#agentrunner-integration",
+    "description": "AgentRunner 集成 - 触发条件",
+    "bdd": [
+      {
+        "title": "无工具调用时触发 StopHookRegistry",
+        "description": "验证当 LLM 响应不包含工具调用时触发 stop hooks",
+        "steps": [
+          "创建 AgentRunner 实例",
+          "Mock StopHookRegistry.executeAll()",
+          "执行 run() 并让 LLM 返回不带 tool_use 的响应",
+          "检查 executeAll() 调用情况"
+        ],
+        "expected": "StopHookRegistry.executeAll() 被调用一次"
+      },
+      {
+        "title": "有工具调用时不触发 StopHookRegistry",
+        "description": "验证当 LLM 响应包含工具调用时不触发 stop hooks",
+        "steps": [
+          "创建 AgentRunner 实例",
+          "Mock StopHookRegistry.executeAll()",
+          "执行 run() 并让 LLM 返回带 tool_use 的响应",
+          "检查 executeAll() 调用情况"
+        ],
+        "expected": "StopHookRegistry.executeAll() 未被调用"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-02-skill-enhance-on-loop-exit-design.md#agentrunner-integration",
+    "description": "AgentRunner 集成 - StopHookContext 构建",
+    "bdd": [
+      {
+        "title": "构建完整的 StopHookContext",
+        "description": "验证传递给 executeAll 的 context 包含所有必要字段",
+        "steps": [
+          "创建 AgentRunner 实例，设置 session.id = 'test-session'",
+          "Mock StopHookRegistry.executeAll() 并捕获参数",
+          "设置 history 包含 2 条消息",
+          "执行 run() 触发 stop hooks"
+        ],
+        "expected": "context 包含 { sessionId: 'test-session', cwd: process.cwd(), messages: [2条消息], finalResponse: string }"
+      },
+      {
+        "title": "无 session 时 sessionId 为 null",
+        "description": "验证当没有 session 时 sessionId 为 null",
+        "steps": [
+          "创建 AgentRunner 实例，不设置 session",
+          "Mock StopHookRegistry.executeAll() 并捕获参数",
+          "执行 run() 触发 stop hooks"
+        ],
+        "expected": "context.sessionId 为 null"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-02-skill-enhance-on-loop-exit-design.md#conversation-history-compaction",
+    "description": "ConversationReader.compact() - 消息类型处理",
+    "bdd": [
+      {
+        "title": "User 消息格式化",
+        "description": "验证用户消息的 compact 格式",
+        "steps": [
+          "创建 ConversationReader 实例",
+          "准备包含 user 消息的 turns: [{ role: 'user', content: 'Hello world' }]",
+          "调用 compact(turns)"
+        ],
+        "expected": "返回 '[User] Hello world'"
+      },
+      {
+        "title": "Assistant 文本消息格式化",
+        "description": "验证助手文本消息的 compact 格式",
+        "steps": [
+          "创建 ConversationReader 实例",
+          "准备包含 assistant 文本消息的 turns",
+          "调用 compact(turns)"
+        ],
+        "expected": "返回 '[Assistant] {完整内容}'"
+      },
+      {
+        "title": "Tool call 格式化",
+        "description": "验证工具调用的 compact 格式",
+        "steps": [
+          "创建 ConversationReader 实例",
+          "准备包含 tool_use block 的 assistant 消息，name: 'read'",
+          "调用 compact(turns)"
+        ],
+        "expected": "返回 '[Tool] read'"
+      },
+      {
+        "title": "Tool result 截断格式化",
+        "description": "验证工具结果的 compact 格式（截断至 N 字符）",
+        "steps": [
+          "设置 SYNAPSE_TOOL_RESULT_SUMMARY_LIMIT=50",
+          "创建 ConversationReader 实例",
+          "准备包含 tool_result 的消息，内容为 100 字符",
+          "调用 compact(turns)"
+        ],
+        "expected": "返回 '[Result] {前50字符}...'"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-02-skill-enhance-on-loop-exit-design.md#conversation-history-compaction",
+    "description": "ConversationReader.compact() - 边界情况",
+    "bdd": [
+      {
+        "title": "空会话返回空字符串",
+        "description": "验证空 turns 数组返回空字符串",
+        "steps": [
+          "创建 ConversationReader 实例",
+          "调用 compact([])"
+        ],
+        "expected": "返回空字符串 ''"
+      },
+      {
+        "title": "超长单条消息截断",
+        "description": "验证单条消息超过 maxChars 时尾部截断",
+        "steps": [
+          "创建 ConversationReader 实例",
+          "准备单条 user 消息，内容为 1000 字符",
+          "调用 compact(turns) 时设置 maxChars=100"
+        ],
+        "expected": "返回的内容不超过 100 字符，尾部被截断"
+      },
+      {
+        "title": "环境变量配置 SYNAPSE_TOOL_RESULT_SUMMARY_LIMIT",
+        "description": "验证可通过环境变量配置工具结果摘要长度",
+        "steps": [
+          "设置 SYNAPSE_TOOL_RESULT_SUMMARY_LIMIT=300",
+          "创建 ConversationReader 实例",
+          "准备包含 500 字符 tool_result 的消息",
+          "调用 compact(turns)"
+        ],
+        "expected": "tool result 截断至 300 字符"
+      },
+      {
+        "title": "默认 SYNAPSE_TOOL_RESULT_SUMMARY_LIMIT 为 200",
+        "description": "验证环境变量未设置时使用默认值 200",
+        "steps": [
+          "确保 SYNAPSE_TOOL_RESULT_SUMMARY_LIMIT 环境变量未设置",
+          "创建 ConversationReader 实例",
+          "准备包含 500 字符 tool_result 的消息",
+          "调用 compact(turns)"
+        ],
+        "expected": "tool result 截断至 200 字符"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-02-skill-enhance-on-loop-exit-design.md#stop-hook-implementation",
+    "description": "SkillEnhanceHook - 配置检查",
+    "bdd": [
+      {
+        "title": "autoEnhance 禁用时跳过处理",
+        "description": "验证当 autoEnhance=false 时不执行增强逻辑",
+        "steps": [
+          "Mock SettingsManager.isAutoEnhanceEnabled() 返回 false",
+          "执行 skillEnhanceHook(context)"
+        ],
+        "expected": "函数直接返回，不执行后续逻辑"
+      },
+      {
+        "title": "autoEnhance 启用时继续处理",
+        "description": "验证当 autoEnhance=true 时执行增强逻辑",
+        "steps": [
+          "Mock SettingsManager.isAutoEnhanceEnabled() 返回 true",
+          "Mock 其他依赖",
+          "执行 skillEnhanceHook(context)"
+        ],
+        "expected": "继续执行会话读取和后续逻辑"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-02-skill-enhance-on-loop-exit-design.md#stop-hook-implementation",
+    "description": "SkillEnhanceHook - SessionId 检查",
+    "bdd": [
+      {
+        "title": "sessionId 为 null 时跳过增强",
+        "description": "验证当 context.sessionId 为 null 时跳过增强处理",
+        "steps": [
+          "Mock SettingsManager.isAutoEnhanceEnabled() 返回 true",
+          "构建 context，设置 sessionId: null",
+          "执行 skillEnhanceHook(context)"
+        ],
+        "expected": "输出 '[Skill] Enhancement failed: session not found'，函数返回"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-02-skill-enhance-on-loop-exit-design.md#stop-hook-implementation",
+    "description": "SkillEnhanceHook - 会话读取与压缩",
+    "bdd": [
+      {
+        "title": "读取并压缩会话历史",
+        "description": "验证正确读取会话文件并压缩",
+        "steps": [
+          "Mock SettingsManager.isAutoEnhanceEnabled() 返回 true",
+          "Mock SettingsManager.getMaxEnhanceContextChars() 返回 5000",
+          "构建 context，设置 sessionId: 'test-session'",
+          "Mock ConversationReader.readTruncated() 返回 turns",
+          "Mock ConversationReader.compact() 返回压缩后的字符串",
+          "执行 skillEnhanceHook(context)"
+        ],
+        "expected": "readTruncated 被调用时传入 sessionPath 和 5000，compact 被调用时传入 turns"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-02-skill-enhance-on-loop-exit-design.md#stop-hook-implementation",
+    "description": "SkillEnhanceHook - Meta-skill 加载",
+    "bdd": [
+      {
+        "title": "加载 skill-creator 和 skill-enhance meta-skills",
+        "description": "验证正确加载两个 meta-skill",
+        "steps": [
+          "设置前置条件使流程到达 meta-skill 加载阶段",
+          "Mock SkillLoader.loadLevel2('skill-creator') 返回 skillCreator",
+          "Mock SkillLoader.loadLevel2('skill-enhance') 返回 skillEnhance",
+          "执行 skillEnhanceHook(context)"
+        ],
+        "expected": "两个 meta-skill 都被加载，rawContent 被用于构建 prompt"
+      },
+      {
+        "title": "Meta-skill 未找到时报错",
+        "description": "验证当 meta-skill 不存在时输出错误",
+        "steps": [
+          "设置前置条件使流程到达 meta-skill 加载阶段",
+          "Mock SkillLoader.loadLevel2('skill-creator') 返回 null",
+          "执行 skillEnhanceHook(context)"
+        ],
+        "expected": "输出 '[Skill] Enhancement failed: meta-skills not found'，函数返回"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-02-skill-enhance-on-loop-exit-design.md#stop-hook-implementation",
+    "description": "SkillEnhanceHook - Sub-agent 执行",
+    "bdd": [
+      {
+        "title": "执行 skill sub-agent",
+        "description": "验证使用正确的 prompt 调用 skill sub-agent",
+        "steps": [
+          "设置前置条件使流程到达 sub-agent 执行阶段",
+          "Mock SubAgentManager.execute('skill', { prompt })",
+          "执行 skillEnhanceHook(context)"
+        ],
+        "expected": "SubAgentManager.execute 被调用，prompt 包含 compactedHistory 和 metaSkillsContent"
+      },
+      {
+        "title": "Sub-agent 结果直接输出",
+        "description": "验证 sub-agent 返回结果直接透传给用户",
+        "steps": [
+          "设置前置条件使流程到达 sub-agent 执行阶段",
+          "Mock SubAgentManager.execute() 返回 '[Skill] Created: git-workflow'",
+          "Mock console.log",
+          "执行 skillEnhanceHook(context)"
+        ],
+        "expected": "console.log 被调用，参数为 '[Skill] Created: git-workflow'"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-02-skill-enhance-on-loop-exit-design.md#stop-hook-implementation",
+    "description": "SkillEnhanceHook - Sub-agent 超时处理",
+    "bdd": [
+      {
+        "title": "Sub-agent 默认超时 5 分钟",
+        "description": "验证 skill sub-agent 的默认超时时间为 5 分钟",
+        "steps": [
+          "确保 SYNAPSE_SKILL_SUBAGENT_TIMEOUT 环境变量未设置",
+          "设置前置条件使流程到达 sub-agent 执行阶段",
+          "检查 SubAgentManager.execute() 的超时配置"
+        ],
+        "expected": "超时配置为 300000ms（5分钟）"
+      },
+      {
+        "title": "Sub-agent 超时可通过环境变量配置",
+        "description": "验证可通过 SYNAPSE_SKILL_SUBAGENT_TIMEOUT 配置超时",
+        "steps": [
+          "设置 SYNAPSE_SKILL_SUBAGENT_TIMEOUT=120000",
+          "设置前置条件使流程到达 sub-agent 执行阶段",
+          "检查 SubAgentManager.execute() 的超时配置"
+        ],
+        "expected": "超时配置为 120000ms（2分钟）"
+      },
+      {
+        "title": "Sub-agent 超时抛出异常",
+        "description": "验证 sub-agent 执行超时时抛出异常",
+        "steps": [
+          "设置前置条件使流程到达 sub-agent 执行阶段",
+          "Mock SubAgentManager.execute() 超时"
+        ],
+        "expected": "抛出超时异常，输出 '[Skill] Enhancement failed: execution timeout'"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-02-skill-enhance-on-loop-exit-design.md#stop-hook-implementation",
+    "description": "SkillEnhanceHook - 模块加载时自动注册",
+    "bdd": [
+      {
+        "title": "导入模块时自动注册 Hook",
+        "description": "验证 skill-enhance-hook 模块加载时自动注册到 StopHookRegistry",
+        "steps": [
+          "导入 'skill-enhance-hook' 模块",
+          "检查 stopHookRegistry.has('skill-enhance')"
+        ],
+        "expected": "返回 true"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-02-skill-enhance-on-loop-exit-design.md#meta-skill-management",
+    "description": "Meta-skill 文件组织",
+    "bdd": [
+      {
+        "title": "Meta-skill 存放于正确目录",
+        "description": "验证 meta-skill 文件位于 src/resource/meta-skill/ 目录",
+        "steps": [
+          "检查 src/resource/meta-skill/skill-creator/SKILL.md 文件是否存在",
+          "检查 src/resource/meta-skill/skill-enhance/SKILL.md 文件是否存在"
+        ],
+        "expected": "两个文件都存在"
+      },
+      {
+        "title": "使用 SkillLoader.loadLevel2() 加载 Meta-skill",
+        "description": "验证可以通过 SkillLoader 加载 meta-skill",
+        "steps": [
+          "创建 SkillLoader 实例",
+          "调用 loadLevel2('skill-creator')",
+          "调用 loadLevel2('skill-enhance')"
+        ],
+        "expected": "两个调用都返回包含 rawContent 的 skill 对象"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-02-skill-enhance-on-loop-exit-design.md#skill-sub-agent-enhancement",
+    "description": "Skill Sub-Agent 系统提示词更新",
+    "bdd": [
+      {
+        "title": "系统提示词包含 Skill Enhancement 能力说明",
+        "description": "验证 skill-search.md 包含技能增强相关的提示词",
+        "steps": [
+          "读取 src/sub-agents/configs/skill-search.md",
+          "检查内容"
+        ],
+        "expected": "包含 'Skill Enhancement' 或 '技能增强' 相关的能力描述和评估标准"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-02-skill-enhance-on-loop-exit-design.md#error-handling",
+    "description": "错误处理 - 会话文件错误",
+    "bdd": [
+      {
+        "title": "会话文件损坏时输出错误",
+        "description": "验证读取会话文件失败时的错误处理",
+        "steps": [
+          "设置前置条件使流程到达会话读取阶段",
+          "Mock ConversationReader.readTruncated() 抛出异常",
+          "执行 skillEnhanceHook(context)"
+        ],
+        "expected": "输出 '[Skill] Enhancement failed: failed to read session'"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-02-skill-enhance-on-loop-exit-design.md#error-handling",
+    "description": "错误处理 - Sub-agent 执行失败",
+    "bdd": [
+      {
+        "title": "Sub-agent 执行失败时输出错误",
+        "description": "验证 sub-agent 执行失败时的错误处理",
+        "steps": [
+          "设置前置条件使流程到达 sub-agent 执行阶段",
+          "Mock SubAgentManager.execute() 抛出 Error('connection failed')",
+          "执行 skillEnhanceHook(context)"
+        ],
+        "expected": "输出 '[Skill] Enhancement failed: connection failed'"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-02-skill-enhance-on-loop-exit-design.md#concurrency",
+    "description": "并发支持",
+    "bdd": [
+      {
+        "title": "多会话并发执行互不干扰",
+        "description": "验证多个会话的 enhancement hook 可以并发执行",
+        "steps": [
+          "创建两个 context: context1 (sessionId: 'session-1'), context2 (sessionId: 'session-2')",
+          "并发执行 skillEnhanceHook(context1) 和 skillEnhanceHook(context2)",
+          "检查两个执行的结果"
+        ],
+        "expected": "两个执行互不干扰，各自返回正确结果"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-02-skill-enhance-on-loop-exit-design.md#configuration-management",
+    "description": "配置管理 - /skill enhance 命令",
+    "bdd": [
+      {
+        "title": "/skill enhance 显示当前状态",
+        "description": "验证无参数时显示当前 auto-enhance 状态",
+        "steps": [
+          "设置 autoEnhance 为 true",
+          "执行 /skill enhance 命令"
+        ],
+        "expected": "输出显示 auto-enhance 已启用"
+      },
+      {
+        "title": "/skill enhance --on 启用自动增强",
+        "description": "验证 --on 参数启用 auto-enhance",
+        "steps": [
+          "设置 autoEnhance 为 false",
+          "执行 /skill enhance --on 命令",
+          "检查 SettingsManager.isAutoEnhanceEnabled()"
+        ],
+        "expected": "返回 true"
+      },
+      {
+        "title": "/skill enhance --off 禁用自动增强",
+        "description": "验证 --off 参数禁用 auto-enhance",
+        "steps": [
+          "设置 autoEnhance 为 true",
+          "执行 /skill enhance --off 命令",
+          "检查 SettingsManager.isAutoEnhanceEnabled()"
+        ],
+        "expected": "返回 false"
+      },
+      {
+        "title": "/skill enhance -h 显示帮助",
+        "description": "验证 -h 参数显示帮助信息",
+        "steps": [
+          "执行 /skill enhance -h 命令"
+        ],
+        "expected": "输出帮助信息，包含所有可用选项说明"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-02-skill-enhance-on-loop-exit-design.md#files-to-modify",
+    "description": "hooks/index.ts 导出 StopHookRegistry",
+    "bdd": [
+      {
+        "title": "从 hooks/index.ts 导出 StopHookRegistry",
+        "description": "验证可以从 hooks 模块入口导入 StopHookRegistry",
+        "steps": [
+          "从 'src/hooks' 导入 { StopHookRegistry, stopHookRegistry }",
+          "检查导入是否成功"
+        ],
+        "expected": "StopHookRegistry 类和 stopHookRegistry 实例都可以导入"
+      }
+    ],
+    "passes": false
+  }
+]

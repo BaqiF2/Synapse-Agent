@@ -5,7 +5,7 @@ description: "Convert PRD documents into features.json format with BDD test case
 
 # PRD to Features.json
 
-Convert PRD documents into priority-ordered features.json files containing verifiable BDD test cases.
+Convert PRD documents into priority-ordered {prd_basename}-{number}.json files containing verifiable BDD test cases.
 
 ## Conversion Workflow
 
@@ -63,8 +63,8 @@ Generate features.json following the [spec.md](references/spec.md) format:
 
 ### Phase 5: Check File Size
 
-- Lines ≤ 1000: Output single `features.json`
-- Lines > 1000: Split by feature module boundaries into `features-01.json`, `features-02.json`
+- Lines ≤ 1000: Output single `{prd_basename}-{number}.json`
+- Lines > 1000: Split by feature module boundaries into `prd-features-01.json`, `prd-features-02.json`
 
 ## Output Location
 
@@ -73,8 +73,7 @@ Default output to `plans/` subdirectory at the same level as the PRD:
 ```
 prd-directory/
 ├── 02-architecture.md    # PRD file
-└── plans/
-    └── features.json     # Generated file
+└── prd-features-01.json     # Generated file
 ```
 
 ## Example Dialogue
