@@ -108,19 +108,12 @@ export class StopHookRegistry {
   private hooks: Map<string, StopHook> = new Map();
 
   /**
-   * Register a hook with a unique name
+   * Register a stop hook with a unique name
    *
    * @param name - Unique hook identifier
    * @param hook - Hook function
    */
   register(name: string, hook: StopHook): void;
-
-  /**
-   * Unregister a hook by name
-   *
-   * @param name - Hook identifier to remove
-   */
-  unregister(name: string): void;
 
   /**
    * Check if a hook is registered
@@ -135,10 +128,10 @@ export class StopHookRegistry {
   getRegisteredHooks(): string[];
 
   /**
-   * Execute all registered hooks
+   * Execute all registered stop hooks in LIFO order
    *
-   * Executes in LIFO order. Individual hook failures do not
-   * prevent other hooks from executing.
+   * Hooks are executed in reverse registration order (last registered first).
+   * Individual hook failures do not prevent other hooks from executing.
    *
    * @param context - Stop hook context
    * @returns Array of results from all hooks
