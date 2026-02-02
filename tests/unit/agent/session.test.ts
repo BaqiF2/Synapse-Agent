@@ -43,8 +43,8 @@ describe('Session', () => {
       expect(fs.existsSync(indexPath)).toBe(true);
 
       const content = JSON.parse(fs.readFileSync(indexPath, 'utf-8'));
-      expect(content.sessions.length).toBe(1);
-      expect(content.sessions[0].id).toBe(session.id);
+      expect(content.sessions).toHaveLength(1);
+      expect(content.sessions[0]!.id).toBe(session.id);
     });
   });
 
@@ -106,9 +106,9 @@ describe('Session', () => {
       expect(fs.existsSync(session.historyPath)).toBe(true);
       const content = fs.readFileSync(session.historyPath, 'utf-8');
       const lines = content.trim().split('\n');
-      expect(lines.length).toBe(1);
+      expect(lines).toHaveLength(1);
 
-      const parsed = JSON.parse(lines[0]);
+      const parsed = JSON.parse(lines[0]!);
       expect(parsed.role).toBe('user');
     });
 
@@ -132,7 +132,8 @@ describe('Session', () => {
       await session.appendMessage(createTextMessage('assistant', 'Hi'));
 
       const sessions = await Session.list({ sessionsDir: testDir });
-      expect(sessions[0].messageCount).toBe(2);
+      expect(sessions).toHaveLength(1);
+      expect(sessions[0]!.messageCount).toBe(2);
     });
 
     test('should set title from first user message', async () => {
@@ -142,7 +143,8 @@ describe('Session', () => {
       expect(session.title).toBe('Help me write a calculator');
 
       const sessions = await Session.list({ sessionsDir: testDir });
-      expect(sessions[0].title).toBe('Help me write a calculator');
+      expect(sessions).toHaveLength(1);
+      expect(sessions[0]!.title).toBe('Help me write a calculator');
     });
 
     test('should truncate long title to 50 chars', async () => {
@@ -162,9 +164,9 @@ describe('Session', () => {
 
       const history = await session.loadHistory();
 
-      expect(history.length).toBe(2);
-      expect(history[0].role).toBe('user');
-      expect(history[1].role).toBe('assistant');
+      expect(history).toHaveLength(2);
+      expect(history[0]!.role).toBe('user');
+      expect(history[1]!.role).toBe('assistant');
     });
 
     test('should return empty array for new session', async () => {

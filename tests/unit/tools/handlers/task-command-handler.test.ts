@@ -4,7 +4,7 @@
  * 测试目标：验证 task:* 命令解析逻辑
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect } from 'bun:test';
 import { parseTaskCommand } from '../../../../src/tools/handlers/task-command-handler.ts';
 
 describe('parseTaskCommand', () => {

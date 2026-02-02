@@ -118,7 +118,7 @@ describe('AgentRunner', () => {
       const originalWarn = Logger.prototype.warn;
       const originalInfo = Logger.prototype.info;
       const originalError = Logger.prototype.error;
-      const warnSpy = mock(() => {});
+      const warnSpy = mock((message: string, data?: Record<string, unknown>) => {});
 
       Logger.prototype.warn = warnSpy as unknown as Logger['warn'];
       Logger.prototype.info = mock(() => {}) as unknown as Logger['info'];
@@ -148,7 +148,7 @@ describe('AgentRunner', () => {
         await runner.run('Fail');
 
         expect(warnSpy).toHaveBeenCalled();
-        const [message, data] = warnSpy.mock.calls[0] ?? [];
+        const [message, data] = warnSpy.mock.calls[0]!;
         expect(message).toContain('Tool execution failed');
         expect(data).toEqual(expect.objectContaining({
           errors: [
@@ -296,13 +296,14 @@ describe('AgentRunner with Session', () => {
     });
     await runner1.run('Message 1');
     const sessionId = runner1.getSessionId();
+    expect(sessionId).not.toBeNull();
 
     // 第二个 runner 恢复会话
     const runner2 = new AgentRunner({
       client,
       systemPrompt: 'Test',
       toolset,
-      sessionId,
+      sessionId: sessionId!,
       sessionsDir: testDir,
     });
     await runner2.run('Message 2');

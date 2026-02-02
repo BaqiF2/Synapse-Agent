@@ -119,7 +119,8 @@ export class BashSession {
           const exitCodeMatch = this.stdoutBuffer.match(
             new RegExp(`${EXIT_CODE_MARKER}(\\d+)${COMMAND_END_MARKER}`)
           );
-          const exitCode = exitCodeMatch ? parseInt(exitCodeMatch[1], 10) : 1;
+          const exitCodeText = exitCodeMatch?.[1];
+          const exitCode = exitCodeText ? parseInt(exitCodeText, 10) : 1;
 
           // Remove the markers from output
           const stdout = this.stdoutBuffer

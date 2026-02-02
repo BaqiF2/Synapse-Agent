@@ -124,8 +124,9 @@ describe('step', () => {
       { type: 'tool_call', id: 'call1', name: 'Bash', input: { command: 'fail' } },
       { type: 'tool_call', id: 'call2', name: 'Bash', input: { command: 'slow' } },
     ]);
-    const toolHandler = mock((args: { command?: string }) => {
-      if (args.command === 'fail') {
+    const toolHandler = mock((args: unknown) => {
+      const { command } = (args ?? {}) as { command?: string };
+      if (command === 'fail') {
         return Promise.reject(new Error('boom'));
       }
       return new Promise<ToolReturnValue>((resolve) =>

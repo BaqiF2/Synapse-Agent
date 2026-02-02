@@ -4,7 +4,7 @@
  * 测试目标：验证 Sub Agent 类型定义和验证函数
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect } from 'bun:test';
 import {
   isSubAgentType,
   TaskCommandParamsSchema,

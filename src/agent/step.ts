@@ -27,6 +27,8 @@ type ToolResultTask = {
   cancel: () => void;
 };
 
+type CancelablePromise<T> = Promise<T> & { cancel?: () => void };
+
 function toToolErrorResult(toolCallId: string, error: unknown): ToolResult {
   const message = error instanceof Error ? error.message : 'Unknown error';
   return {
@@ -128,20 +130,19 @@ export async function step(
       }
     }
 
-    let rawResult: Promise<ToolResult> | ToolResult;
+    let rawResult: CancelablePromise<ToolResult>;
     try {
-      rawResult = toolset.handle(toolCall);
+      rawResult = toolset.handle(toolCall) as CancelablePromise<ToolResult>;
     } catch (error) {
-      rawResult = toToolErrorResult(toolCall.id, error);
+      rawResult = Promise.resolve(toToolErrorResult(toolCall.id, error)) as CancelablePromise<ToolResult>;
     }
 
     const cancel =
-      typeof (rawResult as { cancel?: unknown }).cancel === 'function'
-        ? (rawResult as { cancel: () => void }).cancel.bind(rawResult)
+      typeof rawResult.cancel === 'function'
+        ? rawResult.cancel.bind(rawResult)
         : () => {};
 
-    const promise = Promise.resolve(rawResult)
-      .catch((error) => toToolErrorResult(toolCall.id, error));
+    const promise = rawResult.catch((error) => toToolErrorResult(toolCall.id, error));
 
     toolResultTasks.set(toolCall.id, { promise, cancel });
     notifyToolResult(promise);
