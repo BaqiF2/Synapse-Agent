@@ -9,7 +9,9 @@ When the Agent loop exits normally (no tool calls), automatically analyze the co
 ```
 Agent Loop completes normally (no tool calls)
     ↓
-Stop Hook: skill-enhance-hook triggered
+StopHookRegistry.executeAll(context)
+    ↓
+skill-enhance-hook triggered
     ↓
 Check ~/.synapse/settings.json → skillEnhance.autoEnhance
     ↓ (false)
@@ -17,7 +19,7 @@ Exit without processing
     ↓ (true)
 Read and compact conversation history
     ↓
-Load meta-skills (skill-creator + enhancing-skills)
+Load meta-skills (skill-creator + skill-enhance)
     ↓
 Build prompt and execute skill sub-agent
     ↓
@@ -85,6 +87,112 @@ Environment variable: `SYNAPSE_TOOL_RESULT_SUMMARY_LIMIT` (default: 200)
 [Assistant] Refactoring complete, main changes include...
 ```
 
+## Stop Hook Registry
+
+### Design Goals
+
+Abstract hook management into a registry pattern, decoupling hook implementation from registration and execution.
+
+### Interface Definition
+
+```typescript
+// src/hooks/stop-hook-registry.ts
+
+/**
+ * Stop Hook Registry
+ *
+ * Manages registration and execution of stop hooks.
+ * Hooks are executed in LIFO order (last registered, first executed).
+ */
+export class StopHookRegistry {
+  private hooks: Map<string, StopHook> = new Map();
+
+  /**
+   * Register a hook with a unique name
+   *
+   * @param name - Unique hook identifier
+   * @param hook - Hook function
+   */
+  register(name: string, hook: StopHook): void;
+
+  /**
+   * Unregister a hook by name
+   *
+   * @param name - Hook identifier to remove
+   */
+  unregister(name: string): void;
+
+  /**
+   * Check if a hook is registered
+   *
+   * @param name - Hook identifier
+   */
+  has(name: string): boolean;
+
+  /**
+   * Get all registered hook names
+   */
+  getRegisteredHooks(): string[];
+
+  /**
+   * Execute all registered hooks
+   *
+   * Executes in LIFO order. Individual hook failures do not
+   * prevent other hooks from executing.
+   *
+   * @param context - Stop hook context
+   * @returns Array of results from all hooks
+   */
+  executeAll(context: StopHookContext): Promise<HookResult[]>;
+}
+
+// Global singleton instance
+export const stopHookRegistry = new StopHookRegistry();
+```
+
+### Hook Registration
+
+Hooks register themselves at module load time:
+
+```typescript
+// src/hooks/skill-enhance-hook.ts
+
+import { stopHookRegistry } from './stop-hook-registry.ts';
+import { createSkillEnhanceHook } from './skill-enhance-hook-impl.ts';
+
+// Register on module load
+stopHookRegistry.register('skill-enhance', createSkillEnhanceHook());
+```
+
+### AgentRunner Integration
+
+```typescript
+// src/agent/agent-runner.ts
+
+import { stopHookRegistry } from '../hooks/stop-hook-registry.ts';
+
+class AgentRunner {
+  async run(userInput: string): Promise<string> {
+    // ... agent loop logic ...
+
+    // On normal completion (no tool calls)
+    if (result.toolCalls.length === 0) {
+      // Execute all registered stop hooks
+      const context: StopHookContext = {
+        sessionId: this.session?.id || null,
+        cwd: process.cwd(),
+        messages: this.history,
+        finalResponse,
+      };
+
+      await stopHookRegistry.executeAll(context);
+
+      return finalResponse;
+    }
+  }
+}
+```
+
 ## Skill Sub-Agent Enhancement
 
 ### Reuse Existing Skill Sub-Agent
@@ -137,19 +245,18 @@ ${metaSkillsContent}
 Analyze the conversation history and determine if a new skill should be created or an existing skill enhanced.
 ```
 
-## Meta-Skill Loading
+## Meta-Skill Management
 
-### Storage Location
+### Source Location
 
-Meta-skills are stored alongside regular skills in `~/.synapse/skills/`, differentiated by `type: meta` in SKILL.md frontmatter.
+Meta-skills are maintained in the source code:
 
 ```
-~/.synapse/skills/
+src/resource/meta-skill/
 ├── skill-creator/
 │   └── SKILL.md        # type: meta
-├── enhancing-skills/
-│   └── SKILL.md        # type: meta (modify as needed)
-└── ... other skills
+└── skill-enhance/      # renamed from enhancing-skills
+    └── SKILL.md        # type: meta (modify content as needed)
 ```
 
 ### Loading Implementation
@@ -160,16 +267,16 @@ Use existing `SkillLoader.loadLevel2()`:
 const loader = new SkillLoader();
 
 const skillCreator = loader.loadLevel2('skill-creator');
-const enhancingSkills = loader.loadLevel2('enhancing-skills');
+const skillEnhance = loader.loadLevel2('skill-enhance');
 
 const metaSkillsContent = `
 ## Meta-Skill: Skill Creator
 
 ${skillCreator?.rawContent || ''}
 
-## Meta-Skill: Enhancing Skills
+## Meta-Skill: Skill Enhance
 
-${enhancingSkills?.rawContent || ''}
+${skillEnhance?.rawContent || ''}
 `;
 ```
 
@@ -182,13 +289,14 @@ ${enhancingSkills?.rawContent || ''}
 ### Implementation
 
 ```typescript
-import { StopHook, StopHookContext } from './stop-hook-types.ts';
+import { StopHook, StopHookContext } from './types.ts';
+import { stopHookRegistry } from './stop-hook-registry.ts';
 import { SettingsManager } from '../config/settings-manager.ts';
 import { ConversationReader } from '../skills/conversation-reader.ts';
 import { SubAgentManager } from '../sub-agents/sub-agent-manager.ts';
 import { SkillLoader } from '../skills/skill-loader.ts';
 
-export function createSkillEnhanceHook(): StopHook {
+function createSkillEnhanceHook(): StopHook {
   return async (context: StopHookContext) => {
     // 1. Check if auto-enhance is enabled
     const settings = new SettingsManager();
@@ -212,9 +320,9 @@ export function createSkillEnhanceHook(): StopHook {
     // 3. Load meta-skills
     const loader = new SkillLoader();
     const skillCreator = loader.loadLevel2('skill-creator');
-    const enhancingSkills = loader.loadLevel2('enhancing-skills');
+    const skillEnhance = loader.loadLevel2('skill-enhance');
 
-    if (!skillCreator || !enhancingSkills) {
+    if (!skillCreator || !skillEnhance) {
       console.log('[Skill] Enhancement failed: meta-skills not found');
       return;
     }
@@ -225,9 +333,9 @@ export function createSkillEnhanceHook(): StopHook {
 
 ${skillCreator.rawContent || ''}
 
-## Meta-Skill: Enhancing Skills
+## Meta-Skill: Skill Enhance
 
-${enhancingSkills.rawContent || ''}
+${skillEnhance.rawContent || ''}
 `;
 
     const prompt = buildEnhancePrompt(compactedHistory, metaSkillsContent);
@@ -242,6 +350,9 @@ ${enhancingSkills.rawContent || ''}
     return { message: result };
   };
 }
+
+// Register hook
+stopHookRegistry.register('skill-enhance', createSkillEnhanceHook());
 ```
 
 ## Output Format
@@ -272,13 +383,18 @@ Examples:
 
 Each session's enhancement hook runs independently. Multiple sessions can trigger enhancement simultaneously without interference.
 
+## Files to Create
+
+1. **src/hooks/stop-hook-registry.ts** - Hook registry with registration and execution
+2. **src/hooks/skill-enhance-hook.ts** - Skill enhancement hook implementation
+
 ## Files to Modify
 
 1. **src/skills/conversation-reader.ts** - Add `compact()` method
 2. **src/sub-agents/configs/skill-search.md** - Add skill enhancement capability description
-3. **src/hooks/skill-enhance-hook.ts** - New file, implement stop hook
-4. **src/agent/agent-runner.ts** - Register skill-enhance-hook
-5. **~/.synapse/skills/enhancing-skills/SKILL.md** - Modify content as needed
+3. **src/agent/agent-runner.ts** - Use StopHookRegistry instead of direct hook array
+4. **src/resource/meta-skill/enhancing-skills/** - Rename to `skill-enhance/`, modify content as needed
+5. **src/hooks/index.ts** - Export StopHookRegistry
 
 ## Files to Reference (No Changes)
 
@@ -286,3 +402,4 @@ Each session's enhancement hook runs independently. Multiple sessions can trigge
 - `src/skills/skill-loader.ts` - Use existing SkillLoader
 - `src/sub-agents/sub-agent-manager.ts` - Use existing SubAgentManager
 - `src/sub-agents/configs/skill.ts` - Use existing skill sub-agent config
+- `src/hooks/types.ts` - Use existing hook types
