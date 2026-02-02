@@ -152,24 +152,60 @@ MCP 配置文件默认读取位置：
 ## 项目结构
 
 ```
-src/
-├── agent/           # Agent 循环与会话管理
-├── cli/             # 命令行接口和 REPL
-├── config/          # 配置管理
-├── providers/       # LLM 提供者接口
-├── tools/           # 工具系统（三层架构核心）
-│   ├── handlers/    # 命令处理器
-│   └── converters/  # MCP/Skill 转换器
-├── skills/          # 技能系统
-├── sub-agents/      # 子智能体管理
-├── utils/           # 工具函数库
-└── resource/        # 资源文件
-
-tests/
-├── unit/            # 单元测试
-├── e2e/             # 端到端测试
-└── fixtures/        # 测试夹具
+├── src/                     # 源代码目录
+│   ├── agent/              # Agent 循环与会话管理
+│   ├── cli/                # 命令行接口和 REPL
+│   ├── config/             # 配置管理
+│   ├── providers/          # LLM 提供者接口
+│   ├── tools/              # 工具系统（三层架构核心）
+│   │   ├── handlers/       # 命令处理器
+│   │   └── converters/     # MCP/Skill 转换器
+│   ├── skills/             # 技能系统
+│   ├── sub-agents/         # 子智能体管理
+│   ├── utils/              # 工具函数库
+│   └── resource/           # 资源文件
+│
+├── tests/                   # 测试目录
+│   ├── unit/               # 单元测试
+│   ├── e2e/                # 端到端测试
+│   └── fixtures/           # 测试夹具
+│
+├── docs/                    # 项目文档
+│   ├── api/                # API 文档
+│   ├── guides/             # 使用指南
+│   ├── references/         # 参考资料
+│   └── skills/             # 技能文档
+│
+├── skills/                  # 可复用技能库
+│   ├── builtin/            # 内置技能
+│   └── custom/             # 自定义技能
+│
+├── examples/                # 示例项目
+│   ├── basic/              # 基础示例
+│   ├── advanced/           # 高级示例
+│   └── integrations/       # 集成示例
+│
+├── config/                  # 配置文件
+│   ├── .env.example        # 环境变量示例
+│   ├── mcp_servers.json    # MCP 服务器配置
+│   └── package.json        # 项目配置
+│
+├── README.md                # 项目说明文档
+├── CLAUDE.md               # AI 助手提示文档
+├── CONTRIBUTING.md         # 贡献指南
+├── LICENSE                 # 开源许可证
+└── CHANGELOG.md            # 更新日志
 ```
+
+## 文档导航
+
+| 文档 | 用途 | 推荐时机 |
+|------|------|----------|
+| **README.md** | 项目介绍、快速开始 | 初次了解项目 |
+| **CLAUDE.md** | 开发指导、架构说明 | 参与开发时 |
+| **docs/** | 详细技术文档 | 深入使用时 |
+| **examples/** | 示例项目 | 学习实践时 |
+| **CHANGELOG.md** | 版本更新记录 | 版本升级时 |
 
 ## 开发命令
 
