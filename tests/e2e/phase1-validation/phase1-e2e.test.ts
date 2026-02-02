@@ -21,7 +21,6 @@ import { BashRouter, CommandType } from '../../../src/tools/bash-router.js';
 import { BashToolSchema } from '../../../src/tools/bash-tool-schema.js';
 import { SkillLoader } from '../../../src/skills/skill-loader.js';
 import { SkillIndexer } from '../../../src/skills/indexer.js';
-import { SkillSearchHandler } from '../../../src/tools/handlers/agent-bash/skill-search.js';
 import { CommandSearchHandler } from '../../../src/tools/handlers/extend-bash/command-search.js';
 import { McpConfigParser } from '../../../src/tools/converters/mcp/config-parser.js';
 import { McpInstaller } from '../../../src/tools/converters/mcp/installer.js';
@@ -847,42 +846,46 @@ describe('Phase 1 E2E: TC-5 Skill System', () => {
     cleanupTestEnvironment();
   });
 
-  describe('TC-5.1: Skill Search', () => {
-    test('should search skills by query', async () => {
-      const handler = new SkillSearchHandler(TEST_HOME_DIR);
-      const result = await handler.execute('skill search text');
+  describe('TC-5.1: Skill Search (via SkillIndexer)', () => {
+    test('should index skills for search', () => {
+      const indexer = new SkillIndexer(TEST_HOME_DIR);
+      indexer.rebuild();
+      const index = indexer.getIndex();
 
-      expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain('text-analyzer');
+      expect(index.skills.length).toBeGreaterThanOrEqual(2);
     });
 
-    test('should search skills by domain', async () => {
-      const handler = new SkillSearchHandler(TEST_HOME_DIR);
-      const result = await handler.execute('skill search --domain programming');
+    test('should find skill by name', () => {
+      const indexer = new SkillIndexer(TEST_HOME_DIR);
+      const index = indexer.getIndex();
 
-      expect(result.exitCode).toBe(0);
+      const textAnalyzer = index.skills.find(s => s.name === 'text-analyzer');
+      expect(textAnalyzer).toBeDefined();
+      expect(textAnalyzer?.description).toContain('Analyzes text files');
     });
 
-    test('should search skills by tag', async () => {
-      const handler = new SkillSearchHandler(TEST_HOME_DIR);
-      const result = await handler.execute('skill search --tag file');
+    test('should find skills by domain', () => {
+      const indexer = new SkillIndexer(TEST_HOME_DIR);
+      const index = indexer.getIndex();
 
-      expect(result.exitCode).toBe(0);
+      const programmingSkills = index.skills.filter(s => s.domain === 'programming');
+      expect(programmingSkills.length).toBeGreaterThanOrEqual(2);
     });
 
-    test('should show help with --help flag', async () => {
-      const handler = new SkillSearchHandler(TEST_HOME_DIR);
-      const result = await handler.execute('skill search --help');
+    test('should find skills by tag', () => {
+      const indexer = new SkillIndexer(TEST_HOME_DIR);
+      const index = indexer.getIndex();
 
-      expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain('USAGE');
+      const fileSkills = index.skills.filter(s => s.tags.includes('file'));
+      expect(fileSkills.length).toBeGreaterThanOrEqual(1);
     });
 
-    test('should rebuild index with --rebuild flag', async () => {
-      const handler = new SkillSearchHandler(TEST_HOME_DIR);
-      const result = await handler.execute('skill search --rebuild');
+    test('should rebuild index successfully', () => {
+      const indexer = new SkillIndexer(TEST_HOME_DIR);
+      const index = indexer.rebuild();
 
-      expect(result.exitCode).toBe(0);
+      expect(index.skills.length).toBeGreaterThanOrEqual(2);
+      expect(index.updatedAt).toBeTruthy();
     });
   });
 
@@ -1098,11 +1101,12 @@ describe('Phase 1 E2E: TC-8 Error Handling', () => {
       expect(result).toBeDefined();
     });
 
-    test('should handle skill search with no results', async () => {
-      const handler = new SkillSearchHandler(TEST_HOME_DIR);
-      const result = await handler.execute('skill search "nonexistent_skill_xyz_12345"');
+    test('should handle skill index with no matching results', () => {
+      const indexer = new SkillIndexer(TEST_HOME_DIR);
+      const index = indexer.getIndex();
 
-      expect(result.exitCode).toBe(0);
+      const nonexistentSkills = index.skills.filter(s => s.name === 'nonexistent_skill_xyz_12345');
+      expect(nonexistentSkills.length).toBe(0);
       // Should return empty results, not error
     });
 

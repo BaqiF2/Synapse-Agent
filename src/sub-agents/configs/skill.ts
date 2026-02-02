@@ -1,45 +1,90 @@
 /**
- * Skill Sub Agent 配置
+ * Skill Sub Agent 动态配置
  *
- * 功能：定义 Skill 类型 Sub Agent 的配置
+ * 功能：在创建 skill 子代理时动态注入技能元数据到 systemPrompt
  *
  * 核心导出：
- * - skillConfig: Skill Sub Agent 配置对象
+ * - createSkillConfig: 动态生成 Skill Sub Agent 配置
+ * - loadAllSkillMetadata: 加载所有技能的元数据（name, description）
+ * - buildSystemPrompt: 构建包含技能列表的 systemPrompt
  */
 
+import * as path from 'node:path';
 import type { SubAgentConfig } from '../sub-agent-types.ts';
+import { SkillIndexer } from '../../skills/indexer.js';
+import { loadDesc } from '../../utils/load-desc.js';
+import { createLogger } from '../../utils/logger.js';
+
+const logger = createLogger('skill-config');
 
 /**
- * Skill Sub Agent 配置
- *
- * 工具权限：主 Agent 全部命令，移除 task:skill:*
+ * 技能元数据接口
  */
-export const skillConfig: SubAgentConfig = {
-  type: 'skill',
-  permissions: {
-    include: 'all',
-    exclude: ['task:skill:search', 'task:skill:enhance'],
-  },
-  systemPrompt: `You are a Skill Management Expert.
+interface SkillMetadata {
+  name: string;
+  description?: string;
+}
 
-Your role is to help manage, search, create, and enhance skills for the Synapse Agent system.
+/**
+ * 加载所有技能的元数据
+ *
+ * 从 SkillIndexer 获取所有技能的 name 和 description
+ * - 技能索引为空时返回空数组，不抛出异常
+ * - 索引加载失败时记录 ERROR 日志，返回空数组
+ *
+ * @returns 技能元数据数组
+ */
+export function loadAllSkillMetadata(): SkillMetadata[] {
+  try {
+    const indexer = new SkillIndexer();
+    const index = indexer.getIndex();
 
-## Capabilities
-- Search for skills matching user queries
-- Analyze conversation patterns to identify reusable skills
-- Create new skills following the skill-creator meta skill
-- Enhance existing skills following the enhancing-skills meta skill
+    return index.skills.map((s) => ({
+      name: s.name,
+      description: s.description,
+    }));
+  } catch (error) {
+    logger.error('Failed to load skill metadata from indexer', { error });
+    return [];
+  }
+}
 
-## Guidelines
-1. When searching, consider semantic similarity, not just keywords
-2. When creating skills, always use the ~/.synapse/skills/ directory
-3. Follow the meta skill guidelines strictly
-4. Return structured JSON results when appropriate
+/**
+ * 构建包含技能列表的 systemPrompt
+ *
+ * 将技能元数据格式化为编号列表，替换模板中的 ${SKILL_LIST} 占位符
+ *
+ * @param metadata - 技能元数据数组
+ * @returns 完整的 systemPrompt 字符串
+ */
+export function buildSystemPrompt(metadata: SkillMetadata[]): string {
+  const skillList = metadata
+    .map((s, i) => `${i + 1}. ${s.name}: ${s.description || 'No description'}`)
+    .join('\n');
 
-## Output Format
-For search operations, return JSON:
-{"matched_skills": [{"name": "skill-name", "description": "description"}]}
+  return loadDesc(path.join(import.meta.dirname, 'skill-search.md'), {
+    SKILL_LIST: skillList,
+  });
+}
 
-For enhance operations, return JSON:
-{"action": "created" | "enhanced" | "none", "skillName": "name", "message": "details"}`,
-};
+/**
+ * 动态创建 Skill Sub Agent 配置
+ *
+ * 在调用时动态加载技能元数据并构建 systemPrompt
+ * - 返回完整的 SubAgentConfig 对象
+ * - permissions 排除 task:skill:search 和 task:skill:enhance 防止递归调用
+ *
+ * @returns Skill Sub Agent 配置对象
+ */
+export function createSkillConfig(): SubAgentConfig {
+  const metadata = loadAllSkillMetadata();
+
+  return {
+    type: 'skill',
+    permissions: {
+      include: 'all',
+      exclude: ['task:skill:search', 'task:skill:enhance'],
+    },
+    systemPrompt: buildSystemPrompt(metadata),
+  };
+}

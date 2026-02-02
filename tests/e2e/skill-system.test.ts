@@ -18,7 +18,6 @@ import { BashSession } from '../../src/tools/bash-session.js';
 import { BashRouter } from '../../src/tools/bash-router.js';
 import { SkillIndexer } from '../../src/skills/indexer.js';
 import { SkillLoader } from '../../src/skills/skill-loader.js';
-import { SkillSearchHandler } from '../../src/tools/handlers/agent-bash/skill-search.js';
 
 // Test configuration
 const TEST_HOME = path.join(os.tmpdir(), `synapse-skill-e2e-${Date.now()}`);
@@ -132,45 +131,40 @@ fi
     }
   });
 
-  describe('Scenario 5: Skill Search', () => {
-    test('should search skills by query', async () => {
-      const handler = new SkillSearchHandler(TEST_HOME);
-      const result = await handler.execute('skill search analyzer');
+  describe('Scenario 5: Skill Search (via SkillIndexer)', () => {
+    test('should search skills by query', () => {
+      const indexer = new SkillIndexer(TEST_HOME);
+      indexer.rebuild();
+      const index = indexer.getIndex();
 
-      expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain('example-analyzer');
+      const analyzerSkill = index.skills.find(s => s.name.includes('analyzer'));
+      expect(analyzerSkill).toBeDefined();
+      expect(analyzerSkill?.name).toBe('example-analyzer');
     });
 
-    test('should search skills by domain', async () => {
-      const handler = new SkillSearchHandler(TEST_HOME);
-      const result = await handler.execute('skill search --domain programming');
+    test('should search skills by domain', () => {
+      const indexer = new SkillIndexer(TEST_HOME);
+      const index = indexer.getIndex();
 
-      expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain('programming');
+      const programmingSkills = index.skills.filter(s => s.domain === 'programming');
+      expect(programmingSkills.length).toBeGreaterThanOrEqual(2);
     });
 
-    test('should search skills by tag', async () => {
-      const handler = new SkillSearchHandler(TEST_HOME);
-      const result = await handler.execute('skill search --tag git');
+    test('should search skills by tag', () => {
+      const indexer = new SkillIndexer(TEST_HOME);
+      const index = indexer.getIndex();
 
-      expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain('git-helper');
+      const gitSkills = index.skills.filter(s => s.tags.includes('git'));
+      expect(gitSkills.length).toBeGreaterThan(0);
+      expect(gitSkills.some(s => s.name === 'git-helper')).toBe(true);
     });
 
-    test('should show help with --help flag', async () => {
-      const handler = new SkillSearchHandler(TEST_HOME);
-      const result = await handler.execute('skill search --help');
+    test('should rebuild index with latest skills', () => {
+      const indexer = new SkillIndexer(TEST_HOME);
+      const index = indexer.rebuild();
 
-      expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain('USAGE');
-      expect(result.stdout).toContain('OPTIONS');
-    });
-
-    test('should rebuild index with --rebuild flag', async () => {
-      const handler = new SkillSearchHandler(TEST_HOME);
-      const result = await handler.execute('skill search --rebuild');
-
-      expect(result.exitCode).toBe(0);
+      expect(index.skills.length).toBeGreaterThanOrEqual(2);
+      expect(index.updatedAt).toBeTruthy();
     });
   });
 

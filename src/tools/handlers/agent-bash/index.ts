@@ -10,7 +10,6 @@
  * - GlobHandler: 文件模式匹配处理器
  * - GrepHandler: 代码搜索处理器
  * - BashWrapperHandler: Bash 命令包装器处理器
- * - SkillSearchHandler: 技能搜索处理器
  */
 
 export { ReadHandler, parseReadCommand } from './read.ts';
@@ -19,4 +18,3 @@ export { EditHandler, parseEditCommand } from './edit.ts';
 export { GlobHandler, parseGlobCommand } from './glob.ts';
 export { GrepHandler, parseGrepCommand } from './grep.ts';
 export { BashWrapperHandler, parseBashCommand } from './bash-wrapper.ts';
-export { SkillSearchHandler, parseSkillSearchCommand } from './skill-search.ts';

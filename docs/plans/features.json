@@ -1,0 +1,287 @@
+[
+  {
+    "category": "functional",
+    "prd": "2026-02-02-skill-search-migration-design.md#prompt-template",
+    "description": "Prompt 模板文件创建与加载",
+    "bdd": [
+      {
+        "title": "模板文件存在时成功加载",
+        "description": "验证 skill-search.md 模板文件能被正确加载",
+        "steps": [
+          "创建 src/sub-agents/configs/skill-search.md 模板文件",
+          "模板文件包含 {{SKILL_LIST}} 占位符",
+          "调用 loadDesc() 加载模板"
+        ],
+        "expected": "成功返回模板内容字符串，包含 {{SKILL_LIST}} 占位符"
+      },
+      {
+        "title": "模板文件不存在时阻止启动",
+        "description": "验证模板文件缺失时系统行为",
+        "steps": [
+          "删除或不创建 skill-search.md 模板文件",
+          "尝试创建 skill 子代理配置"
+        ],
+        "expected": "抛出错误，阻止子代理启动，错误信息明确指出模板文件缺失"
+      },
+      {
+        "title": "占位符替换失败时阻止启动",
+        "description": "验证占位符替换异常时系统行为",
+        "steps": [
+          "模板文件存在但 loadDesc() 替换过程异常",
+          "尝试创建 skill 子代理配置"
+        ],
+        "expected": "抛出错误，阻止子代理启动"
+      }
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-02-skill-search-migration-design.md#metadata-injection",
+    "description": "技能元数据加载",
+    "bdd": [
+      {
+        "title": "成功加载所有技能元数据",
+        "description": "验证从 SkillIndexer 获取技能的 name 和 description",
+        "steps": [
+          "SkillIndexer 已索引多个技能",
+          "调用 loadAllSkillMetadata()"
+        ],
+        "expected": "返回包含所有技能 {name, description} 的数组"
+      },
+      {
+        "title": "技能索引为空时记录日志但不阻止启动",
+        "description": "验证空索引场景的容错处理",
+        "steps": [
+          "SkillIndexer.getIndex() 返回空的 skills 数组",
+          "调用 loadAllSkillMetadata()"
+        ],
+        "expected": "返回空数组,不抛出异常"
+      },
+      {
+        "title": "技能索引加载失败时记录日志但不阻止启动",
+        "description": "验证索引加载异常的容错处理",
+        "steps": [
+          "SkillIndexer.getIndex() 抛出异常",
+          "调用 loadAllSkillMetadata()"
+        ],
+        "expected": "返回空数组，记录 ERROR 级别日志，不抛出异常"
+      },
+      {
+        "title": "仅提取 name 和 description 字段",
+        "description": "验证不提取 domain、tags 等其他字段",
+        "steps": [
+          "SkillIndexer 返回包含 name, description, domain, tags 的技能",
+          "调用 loadAllSkillMetadata()"
+        ],
+        "expected": "返回的对象仅包含 name 和 description 字段"
+      }
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-02-skill-search-migration-design.md#prompt-template",
+    "description": "systemPrompt 构建",
+    "bdd": [
+      {
+        "title": "成功构建带技能列表的 systemPrompt",
+        "description": "验证占位符被正确替换为格式化的技能列表",
+        "steps": [
+          "准备技能元数据数组 [{name: 'skill-a', description: 'desc-a'}, {name: 'skill-b', description: 'desc-b'}]",
+          "调用 buildSystemPrompt(metadata)"
+        ],
+        "expected": "返回的 systemPrompt 中 {{SKILL_LIST}} 被替换为格式化列表：'1. skill-a: desc-a\\n2. skill-b: desc-b'"
+      },
+      {
+        "title": "处理无 description 的技能",
+        "description": "验证 description 缺失时的默认值处理",
+        "steps": [
+          "准备技能元数据 [{name: 'skill-x', description: undefined}]",
+          "调用 buildSystemPrompt(metadata)"
+        ],
+        "expected": "技能列表显示为 '1. skill-x: No description'"
+      },
+      {
+        "title": "空技能列表时的 systemPrompt",
+        "description": "验证无技能时 prompt 仍能正常生成",
+        "steps": [
+          "准备空的技能元数据数组 []",
+          "调用 buildSystemPrompt(metadata)"
+        ],
+        "expected": "返回有效的 systemPrompt，{{SKILL_LIST}} 被替换为空字符串或提示信息"
+      }
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-02-skill-search-migration-design.md#implementation-notes",
+    "description": "动态配置函数 createSkillConfig()",
+    "bdd": [
+      {
+        "title": "返回完整的 SubAgentConfig 对象",
+        "description": "验证配置对象包含所有必需字段",
+        "steps": [
+          "调用 createSkillConfig()"
+        ],
+        "expected": "返回对象包含 type='skill', permissions 和 systemPrompt 字段"
+      },
+      {
+        "title": "permissions 正确排除自身命令",
+        "description": "验证防止递归调用的权限配置",
+        "steps": [
+          "调用 createSkillConfig()",
+          "检查返回的 permissions 配置"
+        ],
+        "expected": "permissions.include='all', permissions.exclude 包含 'task:skill:search' 和 'task:skill:enhance'"
+      },
+      {
+        "title": "systemPrompt 包含当前技能列表",
+        "description": "验证 systemPrompt 是动态生成的",
+        "steps": [
+          "系统中存在技能 skill-test",
+          "调用 createSkillConfig()"
+        ],
+        "expected": "返回的 systemPrompt 包含 skill-test 的信息"
+      }
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-02-skill-search-migration-design.md#implementation-notes",
+    "description": "配置获取调整 getConfig()",
+    "bdd": [
+      {
+        "title": "skill 类型调用动态配置函数",
+        "description": "验证 getConfig('skill') 调用 createSkillConfig()",
+        "steps": [
+          "调用 getConfig('skill')"
+        ],
+        "expected": "内部调用 createSkillConfig() 并返回其结果"
+      },
+      {
+        "title": "其他类型仍使用静态配置",
+        "description": "验证非 skill 类型的配置获取不受影响",
+        "steps": [
+          "调用 getConfig('explore')"
+        ],
+        "expected": "返回 configs['explore'] 静态配置对象"
+      }
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-02-skill-search-migration-design.md#output-format",
+    "description": "输出格式解析与重试机制",
+    "bdd": [
+      {
+        "title": "正确解析匹配结果 JSON",
+        "description": "验证有效 JSON 输出的解析",
+        "steps": [
+          "子代理返回 '{\"matched_skills\": [{\"name\": \"test\", \"description\": \"desc\"}]}'",
+          "解析输出结果"
+        ],
+        "expected": "成功解析为 {matched_skills: [{name: 'test', description: 'desc'}]}"
+      },
+      {
+        "title": "正确解析空匹配结果",
+        "description": "验证无匹配时的 JSON 解析",
+        "steps": [
+          "子代理返回 '{\"matched_skills\": []}'",
+          "解析输出结果"
+        ],
+        "expected": "成功解析为 {matched_skills: []}"
+      },
+      {
+        "title": "非 JSON 输出触发重试",
+        "description": "验证格式错误时的重试机制",
+        "steps": [
+          "子代理首次返回 'Here are the matching skills: ...'（非 JSON）",
+          "检测到格式错误"
+        ],
+        "expected": "向子代理发送重试请求，补充要求明确返回 JSON 格式"
+      },
+      {
+        "title": "JSON 格式错误触发重试",
+        "description": "验证无效 JSON 时的重试机制",
+        "steps": [
+          "子代理返回 '{matched_skills: [}'（无效 JSON）",
+          "JSON.parse() 失败"
+        ],
+        "expected": "向子代理发送重试请求，补充要求返回有效 JSON 格式"
+      }
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-02-skill-search-migration-design.md#sub-agent-reuse",
+    "description": "子代理实例复用",
+    "bdd": [
+      {
+        "title": "会话内复用子代理实例",
+        "description": "验证同一会话多次搜索复用实例",
+        "steps": [
+          "在同一会话中第一次执行 task:skill:search",
+          "在同一会话中第二次执行 task:skill:search"
+        ],
+        "expected": "两次调用使用相同的子代理实例，不重新创建"
+      },
+      {
+        "title": "首次创建时的元数据快照",
+        "description": "验证元数据在首次创建时固定",
+        "steps": [
+          "系统中有技能 [skill-a, skill-b]",
+          "首次创建 skill 子代理",
+          "向系统添加新技能 skill-c",
+          "再次使用该子代理进行搜索"
+        ],
+        "expected": "子代理的 systemPrompt 仍仅包含 skill-a 和 skill-b，不包含 skill-c"
+      }
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-02-skill-search-migration-design.md#file-changes",
+    "description": "旧代码清理",
+    "bdd": [
+      {
+        "title": "删除 SkillSearchHandler 文件",
+        "description": "验证旧处理器文件被移除",
+        "steps": [
+          "检查 src/tools/handlers/agent-bash/skill-search.ts"
+        ],
+        "expected": "文件不存在"
+      },
+      {
+        "title": "删除 SkillSearchHandler 帮助文档",
+        "description": "验证旧帮助文档被移除",
+        "steps": [
+          "检查 src/tools/handlers/agent-bash/skill-search.md"
+        ],
+        "expected": "文件不存在"
+      },
+      {
+        "title": "从 index.ts 移除导出",
+        "description": "验证导出已清理",
+        "steps": [
+          "检查 src/tools/handlers/agent-bash/index.ts"
+        ],
+        "expected": "不包含 SkillSearchHandler 的导出语句"
+      },
+      {
+        "title": "bash-router.ts 无需修改",
+        "description": "验证路由已正确配置",
+        "steps": [
+          "检查 src/tools/bash-router.ts 中 task:skill:search 的路由"
+        ],
+        "expected": "task:skill:search 已路由到 TaskCommandHandler，无需修改"
+      }
+    ],
+    "passes": true
+  }
+]
