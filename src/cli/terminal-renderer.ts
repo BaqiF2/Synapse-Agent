@@ -277,7 +277,8 @@ export class TerminalRenderer {
 
   private renderLineInPlace(line: string, rows: number): void {
     if (rows <= 1) {
-      process.stdout.write(`\r${line}`);
+      // 使用 \x1b[K 清除从光标到行尾的旧内容，避免新内容较短时残留旧字符
+      process.stdout.write(`\r${line}\x1b[K`);
       return;
     }
 

@@ -33,8 +33,12 @@ describe('SettingsManager', () => {
   });
 
   describe('get', () => {
-    it('should throw when no file exists', () => {
-      expect(() => manager.get()).toThrow();
+    it('should create defaults when no file exists', () => {
+      const settings = manager.get();
+      const filePath = path.join(testDir, 'settings.json');
+
+      expect(fs.existsSync(filePath)).toBe(true);
+      expect(settings).toEqual(DEFAULT_SETTINGS);
     });
 
     it('should load settings from file', () => {

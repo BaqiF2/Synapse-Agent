@@ -17,6 +17,7 @@ import { createLogger } from '../utils/logger.ts';
 import {
   SynapseSettingsSchema,
   type SynapseSettings,
+  DEFAULT_SETTINGS,
 } from './settings-schema.ts';
 
 const logger = createLogger('settings');
@@ -56,11 +57,15 @@ export class SettingsManager {
   }
 
   /**
-   * Get all settings
+   * Get all settings (creates defaults on first run)
    */
   get(): SynapseSettings {
     if (!fs.existsSync(this.settingsPath)) {
-      throw new Error(`Settings file not found: ${this.settingsPath}`);
+      const defaults = JSON.parse(
+        JSON.stringify(DEFAULT_SETTINGS)
+      ) as SynapseSettings;
+      this.save(defaults);
+      return defaults;
     }
 
     const content = fs.readFileSync(this.settingsPath, 'utf-8');
