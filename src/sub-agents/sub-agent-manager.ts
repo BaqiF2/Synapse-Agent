@@ -11,6 +11,7 @@
 import { createLogger } from '../utils/logger.ts';
 import { AgentRunner } from '../agent/agent-runner.ts';
 import { CallableToolset } from '../tools/toolset.ts';
+import { RestrictedBashTool } from '../tools/restricted-bash-tool.ts';
 import type { AnthropicClient } from '../providers/anthropic/anthropic-client.ts';
 import type { BashTool } from '../tools/bash-tool.ts';
 import type { SubAgentType, TaskCommandParams, ToolPermissions } from './sub-agent-types.ts';
@@ -102,7 +103,7 @@ export class SubAgentManager {
     logger.info('Creating new sub agent', { type });
 
     const config = getConfig(type);
-    const toolset = this.createToolset(config.permissions);
+    const toolset = this.createToolset(config.permissions, type);
 
     const runner = new AgentRunner({
       client: this.client,
@@ -125,13 +126,26 @@ export class SubAgentManager {
   /**
    * 根据权限配置创建 Toolset
    *
-   * 注意：当前实现简化为直接使用 BashTool
-   * 后续可扩展为根据 permissions 过滤命令
+   * 当 permissions.exclude 非空时，创建 RestrictedBashTool 进行命令过滤
+   * 否则直接使用原始 BashTool
+   *
+   * @param permissions - 权限配置
+   * @param agentType - Agent 类型（用于错误信息）
    */
-  private createToolset(_permissions: ToolPermissions): CallableToolset {
-    // TODO: 根据 permissions.exclude 创建受限的 BashTool
-    // 当前简化实现：直接使用原始 BashTool
-    return new CallableToolset([this.bashTool]);
+  private createToolset(permissions: ToolPermissions, agentType: SubAgentType): CallableToolset {
+    // 如果没有排除项，直接使用原始 BashTool
+    if (permissions.exclude.length === 0) {
+      return new CallableToolset([this.bashTool]);
+    }
+
+    // 创建受限的 BashTool
+    const restrictedBashTool = new RestrictedBashTool(
+      this.bashTool,
+      permissions,
+      agentType
+    );
+
+    return new CallableToolset([restrictedBashTool]);
   }
 
   /**
