@@ -58,9 +58,9 @@ export class AnthropicClient {
   private readonly client: Anthropic;
   private readonly config: ClientConfig;
 
-  constructor(options?: { stream?: boolean }) {
-    const settings = new SettingsManager();
-    const { apiKey, baseURL, model } = settings.getLlmConfig();
+  constructor(options?: { stream?: boolean; settings?: { apiKey: string; baseURL: string; model: string } }) {
+    const { apiKey, baseURL, model } =
+      options?.settings ?? new SettingsManager().getLlmConfig();
 
     this.client = new Anthropic({ apiKey, baseURL });
     this.config = {
