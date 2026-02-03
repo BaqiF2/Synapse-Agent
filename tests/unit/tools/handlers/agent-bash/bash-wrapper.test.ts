@@ -14,4 +14,15 @@ describe('BashWrapperHandler', () => {
     expect(result.stdout).toContain('bash <command>');
     expect(session.execute).not.toHaveBeenCalled();
   });
+
+  it('should execute wrapped command', async () => {
+    const session = { execute: mock(async (cmd: string) => ({ stdout: cmd, stderr: '', exitCode: 0 })) } as unknown as BashSession;
+    const handler = new BashWrapperHandler(session);
+
+    const result = await handler.execute('bash echo hi');
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toBe('echo hi');
+    expect(session.execute).toHaveBeenCalledWith('echo hi');
+  });
 });
