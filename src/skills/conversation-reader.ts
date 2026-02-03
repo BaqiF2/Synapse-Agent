@@ -9,6 +9,7 @@
  * - ConversationReader: Class for reading conversation history
  * - ConversationTurn: Parsed conversation turn type
  * - ConversationSummary: Summary statistics type
+ * - compact(): Method to compact conversation turns for skill enhancement
  */
 
 import * as fs from 'node:fs';
@@ -20,6 +21,16 @@ const logger = createLogger('conversation-reader');
  * Estimated characters per token (rough approximation)
  */
 const CHARS_PER_TOKEN = parseInt(process.env.SYNAPSE_CHARS_PER_TOKEN || '4', 10);
+
+/**
+ * Tool result summary character limit
+ * 用于 compact() 时截断工具结果内容
+ */
+const DEFAULT_TOOL_RESULT_SUMMARY_LIMIT = 200;
+const TOOL_RESULT_SUMMARY_LIMIT = parseInt(
+  process.env.SYNAPSE_TOOL_RESULT_SUMMARY_LIMIT || String(DEFAULT_TOOL_RESULT_SUMMARY_LIMIT),
+  10
+);
 
 /**
  * Tool call information
@@ -234,6 +245,86 @@ export class ConversationReader {
       uniqueTools: Array.from(toolSet),
       estimatedTokens,
     };
+  }
+
+  /**
+   * Compact conversation turns into a concise text format
+   *
+   * 将会话轮次压缩为简洁的文本格式，用于技能增强分析。
+   *
+   * 格式规则：
+   * - User message: `[User] {full content}`
+   * - Assistant text: `[Assistant] {full content}`
+   * - Tool call: `[Tool] {tool name}`
+   * - Tool result: `[Result] {first N chars}...`
+   *
+   * @param turns - Array of conversation turns
+   * @param maxChars - Optional maximum total characters (0 = unlimited)
+   * @returns Compacted conversation string
+   */
+  compact(turns: ConversationTurn[], maxChars: number = 0): string {
+    if (turns.length === 0) {
+      return '';
+    }
+
+    const parts: string[] = [];
+
+    for (const turn of turns) {
+      // 处理 user 消息
+      if (turn.role === 'user') {
+        // 检查是否有 tool_result
+        if (turn.toolResults && turn.toolResults.length > 0) {
+          for (const result of turn.toolResults) {
+            const truncatedContent = this.truncateToolResult(result.content);
+            parts.push(`[Result] ${truncatedContent}`);
+          }
+        } else {
+          parts.push(`[User] ${turn.content}`);
+        }
+      }
+
+      // 处理 assistant 消息
+      if (turn.role === 'assistant') {
+        // 先处理文本内容
+        if (turn.content) {
+          parts.push(`[Assistant] ${turn.content}`);
+        }
+
+        // 处理 tool calls
+        if (turn.toolCalls && turn.toolCalls.length > 0) {
+          for (const call of turn.toolCalls) {
+            parts.push(`[Tool] ${call.name}`);
+          }
+        }
+      }
+    }
+
+    let result = parts.join('\n\n');
+
+    // 如果设置了 maxChars 且超过限制，从尾部截断
+    if (maxChars > 0 && result.length > maxChars) {
+      result = result.slice(result.length - maxChars);
+      // 确保不截断单词，找到下一个换行符
+      const firstNewline = result.indexOf('\n');
+      if (firstNewline !== -1 && firstNewline < result.length - 1) {
+        result = result.slice(firstNewline + 1);
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * Truncate tool result content to configured limit
+   *
+   * @param content - Tool result content
+   * @returns Truncated content with ellipsis if needed
+   */
+  private truncateToolResult(content: string): string {
+    if (content.length <= TOOL_RESULT_SUMMARY_LIMIT) {
+      return content;
+    }
+    return content.slice(0, TOOL_RESULT_SUMMARY_LIMIT) + '...';
   }
 }
 

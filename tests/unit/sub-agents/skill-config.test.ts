@@ -50,8 +50,8 @@ describe('Skill Sub Agent Config', () => {
 
       expect(prompt).toContain('1. skill-a: Description A');
       expect(prompt).toContain('2. skill-b: Description B');
-      expect(prompt).toContain('skill-search');
-      expect(prompt).toContain('AVAILABLE SKILLS');
+      expect(prompt).toContain('Skill Sub Agent');
+      expect(prompt).toContain('Available Skills');
     });
 
     test('should handle skills without description', () => {
@@ -68,8 +68,8 @@ describe('Skill Sub Agent Config', () => {
       const prompt = buildSystemPrompt(metadata);
 
       // 应该返回有效的 prompt，SKILL_LIST 被替换为空字符串
-      expect(prompt).toContain('skill-search');
-      expect(prompt).toContain('AVAILABLE SKILLS');
+      expect(prompt).toContain('Skill Sub Agent');
+      expect(prompt).toContain('Available Skills');
       // 没有编号列表项
       expect(prompt).not.toMatch(/\d+\.\s+\w+:/);
     });
@@ -117,10 +117,10 @@ describe('Skill Sub Agent Config', () => {
       const config = createSkillConfig();
 
       // 验证 systemPrompt 包含模板的关键部分
-      expect(config.systemPrompt).toContain('skill-search');
-      expect(config.systemPrompt).toContain('ROLE');
-      expect(config.systemPrompt).toContain('AVAILABLE SKILLS');
-      expect(config.systemPrompt).toContain('OUTPUT FORMAT');
+      expect(config.systemPrompt).toContain('Skill Sub Agent');
+      expect(config.systemPrompt).toContain('Core Capabilities');
+      expect(config.systemPrompt).toContain('Available Skills');
+      expect(config.systemPrompt).toContain('Output Format');
       expect(config.systemPrompt).toContain('matched_skills');
     });
   });
