@@ -42,4 +42,19 @@ describe('SimpleToolset', () => {
     expect(result.returnValue.output).toBe('success');
     expect(handler).toHaveBeenCalledWith({"command": "ls"});
   });
+
+  it('should return error for unknown tool', async () => {
+    const handler = mock(() =>
+      Promise.resolve(ToolOk({ output: 'success' }))
+    );
+    const toolset = new CallableToolset([createMockCallableTool(handler)]);
+
+    const toolCall: ToolCall = { id: 'call2', name: 'Unknown', arguments: '{}' };
+    const result = await toolset.handle(toolCall);
+
+    expect(result.toolCallId).toBe('call2');
+    expect(result.returnValue.isError).toBe(true);
+    expect(result.returnValue.message).toContain('Unknown tool');
+    expect(result.returnValue.message).toContain('CORRECTION');
+  });
 });
