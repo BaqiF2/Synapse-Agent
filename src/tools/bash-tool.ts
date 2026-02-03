@@ -13,7 +13,7 @@
 import path from 'node:path';
 import { z } from 'zod';
 import { CallableTool, ToolOk, ToolError, type ToolReturnValue } from './callable-tool.ts';
-import { BashRouter, type BashRouterOptions } from './bash-router.ts';
+import { BashRouter } from './bash-router.ts';
 import { BashSession } from './bash-session.ts';
 import { loadDesc } from '../utils/load-desc.js';
 import type { AnthropicClient } from '../providers/anthropic/anthropic-client.ts';

@@ -257,7 +257,7 @@ export class GrepHandler {
     let regex: RegExp;
     try {
       regex = new RegExp(pattern, ignoreCase ? 'gi' : 'g');
-    } catch (e) {
+    } catch (_error) {
       throw new Error(`Invalid regex pattern: ${pattern}`);
     }
 

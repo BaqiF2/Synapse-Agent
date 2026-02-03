@@ -10,17 +10,11 @@
  * - SkillIndexUpdater: Class for incremental index updates
  */
 
-import * as path from 'node:path';
 import * as os from 'node:os';
 import { createLogger } from '../utils/logger.ts';
 import { SkillIndexer, type SkillIndex } from './indexer.ts';
 
 const logger = createLogger('index-updater');
-
-/**
- * Default Synapse directory
- */
-const DEFAULT_SYNAPSE_DIR = path.join(os.homedir(), '.synapse');
 
 /**
  * SkillIndexUpdater - Incremental skill index updates

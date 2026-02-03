@@ -266,7 +266,7 @@ export class DocstringParser {
 
         case 'params': {
           // Match: $1 (type): description or --option=value (type): description
-          const paramMatch = trimmed.match(/^[\$]*(\d+|[\w-]+)(?:=\w+)?\s*\(([^)]+)\):\s*(.*)$/);
+          const paramMatch = trimmed.match(/^[$]*(\d+|[\w-]+)(?:=\w+)?\s*\(([^)]+)\):\s*(.*)$/);
           if (paramMatch) {
             if (currentParam) {
               result.params.push(currentParam);

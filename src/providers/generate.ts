@@ -24,9 +24,6 @@ import {
   appendToMessage,
   isToolCallPart,
 } from './message.ts';
-import { createLogger } from '../utils/logger.ts';
-
-const logger = createLogger('generate');
 
 /**
  * Callback for raw streamed message parts

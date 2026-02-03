@@ -66,7 +66,7 @@ function extractHookOutput(response: string): string | null {
   let match: RegExpExecArray | null = null;
 
   while ((match = pattern.exec(response)) !== null) {
-    lastStart = match.index + match[1].length;
+    lastStart = match.index + (match[1] ?? '').length;
   }
 
   if (lastStart === -1) {
@@ -86,9 +86,10 @@ function stripWrappingQuotes(value: string): string {
 }
 
 function clearPromptLine(rl: readline.Interface): void {
-  if (!rl.output || !rl.output.isTTY) return;
-  readline.clearLine(rl.output, 0);
-  readline.cursorTo(rl.output, 0);
+  const output = (rl as { output?: NodeJS.WriteStream }).output;
+  if (!output || !output.isTTY) return;
+  readline.clearLine(output, 0);
+  readline.cursorTo(output, 0);
 }
 
 /**
@@ -373,7 +374,7 @@ export function handleSpecialCommand(
  * @param args - Command arguments (after '/skill')
  * @param agentRunner - Optional agent runner for enhance operations
  */
-function handleSkillEnhanceCommand(args: string[], agentRunner?: AgentRunner | null): void {
+function handleSkillEnhanceCommand(args: string[], _agentRunner?: AgentRunner | null): void {
   const subcommand = args[0]?.toLowerCase();
 
   if (subcommand !== 'enhance') {

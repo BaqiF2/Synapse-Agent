@@ -20,7 +20,7 @@ import * as path from 'node:path';
 import * as os from 'node:os';
 import { SkillStructure, SUPPORTED_EXTENSIONS } from './skill-structure.js';
 import type { SupportedExtension } from './skill-structure.js';
-import { SkillWrapperGenerator, type SkillInstallResult } from './wrapper-generator.js';
+import { SkillWrapperGenerator } from './wrapper-generator.js';
 import { createLogger } from '../../../utils/logger.ts';
 
 /**

@@ -14,7 +14,7 @@
 
 import * as os from 'node:os';
 import { SkillWatcher, type WatcherConfig, type WatchEvent } from './watcher.js';
-import { SkillWrapperGenerator, type SkillInstallResult } from './wrapper-generator.js';
+import { SkillWrapperGenerator } from './wrapper-generator.js';
 
 /**
  * Update event types

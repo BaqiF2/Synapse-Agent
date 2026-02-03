@@ -45,6 +45,4 @@ export interface HookResult {
  *
  * 支持同步和异步函数，返回值可选
  */
-export type StopHook = (
-  context: StopHookContext
-) => HookResult | Promise<HookResult> | void | Promise<void>;
+export type StopHook = (context: StopHookContext) => HookResult | void | Promise<HookResult | void>;
