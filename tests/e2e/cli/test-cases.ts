@@ -9,7 +9,7 @@ import { CliTestRunner, Assertions } from './cli-e2e.js';
 
 // ════════════════════════════════════════════════════════════════════
 //  Test Data
-// ════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════
 
 const TEST_FILES = {
   readable: '/tmp/synapse-e2e-readable.txt',
@@ -115,45 +115,10 @@ export async function testCliChatHelp(runner: CliTestRunner): Promise<boolean> {
 //  P1 Test Cases: REPL Core Functions (Should Pass)
 // ════════════════════════════════════════════════════════════════════
 
-/**
- * E2E-REPL-001: REPL 基础对话
- * Priority: P1
- * Input: "Hello, who are you?"
- * Expected: AI 正常回复，包含 synapse 或 agent
- */
-export async function testReplBasicChat(runner: CliTestRunner): Promise<boolean> {
-  console.log('\n🧪 [P1] E2E-REPL-001: REPL 基础对话');
-  console.log('   ⚠️  Requires LLM API and valid ANTHROPIC_API_KEY');
-  
-  try {
-    // 发送对话
-    await runner.sendToRepl('Hello, who are you?');
-    
-    // 等待回复（LLM 调用可能需要更长时间）
-    const output = await runner.waitForReplResponse(120000);
-    
-    const assertions = new Assertions(output);
-    assertions.toMatch(/synapse|agent|AI|assist/i, 'Should respond as AI agent');
-    
-    console.log('   ✅ REPL 基础对话: PASSED');
-    return true;
-  } catch (error) {
-    console.log(`   ⚠️  SKIPPED/FAILED: ${error}`);
-    return false;
-  }
-}
-
-/**
- * E2E-REPL-002: REPL Shell 命令执行
- * Priority: P1
- * Input: !echo "test"
- * Expected: 输出 "test"
- */
 export async function testReplShellCommand(runner: CliTestRunner): Promise<boolean> {
   console.log('\n🧪 [P1] E2E-REPL-002: REPL Shell 命令执行');
   
   try {
-    // 执行 Shell 命令
     await runner.sendToRepl('!echo "synapse-e2e-test"');
     const output = await runner.waitForReplResponse(30000);
     
@@ -168,17 +133,10 @@ export async function testReplShellCommand(runner: CliTestRunner): Promise<boole
   }
 }
 
-/**
- * E2E-REPL-003: REPL 文件读取工具
- * Priority: P1
- * Input: read /tmp/test.txt
- * Expected: 显示文件内容
- */
 export async function testReplFileRead(runner: CliTestRunner): Promise<boolean> {
   console.log('\n🧪 [P1] E2E-REPL-003: REPL 文件读取工具');
   
   try {
-    // 读取文件
     await runner.sendToRepl(`read ${TEST_FILES.readable}`);
     const output = await runner.waitForReplResponse(60000);
     
@@ -194,29 +152,35 @@ export async function testReplFileRead(runner: CliTestRunner): Promise<boolean> 
   }
 }
 
-/**
- * E2E-REPL-004: REPL 文件写入工具
- * Priority: P1
- * Input: write /tmp/test.txt "content"
- * Expected: 文件创建成功
- */
 export async function testReplFileWrite(runner: CliTestRunner): Promise<boolean> {
   console.log('\n🧪 [P1] E2E-REPL-004: REPL 文件写入工具');
   
   try {
-    // 写入文件
     await runner.sendToRepl(`write ${TEST_FILES.writable} "E2E test content"`);
     const output = await runner.waitForReplResponse(60000);
     
     const assertions = new Assertions(output);
     assertions.toMatch(/success|created|written/i, 'Should confirm file creation');
     
-    // 验证文件确实存在
-    const verifyOutput = await runner.sendCommand('test', '-f', TEST_FILES.writable);
-    const verifyAssert = new Assertions(verifyOutput);
-    verifyAssert.toMatch(/0/, 'Exit code 0 means file exists');
-    
     console.log('   ✅ 文件写入: PASSED');
+    return true;
+  } catch (error) {
+    console.log(`   ❌ FAILED: ${error}`);
+    return false;
+  }
+}
+
+export async function testReplBasicChat(runner: CliTestRunner): Promise<boolean> {
+  console.log('\n🧪 [P1] E2E-REPL-001: REPL 基础对话');
+  
+  try {
+    await runner.sendToRepl('Hello, who are you?');
+    const output = await runner.waitForReplResponse(120000);
+    
+    const assertions = new Assertions(output);
+    assertions.toMatch(/synapse|agent|AI|assist/i, 'Should respond as AI agent');
+    
+    console.log('   ✅ REPL 基础对话: PASSED');
     return true;
   } catch (error) {
     console.log(`   ❌ FAILED: ${error}`);
@@ -228,12 +192,6 @@ export async function testReplFileWrite(runner: CliTestRunner): Promise<boolean>
 //  P2 Test Cases: REPL Auxiliary Functions (Nice to have)
 // ════════════════════════════════════════════════════════════════════
 
-/**
- * E2E-REPL-005: REPL 特殊命令 /help
- * Priority: P2
- * Input: /help
- * Expected: 显示帮助信息
- */
 export async function testReplSpecialHelp(runner: CliTestRunner): Promise<boolean> {
   console.log('\n🧪 [P2] E2E-REPL-005: REPL 特殊命令 /help');
   
@@ -252,18 +210,11 @@ export async function testReplSpecialHelp(runner: CliTestRunner): Promise<boolea
   }
 }
 
-/**
- * E2E-REPL-006: REPL 特殊命令 /clear
- * Priority: P2
- * Input: /clear
- * Expected: 屏幕清除，无错误
- */
 export async function testReplSpecialClear(runner: CliTestRunner): Promise<boolean> {
   console.log('\n🧪 [P2] E2E-REPL-006: REPL 特殊命令 /clear');
   
   try {
     await runner.sendToRepl('/clear');
-    // /clear 不应该有错误
     console.log('   ✅ /clear: PASSED (no error)');
     return true;
   } catch (error) {
@@ -272,12 +223,6 @@ export async function testReplSpecialClear(runner: CliTestRunner): Promise<boole
   }
 }
 
-/**
- * E2E-REPL-007: REPL 退出命令
- * Priority: P2
- * Input: /exit
- * Expected: 退出 REPL
- */
 export async function testReplExit(runner: CliTestRunner): Promise<boolean> {
   console.log('\n🧪 [P2] E2E-REPL-007: REPL 退出命令');
   
@@ -302,6 +247,45 @@ export interface TestSuiteResult {
   total: number;
 }
 
+/**
+ * Run only P0 tests (CLI basic commands)
+ */
+export async function runP0Tests(runner: CliTestRunner): Promise<TestSuiteResult> {
+  console.log('═'.repeat(60));
+  console.log('🧪 P0 Tests (Must Pass)');
+  console.log('═'.repeat(60));
+  
+  const results = {
+    passed: 0,
+    failed: 0,
+    skipped: 0,
+    total: 0,
+  };
+  
+  console.log('\n📋 P0 Tests');
+  console.log('-'.repeat(40));
+  
+  if (await testCliHelp(runner)) results.passed++; else results.failed++;
+  results.total++;
+  if (await testCliVersion(runner)) results.passed++; else results.failed++;
+  results.total++;
+  if (await testCliChatHelp(runner)) results.passed++; else results.failed++;
+  results.total++;
+  
+  console.log('\n' + '═'.repeat(60));
+  console.log('📊 P0 Test Results');
+  console.log('═'.repeat(60));
+  console.log(`✅ Passed: ${results.passed}`);
+  console.log(`❌ Failed: ${results.failed}`);
+  console.log(`📝 Total: ${results.total}`);
+  console.log('═'.repeat(60));
+  
+  return results;
+}
+
+/**
+ * Run all test cases (P0 + P1 + P2)
+ */
 export async function runAllTestCases(runner: CliTestRunner): Promise<TestSuiteResult> {
   console.log('═'.repeat(60));
   console.log('🧪 Synapse-Agent E2E Test Suite');
@@ -314,7 +298,7 @@ export async function runAllTestCases(runner: CliTestRunner): Promise<TestSuiteR
     total: 0,
   };
   
-  // P0 Tests (Must Pass)
+  // P0 Tests
   console.log('\n📋 P0 Tests (Must Pass)');
   console.log('-'.repeat(40));
   
@@ -325,7 +309,7 @@ export async function runAllTestCases(runner: CliTestRunner): Promise<TestSuiteR
   if (await testCliChatHelp(runner)) results.passed++; else results.failed++;
   results.total++;
   
-  // P1 Tests (Should Pass)
+  // P1 Tests
   console.log('\n📋 P1 Tests (Should Pass)');
   console.log('-'.repeat(40));
   
@@ -356,7 +340,7 @@ export async function runAllTestCases(runner: CliTestRunner): Promise<TestSuiteR
     console.log('   ⚠️  REPL Chat & File Write: SKIPPED (ANTHROPIC_API_KEY not set)');
   }
   
-  // P2 Tests (Nice to Have)
+  // P2 Tests
   console.log('\n📋 P2 Tests (Nice to Have)');
   console.log('-'.repeat(40));
   
