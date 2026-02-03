@@ -10,7 +10,7 @@ import * as path from 'node:path';
 import * as os from 'node:os';
 import { spawn } from 'node:child_process';
 import { DEFAULT_SETTINGS } from '../../../src/config/settings-schema.ts';
-import { startMockAnthropicServer, type MockServerHandle } from '../../helpers/anthropic-mock.ts';
+import { startMockAnthropicServer, type MockServerHandle } from '../helpers/anthropic-mock.ts';
 
 describe('E2E: REPL PTY', () => {
   let tempDir: string;
@@ -99,15 +99,15 @@ describe('E2E: REPL PTY', () => {
 
   // ═══════════════════════════════════════════════════════════════
   //  Test Cases
-  // ═══════════════════════════════════════════════════════
+  // ═══════════════════════════════════════════════════════════════
 
   it(
     'should start REPL and show prompt',
     async () => {
       const passed = await runPtyTest('prompt-test', async (env) => {
-        const scriptPath = path.join(process.cwd(), 'tests', 'e2e', 'helpers', 'direct-runner.mjs');
+        const runnerPath = path.join(process.cwd(), 'tests', 'e2e', 'cli', 'direct-runner.mjs');
 
-        const { stdout } = await runScript(scriptPath, {
+        const { stdout } = await runScript(runnerPath, {
           ...env,
           REPL_INPUT: 'hello\r\n/exit\r\n',
           REPL_EXPECT: 'You>',
@@ -126,9 +126,9 @@ describe('E2E: REPL PTY', () => {
     'should execute shell command !echo',
     async () => {
       const passed = await runPtyTest('shell-test', async (env) => {
-        const scriptPath = path.join(process.cwd(), 'tests', 'e2e', 'helpers', 'direct-runner.mjs');
+        const runnerPath = path.join(process.cwd(), 'tests', 'e2e', 'cli', 'direct-runner.mjs');
 
-        const { stdout } = await runScript(scriptPath, {
+        const { stdout } = await runScript(runnerPath, {
           ...env,
           REPL_INPUT: '!echo "hello-pty"\r\n/exit\r\n',
           REPL_EXPECT: 'hello-pty',
@@ -149,9 +149,9 @@ describe('E2E: REPL PTY', () => {
       fs.writeFileSync(testFile, 'Line 1\nLine 2\nLine 3\n', 'utf-8');
 
       const passed = await runPtyTest('read-test', async (env) => {
-        const scriptPath = path.join(process.cwd(), 'tests', 'e2e', 'helpers', 'direct-runner.mjs');
+        const runnerPath = path.join(process.cwd(), 'tests', 'e2e', 'cli', 'direct-runner.mjs');
 
-        const { stdout } = await runScript(scriptPath, {
+        const { stdout } = await runScript(runnerPath, {
           ...env,
           REPL_INPUT: `read ${testFile}\r\n/exit\r\n`,
           REPL_EXPECT: 'Line 1',
@@ -172,9 +172,9 @@ describe('E2E: REPL PTY', () => {
       const testFile = path.join(tempDir, 'write-test.txt');
 
       const passed = await runPtyTest('write-test', async (env) => {
-        const scriptPath = path.join(process.cwd(), 'tests', 'e2e', 'helpers', 'direct-runner.mjs');
+        const runnerPath = path.join(process.cwd(), 'tests', 'e2e', 'cli', 'direct-runner.mjs');
 
-        const { stdout } = await runScript(scriptPath, {
+        const { stdout } = await runScript(runnerPath, {
           ...env,
           REPL_INPUT: `write ${testFile} "P1 content"\r\n/exit\r\n`,
           REPL_EXPECT: 'success',
@@ -193,9 +193,9 @@ describe('E2E: REPL PTY', () => {
     'should handle special command /help',
     async () => {
       const passed = await runPtyTest('help-test', async (env) => {
-        const scriptPath = path.join(process.cwd(), 'tests', 'e2e', 'helpers', 'direct-runner.mjs');
+        const runnerPath = path.join(process.cwd(), 'tests', 'e2e', 'cli', 'direct-runner.mjs');
 
-        const { stdout } = await runScript(scriptPath, {
+        const { stdout } = await runScript(runnerPath, {
           ...env,
           REPL_INPUT: '/help\r\n/exit\r\n',
           REPL_EXPECT: '/exit',
@@ -214,9 +214,9 @@ describe('E2E: REPL PTY', () => {
     'should receive agent response',
     async () => {
       const passed = await runPtyTest('agent-test', async (env) => {
-        const scriptPath = path.join(process.cwd(), 'tests', 'e2e', 'helpers', 'direct-runner.mjs');
+        const runnerPath = path.join(process.cwd(), 'tests', 'e2e', 'cli', 'direct-runner.mjs');
 
-        const { stdout } = await runScript(scriptPath, {
+        const { stdout } = await runScript(runnerPath, {
           ...env,
           REPL_INPUT: 'Hello\r\n/exit\r\n',
           REPL_EXPECT: 'Hello from PTY test!',
@@ -236,11 +236,11 @@ describe('E2E: REPL PTY', () => {
 // ═══════════════════════════════════════════════════════════════
 
 function runScript(
-  scriptPath: string,
+  runnerPath: string,
   env: NodeJS.ProcessEnv
 ): Promise<{ exitCode: number; stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
-    const child = spawn('node', [scriptPath], {
+    const child = spawn('node', [runnerPath], {
       cwd: process.cwd(),
       env,
       stdio: ['ignore', 'pipe', 'pipe'],

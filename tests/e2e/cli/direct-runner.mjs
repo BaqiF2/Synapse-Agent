@@ -73,11 +73,7 @@ async function run() {
   }
 }
 
-function waitFor(
-  buffer: { value: string },
-  pattern: string,
-  timeoutMs: number
-): Promise<string> {
+function waitFor(buffer, pattern, timeoutMs) {
   return new Promise((resolve, reject) => {
     const start = Date.now();
     const interval = setInterval(() => {
@@ -95,7 +91,7 @@ function waitFor(
   });
 }
 
-function waitForExit(term: pty.IPty, timeoutMs: number): Promise<number> {
+function waitForExit(term, timeoutMs) {
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
       reject(new Error('Timeout waiting for exit'));
