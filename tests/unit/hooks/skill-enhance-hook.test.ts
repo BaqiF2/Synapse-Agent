@@ -5,7 +5,7 @@
  * Meta-skill 加载、Sub-agent 执行和超时处理功能。
  */
 
-import { describe, expect, it, beforeEach, afterEach, mock, spyOn } from 'bun:test';
+import { describe, expect, it, beforeEach, afterEach, afterAll, mock, spyOn } from 'bun:test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
@@ -17,6 +17,7 @@ mock.module('../../../src/sub-agents/sub-agent-manager.ts', () => ({
     execute() {
       return Promise.resolve('Mocked enhancement result');
     }
+    shutdown() {}
   },
 }));
 
@@ -65,6 +66,10 @@ afterEach(() => {
     fs.rmSync(metaSkillDir, { recursive: true });
   }
   delete process.env.SYNAPSE_META_SKILLS_DIR;
+});
+
+afterAll(() => {
+  mock.restore();
 });
 
 describe('SkillEnhanceHook - 配置检查 (Feature 9)', () => {

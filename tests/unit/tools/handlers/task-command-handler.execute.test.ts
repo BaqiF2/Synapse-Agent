@@ -1,6 +1,4 @@
-import { describe, it, expect } from 'bun:test';
-import { TaskCommandHandler } from '../../../../src/tools/handlers/task-command-handler.ts';
-import { BashTool } from '../../../../src/tools/bash-tool.ts';
+import { describe, it, expect, mock } from 'bun:test';
 import type { AnthropicClient } from '../../../../src/providers/anthropic/anthropic-client.ts';
 import type { StreamedMessagePart } from '../../../../src/providers/anthropic/anthropic-types.ts';
 
@@ -22,6 +20,17 @@ function createMockClient(partsList: StreamedMessagePart[][]): AnthropicClient {
 
 describe('TaskCommandHandler execute', () => {
   it('should return help output without executing sub-agent', async () => {
+    mock.restore();
+    mock.module('../../../../src/sub-agents/sub-agent-manager.ts', () => ({
+      SubAgentManager: class MockSubAgentManager {
+        execute() {
+          return Promise.resolve('Hello from sub-agent');
+        }
+        shutdown() {}
+      },
+    }));
+    const { TaskCommandHandler } = await import('../../../../src/tools/handlers/task-command-handler.ts');
+    const { BashTool } = await import('../../../../src/tools/bash-tool.ts');
     const client = createMockClient([[{ type: 'text', text: 'Hello' }]]);
     const bashTool = new BashTool();
     const handler = new TaskCommandHandler({ client, bashTool });
