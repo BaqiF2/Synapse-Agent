@@ -389,7 +389,7 @@ if __name__ == "__main__":
 #     Brief description of what this script does.
 #
 # Parameters:
-#     \$1 (string): The input parameter
+#     $1 (string): The input parameter
 #     --option=value (string): An optional parameter (default: "default")
 #
 # Returns:
@@ -402,18 +402,18 @@ if __name__ == "__main__":
 set -e
 
 # Parse arguments
-INPUT="\$1"
+INPUT="$1"
 OPTION="default"
 
 shift || true
-while [[ \$# -gt 0 ]]; do
-    case \$1 in
+while [[ $# -gt 0 ]]; do
+    case $1 in
         --option=*)
             OPTION="\${1#*=}"
             shift
             ;;
         -h|--help)
-            grep '^#' "\$0" | sed 's/^# //' | sed 's/^#//'
+            grep '^#' "$0" | sed 's/^# //' | sed 's/^#//'
             exit 0
             ;;
         *)
@@ -423,7 +423,7 @@ while [[ \$# -gt 0 ]]; do
 done
 
 # Your logic here
-echo "Processed: \$INPUT with option: \$OPTION"
+echo "Processed: $INPUT with option: $OPTION"
 `;
   }
 

@@ -16,7 +16,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
 import { z } from 'zod';
-import { SkillDocParser, type SkillDoc, SKILL_DOMAINS, type SkillDomain } from './skill-schema.js';
+import { SkillDocParser, type SkillDoc, SKILL_DOMAINS } from './skill-schema.js';
 
 /**
  * Default skills directory

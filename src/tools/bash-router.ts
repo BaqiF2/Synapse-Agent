@@ -14,8 +14,8 @@ import type { BashSession } from './bash-session.ts';
 import { NativeShellCommandHandler, type CommandResult } from './handlers/base-bash-handler.ts';
 import { ReadHandler, WriteHandler, EditHandler, GlobHandler, GrepHandler, BashWrapperHandler } from './handlers/agent-bash/index.ts';
 import { CommandSearchHandler } from './handlers/extend-bash/index.ts';
-import { McpConfigParser, McpClient, McpWrapperGenerator, McpInstaller } from './converters/mcp/index.ts';
-import { SkillStructure, DocstringParser, SkillWrapperGenerator } from './converters/skill/index.ts';
+import { McpConfigParser, McpClient, McpInstaller } from './converters/mcp/index.ts';
+import { SkillStructure, DocstringParser } from './converters/skill/index.ts';
 import { SkillCommandHandler } from './handlers/skill-command-handler.ts';
 import { TaskCommandHandler } from './handlers/task-command-handler.ts';
 import type { AnthropicClient } from '../providers/anthropic/anthropic-client.ts';
@@ -30,7 +30,6 @@ export enum CommandType {
   EXTEND_SHELL_COMMAND = 'extend_shell_command', // Domain-specific tools (mcp:*, skill:*:*)
 }
 
-const AGENT_SHELL_COMMANDS = ['read', 'write', 'edit', 'glob', 'search', 'bash'] as const;
 const SKILL_MANAGEMENT_COMMAND_PREFIXES = ['skill:load'] as const;
 const COMMAND_SEARCH_PREFIX = 'command:search';
 const TASK_COMMAND_PREFIX = 'task:';

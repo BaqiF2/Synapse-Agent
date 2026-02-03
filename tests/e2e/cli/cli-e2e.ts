@@ -344,6 +344,7 @@ export async function runScenario(
 
   for (let i = 0; i < scenario.steps.length; i++) {
     const step = scenario.steps[i];
+    if (!step) continue;
     const start = Date.now();
 
     console.log(`   Step ${i + 1}: ${step.input}`);

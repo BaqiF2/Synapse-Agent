@@ -15,7 +15,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { SkillStructure, type SkillEntry } from './skill-structure.js';
-import { SkillWrapperGenerator, type GeneratedSkillWrapper } from './wrapper-generator.js';
+import { SkillWrapperGenerator } from './wrapper-generator.js';
 import { MetaSkillInstaller } from '../../../skills/meta-skill-installer.js';
 import { createLogger } from '../../../utils/logger.js';
 
@@ -103,7 +103,7 @@ export interface SkillInitOptions {
  * @param options - Initialization options
  * @returns Initialization result
  */
-export async function initializeSkillTools(options: SkillInitOptions = {}): Promise<SkillsInitResult> {
+export async function initializeSkillTools(_options: SkillInitOptions = {}): Promise<SkillsInitResult> {
   const result: SkillsInitResult = {
     success: true,
     totalSkills: 0,

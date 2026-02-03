@@ -13,9 +13,9 @@
  */
 
 import { McpConfigParser, type McpServerEntry } from './config-parser.js';
-import { McpClient, type McpToolInfo } from './mcp-client.js';
-import { McpWrapperGenerator, type GeneratedWrapper } from './wrapper-generator.js';
-import { McpInstaller, type InstallResult } from './installer.js';
+import { McpClient } from './mcp-client.js';
+import { McpWrapperGenerator } from './wrapper-generator.js';
+import { McpInstaller } from './installer.js';
 import { createLogger } from '../../../utils/logger.js';
 
 const logger = createLogger('mcp-init');
