@@ -22,6 +22,28 @@ function createTestContext(overrides: Partial<StopHookContext> = {}): StopHookCo
   };
 }
 
+let metaSkillDir: string;
+
+beforeEach(() => {
+  metaSkillDir = fs.mkdtempSync(path.join(os.tmpdir(), 'meta-skill-test-'));
+  process.env.SYNAPSE_META_SKILLS_DIR = metaSkillDir;
+
+  const skillCreatorDir = path.join(metaSkillDir, 'skill-creator');
+  fs.mkdirSync(skillCreatorDir, { recursive: true });
+  fs.writeFileSync(path.join(skillCreatorDir, 'SKILL.md'), '# Skill Creator\n');
+
+  const skillEnhanceDir = path.join(metaSkillDir, 'skill-enhance');
+  fs.mkdirSync(skillEnhanceDir, { recursive: true });
+  fs.writeFileSync(path.join(skillEnhanceDir, 'SKILL.md'), '# Skill Enhance\n');
+});
+
+afterEach(() => {
+  if (metaSkillDir && fs.existsSync(metaSkillDir)) {
+    fs.rmSync(metaSkillDir, { recursive: true });
+  }
+  delete process.env.SYNAPSE_META_SKILLS_DIR;
+});
+
 describe('SkillEnhanceHook - 配置检查 (Feature 9)', () => {
   let tempDir: string;
   let sessionPath: string;

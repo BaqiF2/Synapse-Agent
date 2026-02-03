@@ -12,6 +12,7 @@
  *
  * Environment Variables:
  * - SYNAPSE_SESSIONS_DIR: Session files directory (default: ~/.synapse/sessions)
+ * - SYNAPSE_META_SKILLS_DIR: Meta-skill directory (default: ~/.synapse/skill)
  * - SYNAPSE_MAX_ENHANCE_CONTEXT_CHARS: Max context chars (default: 50000)
  * - SYNAPSE_SKILL_SUBAGENT_TIMEOUT: Sub-agent execution timeout in ms (default: 300000)
  */
@@ -26,9 +27,11 @@ import { AnthropicClient } from '../providers/anthropic/anthropic-client.ts';
 import { BashTool } from '../tools/bash-tool.ts';
 import { SubAgentManager } from '../sub-agents/sub-agent-manager.ts';
 import { stopHookRegistry } from './stop-hook-registry.ts';
+import { loadDesc } from '../utils/load-desc.js';
 import type { StopHookContext, HookResult } from './types.ts';
 
 const logger = createLogger('skill-enhance-hook');
+const PROMPT_TEMPLATE_PATH = path.join(import.meta.dirname, 'skill-enhance-hook-prompt.md');
 
 /**
  * Hook registration name
@@ -68,14 +71,12 @@ function getSessionsDir(): string {
 /**
  * Get meta-skill directory path
  *
- * Meta-skills 位于源代码中的 src/resource/meta-skill/ 目录
+ * Meta-skills 位于用户的 ~/.synapse/skill 目录
  *
  * @returns Meta-skill directory path
  */
 function getMetaSkillDir(): string {
-  // 使用 import.meta.dirname 获取当前模块所在目录
-  // 从 src/hooks/ 向上两级到 src/，再进入 resource/meta-skill/
-  return path.join(import.meta.dirname, '..', 'resource', 'meta-skill');
+  return process.env.SYNAPSE_META_SKILLS_DIR || path.join(os.homedir(), '.synapse', 'skill');
 }
 
 /**
@@ -97,7 +98,7 @@ interface MetaSkillContent {
 }
 
 /**
- * Load meta-skill content from resource directory
+ * Load meta-skill content from user directory
  *
  * @param skillName - Meta-skill name (e.g., 'skill-creator', 'skill-enhance')
  * @returns Raw content of SKILL.md or null if not found
@@ -146,39 +147,11 @@ function loadMetaSkills(): MetaSkillContent | null {
  * @returns Full prompt for skill sub-agent
  */
 function buildEnhancePrompt(compactedHistory: string, metaSkills: MetaSkillContent): string {
-  const metaSkillsContent = `
-## Meta-Skill: Skill Creator
-
-${metaSkills.skillCreator || ''}
-
-## Meta-Skill: Skill Enhance
-
-${metaSkills.skillEnhance || ''}
-`;
-
-  return `[Skill Enhancement Directive]
-
-## Conversation History
-${compactedHistory}
-
-## Meta-Skill Content
-${metaSkillsContent}
-
-## Task
-Analyze the conversation history and determine if a new skill should be created or an existing skill enhanced.
-
-Criteria for evaluation:
-- Task complexity: Multi-step operations involved
-- Tool diversity: Multiple tools used in combination
-- Reusability: Pattern likely to recur in future
-- Existing skill coverage: Similar skill already exists
-
-Output format:
-- If creating new skill: [Skill] Created: {skill-name}
-- If enhancing existing skill: [Skill] Enhanced: {skill-name}
-- If no action needed: [Skill] No enhancement needed
-
-Provide a brief explanation of your decision.`;
+  return loadDesc(PROMPT_TEMPLATE_PATH, {
+    COMPACTED_HISTORY: compactedHistory,
+    META_SKILL_CREATOR: metaSkills.skillCreator || '',
+    META_SKILL_ENHANCE: metaSkills.skillEnhance || '',
+  });
 }
 
 /**
