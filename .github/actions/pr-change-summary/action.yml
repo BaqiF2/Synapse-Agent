@@ -1,0 +1,84 @@
+name: "PR Change Summary"
+description: "Generate a change summary and upsert a PR comment"
+inputs:
+  github-token:
+    description: "GitHub token for API access"
+    required: true
+  comment-marker:
+    description: "Marker used to find/update an existing comment"
+    required: false
+    default: "<!-- pr-change-summary -->"
+runs:
+  using: "composite"
+  steps:
+    - name: Generate and upsert summary comment
+      uses: actions/github-script@v7
+      with:
+        github-token: ${{ inputs.github-token }}
+        script: |
+          const marker = `${{ inputs.comment-marker }}`;
+          const { owner, repo } = context.repo;
+          const pr = context.payload.pull_request;
+          if (!pr) {
+            core.setFailed('This action must run on pull_request events.');
+            return;
+          }
+
+          const prNumber = pr.number;
+
+          const files = await github.paginate(
+            github.rest.pulls.listFiles,
+            { owner, repo, pull_number: prNumber, per_page: 100 }
+          );
+
+          const commits = await github.paginate(
+            github.rest.pulls.listCommits,
+            { owner, repo, pull_number: prNumber, per_page: 100 }
+          );
+
+          const fileLines = files.map(f => `- \\`${f.filename}\\` (+${f.additions}/-${f.deletions})`);
+          const commitLines = commits.map(c => {
+            const sha = c.sha.slice(0, 7);
+            const message = c.commit?.message?.split('\n')[0] ?? '(no message)';
+            return `- \\`${sha}\\` ${message}`;
+          });
+
+          const additions = files.reduce((sum, f) => sum + f.additions, 0);
+          const deletions = files.reduce((sum, f) => sum + f.deletions, 0);
+
+          const body = [
+            marker,
+            `## 变更摘要`,
+            ``,
+            `**文件数**: ${files.length}  ·  **新增**: ${additions}  ·  **删除**: ${deletions}`,
+            ``,
+            `### 文件列表`,
+            fileLines.length ? fileLines.join('\n') : '- (无变更文件)',
+            ``,
+            `### 提交记录`,
+            commitLines.length ? commitLines.join('\n') : '- (无提交记录)',
+          ].join('\n');
+
+          const { data: comments } = await github.rest.issues.listComments({
+            owner,
+            repo,
+            issue_number: prNumber,
+            per_page: 100,
+          });
+
+          const existing = comments.find(c => c.body && c.body.includes(marker));
+          if (existing) {
+            await github.rest.issues.updateComment({
+              owner,
+              repo,
+              comment_id: existing.id,
+              body,
+            });
+          } else {
+            await github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number: prNumber,
+              body,
+            });
+          }
