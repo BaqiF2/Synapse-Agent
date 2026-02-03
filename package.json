@@ -8,6 +8,7 @@
     "start": "bun run src/cli/index.ts",
     "chat": "bun run src/cli/index.ts chat",
     "test": "bun test",
+    "test:cov": "bun test --coverage --coverage-reporter=text --coverage-reporter=lcov",
     "test:e2e": "bun test tests/e2e/",
     "test:cli:e2e": "bun run tests/e2e/cli/index.ts",
     "test:cli:e2e:basic": "bun run tests/e2e/cli/index.ts --scenario=\"Basic Chat\"",
