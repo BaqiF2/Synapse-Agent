@@ -35,7 +35,7 @@ Synapse Agent 的工具系统基于三层 Bash 架构设计，从底层到上层
 │                  三层 Bash 命令                          │
 │  ┌──────────────┬──────────────┬──────────────────┐    │
 │  │ Native Shell │ Agent Shell  │ Extension Shell  │    │
-│  │  ls/grep/..  │  read/write  │  mcp_*/skill_*   │    │
+│  │  ls/grep/..  │  read/write  │  mcp:*/skill:*  │    │
 │  │              │  edit/glob   │                  │    │
 │  └──────────────┴──────────────┴──────────────────┘    │
 └─────────────────────────────────────────────────────────┘
@@ -57,20 +57,19 @@ Synapse Agent 的工具系统基于三层 Bash 架构设计，从底层到上层
 #### Layer 2: Agent Shell Command（原生工具层）
 - **定义**：Agent 核心功能封装的命令集，参考 Claude API Tool Use 设计
 - **实现方式**：**在系统提示词中直接注入详细的 command 使用信息**
-- **Phase 1 核心工具**：
+- **Phase 1 核心工具（当前实现）**：
   - `read <file_path>` - 文件读取
   - `write <file_path> <content>` - 文件写入
   - `edit <file_path> <old> <new>` - 文件编辑
   - `glob <pattern>` - 文件模式匹配
-  - `grep <pattern> [options]` - 代码搜索
-  - `bash <command>` - 执行 Bash 命令
-- **Phase 2 扩展工具**：
+  - `search <pattern> [options]` - 代码搜索
+  - `bash <command>` - 显式执行 Bash 命令
+  - `command:search <pattern>` - 工具/命令搜索
+  - `skill:load <name>` - 加载技能文档
+  - `task:<type>[:action] ...` - 启动子 Agent（skill/explore/general）
+- **规划中的扩展工具（未实现）**：
   - `web_search <query>` - 网页搜索
   - `web_fetch <url>` - 网页获取
-- **Phase 3 高级工具**：
-  - `tools search <query>` - 工具搜索
-  - `skill <action> [args]` - 技能管理（属于 sub agent is tool）
-  - `task <agent_type> <prompt>` - 启动子 Agent
   - `plan <action> [items]` - 任务管理
 
 **系统提示词注入格式**：
@@ -87,29 +86,31 @@ Synapse Agent 的工具系统基于三层 Bash 架构设计，从底层到上层
   read /path/to/file.ts
   read /path/to/large-file.log --offset 100 --limit 50
 
-### skill - 技能管理
-用法：skill <action> [args]
+### skill:load - 加载技能文档
+用法：skill:load <skill_name>
+功能：加载指定技能的 SKILL.md 内容并注入上下文
+示例：
+  skill:load code-quality-analyzer
 
-子命令：
-1. skill search "<功能描述>" - 技能检索
-   - 功能：在技能库中搜索匹配的技能
-   - 触发场景：Agent 运行过程中发现缺少某种能力
-   - 返回：技能名称和描述的映射列表
-   - 后续：将列表加入历史，由 LLM 推理选择需要的技能，然后加载完整 SKILL.md
-   - 示例：skill search "修改 PDF 文件的功能"
+### task:skill:search - 语义检索技能
+用法：task:skill:search --prompt "<功能描述>" --description "<短描述>"
+功能：启动 skill 子 Agent 进行语义匹配
+返回：JSON 格式的技能匹配结果（由子 Agent 输出）
+示例：
+  task:skill:search --prompt "修改 PDF 文件" --description "Search skills"
 
-2. skill reinforce - 技能增强
-   - 功能：分析任务过程，增强现有技能或生成新技能
-   - 触发时机：任务完成后即将退出时
-   - 工作机制：将任务运行的完整过程传入 skill agent 分析
-   - 目标：实现 Agent 的自我成长能力
+### task:skill:enhance - 技能强化
+用法：task:skill:enhance --prompt "<原因/摘要>" --description "<短描述>"
+功能：基于当前会话生成或优化技能
+示例：
+  task:skill:enhance --prompt "Workflow to debug logs" --description "Enhance skills"
 
-### tools search - 工具搜索
-用法：tools search <query>
-功能：搜索可用的 MCP 和 Skill 工具
+### command:search - 工具搜索
+用法：command:search [pattern]
+功能：搜索已安装的 MCP 与 Skill 扩展命令
 支持：
-  - 关键词匹配：tools search "pdf"
-  - 正则匹配：tools search "mcp:git-.*"
+  - 通配符：command:search "mcp:*:commit"
+  - 关键字：command:search "pdf"
 返回：匹配的工具名称列表
 后续：使用 <tool_name> -h 获取简要信息，<tool_name> --help 获取完整文档
 
@@ -140,7 +141,7 @@ Synapse Agent 的工具系统基于三层 Bash 架构设计，从底层到上层
 **2. Skill Command**: `skill:<skill_name>:<tool>`
 - **示例**：`skill:pdf-editor:extract_text`, `skill:code-analyzer:check_quality`
 - **来源**：从 `~/.synapse/skills/*/scripts/` 目录解析
-- **解析时机**：后台监听进程扫描生成（静态解析存储）
+- **解析时机**：Agent 启动时扫描并生成包装器（当前实现为启动时初始化）
 - **技能结构**：
   ```
   ~/.synapse/skills/pdf-editor/
@@ -150,25 +151,26 @@ Synapse Agent 的工具系统基于三层 Bash 架构设计，从底层到上层
       └── merge_files.sh
   ```
 - **实现流程**：
-  1. 后台监听进程监控 `~/.synapse/skills/` 目录变化
+  1. 启动时扫描 `~/.synapse/skills/` 目录
   2. 扫描每个技能的 `scripts/` 子目录
   3. 为每个脚本生成 `skill:<skill_name>:<tool>` 命令包装器
   4. 解析脚本的 docstring/注释获取描述和参数信息
   5. 安装到 `~/.synapse/bin/`
+  6. 清理已不存在技能的过期包装器
 
 **工具发现机制**：
 
-**tools search 工具**（Agent Shell Command Layer 2 提供）：
+**command:search 工具**（Agent Shell Command Layer 2 提供）：
 ```bash
 # 关键词匹配
-tools search "pdf"
+command:search "pdf"
 # 输出：
 # mcp:filesystem:read_pdf
 # skill:pdf-editor:extract_text
 # skill:pdf-editor:merge_files
 
-# 正则匹配
-tools search "mcp:git-.*"
+# 通配符匹配
+command:search "mcp:git-*:*"
 # 输出：
 # mcp:git-tools:commit
 # mcp:git-tools:push
@@ -177,11 +179,11 @@ tools search "mcp:git-.*"
 
 **实现机制**：
 1. 扫描 `~/.synapse/bin/` 目录，列出所有 `mcp:*` 和 `skill:*` 命令
-2. 根据关键词或正则表达式过滤匹配
+2. 根据关键词或通配符模式过滤匹配
 3. 返回工具名称列表
 
 **工具详细信息获取**：
-- Agent 通过 `tools search` 发现工具后
+- Agent 通过 `command:search` 发现工具后
 - 使用 `<tool_name> -h` 获取简要信息
 - 使用 `<tool_name> --help` 获取完整文档
 
@@ -209,11 +211,11 @@ $ skill:pdf-editor:extract_text --help
 **架构验证目标**：
 - **LLM 只看到唯一的 Bash 工具**：所有工具调用统一通过 `{"name": "Bash", "input": {"command": "..."}}`
 - **命令解析器正确路由**：Agent 内部解析命令字符串，路由到 Native/Agent/Field 三层实现
-- **工具发现机制**：通过 `tools search` 关键词/正则搜索，返回 `mcp:*` 和 `skill:*` 工具列表
+- **工具发现机制**：通过 `command:search` 关键词/通配符搜索，返回 `mcp:*` 和 `skill:*` 工具列表
 - **自描述能力**：所有 Extension Shell Command 命令支持 `-h/--help` 参数，LLM 可自主探索工具详情
 - **持久会话状态**：环境变量和工作目录在命令之间保持
 - **会话重启**：支持 `restart: true` 参数重启 Bash 会话
-- **后台监听**：Skill 工具的自动发现和更新，无需手动干预
+- **启动时初始化**：Skill 工具在启动时生成包装器；自动更新组件存在但未默认启用
 
 ---
 
@@ -233,11 +235,11 @@ $ skill:pdf-editor:extract_text --help
 
 **Mcp2Bash**：
 - Agent 启动时自动触发
-- 用户手动刷新：`synapse tools refresh mcp`
+- 当前实现无独立刷新命令，配置变更需重启初始化
 
 **Skill2Bash**：
-- 后台监听进程持续运行，检测 SKILLS 目录变化时自动触发
-- 用户手动刷新：`synapse tools refresh skills`
+- Agent 启动时扫描技能目录并生成包装器
+- 当前实现未默认启用后台监听，脚本变更需重启初始化（可选自动更新组件作为规划）
 
 #### 4.2.2 Mcp2Bash 转换器
 
@@ -368,7 +370,9 @@ python3 "$SCRIPT_PATH" "$@"
 **后台监听机制**：
 详见 4.2.4 节。
 
-#### 4.2.4 后台监听进程
+#### 4.2.4 可选自动更新组件（未默认启用）
+
+当前实现提供 `SkillWatcher/SkillAutoUpdater` 组件用于监听技能脚本变化并更新包装器，但 **默认不自动启动**。默认行为是 **启动时初始化**（见 4.2.1）。
 
 **监听目标**：`~/.synapse/skills/` 目录
 
@@ -382,24 +386,22 @@ python3 "$SCRIPT_PATH" "$@"
 3. **自描述支持**：包装器包含 `-h` 和 `--help` 逻辑
 4. **清理过期工具**：删除已不存在的技能对应的命令包装器
 
-**工作流程**：
+**工作流程**（启用后）：
 ```
 SKILLS 目录变化
   → 检测变更类型（新增/修改/删除）
   → 扫描 scripts/ 目录
-  → 调用 Skill2Bash 转换器
   → 生成/更新/删除命令包装器
   → 安装到 ~/.synapse/bin/
-  → tools search 可立即发现新工具
+  → command:search 可立即发现新工具
 ```
 
 **启动时机**：
-- Agent 启动时在后台启动监听进程
-- 监听进程与 Agent 主进程独立运行
-- Agent 退出时不影响监听进程（持续运行）
+- 当前实现不默认启动，需显式启用
+- 与 Agent 主进程同生命周期
 
 **实现技术**：
-- 使用文件系统监听（如 Node.js 的 `chokidar` 或 `fs.watch`）
+- 使用文件系统监听（`chokidar`）
 - 异步处理，不阻塞 Agent 主进程
 
 ---
@@ -437,10 +439,10 @@ SKILLS 目录变化
 ```markdown
 所有操作通过 Bash 命令完成。工具分为三层：
 - Native Shell Command：标准 Unix 命令（ls, grep, git, curl 等）
-- Agent Shell Command：核心功能工具（read, write, edit, skill, tools search 等）
+- Agent Shell Command：核心功能工具（read, write, edit, glob, search, bash, skill:load, command:search, task:* 等）
 - Extension Shell Command：外部扩展工具（mcp:*, skill:* 格式）
 
-使用 tools search 探索可用的 MCP 和 Skill 工具。
+使用 command:search 探索可用的 MCP 和 Skill 工具。
 使用 <tool> -h 获取简要信息，<tool> --help 获取完整文档。
 ```
 
@@ -457,25 +459,24 @@ SKILLS 目录变化
 ### write - 写入文件
 ...（完整说明）
 
-### skill - 技能管理
-用法：skill <action> [args]
+### skill:load - 加载技能文档
+用法：skill:load <skill_name>
+功能：加载指定技能的 SKILL.md 内容并注入上下文
 
-子命令：
-1. skill search "<功能描述>"
-   - 功能：在技能库中搜索匹配的技能
-   - 返回：技能名称和描述的映射列表
-   - 后续：将列表加入历史，由 LLM 推理选择并加载完整 SKILL.md
+### task:skill:search - 语义检索技能
+用法：task:skill:search --prompt "<功能描述>" --description "<短描述>"
+功能：启动 skill 子 Agent 进行语义匹配，返回 JSON 结果
 
-2. skill reinforce
-   - 功能：分析任务过程，增强现有技能
-   - 触发时机：任务完成后即将退出时
+### task:skill:enhance - 技能强化
+用法：task:skill:enhance --prompt "<原因/摘要>" --description "<短描述>"
+功能：基于当前会话生成或优化技能
 
-### tools search - 工具搜索
-用法：tools search <query>
-支持关键词匹配和正则匹配
+### command:search - 工具搜索
+用法：command:search [pattern]
+支持关键词或通配符匹配（* 和 ?）
 示例：
-  tools search "pdf"         # 搜索包含 pdf 的工具
-  tools search "mcp:git-.*"  # 搜索所有 git MCP 工具
+  command:search "pdf"          # 搜索包含 pdf 的工具
+  command:search "mcp:git-*:*"  # 搜索所有 git MCP 工具
 ...（其他工具说明）
 ```
 
@@ -483,12 +484,12 @@ SKILLS 目录变化
 ```markdown
 ## 外部工具使用
 
-使用 tools search 发现可用工具：
+使用 command:search 发现可用工具：
 - MCP 工具：mcp:<mcp_name>:<tool> 格式
 - Skill 工具：skill:<skill_name>:<tool> 格式
 
 示例：
-1. tools search "git"
+1. command:search "git"
 2. 发现 mcp:git-tools:commit
 3. mcp:git-tools:commit -h  # 查看简要用法
 4. mcp:git-tools:commit --help  # 查看完整文档
@@ -498,9 +499,9 @@ SKILLS 目录变化
 **5. 技能加载提示**
 ```markdown
 当任务需要特定领域能力时：
-1. 使用 skill search "<功能描述>" 搜索相关技能
+1. 使用 task:skill:search 搜索相关技能
 2. 从返回列表中选择合适的技能
-3. 加载技能的 SKILL.md 文档
+3. 使用 skill:load 加载技能文档
 4. 根据文档指导完成任务（可能使用 skill:* 工具或其他方式）
 ```
 
@@ -528,32 +529,30 @@ SKILLS 目录变化
 
 **技术实现要点**：
 ```typescript
-// 在 REPL.start() 主循环中的处理流程
+// 在 REPL 主循环中的处理流程
 const userInput = await this.getInput();
 
 // 检查是否为 Shell 命令（在检查特殊命令之后、发送给 Agent 之前）
-if (userInput.trim().startsWith("!")) {
-    const shellCommand = userInput.trim().slice(1).trim();
-    await this.executeShellCommand(shellCommand);
-    continue;
+if (userInput.trim().startsWith('!')) {
+  const shellCommand = userInput.trim().slice(1).trim();
+  await this.executeShellCommand(shellCommand);
+  continue;
 }
 
 // executeShellCommand 实现
 async executeShellCommand(command: string): Promise<void> {
-    // Execute a shell command directly
-    const proc = Bun.spawn(command, {
-        shell: true,
-        cwd: process.cwd(), // 使用当前工作目录
-        stdout: "inherit",  // 直接输出到终端
-        stderr: "inherit"   // 直接输出到终端
-    });
+  const child = spawn(command, {
+    shell: true,
+    stdio: ['inherit', 'inherit', 'inherit'],
+  });
 
-    const exitCode = await proc.exited;
+  const exitCode = await new Promise<number>((resolve) => {
+    child.on('exit', (code) => resolve(code ?? 0));
+  });
 
-    // 如果命令失败，显示退出码
-    if (exitCode !== 0) {
-        console.log(chalk.dim(`Command exited with code ${exitCode}`));
-    }
+  if (exitCode !== 0) {
+    console.log(chalk.gray(`Exit code: ${exitCode}`));
+  }
 }
 ```
 

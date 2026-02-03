@@ -12,20 +12,20 @@
 
 **Skill 子 Agent 职责**（持久化子 Agent，共享 LLM 会话）：
 
-1. **技能搜索** - `skill search "<描述>"` → LLM 语义匹配
-2. **技能强化** - `skill enhance [options]` → 分析会话历史，新增/更新技能
+1. **技能搜索** - `task:skill:search --prompt ... --description ...` → LLM 语义匹配
+2. **技能强化** - `task:skill:enhance --prompt ... --description ...` → 分析会话历史，新增/更新技能
 
 **Agent 程序直接提供的工具**（不经过子 Agent）：
 
-- **技能加载** - `skill load <name>` → 纯代码逻辑，从内存映射读取 SKILL.md
+- **技能加载** - `skill:load <name>` → 纯代码逻辑，从磁盘读取 SKILL.md（带缓存）
 
 **命令路由**：
 
 | 命令 | 路由方式 |
 |------|----------|
-| `skill search "<描述>"` | → Skill 子 Agent（LLM 语义匹配） |
-| `skill load <name>` | → Shell Command 解析器（纯代码逻辑） |
-| `skill enhance [options]` | → Skill 子 Agent（LLM 分析强化） |
+| `task:skill:search --prompt ... --description ...` | → Skill 子 Agent（LLM 语义匹配） |
+| `skill:load <name>` | → Shell Command 解析器（纯代码逻辑） |
+| `task:skill:enhance --prompt ... --description ...` | → Skill 子 Agent（LLM 分析强化） |
 
 **共享上下文优势**：
 
@@ -35,21 +35,22 @@
 
 #### 4.5.2 开关机制与命令设计
 
-**自动强化开关**：
+**自动强化开关（REPL 命令）**：
 
 - **默认状态**：关闭
-- **开启方式**：用户执行 `skill enhance --on`
-- **关闭方式**：用户执行 `skill enhance --off`
+- **开启方式**：用户执行 `/skill enhance --on`
+- **关闭方式**：用户执行 `/skill enhance --off`
+- **状态查看**：用户执行 `/skill enhance`
 - **费用提示**：开启时明确告知用户会产生额外 token 消耗
 
 ```
-> skill enhance --on
+> /skill enhance --on
 
 ⚠️ 开启自动技能强化功能
    每轮任务结束后将自动分析是否需要强化技能
    这将产生额外的 token 消耗
 
-   使用 `skill enhance --off` 可随时关闭
+   使用 `/skill enhance --off` 可随时关闭
 
 ✓ 自动强化已开启
 ```
@@ -58,9 +59,12 @@
 
 | 命令 | 功能 |
 |------|------|
-| `skill enhance` | 手动触发强化，基于当前 session 上下文 |
-| `skill enhance --on` | 开启自动强化 |
-| `skill enhance --off` | 关闭自动强化 |
+| `/skill enhance` | 查看自动强化状态 |
+| `/skill enhance --on` | 开启自动强化 |
+| `/skill enhance --off` | 关闭自动强化 |
+| `task:skill:enhance --prompt ... --description ...` | 手动触发强化（Agent 工具） |
+
+> 说明：`/skill enhance --conversation` 在当前实现中不可用。
 
 **开关状态持久化**：存储在 `~/.synapse/settings.json` 中，跨 session 保持。
 
@@ -68,51 +72,52 @@
 
 **触发时机**：
 
-当自动强化开启后，每轮任务结束时（用户输入 prompt → Agent 完成任务返回文本），主 Agent 内联判断是否需要调用技能强化。
+当自动强化开启后，每轮任务结束时（Agent Loop 正常完成），通过 Stop Hook 触发技能强化流程。
 
-**判断依据**（主 Agent 基于上下文反思）：
-
-- 任务复杂度：执行步骤数量、工具调用次数
-- 用户澄清次数：是否多次补充说明需求
-- 工具使用情况：是否引入多种 Extension Shell Command
-- 脚本生成：是否主动生成脚本才完成任务
-- 技能使用情况：使用了哪些 skill，执行效果如何
-- 可复用性：是否发现可复用的工作流模式
-
-**判断流程**：
+**触发流程（当前实现）**：
 
 ```
-任务即将完成
+任务完成
     │
     ▼
-主 Agent 检查：自动强化是否开启？
+StopHookRegistry 触发 skill-enhance hook
     │
-    ├─ 否 → 直接返回结果给用户
+    ├─ 自动强化关闭 → 直接跳过
     │
-    └─ 是 → 主 Agent 内联反思：本次任务是否值得强化？
-              │
-              ├─ 否 → 直接返回结果给用户
-              │
-              └─ 是 → 调用 skill enhance → 返回结果 + 强化报告
+    └─ 自动强化开启
+         │
+         ▼
+读取会话历史 → 构建增强提示词 → 调用 task:skill:enhance
+         │
+         ▼
+Skill 子 Agent 决策：create / enhance / none
 ```
 
-**设计要点**：判断过程在主 Agent 内完成，不产生额外 LLM 调用开销。
+**设计要点**：
+- 是否需要强化由 Skill 子 Agent 在分析阶段自主判断
+- 触发时会产生额外 LLM 调用开销
 
 #### 4.5.4 强化执行流程
 
 **上下文传递**：
 
-主 Agent 调用 `skill enhance` 时，传递会话历史文件路径给 Skill 子 Agent：
+Stop Hook 读取会话历史文件并构建提示词后，调用 Skill 子 Agent 执行强化：
 
 ```
-skill enhance --conversation ~/.synapse/conversations/<session-id>.jsonl
+~/.synapse/sessions/<session-id>.jsonl
 ```
 
 **会话历史截断处理**：
 
-- Skill 子 Agent 读取会话历史时，只取最近的固定 token 数量（如 `MAX_ENHANCE_CONTEXT_TOKENS`）
-- 从文件末尾向前读取，确保分析的是最近完成的任务
-- 截断阈值可在 `~/.synapse/settings.json` 中配置
+- 读取会话历史时按字符长度截断（`skillEnhance.maxEnhanceContextChars`）
+- 从文件末尾向前读取，确保分析最近完成的任务
+- 阈值配置位于 `~/.synapse/settings.json`
+
+**元技能依赖**：
+
+- 自动强化提示词会加载元技能内容
+- 读取目录由 `SYNAPSE_META_SKILLS_DIR` 指定，默认 `~/.synapse/skill`
+- 当前内置元技能：`skill-creator`、`skill-enhance`
 
 **Skill 子 Agent 执行流程**：
 
@@ -151,7 +156,7 @@ skill enhance --conversation ~/.synapse/conversations/<session-id>.jsonl
 - `write` - 创建新文件（SKILL.md、references、scripts）
 - `edit` - 编辑已有文件（强化技能时使用）
 - `glob` - 扫描技能目录
-- `grep` - 搜索技能内容
+- `search` - 搜索技能内容
 
 #### 4.5.5 强化结果反馈
 
@@ -162,7 +167,7 @@ skill enhance --conversation ~/.synapse/conversations/<session-id>.jsonl
 技能强化完成：
 - 操作：新增技能
 - 名称：analyzing-logs
-- 包含工具：grep, read, glob
+- 包含工具：search, read, glob
 - 技能内容：
   - 分析日志文件
   - 寻找错误信息
@@ -221,22 +226,22 @@ skill enhance --conversation ~/.synapse/conversations/<session-id>.jsonl
 **Skill 子 Agent 的配置**：
 
 - **系统提示词**：定义 Skill 子 Agent 的角色、目标和基本行为规范
-- **配备的技能**：Skill 子 Agent 可以加载专门的技能来指导其工作，例如：
-  - `creating-skills`：指导如何创建新技能的技能（元技能）
-  - `enhancing-skills`：指导如何强化已有技能的技能
-  - `evaluating-skills`：评估技能质量和适用性的技能
-- **可用工具**：write、read、glob、grep 等 Agent Shell Command 工具
+- **配备的技能**：Skill 子 Agent 可以加载专门的元技能来指导其工作，例如：
+  - `skill-creator`：指导如何创建新技能
+  - `skill-enhance`：指导如何强化已有技能
+  - （评估类元技能当前未内置）
+- **可用工具**：write、read、glob、search 等 Agent Shell Command 工具
 
 **元循环设计的优势**：
 
-- **可进化**：通过更新 `creating-skills` 技能，改进技能生成能力本身
+- **可进化**：通过更新 `skill-creator` 技能，改进技能生成能力本身
 - **灵活性**：不同场景可以使用不同的技能生成策略
 - **自我改进**：Skill 子 Agent 可以根据反馈优化自己的技能生成模板
 - **符合核心理念**：体现"技能 + LLM = 大脑"和"一切都是工具"
 
-**参考模板**（由 `creating-skills` 技能定义）：
+**参考模板**（由 `skill-creator` 技能定义）：
 
-以下模板仅作为参考，实际模板应在 `creating-skills` 技能中定义和维护：
+以下模板仅作为参考，实际模板应在 `skill-creator` 技能中定义和维护：
 
 ```markdown
 ---
@@ -254,7 +259,7 @@ description: [简要描述功能 + 使用时机 + 关键词。用第三人称书
 # 具体的命令序列
 glob "**/*.log"
 read error.log
-grep "ERROR|WARN" error.log
+search "ERROR|WARN" --path .
 \`\`\`
 
 ## 执行步骤
@@ -290,14 +295,14 @@ grep "ERROR|WARN" error.log
 
 #### 4.5.8 脚本转 Extension Shell Command
 
-技能创建或强化时，如果在 `scripts/` 目录下添加了可执行脚本，系统会自动将其转换为 Extension Shell Command。
+技能创建或强化时，如果在 `scripts/` 目录下添加了可执行脚本，系统会在启动时扫描生成包装器；若启用自动更新组件，则脚本变更会触发增量更新。
 
 **转换机制**（参考 4.2.3 Skill2Bash 转换器）：
 
-1. **后台监听进程**：监控 `~/.synapse/skills/` 目录变化
-2. **自动转换**：检测到 `scripts/` 目录中新增或修改的脚本时，自动调用 Skill2Bash 转换器
-3. **生成包装器**：为每个脚本生成 `skill:<skill_name>:<tool>` 命令包装器
-4. **安装到 PATH**：包装器安装到 `~/.synapse/bin/`，立即可用
+1. **启动时扫描**：扫描 `~/.synapse/skills/` 目录
+2. **生成包装器**：为每个脚本生成 `skill:<skill_name>:<tool>` 命令包装器
+3. **安装到 PATH**：包装器安装到 `~/.synapse/bin/`，立即可用
+4. **可选自动更新**：启用自动更新组件后，脚本新增/修改会触发增量更新
 
 **工作流程**：
 
@@ -308,7 +313,7 @@ Skill 子 Agent 创建/强化技能
 在 scripts/ 目录下写入脚本文件
     │
     ▼
-后台监听进程检测到变化
+（可选）自动更新组件检测到变化
     │
     ▼
 Skill2Bash 转换器生成命令包装器
@@ -323,7 +328,7 @@ skill:<skill_name>:<tool> 命令立即可用
 技能强化创建了新脚本：
 ~/.synapse/skills/analyzing-logs/scripts/parse_error.py
 
-后台进程自动生成：
+启动时初始化生成（启用自动更新组件后可实时更新）：
 ~/.synapse/bin/skill:analyzing-logs:parse_error
 
 SKILL.md 中可直接使用：
@@ -331,8 +336,8 @@ skill:analyzing-logs:parse_error error.log --format json
 ```
 
 **设计要点**：
-- **无需手动干预**：转换过程完全自动化
-- **即时生效**：脚本保存后立即可作为命令使用
+- **启动时生成**：默认在初始化阶段生成包装器
+- **可选实时更新**：启用自动更新组件后，脚本保存可触发更新
 - **自描述支持**：生成的命令包装器支持 `-h` 和 `--help` 参数
 
 #### 4.5.9 完整执行流程示例
@@ -344,26 +349,22 @@ skill:analyzing-logs:parse_error error.log --format json
 
 ┌─────────────────────────────────────────────────────────────┐
 │ 1. 主 Agent 执行任务                                        │
-│    - skill search "分析日志文件"                            │
+│    - task:skill:search --prompt "分析日志文件" --description "Search skills" │
 │    - 未找到匹配技能                                         │
-│    - 手动执行：read error.log → grep "ERROR" → 分析结果     │
+│    - 手动执行：read error.log → search "ERROR" --path . → 分析结果 │
 │    - 任务完成                                               │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
-│ 2. 主 Agent 内联判断：是否需要强化？                         │
-│    - 自动强化已开启 ✓                                       │
-│    - 任务涉及多步骤工具调用 ✓                                │
-│    - 发现可复用模式 ✓                                       │
-│    - 决策：调用 skill enhance                               │
+│ 2. Stop Hook 触发技能强化（自动强化已开启）                  │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
 │ 3. Skill 子 Agent 执行强化                                  │
-│    - 读取 ~/.synapse/conversations/<session>.jsonl          │
-│    - 截断处理，取最近 N tokens                               │
+│    - 读取 ~/.synapse/sessions/<session>.jsonl               │
+│    - 按字符长度截断                                         │
 │    - 分析执行过程，识别日志分析工作流                        │
 │    - 决策：新增技能 "analyzing-logs"                        │
 │    - 创建 ~/.synapse/skills/analyzing-logs/SKILL.md         │
@@ -379,7 +380,7 @@ skill:analyzing-logs:parse_error error.log --format json
 │    技能强化完成：                                           │
 │    - 操作：新增技能                                         │
 │    - 名称：analyzing-logs                                   │
-│    - 包含工具：grep, read, glob                             │
+│    - 包含工具：search, read, glob                           │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -390,19 +391,17 @@ skill:analyzing-logs:parse_error error.log --format json
 
 ┌─────────────────────────────────────────────────────────────┐
 │ 1. 主 Agent 执行任务                                        │
-│    - skill search "分析日志文件"                            │
+│    - task:skill:search --prompt "分析日志文件" --description "Search skills" │
 │    - 找到匹配技能：analyzing-logs                           │
-│    - skill load analyzing-logs                              │
+│    - skill:load analyzing-logs                              │
 │    - 按照技能指令执行任务                                   │
 │    - 执行效率显著提升                                       │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
-│ 2. 主 Agent 内联判断：是否需要强化？                         │
-│    - 任务由现有技能完整覆盖                                  │
-│    - 执行效果良好                                           │
-│    - 决策：无需强化                                         │
+│ 2. Stop Hook 触发技能强化（自动强化已开启）                  │
+│    - 子 Agent 判断无需强化                                   │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
