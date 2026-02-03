@@ -1,0 +1,20 @@
+name: PR Change Summary
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  summary:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Add/Update PR summary
+        uses: ./.github/actions/pr-change-summary
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
