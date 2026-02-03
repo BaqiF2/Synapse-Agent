@@ -38,7 +38,7 @@
         "expected": "只有 hook2 被执行，返回 ['result2']"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -59,7 +59,7 @@
         "expected": "executionOrder 为 ['third', 'second', 'first']"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -79,7 +79,7 @@
         "expected": "返回结果包含 hook-success-1 和 hook-success-2 的结果，hook-fail 的错误被捕获但不阻止其他 Hook 执行"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -97,7 +97,7 @@
         "expected": "stopHookRegistry === registry2 为 true"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -127,7 +127,7 @@
         "expected": "StopHookRegistry.executeAll() 未被调用"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -156,7 +156,7 @@
         "expected": "context.sessionId 为 null"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -205,7 +205,7 @@
         "expected": "返回 '[Result] {前50字符}...'"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -254,7 +254,7 @@
         "expected": "tool result 截断至 200 字符"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -281,7 +281,7 @@
         "expected": "继续执行会话读取和后续逻辑"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -299,7 +299,7 @@
         "expected": "输出 '[Skill] Enhancement failed: session not found'，函数返回"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -320,7 +320,7 @@
         "expected": "readTruncated 被调用时传入 sessionPath 和 5000，compact 被调用时传入 turns"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -349,7 +349,7 @@
         "expected": "输出 '[Skill] Enhancement failed: meta-skills not found'，函数返回"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -378,7 +378,7 @@
         "expected": "console.log 被调用，参数为 '[Skill] Created: git-workflow'"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -415,7 +415,7 @@
         "expected": "抛出超时异常，输出 '[Skill] Enhancement failed: execution timeout'"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -432,7 +432,7 @@
         "expected": "返回 true"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -459,7 +459,7 @@
         "expected": "两个调用都返回包含 rawContent 的 skill 对象"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -476,7 +476,7 @@
         "expected": "包含 'Skill Enhancement' 或 '技能增强' 相关的能力描述和评估标准"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -494,7 +494,7 @@
         "expected": "输出 '[Skill] Enhancement failed: failed to read session'"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -512,7 +512,7 @@
         "expected": "输出 '[Skill] Enhancement failed: connection failed'"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -530,7 +530,7 @@
         "expected": "两个执行互不干扰，各自返回正确结果"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -575,7 +575,7 @@
         "expected": "输出帮助信息，包含所有可用选项说明"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -592,6 +592,6 @@
         "expected": "StopHookRegistry 类和 stopHookRegistry 实例都可以导入"
       }
     ],
-    "passes": false
+    "passes": true
   }
 ]
