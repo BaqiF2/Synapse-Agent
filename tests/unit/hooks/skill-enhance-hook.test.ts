@@ -11,6 +11,29 @@ import * as path from 'node:path';
 import * as os from 'node:os';
 import type { StopHookContext } from '../../../src/hooks/types.ts';
 
+// Mock SubAgentManager 和 AnthropicClient，避免真实 API 调用
+mock.module('../../../src/sub-agents/sub-agent-manager.ts', () => ({
+  SubAgentManager: class MockSubAgentManager {
+    execute() {
+      return Promise.resolve('Mocked enhancement result');
+    }
+  },
+}));
+
+mock.module('../../../src/providers/anthropic/anthropic-client.ts', () => ({
+  AnthropicClient: class MockAnthropicClient {
+    generate() {
+      return Promise.resolve({
+        id: 'mock-msg',
+        usage: { inputOther: 0, output: 0, inputCacheRead: 0, inputCacheCreation: 0 },
+        async *[Symbol.asyncIterator]() {
+          yield { type: 'text', text: 'Mocked response' };
+        },
+      });
+    }
+  },
+}));
+
 // 创建测试用 context
 function createTestContext(overrides: Partial<StopHookContext> = {}): StopHookContext {
   return {
