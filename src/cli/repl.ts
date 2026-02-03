@@ -60,6 +60,21 @@ function printSectionHeader(title: string): void {
   console.log(chalk.cyan('═'.repeat(50)));
 }
 
+function extractHookOutput(response: string): string | null {
+  const pattern = /(^|\n)\[[^\]\r\n]+?\](?=\s|$)/g;
+  let lastStart = -1;
+  let match: RegExpExecArray | null = null;
+
+  while ((match = pattern.exec(response)) !== null) {
+    lastStart = match.index + match[1].length;
+  }
+
+  if (lastStart === -1) {
+    return null;
+  }
+  return response.slice(lastStart).trimStart();
+}
+
 function stripWrappingQuotes(value: string): string {
   if (
     (value.startsWith('"') && value.endsWith('"')) ||
@@ -625,82 +640,6 @@ function showWelcomeBanner(sessionId: string): void {
 }
 
 // ════════════════════════════════════════════════════════════════════
-//  REPL Input Handler
-// ════════════════════════════════════════════════════════════════════
-
-/**
- * Process a single line of user input
- */
-async function handleLineInput(
-  input: string,
-  rl: readline.Interface,
-  agentRunner: AgentRunner | null,
-  state: ReplState,
-  promptUser: () => void
-): Promise<void> {
-  const trimmedInput = input.trim();
-
-  // 处理空输入
-  if (!trimmedInput) {
-    promptUser();
-    return;
-  }
-
-  // Shell commands (! prefix)
-  if (trimmedInput.startsWith('!')) {
-    const shellCommand = trimmedInput.slice(1).trim();
-    if (shellCommand) {
-      console.log();
-      await executeShellCommand(shellCommand);
-      console.log();
-    } else {
-      console.log(chalk.red('\nUsage: !<command>\n'));
-    }
-    promptUser();
-    return;
-  }
-
-  // Special commands (/ prefix)
-  if (trimmedInput.startsWith('/')) {
-    handleSpecialCommand(trimmedInput, rl, agentRunner);
-    promptUser();
-    return;
-  }
-
-  // Prevent concurrent requests
-  if (state.isProcessing) {
-    console.log(chalk.yellow('\nPlease wait for the current request to complete.\n'));
-    promptUser();
-    return;
-  }
-
-  // Agent conversation
-  state.isProcessing = true;
-  rl.pause();
-  clearPromptLine(rl);
-  console.log();
-  process.stdout.write(chalk.magenta('Agent> '));
-
-  try {
-    if (!agentRunner) {
-      // Echo mode when agent is not available
-      console.log(chalk.gray(`(echo) ${trimmedInput}`));
-    } else {
-      await agentRunner.run(trimmedInput);
-    }
-    process.stdout.write('\n');
-  } catch (error) {
-    const message = getErrorMessage(error);
-    console.log(chalk.red(`\nError: ${message}\n`));
-    cliLogger.error('Agent request failed', { error: message });
-  } finally {
-    state.isProcessing = false;
-    rl.resume();
-    promptUser();
-  }
-}
-
-// ════════════════════════════════════════════════════════════════════
 //  REPL Entry Point
 // ════════════════════════════════════════════════════════════════════
 
@@ -735,6 +674,20 @@ export async function startRepl(): Promise<void> {
     clearPromptLine(rl);
     rl.setPrompt(chalk.green('You> '));
     rl.prompt(true);
+  };
+
+  const runAgentTurn = async (trimmedInput: string) => {
+    if (!agentRunner) {
+      // Echo mode when agent is not available
+      console.log(chalk.gray(`(echo) ${trimmedInput}`));
+      return;
+    }
+
+    const response = await agentRunner.run(trimmedInput);
+    const hookOutput = extractHookOutput(response);
+    if (hookOutput) {
+      process.stdout.write(chalk.cyan(`\n${hookOutput}`));
+    }
   };
 
   // 处理 resume 的回调
@@ -797,12 +750,7 @@ export async function startRepl(): Promise<void> {
     process.stdout.write(chalk.magenta('Agent> '));
 
     try {
-      if (!agentRunner) {
-        // Echo mode when agent is not available
-        console.log(chalk.gray(`(echo) ${trimmedInput}`));
-      } else {
-        await agentRunner.run(trimmedInput);
-      }
+      await runAgentTurn(trimmedInput);
       process.stdout.write('\n');
     } catch (error) {
       const message = getErrorMessage(error);
