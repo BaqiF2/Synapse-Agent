@@ -16,7 +16,7 @@ runs:
       with:
         github-token: ${{ inputs.github-token }}
         script: |
-          const marker = `${{ inputs.comment-marker }}`;
+          const marker = core.getInput('comment-marker');
           const { owner, repo } = context.repo;
           const pr = context.payload.pull_request;
           if (!pr) {
