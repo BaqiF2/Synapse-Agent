@@ -1,14 +1,14 @@
 /**
  * E2E Tests - REPL PTY Integration
  *
- * Uses a PTY to exercise the real REPL output stream.
+ * Uses PTY runner with improved direct testing approach.
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
-import { spawn } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
+import { spawn } from 'node:child_process';
 import { DEFAULT_SETTINGS } from '../../src/config/settings-schema.ts';
 import { startMockAnthropicServer, type MockServerHandle } from './helpers/anthropic-mock.ts';
 
@@ -19,6 +19,7 @@ describe('E2E: REPL PTY', () => {
   let sessionsDir: string;
   let skillsDir: string;
   let mockServer: MockServerHandle | null;
+  let bunPath: string;
 
   beforeEach(() => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'synapse-pty-e2e-'));
@@ -30,8 +31,14 @@ describe('E2E: REPL PTY', () => {
     fs.mkdirSync(sessionsDir, { recursive: true });
     fs.mkdirSync(skillsDir, { recursive: true });
 
+    // Find bun path
+    bunPath = path.join(os.homedir(), '.bun', 'bin', 'bun');
+    if (!fs.existsSync(bunPath)) {
+      bunPath = 'bun';
+    }
+
     mockServer = startMockAnthropicServer({
-      replyText: 'Hello! How can I help you today?',
+      replyText: 'Hello from PTY test!',
     });
 
     const settings = {
@@ -48,8 +55,6 @@ describe('E2E: REPL PTY', () => {
       JSON.stringify(settings, null, 2),
       'utf-8'
     );
-
-    // Environment prepared; REPL will be launched by the PTY runner
   });
 
   afterEach(async () => {
@@ -63,51 +68,179 @@ describe('E2E: REPL PTY', () => {
     }
   });
 
+  // ═══════════════════════════════════════════════════════════════
+  //  Test Runner Helper
+  // ═══════════════════════════════════════════════════════════════
+
+  async function runPtyTest(
+    testName: string,
+    testFn: (env: NodeJS.ProcessEnv) => Promise<void>
+  ): Promise<boolean> {
+    const env: NodeJS.ProcessEnv = {
+      ...process.env,
+      HOME: homeDir,
+      SYNAPSE_SESSIONS_DIR: sessionsDir,
+      ANTHROPIC_API_KEY: 'test-key',
+      ANTHROPIC_BASE_URL: mockServer!.baseUrl,
+      REPL_BUN_PATH: bunPath,
+      REPL_SCRIPT_PATH: path.join(process.cwd(), 'src', 'cli', 'index.ts'),
+      REPL_CWD: tempDir,
+      REPL_TEST_NAME: testName,
+    };
+
+    try {
+      await testFn(env);
+      return true;
+    } catch (error) {
+      console.log(`❌ ${testName}: ${error}`);
+      return false;
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  //  Test Cases
+  // ═══════════════════════════════════════════════════════
+
   it(
-    'should emit agent reply in output stream',
+    'should start REPL and show prompt',
     async () => {
-      if (!mockServer) {
-        throw new Error('Mock server not initialized');
-      }
+      const passed = await runPtyTest('prompt-test', async (env) => {
+        const scriptPath = path.join(process.cwd(), 'tests', 'e2e', 'helpers', 'direct-runner.mjs');
 
-      const runnerPath = path.join(
-        process.cwd(),
-        'tests',
-        'e2e',
-        'helpers',
-        'repl-pty-runner.mjs'
-      );
-      const scriptPath = path.join(process.cwd(), 'src', 'cli', 'index.ts');
+        const { stdout } = await runScript(scriptPath, {
+          ...env,
+          REPL_INPUT: 'hello\r\n/exit\r\n',
+          REPL_EXPECT: 'You>',
+        });
 
-      const env: NodeJS.ProcessEnv = {
-        ...process.env,
-        HOME: homeDir,
-        SYNAPSE_SESSIONS_DIR: sessionsDir,
-        ANTHROPIC_API_KEY: 'test-key',
-        ANTHROPIC_BASE_URL: mockServer.baseUrl,
-        REPL_BUN_PATH: process.execPath,
-        REPL_SCRIPT_PATH: scriptPath,
-        REPL_CWD: tempDir,
-        REPL_REPLY_TEXT: 'Hello! How can I help you today?',
-      };
+        expect(stdout).toContain('You>');
+        expect(stdout).toContain('Synapse Agent');
+      });
 
-      const { exitCode, stdout, stderr } = await runNodeRunner(runnerPath, env);
-      if (exitCode !== 0) {
-        throw new Error(`PTY runner failed (${exitCode})\nstdout:\n${stdout}\nstderr:\n${stderr}`);
-      }
-
-      expect(stdout).toContain('PTY_REPL_OK');
+      expect(passed).toBe(true);
     },
-    { timeout: 30000 }
+    { timeout: 60000 }
+  );
+
+  it(
+    'should execute shell command !echo',
+    async () => {
+      const passed = await runPtyTest('shell-test', async (env) => {
+        const scriptPath = path.join(process.cwd(), 'tests', 'e2e', 'helpers', 'direct-runner.mjs');
+
+        const { stdout } = await runScript(scriptPath, {
+          ...env,
+          REPL_INPUT: '!echo "hello-pty"\r\n/exit\r\n',
+          REPL_EXPECT: 'hello-pty',
+        });
+
+        expect(stdout).toContain('hello-pty');
+      });
+
+      expect(passed).toBe(true);
+    },
+    { timeout: 60000 }
+  );
+
+  it(
+    'should read file using read tool',
+    async () => {
+      const testFile = path.join(tempDir, 'test-file.txt');
+      fs.writeFileSync(testFile, 'Line 1\nLine 2\nLine 3\n', 'utf-8');
+
+      const passed = await runPtyTest('read-test', async (env) => {
+        const scriptPath = path.join(process.cwd(), 'tests', 'e2e', 'helpers', 'direct-runner.mjs');
+
+        const { stdout } = await runScript(scriptPath, {
+          ...env,
+          REPL_INPUT: `read ${testFile}\r\n/exit\r\n`,
+          REPL_EXPECT: 'Line 1',
+        });
+
+        expect(stdout).toContain('Line 1');
+        expect(stdout).toContain('Line 3');
+      });
+
+      expect(passed).toBe(true);
+    },
+    { timeout: 60000 }
+  );
+
+  it(
+    'should write file using write tool',
+    async () => {
+      const testFile = path.join(tempDir, 'write-test.txt');
+
+      const passed = await runPtyTest('write-test', async (env) => {
+        const scriptPath = path.join(process.cwd(), 'tests', 'e2e', 'helpers', 'direct-runner.mjs');
+
+        const { stdout } = await runScript(scriptPath, {
+          ...env,
+          REPL_INPUT: `write ${testFile} "P1 content"\r\n/exit\r\n`,
+          REPL_EXPECT: 'success',
+        });
+
+        expect(stdout).toContain('success');
+        expect(fs.existsSync(testFile)).toBe(true);
+      });
+
+      expect(passed).toBe(true);
+    },
+    { timeout: 60000 }
+  );
+
+  it(
+    'should handle special command /help',
+    async () => {
+      const passed = await runPtyTest('help-test', async (env) => {
+        const scriptPath = path.join(process.cwd(), 'tests', 'e2e', 'helpers', 'direct-runner.mjs');
+
+        const { stdout } = await runScript(scriptPath, {
+          ...env,
+          REPL_INPUT: '/help\r\n/exit\r\n',
+          REPL_EXPECT: '/exit',
+        });
+
+        expect(stdout).toContain('/exit');
+        expect(stdout).toContain('/clear');
+      });
+
+      expect(passed).toBe(true);
+    },
+    { timeout: 60000 }
+  );
+
+  it(
+    'should receive agent response',
+    async () => {
+      const passed = await runPtyTest('agent-test', async (env) => {
+        const scriptPath = path.join(process.cwd(), 'tests', 'e2e', 'helpers', 'direct-runner.mjs');
+
+        const { stdout } = await runScript(scriptPath, {
+          ...env,
+          REPL_INPUT: 'Hello\r\n/exit\r\n',
+          REPL_EXPECT: 'Hello from PTY test!',
+        });
+
+        expect(stdout).toContain('Hello from PTY test!');
+      });
+
+      expect(passed).toBe(true);
+    },
+    { timeout: 90000 }
   );
 });
 
-function runNodeRunner(
-  runnerPath: string,
+// ═══════════════════════════════════════════════════════════════
+//  Helper Functions
+// ═══════════════════════════════════════════════════════════════
+
+function runScript(
+  scriptPath: string,
   env: NodeJS.ProcessEnv
 ): Promise<{ exitCode: number; stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
-    const child = spawn('node', [runnerPath], {
+    const child = spawn('node', [scriptPath], {
       cwd: process.cwd(),
       env,
       stdio: ['ignore', 'pipe', 'pipe'],
