@@ -56,6 +56,13 @@ describe('SettingsManager', () => {
       expect(loaded.skillEnhance.autoEnhance).toBe(true);
     });
 
+    it('should throw when settings file is corrupted', () => {
+      fs.mkdirSync(testDir, { recursive: true });
+      fs.writeFileSync(path.join(testDir, 'settings.json'), '{invalid json', 'utf-8');
+
+      expect(() => manager.get()).toThrow('Failed to parse settings file');
+    });
+
   });
 
   describe('set', () => {
