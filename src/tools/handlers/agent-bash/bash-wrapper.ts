@@ -46,8 +46,14 @@ export class BashWrapperHandler {
   async execute(command: string): Promise<CommandResult> {
     try {
       // Check for help flags
-      if (command.trim() === 'bash -h' || command.trim() === 'bash --help') {
-        return this.showHelp(command.includes('--help'));
+      const trimmed = command.trim();
+      const tokens = trimmed.split(/\s+/);
+      const isHelp =
+        tokens.length === 2 &&
+        tokens[0] === 'bash' &&
+        (tokens[1] === '-h' || tokens[1] === '--help');
+      if (isHelp) {
+        return this.showHelp(tokens[1] === '--help');
       }
 
       const actualCommand = parseBashCommand(command);
