@@ -62,6 +62,8 @@ export interface AgentRunnerOptions {
   sessionId?: string;
   /** Sessions directory (optional, for testing) */
   sessionsDir?: string;
+  /** Enable Stop Hooks execution (default: true) */
+  enableStopHooks?: boolean;
 }
 
 /**
@@ -90,7 +92,7 @@ export class AgentRunner {
   private onMessagePart?: OnMessagePart;
   private onToolCall?: OnToolCall;
   private onToolResult?: OnToolResult;
-  private stopHooksEnabled = true;
+  private enableStopHooks: boolean;
 
   /** Session management */
   private session: Session | null = null;
@@ -113,6 +115,7 @@ export class AgentRunner {
     this.onToolResult = options.onToolResult;
     this.sessionId = options.sessionId;
     this.sessionsDir = options.sessionsDir;
+    this.enableStopHooks = options.enableStopHooks ?? true;
   }
 
   /**
@@ -304,7 +307,7 @@ export class AgentRunner {
    * 子类可覆盖该方法以控制 Stop Hooks 的执行策略
    */
   protected shouldExecuteStopHooks(): boolean {
-    return this.stopHooksEnabled;
+    return this.enableStopHooks;
   }
 
   /**
@@ -313,15 +316,8 @@ export class AgentRunner {
    * 子类可覆盖该方法以跳过 hooks 初始化
    */
   protected async initHooks(): Promise<void> {
-    if (this.stopHooksEnabled) {
+    if (this.enableStopHooks) {
       await ensureStopHooksLoaded();
     }
-  }
-
-  /**
-   * 禁用 Stop Hooks
-   */
-  disableStopHooks(): void {
-    this.stopHooksEnabled = false;
   }
 }

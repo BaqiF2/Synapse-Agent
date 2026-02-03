@@ -12,7 +12,7 @@
  *
  * Environment Variables:
  * - SYNAPSE_SESSIONS_DIR: Session files directory (default: ~/.synapse/sessions)
- * - SYNAPSE_META_SKILLS_DIR: Meta-skill directory (default: ~/.synapse/skill)
+ * - SYNAPSE_META_SKILLS_DIR: Meta-skill directory (default: ~/.synapse/skills)
  * - SYNAPSE_MAX_ENHANCE_CONTEXT_CHARS: Max context chars (default: 50000)
  * - SYNAPSE_SKILL_SUBAGENT_TIMEOUT: Sub-agent execution timeout in ms (default: 300000)
  */
@@ -76,7 +76,7 @@ function getSessionsDir(): string {
  * @returns Meta-skill directory path
  */
 function getMetaSkillDir(): string {
-  return process.env.SYNAPSE_META_SKILLS_DIR || path.join(os.homedir(), '.synapse', 'skill');
+  return process.env.SYNAPSE_META_SKILLS_DIR || path.join(os.homedir(), '.synapse', 'skills');
 }
 
 /**
