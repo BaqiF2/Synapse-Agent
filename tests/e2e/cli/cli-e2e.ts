@@ -1,5 +1,10 @@
 /**
  * CLI E2E Test Framework
+ * 
+ * Features:
+ * - CLI command testing (help, version, etc.)
+ * - REPL interactive mode testing
+ * - Real process spawning and communication
  */
 
 import { spawn, ChildProcess } from 'node:child_process';
@@ -29,14 +34,21 @@ export interface TestStep {
 
 export class CliTestRunner {
   private process: ChildProcess | null = null;
+  private replProcess: ChildProcess | null = null;
   private output: string = '';
+  private replOutput: string = '';
   private bunPath: string;
   private sessionDir: string;
+  private lastReplPrompt: number = 0;
 
   constructor() {
     this.bunPath = path.join(os.homedir(), '.bun', 'bin', 'bun');
     this.sessionDir = path.join(os.tmpdir(), `synapse-e2e-${Date.now()}`);
   }
+
+  // ═══════════════════════════════════════════════════════════════
+  //  CLI Command Mode
+  // ═══════════════════════════════════════════════════════════════
 
   async start(): Promise<void> {
     fs.mkdirSync(this.sessionDir, { recursive: true });
@@ -117,8 +129,144 @@ export class CliTestRunner {
     });
   }
 
+  // ═══════════════════════════════════════════════════════════════
+  //  REPL Interactive Mode
+  // ═══════════════════════════════════════════════════════════════
+
+  /**
+   * Start REPL interactive mode
+   */
+  async startRepl(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      this.replProcess = spawn(
+        this.bunPath,
+        ['run', 'src/cli/index.ts', 'chat'],
+        {
+          cwd: process.cwd(),
+          stdio: ['pipe', 'pipe', 'pipe'],
+          env: { ...process.env, FORCE_COLOR: '0' },
+        }
+      );
+
+      let ready = false;
+      const startTime = Date.now();
+
+      this.replProcess.stdout?.on('data', (data) => {
+        const content = data.toString();
+        this.replOutput += content;
+        
+        // Detect prompt (e.g., ">", "👋", or "synapse")
+        if (!ready && (content.includes('>') || content.includes('👋') || content.includes('synapse'))) {
+          ready = true;
+          this.lastReplPrompt = Date.now();
+          resolve();
+        }
+      });
+
+      this.replProcess.stderr?.on('data', (data) => {
+        this.replOutput += data.toString();
+      });
+
+      this.replProcess.on('error', (error) => {
+        reject(error);
+      });
+
+      this.replProcess.on('exit', (code) => {
+        if (!ready && code !== 0) {
+          reject(new Error(`REPL exited with code ${code}`));
+        }
+      });
+
+      // Timeout
+      setTimeout(() => {
+        if (!ready) {
+          this.stopRepl();
+          reject(new Error('REPL startup timeout'));
+        }
+      }, 60000);
+    });
+  }
+
+  /**
+   * Send input to REPL
+   */
+  async sendToRepl(input: string): Promise<void> {
+    if (!this.replProcess || !this.replProcess.stdin) {
+      throw new Error('REPL not started');
+    }
+
+    return new Promise((resolve, reject) => {
+      this.replProcess!.stdin!.write(input + '\n', (error) => {
+        if (error) reject(error);
+        else {
+          this.lastReplPrompt = Date.now();
+          resolve();
+        }
+      });
+    });
+  }
+
+  /**
+   * Wait for REPL response
+   */
+  async waitForReplResponse(timeout: number = 60000): Promise<string> {
+    const startTime = Date.now();
+    const lastOutputLength = this.replOutput.length;
+
+    while (Date.now() - startTime < timeout) {
+      // Check for new output
+      if (this.replOutput.length > lastOutputLength) {
+        // Wait a bit to ensure response is complete
+        await new Promise(r => setTimeout(r, 1000));
+        
+        // Check if we're back at prompt (indicates response is complete)
+        const recentOutput = this.replOutput.slice(-200);
+        if (recentOutput.includes('>') || recentOutput.includes('👋')) {
+          return this.replOutput;
+        }
+      }
+      
+      await new Promise(r => setTimeout(r, 100));
+    }
+
+    throw new Error(`REPL response timeout (${timeout}ms)`);
+  }
+
+  /**
+   * Get REPL output since last call
+   */
+  getReplOutput(): string {
+    return this.replOutput;
+  }
+
+  /**
+   * Clear REPL output
+   */
+  clearReplOutput(): void {
+    this.replOutput = '';
+  }
+
+  /**
+   * Stop REPL
+   */
+  async stopRepl(): Promise<void> {
+    if (this.replProcess) {
+      this.replProcess.stdin?.end();
+      this.replProcess.kill('SIGTERM');
+      this.replProcess = null;
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  //  Utility Methods
+  // ═══════════════════════════════════════════════════════════════
+
   getOutput(): string {
     return this.output;
+  }
+
+  clear(): void {
+    this.output = '';
   }
 
   async stop(): Promise<void> {
@@ -127,6 +275,7 @@ export class CliTestRunner {
       this.process.kill('SIGTERM');
       this.process = null;
     }
+    await this.stopRepl();
   }
 
   cleanup(): void {
@@ -136,21 +285,29 @@ export class CliTestRunner {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════
+//  Assertions
+// ═══════════════════════════════════════════════════════════════════
+
 export class Assertions {
   constructor(private output: string) {}
 
   toContain(text: string, message?: string): void {
     if (!this.output.includes(text)) {
-      throw new Error(message || `Expected: "${text}"`);
+      throw new Error(message || `Expected output to contain: "${text}"`);
     }
   }
 
-  toMatch(regex: RegExp): void {
+  toMatch(regex: RegExp, message?: string): void {
     if (!regex.test(this.output)) {
-      throw new Error(`Expected to match: ${regex}`);
+      throw new Error(message || `Expected output to match: ${regex}`);
     }
   }
 }
+
+// ═══════════════════════════════════════════════════════════════════
+//  Pre-defined Scenarios
+// ═══════════════════════════════════════════════════════════════════
 
 export const SCENARIOS: TestScenario[] = [
   {
@@ -171,6 +328,10 @@ export const SCENARIOS: TestScenario[] = [
     ],
   },
 ];
+
+// ═══════════════════════════════════════════════════════════════════
+//  Scenario Runner
+// ═══════════════════════════════════════════════════════════════════
 
 export async function runScenario(
   runner: CliTestRunner,
@@ -220,6 +381,10 @@ export async function runScenario(
 
   return results;
 }
+
+// ═══════════════════════════════════════════════════════════════════
+//  Main Runner (Legacy)
+// ═══════════════════════════════════════════════════════════════════
 
 export async function runAllScenarios(): Promise<TestResult[]> {
   console.log('═'.repeat(50));
