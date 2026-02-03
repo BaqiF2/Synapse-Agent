@@ -337,7 +337,6 @@ describe('E2E: LLM Client Refactor', () => {
         client,
         systemPrompt: 'Test',
         toolset,
-        enableStopHooks: false,
       });
 
       const response = await runner.run('Hi');
@@ -358,7 +357,6 @@ describe('E2E: LLM Client Refactor', () => {
         onMessagePart: (part) => {
           parts.push(part);
         },
-        enableStopHooks: false,
       });
 
       await runner.run('Hi');
@@ -382,7 +380,6 @@ describe('E2E: LLM Client Refactor', () => {
         onToolResult: (result) => {
           toolResults.push(result);
         },
-        enableStopHooks: false,
       });
 
       const response = await runner.run('Run');

@@ -17,6 +17,7 @@ import {createLogger} from '../utils/logger.ts';
 import {Session} from './session.ts';
 import type {StopHookContext, HookResult} from '../hooks/index.ts';
 import {stopHookRegistry} from '../hooks/stop-hook-registry.ts';
+import {loadStopHooks} from '../hooks/load-stop-hooks.ts';
 
 const logger = createLogger('agent-runner');
 
@@ -24,7 +25,7 @@ let stopHooksLoadPromise: Promise<void> | null = null;
 
 async function ensureStopHooksLoaded(): Promise<void> {
   if (!stopHooksLoadPromise) {
-    stopHooksLoadPromise = import('../hooks/skill-enhance-hook.ts').then(() => undefined);
+    stopHooksLoadPromise = loadStopHooks();
   }
   await stopHooksLoadPromise;
 }
@@ -61,8 +62,6 @@ export interface AgentRunnerOptions {
   sessionId?: string;
   /** Sessions directory (optional, for testing) */
   sessionsDir?: string;
-  /** Enable Stop Hooks execution (default: true) */
-  enableStopHooks?: boolean;
 }
 
 /**
@@ -91,7 +90,7 @@ export class AgentRunner {
   private onMessagePart?: OnMessagePart;
   private onToolCall?: OnToolCall;
   private onToolResult?: OnToolResult;
-  private enableStopHooks: boolean;
+  private stopHooksEnabled = true;
 
   /** Session management */
   private session: Session | null = null;
@@ -114,7 +113,6 @@ export class AgentRunner {
     this.onToolResult = options.onToolResult;
     this.sessionId = options.sessionId;
     this.sessionsDir = options.sessionsDir;
-    this.enableStopHooks = options.enableStopHooks ?? true;
   }
 
   /**
@@ -174,6 +172,8 @@ export class AgentRunner {
   async run(userMessage: string): Promise<string> {
     // 延迟初始化 Session
     await this.initSession();
+    // 初始化 hooks（仅主 Agent 会执行实际加载）
+    await this.initHooks();
 
     // 添加用户消息到聊天历史中
     const userMsg = createTextMessage('user', userMessage);
@@ -262,9 +262,7 @@ export class AgentRunner {
       this.history.push(createTextMessage('assistant', stopMessage));
     }
 
-    if (this.enableStopHooks) {
-      await ensureStopHooksLoaded();
-
+    if (this.shouldExecuteStopHooks()) {
       // 执行 Stop Hooks（正常完成时）
       const hookResults = await this.executeStopHooks({
         sessionId: this.getSessionId(),
@@ -298,5 +296,32 @@ export class AgentRunner {
    */
   private async executeStopHooks(context: StopHookContext): Promise<HookResult[]> {
     return stopHookRegistry.executeAll(context);
+  }
+
+  /**
+   * 是否执行 Stop Hooks
+   *
+   * 子类可覆盖该方法以控制 Stop Hooks 的执行策略
+   */
+  protected shouldExecuteStopHooks(): boolean {
+    return this.stopHooksEnabled;
+  }
+
+  /**
+   * 初始化 Stop Hooks
+   *
+   * 子类可覆盖该方法以跳过 hooks 初始化
+   */
+  protected async initHooks(): Promise<void> {
+    if (this.stopHooksEnabled) {
+      await ensureStopHooksLoaded();
+    }
+  }
+
+  /**
+   * 禁用 Stop Hooks
+   */
+  disableStopHooks(): void {
+    this.stopHooksEnabled = false;
   }
 }
