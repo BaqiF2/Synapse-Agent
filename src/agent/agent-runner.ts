@@ -20,6 +20,15 @@ import {stopHookRegistry} from '../hooks/stop-hook-registry.ts';
 
 const logger = createLogger('agent-runner');
 
+let stopHooksLoadPromise: Promise<void> | null = null;
+
+async function ensureStopHooksLoaded(): Promise<void> {
+  if (!stopHooksLoadPromise) {
+    stopHooksLoadPromise = import('../hooks/skill-enhance-hook.ts').then(() => undefined);
+  }
+  await stopHooksLoadPromise;
+}
+
 /**
  * Default max iterations for Agent Loop
  */
@@ -52,6 +61,8 @@ export interface AgentRunnerOptions {
   sessionId?: string;
   /** Sessions directory (optional, for testing) */
   sessionsDir?: string;
+  /** Enable Stop Hooks execution (default: true) */
+  enableStopHooks?: boolean;
 }
 
 /**
@@ -80,6 +91,7 @@ export class AgentRunner {
   private onMessagePart?: OnMessagePart;
   private onToolCall?: OnToolCall;
   private onToolResult?: OnToolResult;
+  private enableStopHooks: boolean;
 
   /** Session management */
   private session: Session | null = null;
@@ -102,6 +114,7 @@ export class AgentRunner {
     this.onToolResult = options.onToolResult;
     this.sessionId = options.sessionId;
     this.sessionsDir = options.sessionsDir;
+    this.enableStopHooks = options.enableStopHooks ?? true;
   }
 
   /**
@@ -249,22 +262,26 @@ export class AgentRunner {
       this.history.push(createTextMessage('assistant', stopMessage));
     }
 
-    // 执行 Stop Hooks（正常完成时）
-    const hookResults = await this.executeStopHooks({
-      sessionId: this.getSessionId(),
-      cwd: process.cwd(),
-      messages: this.history,
-      finalResponse,
-    });
+    if (this.enableStopHooks) {
+      await ensureStopHooksLoaded();
 
-    const hookMessages = hookResults
-      .map((result) => result.message)
-      .filter((message): message is string => Boolean(message && message.trim().length > 0));
+      // 执行 Stop Hooks（正常完成时）
+      const hookResults = await this.executeStopHooks({
+        sessionId: this.getSessionId(),
+        cwd: process.cwd(),
+        messages: this.history,
+        finalResponse,
+      });
 
-    if (hookMessages.length > 0) {
-      const hookBody = hookMessages.join('\n\n');
-      const prefix = finalResponse ? '\n\n' : '';
-      finalResponse = `${finalResponse}${prefix}${hookBody}`;
+      const hookMessages = hookResults
+        .map((result) => result.message)
+        .filter((message): message is string => Boolean(message && message.trim().length > 0));
+
+      if (hookMessages.length > 0) {
+        const hookBody = hookMessages.join('\n\n');
+        const prefix = finalResponse ? '\n\n' : '';
+        finalResponse = `${finalResponse}${prefix}${hookBody}`;
+      }
     }
 
     return finalResponse;

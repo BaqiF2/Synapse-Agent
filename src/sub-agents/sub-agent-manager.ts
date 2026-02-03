@@ -109,6 +109,7 @@ export class SubAgentManager {
       systemPrompt: config.systemPrompt,
       toolset,
       maxIterations: config.maxIterations ?? this.maxIterations,
+      enableStopHooks: false,
     });
 
     const instance: SubAgentInstance = {

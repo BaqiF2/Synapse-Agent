@@ -60,6 +60,7 @@ describe('AgentRunner', () => {
         client,
         systemPrompt: 'Test',
         toolset,
+        enableStopHooks: false,
       });
 
       const response = await runner.run('Hi');
@@ -85,6 +86,7 @@ describe('AgentRunner', () => {
         client,
         systemPrompt: 'Test',
         toolset,
+        enableStopHooks: false,
       });
 
       const response = await runner.run('List files');
@@ -107,6 +109,7 @@ describe('AgentRunner', () => {
         onMessagePart: (p) => {
           parts.push(p);
         },
+        enableStopHooks: false,
       });
 
       await runner.run('Hello');
@@ -143,6 +146,7 @@ describe('AgentRunner', () => {
           client,
           systemPrompt: 'Test',
           toolset,
+          enableStopHooks: false,
         });
 
         await runner.run('Fail');
@@ -183,6 +187,7 @@ describe('AgentRunner', () => {
         systemPrompt: 'Test',
         toolset,
         maxConsecutiveToolFailures: 2,
+        enableStopHooks: false,
       });
 
       const response = await runner.run('Fail');
@@ -206,6 +211,7 @@ describe('AgentRunner', () => {
         client,
         systemPrompt: 'Test',
         toolset,
+        enableStopHooks: false,
       });
 
       await runner.run('One');
@@ -245,6 +251,7 @@ describe('AgentRunner with Session', () => {
       systemPrompt: 'Test',
       toolset,
       sessionsDir: testDir,
+      enableStopHooks: false,
     });
 
     await runner.run('Hi');
@@ -267,6 +274,7 @@ describe('AgentRunner with Session', () => {
       systemPrompt: 'Test',
       toolset,
       sessionsDir: testDir,
+      enableStopHooks: false,
     });
 
     await runner.run('Hi');
@@ -293,6 +301,7 @@ describe('AgentRunner with Session', () => {
       systemPrompt: 'Test',
       toolset,
       sessionsDir: testDir,
+      enableStopHooks: false,
     });
     await runner1.run('Message 1');
     const sessionId = runner1.getSessionId();
@@ -305,6 +314,7 @@ describe('AgentRunner with Session', () => {
       toolset,
       sessionId: sessionId!,
       sessionsDir: testDir,
+      enableStopHooks: false,
     });
     await runner2.run('Message 2');
 
