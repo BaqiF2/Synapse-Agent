@@ -206,7 +206,6 @@ export async function skillEnhanceHook(context: StopHookContext): Promise<HookRe
   // Step 2: 检查 sessionId 是否存在
   if (!context.sessionId) {
     logger.warn('Enhancement skipped: session not found');
-    console.log('[Skill] Enhancement failed: session not found');
     return { message: 'Enhancement skipped: session not found' };
   }
 
@@ -227,7 +226,6 @@ export async function skillEnhanceHook(context: StopHookContext): Promise<HookRe
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     logger.error('Failed to read session', { error: errorMessage, sessionPath });
-    console.log('[Skill] Enhancement failed: failed to read session');
     return { message: `Enhancement failed: failed to read session - ${errorMessage}` };
   }
 
@@ -241,7 +239,6 @@ export async function skillEnhanceHook(context: StopHookContext): Promise<HookRe
   const metaSkills = loadMetaSkills();
   if (!metaSkills) {
     logger.error('Meta-skills not found');
-    console.log('[Skill] Enhancement failed: meta-skills not found');
     return { message: 'Enhancement failed: meta-skills not found' };
   }
 
@@ -272,9 +269,6 @@ export async function skillEnhanceHook(context: StopHookContext): Promise<HookRe
     // 执行 sub-agent（带超时）
     const result = await executeWithTimeout(subAgentManager, prompt, timeoutMs);
 
-    // 输出结果（直接透传）
-    console.log(result);
-
     logger.info('Skill enhancement completed', {
       sessionId: context.sessionId,
       resultLength: result.length,
@@ -286,7 +280,6 @@ export async function skillEnhanceHook(context: StopHookContext): Promise<HookRe
 
     if (errorMessage === 'execution timeout') {
       logger.error('Skill sub-agent execution timeout', { sessionId: context.sessionId, timeoutMs });
-      console.log('[Skill] Enhancement failed: execution timeout');
       return { message: 'Enhancement failed: execution timeout' };
     }
 
@@ -294,7 +287,6 @@ export async function skillEnhanceHook(context: StopHookContext): Promise<HookRe
       sessionId: context.sessionId,
       error: errorMessage,
     });
-    console.log(`[Skill] Enhancement failed: ${errorMessage}`);
     return { message: `Enhancement failed: ${errorMessage}` };
   }
 }

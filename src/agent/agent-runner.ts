@@ -15,7 +15,7 @@ import {createTextMessage, extractText, type Message, toolResultToMessage} from 
 import type {Toolset} from '../tools/toolset.ts';
 import {createLogger} from '../utils/logger.ts';
 import {Session} from './session.ts';
-import type {StopHookContext} from '../hooks/index.ts';
+import type {StopHookContext, HookResult} from '../hooks/index.ts';
 import {stopHookRegistry} from '../hooks/stop-hook-registry.ts';
 
 const logger = createLogger('agent-runner');
@@ -250,12 +250,22 @@ export class AgentRunner {
     }
 
     // 执行 Stop Hooks（正常完成时）
-    await this.executeStopHooks({
+    const hookResults = await this.executeStopHooks({
       sessionId: this.getSessionId(),
       cwd: process.cwd(),
       messages: this.history,
       finalResponse,
     });
+
+    const hookMessages = hookResults
+      .map((result) => result.message)
+      .filter((message): message is string => Boolean(message && message.trim().length > 0));
+
+    if (hookMessages.length > 0) {
+      const hookBody = hookMessages.join('\n\n');
+      const prefix = finalResponse ? '\n\n' : '';
+      finalResponse = `${finalResponse}${prefix}${hookBody}`;
+    }
 
     return finalResponse;
   }
@@ -269,7 +279,7 @@ export class AgentRunner {
    *
    * @param context - Stop hook context
    */
-  private async executeStopHooks(context: StopHookContext): Promise<void> {
-    await stopHookRegistry.executeAll(context);
+  private async executeStopHooks(context: StopHookContext): Promise<HookResult[]> {
+    return stopHookRegistry.executeAll(context);
   }
 }

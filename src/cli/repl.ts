@@ -70,6 +70,12 @@ function stripWrappingQuotes(value: string): string {
   return value;
 }
 
+function clearPromptLine(rl: readline.Interface): void {
+  if (!rl.output || !rl.output.isTTY) return;
+  readline.clearLine(rl.output, 0);
+  readline.cursorTo(rl.output, 0);
+}
+
 /**
  * 格式化相对时间
  */
@@ -670,6 +676,8 @@ async function handleLineInput(
 
   // Agent conversation
   state.isProcessing = true;
+  rl.pause();
+  clearPromptLine(rl);
   console.log();
   process.stdout.write(chalk.magenta('Agent> '));
 
@@ -680,14 +688,14 @@ async function handleLineInput(
     } else {
       await agentRunner.run(trimmedInput);
     }
-    console.log();
-    console.log();
+    process.stdout.write('\n');
   } catch (error) {
     const message = getErrorMessage(error);
     console.log(chalk.red(`\nError: ${message}\n`));
     cliLogger.error('Agent request failed', { error: message });
   } finally {
     state.isProcessing = false;
+    rl.resume();
     promptUser();
   }
 }
@@ -724,8 +732,9 @@ export async function startRepl(): Promise<void> {
   });
 
   const promptUser = () => {
+    clearPromptLine(rl);
     rl.setPrompt(chalk.green('You> '));
-    rl.prompt();
+    rl.prompt(true);
   };
 
   // 处理 resume 的回调
@@ -782,6 +791,8 @@ export async function startRepl(): Promise<void> {
 
     // Agent conversation
     state.isProcessing = true;
+    rl.pause();
+    clearPromptLine(rl);
     console.log();
     process.stdout.write(chalk.magenta('Agent> '));
 
@@ -792,14 +803,14 @@ export async function startRepl(): Promise<void> {
       } else {
         await agentRunner.run(trimmedInput);
       }
-      console.log();
-      console.log();
+      process.stdout.write('\n');
     } catch (error) {
       const message = getErrorMessage(error);
       console.log(chalk.red(`\nError: ${message}\n`));
       cliLogger.error('Agent request failed', { error: message });
     } finally {
       state.isProcessing = false;
+      rl.resume();
       promptUser();
     }
   };

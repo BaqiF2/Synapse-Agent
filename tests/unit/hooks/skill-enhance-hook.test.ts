@@ -141,13 +141,6 @@ describe('SkillEnhanceHook - SessionId 检查 (Feature 10)', () => {
     const originalIsAutoEnhanceEnabled = settingsProto.isAutoEnhanceEnabled;
     settingsProto.isAutoEnhanceEnabled = () => true;
 
-    // 捕获 console.log 输出
-    const originalConsoleLog = console.log;
-    const logMessages: string[] = [];
-    console.log = (...args: unknown[]) => {
-      logMessages.push(args.map(String).join(' '));
-    };
-
     try {
       const context = createTestContext({ sessionId: null });
       const result = await skillEnhanceHook(context);
@@ -155,14 +148,8 @@ describe('SkillEnhanceHook - SessionId 检查 (Feature 10)', () => {
       // 应该返回错误消息
       expect(result).toBeDefined();
       expect(result?.message).toContain('session not found');
-
-      // 应该输出错误到控制台
-      expect(logMessages.some((msg) => msg.includes('[Skill] Enhancement failed: session not found'))).toBe(
-        true
-      );
     } finally {
       settingsProto.isAutoEnhanceEnabled = originalIsAutoEnhanceEnabled;
-      console.log = originalConsoleLog;
     }
   });
 
