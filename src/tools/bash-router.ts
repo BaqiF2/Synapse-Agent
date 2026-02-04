@@ -12,7 +12,7 @@ import * as path from 'node:path';
 import * as os from 'node:os';
 import type { BashSession } from './bash-session.ts';
 import { NativeShellCommandHandler, type CommandResult } from './handlers/base-bash-handler.ts';
-import { ReadHandler, WriteHandler, EditHandler, GlobHandler, GrepHandler, BashWrapperHandler } from './handlers/agent-bash/index.ts';
+import { ReadHandler, WriteHandler, EditHandler, GlobHandler, GrepHandler, BashWrapperHandler, TodoWriteHandler } from './handlers/agent-bash/index.ts';
 import { CommandSearchHandler } from './handlers/extend-bash/index.ts';
 import { McpConfigParser, McpClient, McpInstaller } from './converters/mcp/index.ts';
 import { SkillStructure, DocstringParser } from './converters/skill/index.ts';
@@ -33,6 +33,7 @@ export enum CommandType {
 const SKILL_MANAGEMENT_COMMAND_PREFIXES = ['skill:load'] as const;
 const COMMAND_SEARCH_PREFIX = 'command:search';
 const TASK_COMMAND_PREFIX = 'task:';
+const TODO_WRITE_COMMAND = 'TodoWrite';
 
 /**
  * Default Synapse directory
@@ -81,6 +82,7 @@ export class BashRouter {
   private globHandler: GlobHandler;
   private grepHandler: GrepHandler;
   private bashWrapperHandler: BashWrapperHandler;
+  private todoWriteHandler: TodoWriteHandler;
   private commandSearchHandler: CommandSearchHandler;
   private mcpInstaller: McpInstaller;
   private skillCommandHandler: SkillCommandHandler | null = null;
@@ -104,6 +106,7 @@ export class BashRouter {
     this.globHandler = new GlobHandler();
     this.grepHandler = new GrepHandler();
     this.bashWrapperHandler = new BashWrapperHandler(session);
+    this.todoWriteHandler = new TodoWriteHandler();
     this.commandSearchHandler = new CommandSearchHandler();
     this.mcpInstaller = new McpInstaller();
     this.agentHandlers = [
@@ -113,6 +116,7 @@ export class BashRouter {
       { command: 'glob', handler: this.globHandler },
       { command: 'search', handler: this.grepHandler },
       { command: 'bash', handler: this.bashWrapperHandler },
+      { command: 'TodoWrite', handler: this.todoWriteHandler },
     ];
   }
 
@@ -175,6 +179,11 @@ export class BashRouter {
     // skill:*:* is Extension (for skill tool execution, e.g. skill:analyzer:run)
     if (isSkillToolCommand(trimmed)) {
       return CommandType.EXTEND_SHELL_COMMAND;
+    }
+
+    // TodoWrite → Agent Shell Command (case sensitive)
+    if (this.matchesCommand(trimmed, TODO_WRITE_COMMAND)) {
+      return CommandType.AGENT_SHELL_COMMAND;
     }
 
     // Agent Shell Command commands (Layer 2)
