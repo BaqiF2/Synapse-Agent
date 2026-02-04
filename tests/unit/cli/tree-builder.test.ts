@@ -1,8 +1,11 @@
 import { describe, it, expect } from 'bun:test';
 import { TreeBuilder } from '../../../src/cli/tree-builder.ts';
 
+const ansiEscape = String.fromCharCode(27);
+const ansiPattern = new RegExp(`${ansiEscape}\\[[0-9;]*m`, 'g');
+
 function stripAnsi(text: string): string {
-  return text.replace(new RegExp('\\x1b\\[[0-9;]*m', 'g'), '');
+  return text.replace(ansiPattern, '');
 }
 
 describe('TreeBuilder', () => {

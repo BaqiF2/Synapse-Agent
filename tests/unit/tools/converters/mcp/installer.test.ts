@@ -6,8 +6,14 @@ import { McpInstaller } from '../../../../../src/tools/converters/mcp/installer.
 
 function makeWrapper(commandName: string, description?: string) {
   const descLine = description ? `* Description: ${description}` : '';
+  const parts = commandName.split(':');
+  const serverName = parts[1] ?? '';
+  const toolName = parts.slice(2).join(':') || '';
   return {
     commandName,
+    serverName,
+    toolName,
+    scriptPath: path.join(os.tmpdir(), commandName.replace(/:/g, '_')),
     content: `#!/usr/bin/env node\n${descLine}\nconsole.log('ok');\n`,
   };
 }
