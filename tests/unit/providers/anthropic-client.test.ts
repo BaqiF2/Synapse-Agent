@@ -2,7 +2,7 @@
  * AnthropicClient Tests
  */
 
-import { describe, it, expect, mock, beforeEach } from 'bun:test';
+import { describe, it, expect, mock, beforeEach, afterAll } from 'bun:test';
 
 let capturedCreateParams: unknown;
 let createImpl: ((params: unknown) => Promise<unknown>) | null = null;
@@ -45,18 +45,13 @@ mock.module('../../../src/config/settings-manager.ts', () => ({
   },
 }));
 
-mock.module('../../../src/providers/anthropic/anthropic-streamed-message.ts', () => ({
-  AnthropicStreamedMessage: class MockStreamedMessage {
-    response: unknown;
-    constructor(response: unknown) {
-      this.response = response;
-    }
-  },
-}));
-
 beforeEach(() => {
   capturedCreateParams = null;
   createImpl = null;
+});
+
+afterAll(() => {
+  mock.restore();
 });
 
 describe('AnthropicClient', () => {
