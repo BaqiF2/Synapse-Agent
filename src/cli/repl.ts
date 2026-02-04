@@ -17,6 +17,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
 import chalk from 'chalk';
+
 // Agent imports
 import { AnthropicClient } from '../providers/anthropic/anthropic-client.ts';
 import { buildSystemPrompt } from '../agent/system-prompt.ts';
@@ -30,6 +31,7 @@ import { createLogger } from '../utils/logger.ts';
 import { SettingsManager } from '../config/settings-manager.ts';
 import { TerminalRenderer } from './terminal-renderer.ts';
 import { extractHookOutput } from './hook-output.ts';
+import { todoStore } from '../tools/handlers/agent-bash/todo/todo-store.ts';
 // ════════════════════════════════════════════════════════════════════
 //  Constants & Configuration
 // ════════════════════════════════════════════════════════════════════
@@ -525,6 +527,7 @@ function initializeAgent(session: Session): AgentRunner | null {
     const systemPrompt = buildSystemPrompt({ cwd: process.cwd() });
 
     const terminalRenderer = new TerminalRenderer();
+    terminalRenderer.attachTodoStore(todoStore);
 
     return new AgentRunner({
       client: llmClient,
