@@ -25,7 +25,7 @@
         "expected": "items 为空数组且 updatedAt 被刷新"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -63,7 +63,7 @@
         "expected": "监听器不再被调用"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -89,7 +89,7 @@
         "expected": "返回值不为 AGENT_SHELL_COMMAND"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -115,7 +115,7 @@
         "expected": "exitCode 为 1，stderr 包含关键片段 \"Invalid JSON format\""
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -168,7 +168,7 @@
         "expected": "exitCode 为 1，stderr 提示存在未定义字段"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -215,7 +215,7 @@
         "expected": "exitCode 为 1，stderr 提示环境变量无效"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -241,7 +241,7 @@
         "expected": "exitCode 为 0"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -259,7 +259,7 @@
         "expected": "exitCode 为 0，TodoStore.items 仅包含新数据"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -285,7 +285,7 @@
         "expected": "exitCode 为 0，stdout 包含关键片段 \"TodoWrite - Task List Management\""
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -313,6 +313,6 @@
         "expected": "渲染输出次数与更新次数一致"
       }
     ],
-    "passes": false
+    "passes": true
   }
 ]
