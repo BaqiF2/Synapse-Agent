@@ -1,0 +1,318 @@
+[
+  {
+    "category": "functional",
+    "prd": "2026-02-03-todowrite-tool-design.md#核心组件实现",
+    "description": "TodoStore 以单例形式在内存中维护任务状态，支持全量更新、查询与清空。",
+    "bdd": [
+      {
+        "title": "update 全量替换任务列表并刷新更新时间",
+        "description": "调用 update 时用新列表完全覆盖旧列表，并更新 updatedAt。",
+        "steps": [
+          "给定 TodoStore 当前 items 为 2 条且记录当前 updatedAt",
+          "调用 update 传入包含 1 条 TodoItem 的新列表",
+          "调用 get 读取最新状态"
+        ],
+        "expected": "items 仅包含新列表的 1 条数据，旧列表被完全替换，updatedAt 晚于更新前时间"
+      },
+      {
+        "title": "clear 清空任务列表",
+        "description": "调用 clear 等同于 update([])。",
+        "steps": [
+          "给定 TodoStore 当前 items 为 2 条",
+          "调用 clear",
+          "调用 get 读取最新状态"
+        ],
+        "expected": "items 为空数组且 updatedAt 被刷新"
+      }
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-03-todowrite-tool-design.md#核心组件实现",
+    "description": "TodoStore.onChange 注册监听后立即回调当前状态，并在每次 update/clear 时触发通知。",
+    "bdd": [
+      {
+        "title": "onChange 注册后立即收到当前状态",
+        "description": "注册监听器后必须立刻回调一次当前状态。",
+        "steps": [
+          "给定 TodoStore 当前状态已存在",
+          "调用 onChange 注册监听器",
+          "记录监听器的调用次数和参数"
+        ],
+        "expected": "监听器立即被调用一次且参数为当前状态"
+      },
+      {
+        "title": "update 即使传入相同列表也会触发通知",
+        "description": "同一份列表的更新也必须通知监听器。",
+        "steps": [
+          "注册一个监听器并清空调用记录",
+          "调用 update 传入与当前 items 相同的列表",
+          "统计监听器的调用次数"
+        ],
+        "expected": "监听器被调用至少一次"
+      },
+      {
+        "title": "取消订阅后不再接收通知",
+        "description": "onChange 返回的取消函数应停止后续通知。",
+        "steps": [
+          "调用 onChange 注册监听器并获取取消函数",
+          "调用取消函数",
+          "调用 update"
+        ],
+        "expected": "监听器不再被调用"
+      }
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-03-todowrite-tool-design.md#BashRouter-集成",
+    "description": "BashRouter 仅对大小写敏感的 TodoWrite 命令识别为 AGENT_SHELL_COMMAND。",
+    "bdd": [
+      {
+        "title": "识别 TodoWrite 命令",
+        "description": "以 TodoWrite 开头的命令应被识别为 AGENT_SHELL_COMMAND。",
+        "steps": [
+          "输入命令字符串 \"TodoWrite {\\\"todos\\\":[]}\"",
+          "调用 identifyCommandType"
+        ],
+        "expected": "返回值为 AGENT_SHELL_COMMAND"
+      },
+      {
+        "title": "大小写敏感，不识别 todowrite",
+        "description": "非精确大小写的命令不应被识别为 TodoWrite。",
+        "steps": [
+          "输入命令字符串 \"todowrite {\\\"todos\\\":[]}\"",
+          "调用 identifyCommandType"
+        ],
+        "expected": "返回值不为 AGENT_SHELL_COMMAND"
+      }
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-03-todowrite-tool-design.md#错误处理",
+    "description": "TodoWrite 对缺失参数与无效 JSON 提供明确错误提示。",
+    "bdd": [
+      {
+        "title": "缺失 JSON 参数",
+        "description": "未提供 JSON 参数时返回缺失提示。",
+        "steps": [
+          "执行 TodoWrite 命令且不传入 JSON",
+          "读取 stderr 与 exitCode"
+        ],
+        "expected": "exitCode 为 1，stderr 包含关键片段 \"Missing JSON parameter\""
+      },
+      {
+        "title": "无效 JSON 格式",
+        "description": "JSON 解析失败时返回格式错误提示。",
+        "steps": [
+          "执行 TodoWrite 命令并传入无效 JSON",
+          "读取 stderr 与 exitCode"
+        ],
+        "expected": "exitCode 为 1，stderr 包含关键片段 \"Invalid JSON format\""
+      }
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-03-todowrite-tool-design.md#输入验证规则",
+    "description": "TodoWrite 严格校验字段必填、非空、长度、枚举值及禁止多余字段。",
+    "bdd": [
+      {
+        "title": "content 必填且不可为空白",
+        "description": "缺失或仅空白的 content 需报错。",
+        "steps": [
+          "执行 TodoWrite，传入缺失 content 的 TodoItem",
+          "读取 stderr 与 exitCode"
+        ],
+        "expected": "exitCode 为 1，stderr 包含关键片段 \"content\" 和 \"Required\""
+      },
+      {
+        "title": "activeForm 必填且不可为空白",
+        "description": "仅空白的 activeForm 需报错。",
+        "steps": [
+          "执行 TodoWrite，传入 activeForm 仅空白字符的 TodoItem",
+          "读取 stderr 与 exitCode"
+        ],
+        "expected": "exitCode 为 1，stderr 包含关键片段 \"activeForm\""
+      },
+      {
+        "title": "status 仅允许枚举值",
+        "description": "status 为非枚举值时应报错。",
+        "steps": [
+          "执行 TodoWrite，传入 status 为 \"done\" 的 TodoItem",
+          "读取 stderr 与 exitCode"
+        ],
+        "expected": "exitCode 为 1，stderr 包含关键片段 \"pending\"、\"in_progress\"、\"completed\""
+      },
+      {
+        "title": "禁止 TodoItem 多余字段",
+        "description": "TodoItem 不允许包含未定义字段。",
+        "steps": [
+          "执行 TodoWrite，传入包含额外字段 extra 的 TodoItem",
+          "读取 stderr 与 exitCode"
+        ],
+        "expected": "exitCode 为 1，stderr 提示存在未定义字段"
+      },
+      {
+        "title": "禁止根级别多余字段",
+        "description": "输入对象不允许除了 todos 以外的字段。",
+        "steps": [
+          "执行 TodoWrite，传入包含多余字段 foo 的根对象",
+          "读取 stderr 与 exitCode"
+        ],
+        "expected": "exitCode 为 1，stderr 提示存在未定义字段"
+      }
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-03-todowrite-tool-design.md#输入验证规则",
+    "description": "TodoWrite 校验内容长度与任务列表长度，并支持环境变量覆盖默认值。",
+    "bdd": [
+      {
+        "title": "content 与 activeForm 长度限制",
+        "description": "长度超过最大限制时必须报错。",
+        "steps": [
+          "设置 TODO_MAX_CONTENT_LENGTH 为 5",
+          "执行 TodoWrite，传入 content 长度为 6 的 TodoItem",
+          "读取 stderr 与 exitCode"
+        ],
+        "expected": "exitCode 为 1，stderr 提示长度超限"
+      },
+      {
+        "title": "todos 数组允许为空",
+        "description": "空数组表示清空任务列表。",
+        "steps": [
+          "执行 TodoWrite，传入 todos 为空数组",
+          "读取 exitCode 并检查 TodoStore 状态"
+        ],
+        "expected": "exitCode 为 0，TodoStore.items 为空数组"
+      },
+      {
+        "title": "todos 数组长度上限可被环境变量覆盖",
+        "description": "TODO_MAX_ITEMS 覆盖默认上限。",
+        "steps": [
+          "设置 TODO_MAX_ITEMS 为 2",
+          "执行 TodoWrite，传入包含 3 条 TodoItem 的列表",
+          "读取 stderr 与 exitCode"
+        ],
+        "expected": "exitCode 为 1，stderr 提示超出最大数量"
+      },
+      {
+        "title": "无效环境变量直接报错",
+        "description": "环境变量无法解析或小于等于 0 时立即报错提示用户。",
+        "steps": [
+          "设置 TODO_MAX_ITEMS 为 0",
+          "执行 TodoWrite",
+          "读取 stderr 与 exitCode"
+        ],
+        "expected": "exitCode 为 1，stderr 提示环境变量无效"
+      }
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-03-todowrite-tool-design.md#输入验证规则",
+    "description": "TodoWrite 强制校验 in_progress 数量最多为 1。",
+    "bdd": [
+      {
+        "title": "超过 1 个 in_progress 时报错",
+        "description": "in_progress 数量大于 1 时拒绝执行。",
+        "steps": [
+          "执行 TodoWrite，传入包含 2 条 in_progress 的列表",
+          "读取 stderr 与 exitCode"
+        ],
+        "expected": "exitCode 为 1，stderr 提示 in_progress 数量超限并要求更新"
+      },
+      {
+        "title": "0 或 1 个 in_progress 允许通过",
+        "description": "in_progress 数量为 0 或 1 时不应触发该类错误。",
+        "steps": [
+          "执行 TodoWrite，传入 0 个 in_progress 的列表",
+          "读取 exitCode"
+        ],
+        "expected": "exitCode 为 0"
+      }
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-03-todowrite-tool-design.md#核心组件实现",
+    "description": "TodoWriteHandler 解析输入、校验后全量替换 TodoStore，并返回成功结果。",
+    "bdd": [
+      {
+        "title": "成功执行后更新 TodoStore",
+        "description": "合法输入应触发全量替换并成功返回。",
+        "steps": [
+          "给定 TodoStore 已有 2 条旧数据",
+          "执行 TodoWrite，传入 1 条新 TodoItem",
+          "读取 exitCode 并检查 TodoStore"
+        ],
+        "expected": "exitCode 为 0，TodoStore.items 仅包含新数据"
+      }
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-03-todowrite-tool-design.md#帮助命令",
+    "description": "TodoWrite -h/--help 输出命令说明文档内容。",
+    "bdd": [
+      {
+        "title": "-h 输出帮助文档",
+        "description": "执行 -h 应输出 TodoWrite 自描述内容。",
+        "steps": [
+          "执行命令 TodoWrite -h",
+          "读取 stdout 与 exitCode"
+        ],
+        "expected": "exitCode 为 0，stdout 包含关键片段 \"TodoWrite - Task List Management\""
+      },
+      {
+        "title": "--help 输出帮助文档",
+        "description": "执行 --help 应输出 TodoWrite 自描述内容。",
+        "steps": [
+          "执行命令 TodoWrite --help",
+          "读取 stdout 与 exitCode"
+        ],
+        "expected": "exitCode 为 0，stdout 包含关键片段 \"TodoWrite - Task List Management\""
+      }
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-03-todowrite-tool-design.md#终端渲染",
+    "description": "终端渲染器监听 TodoStore 变更并按状态实时渲染任务列表。",
+    "bdd": [
+      {
+        "title": "按状态渲染图标与文本",
+        "description": "completed、in_progress、pending 分别渲染不同图标与文本。",
+        "steps": [
+          "构造包含 completed、in_progress、pending 的任务列表",
+          "触发 TodoStore.update",
+          "读取终端渲染输出"
+        ],
+        "expected": "completed 行包含 \"✓\" 与 content，in_progress 行包含 \"●\" 与 activeForm 并追加 \"...\"，pending 行包含 \"○\" 与 content"
+      },
+      {
+        "title": "状态变化触发实时重渲染",
+        "description": "TodoStore 更新应触发终端重新渲染。",
+        "steps": [
+          "注册渲染监听",
+          "调用 TodoStore.update 两次更新列表",
+          "统计渲染输出次数"
+        ],
+        "expected": "渲染输出次数与更新次数一致"
+      }
+    ],
+    "passes": true
+  }
+]

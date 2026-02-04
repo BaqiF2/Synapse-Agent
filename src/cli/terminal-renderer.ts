@@ -15,6 +15,8 @@ import {
   type ToolResultEvent,
   type SubAgentEvent,
 } from './terminal-renderer-types.ts';
+import type { TodoState } from '../tools/handlers/agent-bash/todo/todo-store.ts';
+import type { TodoStore } from '../tools/handlers/agent-bash/todo/todo-store.ts';
 
 const MAX_OUTPUT_LINES = parseInt(process.env.SYNAPSE_MAX_OUTPUT_LINES || '5', 10);
 
@@ -45,6 +47,7 @@ export class TerminalRenderer {
   private activeCalls: Map<string, ActiveCall>;
   private activeSubAgents: Map<string, SubAgentEvent>;
   private activeAnimations: Map<string, ReturnType<typeof setInterval>>;
+  private todoUnsubscribe?: () => void;
 
   constructor() {
     this.treeBuilder = new TreeBuilder();
@@ -159,6 +162,54 @@ export class TerminalRenderer {
     console.log(`${prefix}${chalk.gray('[completed]')}`);
 
     this.activeSubAgents.delete(id);
+  }
+
+  /**
+   * Bind TodoStore changes to renderer
+   */
+  attachTodoStore(store: Pick<TodoStore, 'onChange'>): () => void {
+    if (this.todoUnsubscribe) {
+      this.todoUnsubscribe();
+    }
+    this.todoUnsubscribe = store.onChange((state) => this.renderTodos(state));
+    return this.todoUnsubscribe;
+  }
+
+  /**
+   * Render Todo list to terminal
+   */
+  renderTodos(state: TodoState): void {
+    const lines = state.items.map((item) => {
+      if (item.status === 'completed') {
+        return chalk.gray(`✓ ${item.content}`);
+      }
+      if (item.status === 'in_progress') {
+        return chalk.yellow(`● ${item.activeForm}...`);
+      }
+      return chalk.dim(`○ ${item.content}`);
+    });
+
+    const header = 'Tasks';
+    const contentLengths = lines.map((line) => this.stripAnsi(line).length);
+    const innerWidth = Math.max(
+      header.length + 1,
+      ...contentLengths,
+      0
+    );
+
+    const topPadding = Math.max(0, innerWidth - header.length - 1);
+    const top = `┌─ ${header} ${'─'.repeat(topPadding)}┐`;
+    const body =
+      lines.length > 0
+        ? lines.map((line) => `│ ${line}${' '.repeat(innerWidth - this.stripAnsi(line).length)} │`)
+        : [`│ ${' '.repeat(innerWidth)} │`];
+    const bottom = `└${'─'.repeat(innerWidth + 2)}┘`;
+
+    console.log(top);
+    for (const line of body) {
+      console.log(line);
+    }
+    console.log(bottom);
   }
 
   /**

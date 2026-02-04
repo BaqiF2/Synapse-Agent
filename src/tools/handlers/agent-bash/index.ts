@@ -18,3 +18,4 @@ export { EditHandler, parseEditCommand } from './edit.ts';
 export { GlobHandler, parseGlobCommand } from './glob.ts';
 export { GrepHandler, parseGrepCommand } from './grep.ts';
 export { BashWrapperHandler, parseBashCommand } from './bash-wrapper.ts';
+export { TodoWriteHandler } from './todo/index.ts';
