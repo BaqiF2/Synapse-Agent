@@ -1,4 +1,4 @@
-import { describe, it, expect, mock, beforeEach, afterAll } from 'bun:test';
+import { describe, it, expect, mock, spyOn, beforeEach, afterEach, afterAll } from 'bun:test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
@@ -10,23 +10,9 @@ type MockRl = {
   question: ReturnType<typeof mock>;
 };
 
-let mockedHomeDir = os.homedir();
-let lastAutoEnhance: boolean | undefined;
-
-mock.module('node:os', () => ({
-  homedir: () => mockedHomeDir,
-}));
-
-mock.module('../../../src/config/settings-manager.ts', () => ({
-  SettingsManager: class MockSettingsManager {
-    setAutoEnhance(value: boolean) {
-      lastAutoEnhance = value;
-    }
-    isAutoEnhanceEnabled() {
-      return false;
-    }
-  },
-}));
+let originalHomeDir: string | undefined;
+let tempHomeDir: string;
+let homedirSpy: ReturnType<typeof spyOn> | null = null;
 
 function createMockRl(): MockRl {
   return {
@@ -40,8 +26,19 @@ describe('REPL commands', () => {
   const originalConsoleError = console.error.bind(console);
 
   beforeEach(() => {
-    mockedHomeDir = os.homedir();
-    lastAutoEnhance = undefined;
+    originalHomeDir = process.env.HOME;
+    tempHomeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'repl-home-'));
+    process.env.HOME = tempHomeDir;
+    homedirSpy = spyOn(os, 'homedir').mockReturnValue(tempHomeDir);
+  });
+
+  afterEach(() => {
+    homedirSpy?.mockRestore?.();
+    homedirSpy = null;
+    if (tempHomeDir && fs.existsSync(tempHomeDir)) {
+      fs.rmSync(tempHomeDir, { recursive: true, force: true });
+    }
+    process.env.HOME = originalHomeDir;
   });
 
   afterAll(() => {
@@ -130,11 +127,9 @@ describe('REPL commands', () => {
   });
 
   it('handleSpecialCommand should show skills when empty', async () => {
-    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'repl-skills-'));
-    const skillsDir = path.join(tempDir, '.synapse', 'skills');
+    const skillsDir = path.join(tempHomeDir, '.synapse', 'skills');
     fs.mkdirSync(skillsDir, { recursive: true });
 
-    mockedHomeDir = tempDir;
     const { handleSpecialCommand } = await import('../../../src/cli/repl.ts');
     console.log = mock(() => {}) as unknown as typeof console.log;
     const rl = createMockRl();
@@ -146,12 +141,11 @@ describe('REPL commands', () => {
     expect(output).toContain('No skills installed.');
 
     console.log = originalConsoleLog;
-    fs.rmSync(tempDir, { recursive: true });
-    mockedHomeDir = os.homedir();
   });
 
   it('handleSpecialCommand should handle /skill enhance --on', async () => {
-    lastAutoEnhance = undefined;
+    const { SettingsManager } = await import('../../../src/config/settings-manager.ts');
+    const setSpy = spyOn(SettingsManager.prototype, 'setAutoEnhance').mockImplementation(() => {});
     const { handleSpecialCommand } = await import('../../../src/cli/repl.ts');
     console.log = mock(() => {}) as unknown as typeof console.log;
     const rl = createMockRl();
@@ -161,11 +155,12 @@ describe('REPL commands', () => {
     });
 
     expect(handled).toBe(true);
-    expect(Boolean(lastAutoEnhance)).toBe(true);
+    expect(setSpy).toHaveBeenCalledWith(true);
     const output = getConsoleOutput();
     expect(output).toContain('Auto skill enhance enabled');
 
     console.log = originalConsoleLog;
+    setSpy.mockRestore();
   });
 
   it('handleSpecialCommand should report resume unavailable without context', async () => {

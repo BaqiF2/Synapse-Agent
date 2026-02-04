@@ -37,14 +37,6 @@ mock.module('@anthropic-ai/sdk', () => ({
   default: MockAnthropic,
 }));
 
-mock.module('../../../src/config/settings-manager.ts', () => ({
-  SettingsManager: class MockSettingsManager {
-    getLlmConfig() {
-      return { apiKey: 'test-key', baseURL: 'https://example.test', model: 'test-model' };
-    }
-  },
-}));
-
 beforeEach(() => {
   capturedCreateParams = null;
   createImpl = null;
@@ -58,7 +50,10 @@ describe('AnthropicClient', () => {
   it('should map thinking effort levels', async () => {
     const { AnthropicClient } = await import('../../../src/providers/anthropic/anthropic-client.ts');
 
-    const base = new AnthropicClient({ stream: false });
+    const base = new AnthropicClient({
+      stream: false,
+      settings: { apiKey: 'test-key', baseURL: 'https://example.test', model: 'test-model' },
+    });
     expect(base.thinkingEffort).toBeNull();
 
     expect(base.withThinking('off').thinkingEffort).toBe('off');
@@ -70,7 +65,10 @@ describe('AnthropicClient', () => {
   it('should inject cache_control into last message and tool', async () => {
     const { AnthropicClient } = await import('../../../src/providers/anthropic/anthropic-client.ts');
 
-    const client = new AnthropicClient({ stream: true });
+    const client = new AnthropicClient({
+      stream: true,
+      settings: { apiKey: 'test-key', baseURL: 'https://example.test', model: 'test-model' },
+    });
 
     const result = await client.generate(
       'system',
@@ -143,7 +141,10 @@ describe('AnthropicClient', () => {
       throw new MockAPIConnectionError('boom');
     };
 
-    const client = new AnthropicClient({ stream: false });
+    const client = new AnthropicClient({
+      stream: false,
+      settings: { apiKey: 'test-key', baseURL: 'https://example.test', model: 'test-model' },
+    });
     await expect(client.generate('system', [], [])).rejects.toBeInstanceOf(APIConnectionError);
 
     createImpl = async () => {

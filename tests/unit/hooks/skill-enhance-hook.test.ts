@@ -11,27 +11,13 @@ import * as path from 'node:path';
 import * as os from 'node:os';
 import type { StopHookContext } from '../../../src/hooks/types.ts';
 
-// Mock SubAgentManager 和 AnthropicClient，避免真实 API 调用
+// Mock SubAgentManager，避免真实 API 调用
 mock.module('../../../src/sub-agents/sub-agent-manager.ts', () => ({
   SubAgentManager: class MockSubAgentManager {
     execute() {
       return Promise.resolve('Mocked enhancement result');
     }
     shutdown() {}
-  },
-}));
-
-mock.module('../../../src/providers/anthropic/anthropic-client.ts', () => ({
-  AnthropicClient: class MockAnthropicClient {
-    generate() {
-      return Promise.resolve({
-        id: 'mock-msg',
-        usage: { inputOther: 0, output: 0, inputCacheRead: 0, inputCacheCreation: 0 },
-        async *[Symbol.asyncIterator]() {
-          yield { type: 'text', text: 'Mocked response' };
-        },
-      });
-    }
   },
 }));
 
@@ -47,8 +33,16 @@ function createTestContext(overrides: Partial<StopHookContext> = {}): StopHookCo
 }
 
 let metaSkillDir: string;
+let originalHomeDir: string | undefined;
+let tempHomeDir: string;
+let homedirSpy: ReturnType<typeof spyOn> | null = null;
 
 beforeEach(() => {
+  originalHomeDir = process.env.HOME;
+  tempHomeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skill-enhance-home-'));
+  process.env.HOME = tempHomeDir;
+  homedirSpy = spyOn(os, 'homedir').mockReturnValue(tempHomeDir);
+
   metaSkillDir = fs.mkdtempSync(path.join(os.tmpdir(), 'meta-skill-test-'));
   process.env.SYNAPSE_META_SKILLS_DIR = metaSkillDir;
 
@@ -65,6 +59,12 @@ afterEach(() => {
   if (metaSkillDir && fs.existsSync(metaSkillDir)) {
     fs.rmSync(metaSkillDir, { recursive: true });
   }
+  homedirSpy?.mockRestore?.();
+  homedirSpy = null;
+  if (tempHomeDir && fs.existsSync(tempHomeDir)) {
+    fs.rmSync(tempHomeDir, { recursive: true, force: true });
+  }
+  process.env.HOME = originalHomeDir;
   delete process.env.SYNAPSE_META_SKILLS_DIR;
 });
 
