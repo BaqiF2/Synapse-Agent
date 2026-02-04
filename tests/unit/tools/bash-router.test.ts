@@ -53,7 +53,7 @@ describe('BashRouter', () => {
     const session = createSessionStub();
     const router = new BashRouter(session);
 
-    const result = await router.route('task:general --prompt \"hi\" --description \"Test\"');
+    const result = await router.route('task:general --prompt "hi" --description "Test"');
 
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain('Task commands require LLM client and tool executor');
@@ -123,11 +123,11 @@ describe('BashRouter MCP', () => {
     const session = createSessionStub();
     const router = new BashRouter(session);
 
-    const result = await router.route('mcp:demo:echo \"4\" true');
+    const result = await router.route('mcp:demo:echo "4" true');
 
     expect(capturedCall).toEqual({ name: 'echo', args: { count: 4, active: true } });
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain('ok');
-    expect(result.stdout).toContain('{\"extra\":\"value\"}');
+    expect(result.stdout).toContain('{"extra":"value"}');
   });
 });

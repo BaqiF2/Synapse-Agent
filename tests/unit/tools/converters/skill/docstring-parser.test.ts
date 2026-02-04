@@ -22,7 +22,7 @@ Description:
 
 Parameters:
     input (str): The input parameter
-    --option (str): Optional parameter (default: \"default\")
+    --option (str): Optional parameter (default: "default")
 
 Returns:
     str: Result

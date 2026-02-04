@@ -2,7 +2,7 @@ import { describe, it, expect } from 'bun:test';
 import { TreeBuilder } from '../../../src/cli/tree-builder.ts';
 
 function stripAnsi(text: string): string {
-  return text.replace(/\x1b\[[0-9;]*m/g, '');
+  return text.replace(new RegExp('\\x1b\\[[0-9;]*m', 'g'), '');
 }
 
 describe('TreeBuilder', () => {

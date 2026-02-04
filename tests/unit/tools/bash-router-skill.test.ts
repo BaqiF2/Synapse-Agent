@@ -158,11 +158,11 @@ description: A test skill
       fs.mkdirSync(scriptsDir, { recursive: true });
       fs.writeFileSync(
         path.join(scriptsDir, 'run.sh'),
-        '#!/usr/bin/env bash\\necho \"run:$1\"\\n'
+        '#!/usr/bin/env bash\\necho "run:$1"\\n'
       );
 
       try {
-        const result = await router.route(`skill:${skillName}:run \"hello world\"`);
+        const result = await router.route(`skill:${skillName}:run "hello world"`);
 
         expect(result.exitCode).toBe(0);
         expect(result.stderr).toBe('');
