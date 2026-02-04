@@ -60,6 +60,7 @@ describe('AgentRunner', () => {
         client,
         systemPrompt: 'Test',
         toolset,
+        enableStopHooks: false,
       });
 
       const response = await runner.run('Hi');
@@ -85,6 +86,7 @@ describe('AgentRunner', () => {
         client,
         systemPrompt: 'Test',
         toolset,
+        enableStopHooks: false,
       });
 
       const response = await runner.run('List files');
@@ -107,6 +109,7 @@ describe('AgentRunner', () => {
         onMessagePart: (p) => {
           parts.push(p);
         },
+        enableStopHooks: false,
       });
 
       await runner.run('Hello');
@@ -143,6 +146,7 @@ describe('AgentRunner', () => {
           client,
           systemPrompt: 'Test',
           toolset,
+          enableStopHooks: false,
         });
 
         await runner.run('Fail');
@@ -183,6 +187,7 @@ describe('AgentRunner', () => {
         systemPrompt: 'Test',
         toolset,
         maxConsecutiveToolFailures: 2,
+        enableStopHooks: false,
       });
 
       const response = await runner.run('Fail');
@@ -191,6 +196,31 @@ describe('AgentRunner', () => {
       const history = runner.getHistory();
       expect(history).toHaveLength(5);
       expect(history.at(-1)?.role).toBe('tool');
+    });
+
+    it('should stop when max iterations reached', async () => {
+      const client = createMockClient([
+        [{ type: 'tool_call', id: 'c1', name: 'Bash', input: { command: 'ls' } }],
+      ]);
+      const toolset = new CallableToolset([createMockCallableTool(() =>
+        Promise.resolve(ToolOk({ output: 'ok' }))
+      )]);
+
+      const runner = new AgentRunner({
+        client,
+        systemPrompt: 'Test',
+        toolset,
+        maxIterations: 1,
+        enableStopHooks: false,
+      });
+
+      const response = await runner.run('Hi');
+
+      expect(response).toContain('Reached tool iteration limit (1)');
+      const lastMessage = runner.getHistory().at(-1);
+      expect(lastMessage?.role).toBe('assistant');
+      expect(lastMessage?.content[0]?.type).toBe('text');
+      expect((lastMessage?.content[0] as { text: string }).text).toContain('Reached tool iteration limit (1)');
     });
 
     it('should maintain history across calls', async () => {
@@ -206,6 +236,7 @@ describe('AgentRunner', () => {
         client,
         systemPrompt: 'Test',
         toolset,
+        enableStopHooks: false,
       });
 
       await runner.run('One');
@@ -245,6 +276,7 @@ describe('AgentRunner with Session', () => {
       systemPrompt: 'Test',
       toolset,
       sessionsDir: testDir,
+      enableStopHooks: false,
     });
 
     await runner.run('Hi');
@@ -267,6 +299,7 @@ describe('AgentRunner with Session', () => {
       systemPrompt: 'Test',
       toolset,
       sessionsDir: testDir,
+      enableStopHooks: false,
     });
 
     await runner.run('Hi');
@@ -293,6 +326,7 @@ describe('AgentRunner with Session', () => {
       systemPrompt: 'Test',
       toolset,
       sessionsDir: testDir,
+      enableStopHooks: false,
     });
     await runner1.run('Message 1');
     const sessionId = runner1.getSessionId();
@@ -305,6 +339,7 @@ describe('AgentRunner with Session', () => {
       toolset,
       sessionId: sessionId!,
       sessionsDir: testDir,
+      enableStopHooks: false,
     });
     await runner2.run('Message 2');
 

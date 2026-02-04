@@ -34,4 +34,11 @@ describe('buildSystemPrompt', () => {
     expect(prompt).not.toContain('Execution Principles');
   });
 
+  it('should include current working directory when provided', () => {
+    const prompt = buildSystemPrompt({ cwd: '/tmp/test-dir' });
+
+    expect(prompt).toContain('# Current Working Directory');
+    expect(prompt).toContain('`/tmp/test-dir`');
+  });
+
 });

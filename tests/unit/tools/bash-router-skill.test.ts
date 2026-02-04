@@ -124,4 +124,54 @@ description: A test skill
       expect(result.stdout).toContain('USAGE');
     });
   });
+
+  describe('skill tool execution', () => {
+    it('should show usage for skill tool help', async () => {
+      const result = await router.route('skill:test-skill:run --help');
+
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('Usage: skill:test-skill:run');
+    });
+
+    it('should reject invalid skill tool format', async () => {
+      const result = await router.route('skill::run');
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain('Invalid skill command format');
+    });
+
+    it('should report missing tool in skill', async () => {
+      const scriptsDir = path.join(skillsDir, 'test-skill', 'scripts');
+      fs.mkdirSync(scriptsDir, { recursive: true });
+      fs.writeFileSync(path.join(scriptsDir, 'run.sh'), '#!/usr/bin/env bash\n');
+
+      const result = await router.route('skill:test-skill:missing');
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain("Tool 'missing' not found");
+    });
+
+    it('should execute skill script with arguments', async () => {
+      const homeDir = os.homedir();
+      const skillName = `router-exec-skill-${Date.now()}`;
+      const scriptsDir = path.join(homeDir, '.synapse', 'skills', skillName, 'scripts');
+      fs.mkdirSync(scriptsDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(scriptsDir, 'run.sh'),
+        '#!/usr/bin/env bash\\necho "run:$1"\\n'
+      );
+
+      try {
+        const result = await router.route(`skill:${skillName}:run "hello world"`);
+
+        expect(result.exitCode).toBe(0);
+        expect(result.stderr).toBe('');
+      } finally {
+        fs.rmSync(path.join(homeDir, '.synapse', 'skills', skillName), {
+          recursive: true,
+          force: true,
+        });
+      }
+    });
+  });
 });

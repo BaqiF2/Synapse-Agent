@@ -42,4 +42,15 @@ describe('TerminalRenderer', () => {
     expect(readline.clearLine).toHaveBeenCalled();
     expect(readline.cursorTo).toHaveBeenCalled();
   });
+
+  it('should not write when stdout is not TTY', () => {
+    (process.stdout as { isTTY?: boolean }).isTTY = false;
+    const renderer = new TerminalRenderer();
+
+    renderer.renderToolStart({ id: '2', command: 'echo hi', depth: 0 });
+    renderer.renderToolEnd({ id: '2', success: true, output: 'ok' });
+
+    expect(process.stdout.write).not.toHaveBeenCalled();
+    expect(console.log).toHaveBeenCalled();
+  });
 });

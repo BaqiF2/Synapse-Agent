@@ -58,6 +58,14 @@ describe('SkillIndexUpdater', () => {
       const index = JSON.parse(fs.readFileSync(indexPath, 'utf-8'));
       expect(index.totalSkills).toBe(1);
     });
+
+    it('should expose skills directory path', () => {
+      expect(updater.getSkillsDir()).toBe(skillsDir);
+    });
+
+    it('should expose index file path', () => {
+      expect(updater.getIndexPath()).toBe(path.join(skillsDir, 'index.json'));
+    });
   });
 
   describe('updateSkill', () => {

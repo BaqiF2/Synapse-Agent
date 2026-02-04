@@ -61,6 +61,15 @@ describe('Session', () => {
       const found = await Session.find('non-existent-id', { sessionsDir: testDir });
       expect(found).toBeNull();
     });
+
+    test('should return null when index is corrupted', async () => {
+      const indexPath = path.join(testDir, 'sessions.json');
+      fs.writeFileSync(indexPath, '{invalid json', 'utf-8');
+
+      const found = await Session.find('any-id', { sessionsDir: testDir });
+
+      expect(found).toBeNull();
+    });
   });
 
   describe('list', () => {
@@ -75,6 +84,15 @@ describe('Session', () => {
 
     test('should return empty array when no sessions', async () => {
       const sessions = await Session.list({ sessionsDir: testDir });
+      expect(sessions).toEqual([]);
+    });
+
+    test('should return empty array when index is corrupted', async () => {
+      const indexPath = path.join(testDir, 'sessions.json');
+      fs.writeFileSync(indexPath, '{invalid json', 'utf-8');
+
+      const sessions = await Session.list({ sessionsDir: testDir });
+
       expect(sessions).toEqual([]);
     });
   });
