@@ -57,4 +57,53 @@ describe('SkillAutoUpdater', () => {
 
     console.log = originalConsoleLog;
   });
+
+  it('should emit error event when wrapper generation fails', async () => {
+    const updater = new SkillAutoUpdater({ homeDir, verbose: false });
+    const updateHandler = mock(() => {});
+    updater.onUpdate(updateHandler);
+
+    (updater as unknown as { generator: { generateWrapper: () => null; install: () => never } }).generator = {
+      generateWrapper: () => null,
+      install: () => {
+        throw new Error('should not be called');
+      },
+    };
+
+    await (updater as unknown as { handleScriptAdd: (event: unknown) => Promise<void> }).handleScriptAdd({
+      type: 'add',
+      skillName: 'demo',
+      scriptName: 'tool',
+      scriptPath: path.join(homeDir, 'demo', 'tool.sh'),
+      extension: '.sh',
+      timestamp: new Date(),
+    });
+
+    expect(updateHandler).toHaveBeenCalled();
+    const event = (updateHandler as unknown as { mock: { calls: unknown[][] } }).mock.calls[0]?.[0] as {
+      type: string;
+      error?: string;
+    };
+    expect(event.type).toBe('error');
+    expect(event.error).toContain('Failed to generate wrapper');
+  });
+
+  it('should forward update handler errors to onError handlers', async () => {
+    const updater = new SkillAutoUpdater({ homeDir, verbose: false });
+    const onError = mock(() => {});
+    updater.onError(onError);
+    updater.onUpdate(() => {
+      throw new Error('boom');
+    });
+
+    await (updater as unknown as { notifyUpdate: (event: unknown) => Promise<void> }).notifyUpdate({
+      type: 'installed',
+      commandName: 'skill:demo:tool',
+      skillName: 'demo',
+      scriptName: 'tool',
+      timestamp: new Date(),
+    });
+
+    expect(onError).toHaveBeenCalled();
+  });
 });
