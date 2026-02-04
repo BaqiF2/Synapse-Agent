@@ -18,6 +18,7 @@ import {Session} from './session.ts';
 import type {StopHookContext, HookResult} from '../hooks/index.ts';
 import {stopHookRegistry} from '../hooks/stop-hook-registry.ts';
 import {loadStopHooks} from '../hooks/load-stop-hooks.ts';
+import {STOP_HOOK_MARKER} from '../hooks/stop-hook-constants.ts';
 
 const logger = createLogger('agent-runner');
 
@@ -281,7 +282,7 @@ export class AgentRunner {
       if (hookMessages.length > 0) {
         const hookBody = hookMessages.join('\n\n');
         const prefix = finalResponse ? '\n\n' : '';
-        finalResponse = `${finalResponse}${prefix}${hookBody}`;
+        finalResponse = `${finalResponse}${prefix}${STOP_HOOK_MARKER}\n${hookBody}`;
       }
     }
 
