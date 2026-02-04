@@ -96,7 +96,7 @@ export class TodoWriteHandler {
       let data: unknown;
       try {
         data = JSON.parse(parsed.jsonText);
-      } catch (error) {
+      } catch (_error) {
         return {
           stdout: '',
           stderr: `Error: Invalid JSON format\n${USAGE}`,
