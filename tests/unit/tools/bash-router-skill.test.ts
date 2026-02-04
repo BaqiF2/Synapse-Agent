@@ -18,9 +18,12 @@ describe('BashRouter Skill Commands', () => {
   let skillsDir: string;
   let router: BashRouter;
   let session: BashSession;
+  let originalHome: string | undefined;
 
   beforeEach(() => {
     testDir = fs.mkdtempSync(path.join(os.tmpdir(), 'synapse-router-skill-test-'));
+    originalHome = process.env.HOME;
+    process.env.HOME = testDir;
     // BashRouter 需要 synapseDir，内部会自动在其父目录下查找 .synapse/skills
     synapseDir = path.join(testDir, '.synapse');
     skillsDir = path.join(synapseDir, 'skills');
@@ -47,6 +50,11 @@ description: A test skill
   afterEach(() => {
     router.shutdown();
     fs.rmSync(testDir, { recursive: true, force: true });
+    if (originalHome === undefined) {
+      delete process.env.HOME;
+    } else {
+      process.env.HOME = originalHome;
+    }
   });
 
   describe('command:search routing', () => {
@@ -141,14 +149,23 @@ description: A test skill
     });
 
     it('should report missing tool in skill', async () => {
-      const scriptsDir = path.join(skillsDir, 'test-skill', 'scripts');
+      const homeDir = os.homedir();
+      const skillName = `router-missing-skill-${Date.now()}`;
+      const scriptsDir = path.join(homeDir, '.synapse', 'skills', skillName, 'scripts');
       fs.mkdirSync(scriptsDir, { recursive: true });
       fs.writeFileSync(path.join(scriptsDir, 'run.sh'), '#!/usr/bin/env bash\n');
 
-      const result = await router.route('skill:test-skill:missing');
+      try {
+        const result = await router.route(`skill:${skillName}:missing`);
 
-      expect(result.exitCode).toBe(1);
-      expect(result.stderr).toContain("Tool 'missing' not found");
+        expect(result.exitCode).toBe(1);
+        expect(result.stderr).toContain("Tool 'missing' not found");
+      } finally {
+        fs.rmSync(path.join(homeDir, '.synapse', 'skills', skillName), {
+          recursive: true,
+          force: true,
+        });
+      }
     });
 
     it('should execute skill script with arguments', async () => {

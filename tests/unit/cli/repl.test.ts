@@ -3,6 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
 import readline from 'node:readline';
+import type { AgentRunner } from '../../../src/agent/agent-runner.ts';
 
 type MockRl = {
   close: ReturnType<typeof mock>;
@@ -68,7 +69,7 @@ describe('REPL commands', () => {
   it('handleSpecialCommand should clear history on /clear', async () => {
     console.log = mock(() => {}) as unknown as typeof console.log;
     const rl = createMockRl();
-    const agentRunner = { clearHistory: mock(() => {}) } as unknown as { clearHistory: () => void };
+    const agentRunner = { clearHistory: mock(() => {}) } as unknown as AgentRunner;
     const { handleSpecialCommand } = await loadRepl();
 
     const handled = handleSpecialCommand('/clear', rl as unknown as readline.Interface, agentRunner, { skipExit: true });
@@ -156,7 +157,7 @@ describe('REPL commands', () => {
     });
 
     expect(handled).toBe(true);
-    expect(lastAutoEnhance).toBe(true);
+    expect(Boolean(lastAutoEnhance)).toBe(true);
     const output = getConsoleOutput();
     expect(output).toContain('Auto skill enhance enabled');
 
