@@ -33,7 +33,7 @@ function readPositiveIntEnv(name: string, fallback: number): number {
 
 function nonBlankString(maxLength: number) {
   return z
-    .string({ required_error: 'Required' })
+    .string()
     .min(1, 'Required')
     .max(maxLength, `Must be at most ${maxLength} characters`)
     .refine((value) => value.trim().length > 0, {
