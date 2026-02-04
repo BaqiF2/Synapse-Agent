@@ -1,4 +1,4 @@
-import { describe, it, expect, mock, beforeEach } from 'bun:test';
+import { describe, it, expect, mock, beforeEach, afterAll } from 'bun:test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
@@ -42,6 +42,10 @@ describe('REPL commands', () => {
   beforeEach(() => {
     mockedHomeDir = os.homedir();
     lastAutoEnhance = undefined;
+  });
+
+  afterAll(() => {
+    mock.restore();
   });
 
   it('executeShellCommand should return exit code', async () => {
