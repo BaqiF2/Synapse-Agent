@@ -24,6 +24,7 @@ read(file="./README.md")
 write(file="./a.txt", content="hello")
 search(pattern="TODO", path="./src")
 glob(pattern="*.ts")
+TodoWrite(todos=[...])
 ```
 
 ### ✅ CORRECT
@@ -35,6 +36,7 @@ Bash(command="read ./README.md")
 Bash(command="write ./a.txt 'hello'")
 Bash(command="search TODO ./src")
 Bash(command="glob '*.ts'")
+Bash(command="TodoWrite '{\"todos\":[...]}'")
 ```
 
 ---
@@ -134,6 +136,57 @@ Bash(command="search 'pattern' ./src")
 Bash(command="search 'TODO' ./src --type ts")
 Bash(command="search 'function\\s+\\w+' ./src -A 3")
 ```
+
+#### TodoWrite — Task List Management
+
+Create and manage structured task lists during sessions.
+
+```bash
+Bash(command="TodoWrite '{\"todos\":[{\"content\":\"Fix bug\",\"activeForm\":\"Fixing bug\",\"status\":\"in_progress\"}]}'")
+```
+
+**JSON fields per task:**
+- `content` — Task description (imperative form)
+- `activeForm` — Present continuous form for display
+- `status` — One of `pending`, `in_progress`, `completed`
+
+**Constraints:**
+- Maximum 1 task in `in_progress` at any time
+
+**When to use:**
+- Task has ≥3 steps or is complex → Use TodoWrite
+- Task has <3 steps and is simple → Execute directly
+- User explicitly requests → Use TodoWrite
+
+**Workflow (MUST follow strictly):**
+
+1. **ASSESS** — Decide if TodoWrite is needed
+
+2. **CREATE** — Break task into items, first item `in_progress`, others `pending`
+   ```bash
+   Bash(command="TodoWrite '{\"todos\":[
+     {\"content\":\"Step 1\",\"activeForm\":\"Doing step 1\",\"status\":\"in_progress\"},
+     {\"content\":\"Step 2\",\"activeForm\":\"Doing step 2\",\"status\":\"pending\"}
+   ]}'")
+   ```
+
+3. **EXECUTE** — Work on the `in_progress` item
+
+4. **UPDATE** — After completing, MUST call TodoWrite to update status:
+   ```bash
+   Bash(command="TodoWrite '{\"todos\":[
+     {\"content\":\"Step 1\",\"activeForm\":\"Doing step 1\",\"status\":\"completed\"},
+     {\"content\":\"Step 2\",\"activeForm\":\"Doing step 2\",\"status\":\"in_progress\"}
+   ]}'")
+   ```
+
+5. **LOOP** — Repeat steps 3-4 until all items are `completed`
+
+6. **NEVER ABANDON** — Do not start other work until all tasks done
+
+**Special cases:**
+- Blocker found → Keep item `in_progress`, add new blocker item
+- New task discovered → Add new item to list
 
 #### skill:load — Load skill into context
 
