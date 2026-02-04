@@ -25,6 +25,8 @@ describe('BashRouter', () => {
     expect(router.identifyCommandType('read ./file.txt')).toBe(CommandType.AGENT_SHELL_COMMAND);
     expect(router.identifyCommandType('command:search "ls"')).toBe(CommandType.AGENT_SHELL_COMMAND);
     expect(router.identifyCommandType('task:do something')).toBe(CommandType.AGENT_SHELL_COMMAND);
+    expect(router.identifyCommandType('TodoWrite {"todos":[]}')).toBe(CommandType.AGENT_SHELL_COMMAND);
+    expect(router.identifyCommandType('todowrite {"todos":[]}')).toBe(CommandType.NATIVE_SHELL_COMMAND);
     expect(router.identifyCommandType('mcp:server:tool')).toBe(CommandType.EXTEND_SHELL_COMMAND);
     expect(router.identifyCommandType('skill:test:run')).toBe(CommandType.EXTEND_SHELL_COMMAND);
     expect(router.identifyCommandType('ls -la')).toBe(CommandType.NATIVE_SHELL_COMMAND);
