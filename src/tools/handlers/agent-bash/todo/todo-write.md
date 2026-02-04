@@ -1,37 +1,39 @@
-## TodoWrite - Task List Management
+TodoWrite - Create and manage task lists
 
-A full-replacement task list tool for creating and managing structured task lists in the current session.
+USAGE:
+    TodoWrite '<json>'
 
-### Usage
+ARGUMENTS:
+    <json>    JSON object with "todos" array
 
-TodoWrite '{"todos":[...]}'
+JSON FORMAT:
+    {
+      "todos": [
+        {
+          "content": "Task description (imperative form)",
+          "activeForm": "Task in progress form (present continuous)",
+          "status": "pending" | "in_progress" | "completed"
+        }
+      ]
+    }
 
-### Parameters
+OPTIONS:
+    -h         Show brief help
+    --help     Show detailed help
 
-Each todo item requires:
-- content (string): Task description in imperative form, e.g., "Write unit tests"
-- activeForm (string): Present continuous form, e.g., "Writing unit tests"
-- status (string): One of "pending", "in_progress", or "completed"
+CONSTRAINTS:
+    - Maximum 1 task with status "in_progress" at any time
+    - Maximum 50 tasks total (configurable via TODO_MAX_ITEMS)
+    - Maximum 200 chars per content/activeForm (configurable via TODO_MAX_CONTENT_LENGTH)
 
-### When to Use
+EXAMPLES:
+    TodoWrite '{"todos":[{"content":"Fix bug","activeForm":"Fixing bug","status":"in_progress"}]}'
 
-1. Complex multi-step tasks
-2. Non-trivial tasks that require careful planning
-3. User explicitly requests a todo list
-4. User provides multiple tasks at once
+    TodoWrite '{"todos":[
+      {"content":"Analyze code","activeForm":"Analyzing code","status":"completed"},
+      {"content":"Write tests","activeForm":"Writing tests","status":"in_progress"},
+      {"content":"Update docs","activeForm":"Updating docs","status":"pending"}
+    ]}'
 
-### Task States
-
-- pending: Task not yet started
-- in_progress: Currently working on (limit to ONE at any time)
-- completed: Task finished successfully
-
-### Example
-
-TodoWrite '{"todos":[
-  {"content":"Analyze requirements","activeForm":"Analyzing requirements","status":"completed"},
-  {"content":"Write implementation","activeForm":"Writing implementation","status":"in_progress"},
-  {"content":"Run tests","activeForm":"Running tests","status":"pending"}
-]}'
-
-Returns: Todo list updated: 1 completed, 1 in_progress, 1 pending
+OUTPUT:
+    Todo list updated: 1 completed, 1 in_progress, 1 pending

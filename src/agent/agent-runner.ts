@@ -19,6 +19,7 @@ import type {StopHookContext, HookResult} from '../hooks/index.ts';
 import {stopHookRegistry} from '../hooks/stop-hook-registry.ts';
 import {loadStopHooks} from '../hooks/load-stop-hooks.ts';
 import {STOP_HOOK_MARKER} from '../hooks/stop-hook-constants.ts';
+import {todoStore} from '../tools/handlers/agent-bash/todo/todo-store.ts';
 
 const logger = createLogger('agent-runner');
 
@@ -216,6 +217,31 @@ export class AgentRunner {
 
       // done
       if (result.toolCalls.length === 0) {
+        // 检查是否有未完成的 todo 任务
+        const todoState = todoStore.get();
+        const incompleteTodos = todoState.items.filter(
+          (item) => item.status !== 'completed'
+        );
+
+        if (incompleteTodos.length > 0) {
+          // 有未完成的任务，注入提示消息继续执行
+          const pendingTasks = incompleteTodos
+            .map((item) => `- ${item.content} (${item.status})`)
+            .join('\n');
+          const reminderMsg = createTextMessage(
+            'user',
+            `[System Reminder] You have incomplete tasks in your todo list. You MUST continue working on them before stopping:\n${pendingTasks}\n\nPlease continue with the next task.`
+          );
+          this.history.push(reminderMsg);
+          if (this.session) {
+            await this.session.appendMessage(reminderMsg);
+          }
+          logger.info('Agent attempted to stop with incomplete todos, continuing...', {
+            incompleteTodosCount: incompleteTodos.length,
+          });
+          continue; // 继续循环，不退出
+        }
+
         finalResponse = extractText(result.message);
         logger.info(`Agent loop completed, no tool calls，messages : ${finalResponse}`);
         break;
