@@ -16,8 +16,9 @@ import { toCommandErrorResult } from './command-utils.ts';
 import { loadDesc } from '../../../utils/load-desc.js';
 
 const DEFAULT_MAX_RESULTS = parseInt(process.env.GREP_MAX_RESULTS || '100', 10);
-const DEFAULT_CONTEXT_LINES = parseInt(process.env.GREP_CONTEXT_LINES || '2000', 10);
-const USAGE = 'Usage: search <pattern> [--path <dir>] [--type <type>] [--context <n>]';
+const DEFAULT_CONTEXT_LINES = parseInt(process.env.GREP_CONTEXT_LINES || '0', 10);
+const MAX_OUTPUT_LINES = parseInt(process.env.GREP_MAX_OUTPUT_LINES || '200', 10);
+const USAGE = 'Usage: search <pattern> [path] [-A <n>] [-B <n>] [-C <n>] [--type <type>] [--max <n>] [-i]';
 
 /**
  * File type to extension mapping
@@ -46,28 +47,25 @@ interface GrepArgs {
   pattern: string;
   searchPath: string;
   fileType: string | null;
-  contextLines: number;
+  contextBefore: number;
+  contextAfter: number;
   maxResults: number;
   ignoreCase: boolean;
 }
 
 /**
  * Parse the search command arguments
- * Syntax: search <pattern> [--path <dir>] [--type <type>] [--context <n>] [--max <n>] [-i]
+ * Syntax: search <pattern> [path] [-A <n>] [-B <n>] [-C <n>] [--type <type>] [--max <n>] [-i]
  */
 export function parseGrepCommand(command: string): GrepArgs {
   const trimmed = command.trim();
 
   // Remove 'search' prefix
-  let remaining = trimmed.slice('search'.length).trim();
+  const remaining = trimmed.slice('search'.length).trim();
 
   if (!remaining) {
     throw new Error(USAGE);
   }
-
-  // Check for flags
-  const ignoreCase = remaining.includes(' -i') || remaining.includes(' --ignore-case');
-  remaining = remaining.replace(/\s+(-i|--ignore-case)\s*/g, ' ').trim();
 
   // Parse arguments
   const args = parseArgs(remaining);
@@ -75,14 +73,18 @@ export function parseGrepCommand(command: string): GrepArgs {
   let pattern = '';
   let searchPath = process.cwd();
   let fileType: string | null = null;
-  let contextLines = DEFAULT_CONTEXT_LINES;
+  let contextBefore = DEFAULT_CONTEXT_LINES;
+  let contextAfter = DEFAULT_CONTEXT_LINES;
   let maxResults = DEFAULT_MAX_RESULTS;
+  let ignoreCase = false;
 
   let i = 0;
   while (i < args.length) {
     const arg = args[i];
 
-    if (arg === '--path') {
+    if (arg === '-i' || arg === '--ignore-case') {
+      ignoreCase = true;
+    } else if (arg === '--path') {
       i++;
       if (i >= args.length) {
         throw new Error('--path requires a directory argument');
@@ -94,16 +96,37 @@ export function parseGrepCommand(command: string): GrepArgs {
         throw new Error('--type requires a type argument (e.g., ts, js, py)');
       }
       fileType = args[i] ?? null;
-    } else if (arg === '--context') {
+    } else if (arg === '-C' || arg === '--context') {
       i++;
       if (i >= args.length) {
-        throw new Error('--context requires a number argument');
+        throw new Error(`${arg} requires a number argument`);
       }
       const val = parseInt(args[i] ?? '', 10);
       if (isNaN(val) || val < 0) {
-        throw new Error('--context must be a non-negative number');
+        throw new Error(`${arg} must be a non-negative number`);
       }
-      contextLines = val;
+      contextBefore = val;
+      contextAfter = val;
+    } else if (arg === '-A' || arg === '--after-context') {
+      i++;
+      if (i >= args.length) {
+        throw new Error(`${arg} requires a number argument`);
+      }
+      const val = parseInt(args[i] ?? '', 10);
+      if (isNaN(val) || val < 0) {
+        throw new Error(`${arg} must be a non-negative number`);
+      }
+      contextAfter = val;
+    } else if (arg === '-B' || arg === '--before-context') {
+      i++;
+      if (i >= args.length) {
+        throw new Error(`${arg} requires a number argument`);
+      }
+      const val = parseInt(args[i] ?? '', 10);
+      if (isNaN(val) || val < 0) {
+        throw new Error(`${arg} must be a non-negative number`);
+      }
+      contextBefore = val;
     } else if (arg === '--max') {
       i++;
       if (i >= args.length) {
@@ -116,6 +139,9 @@ export function parseGrepCommand(command: string): GrepArgs {
       maxResults = val;
     } else if (!pattern) {
       pattern = arg ?? '';
+    } else if (searchPath === process.cwd()) {
+      // 支持第二个位置参数作为搜索路径（仅当未通过 --path 指定时）
+      searchPath = arg ?? process.cwd();
     } else {
       throw new Error(`Unexpected argument: ${arg}`);
     }
@@ -126,7 +152,7 @@ export function parseGrepCommand(command: string): GrepArgs {
     throw new Error(USAGE);
   }
 
-  return { pattern, searchPath, fileType, contextLines, maxResults, ignoreCase };
+  return { pattern, searchPath, fileType, contextBefore, contextAfter, maxResults, ignoreCase };
 }
 
 /**
@@ -212,7 +238,7 @@ export class GrepHandler {
    * Search files for the pattern
    */
   private async searchFiles(args: GrepArgs): Promise<string> {
-    const { pattern, searchPath, fileType, contextLines, maxResults, ignoreCase } = args;
+    const { pattern, searchPath, fileType, contextBefore, contextAfter, maxResults, ignoreCase } = args;
 
     // Resolve to absolute path
     const absolutePath = path.isAbsolute(searchPath)
@@ -221,42 +247,57 @@ export class GrepHandler {
 
     // Check if search path exists
     if (!fs.existsSync(absolutePath)) {
-      throw new Error(`Directory not found: ${absolutePath}`);
+      throw new Error(`Path not found: ${absolutePath}`);
     }
 
-    // Build glob pattern based on file type
-    let globPattern: string;
-    if (fileType) {
-      const extensions = FILE_TYPE_MAP[fileType.toLowerCase()];
-      if (!extensions) {
-        throw new Error(`Unknown file type: ${fileType}. Supported: ${Object.keys(FILE_TYPE_MAP).join(', ')}`);
-      }
-      if (extensions.length === 1) {
-        globPattern = `**/*${extensions[0]}`;
-      } else {
-        globPattern = `**/*{${extensions.join(',')}}`;
-      }
+    const stat = fs.statSync(absolutePath);
+    let files: string[];
+    // 用于格式化输出的基准目录
+    let basePath: string;
+
+    if (stat.isFile()) {
+      // 直接搜索指定文件
+      files = [absolutePath];
+      basePath = path.dirname(absolutePath);
     } else {
-      globPattern = '**/*';
-    }
+      basePath = absolutePath;
 
-    // Find files to search
-    const files = await fg(globPattern, {
-      cwd: absolutePath,
-      absolute: true,
-      onlyFiles: true,
-      dot: false,
-      ignore: ['**/node_modules/**', '**/.git/**', '**/dist/**', '**/build/**'],
-    });
+      // Build glob pattern based on file type
+      let globPattern: string;
+      if (fileType) {
+        const extensions = FILE_TYPE_MAP[fileType.toLowerCase()];
+        if (!extensions) {
+          throw new Error(`Unknown file type: ${fileType}. Supported: ${Object.keys(FILE_TYPE_MAP).join(', ')}`);
+        }
+        if (extensions.length === 1) {
+          globPattern = `**/*${extensions[0]}`;
+        } else {
+          globPattern = `**/*{${extensions.join(',')}}`;
+        }
+      } else {
+        globPattern = '**/*';
+      }
+
+      // Find files to search
+      files = await fg(globPattern, {
+        cwd: absolutePath,
+        absolute: true,
+        onlyFiles: true,
+        dot: false,
+        ignore: ['**/node_modules/**', '**/.git/**', '**/dist/**', '**/build/**'],
+      });
+    }
 
     if (files.length === 0) {
       return 'No files found to search.';
     }
 
     // Create regex
+    // 兼容 grep BRE 语法：\| → | (JavaScript regex 中 \| 是字面量管道符，而非交替)
+    const normalizedPattern = pattern.replace(/\\\|/g, '|');
     let regex: RegExp;
     try {
-      regex = new RegExp(pattern, ignoreCase ? 'gi' : 'g');
+      regex = new RegExp(normalizedPattern, ignoreCase ? 'i' : '');
     } catch (_error) {
       throw new Error(`Invalid regex pattern: ${pattern}`);
     }
@@ -276,28 +317,25 @@ export class GrepHandler {
 
           const line = lines[i];
           if (line && regex.test(line)) {
-            // Reset regex lastIndex for next test
-            regex.lastIndex = 0;
-
-            const contextBefore: string[] = [];
-            const contextAfter: string[] = [];
+            const ctxBefore: string[] = [];
+            const ctxAfter: string[] = [];
 
             // Get context before
-            for (let j = Math.max(0, i - contextLines); j < i; j++) {
-              contextBefore.push(lines[j] ?? '');
+            for (let j = Math.max(0, i - contextBefore); j < i; j++) {
+              ctxBefore.push(lines[j] ?? '');
             }
 
             // Get context after
-            for (let j = i + 1; j <= Math.min(lines.length - 1, i + contextLines); j++) {
-              contextAfter.push(lines[j] ?? '');
+            for (let j = i + 1; j <= Math.min(lines.length - 1, i + contextAfter); j++) {
+              ctxAfter.push(lines[j] ?? '');
             }
 
             matches.push({
               file,
               lineNumber: i + 1,
               line,
-              contextBefore,
-              contextAfter,
+              contextBefore: ctxBefore,
+              contextAfter: ctxAfter,
             });
           }
         }
@@ -314,7 +352,7 @@ export class GrepHandler {
     // Format output
     const output = matches
       .map((m) => {
-        const relativePath = path.relative(absolutePath, m.file);
+        const relativePath = path.relative(basePath, m.file);
         let result = '';
 
         // Context before
@@ -343,7 +381,15 @@ export class GrepHandler {
 
     const summary = `\n\n(${matches.length} match${matches.length > 1 ? 'es' : ''} found)`;
 
-    return output + summary;
+    // 输出截断：防止超大输出撑爆 context window
+    const fullOutput = output + summary;
+    const outputLines = fullOutput.split('\n');
+    if (outputLines.length > MAX_OUTPUT_LINES) {
+      const truncated = outputLines.slice(0, MAX_OUTPUT_LINES).join('\n');
+      return truncated + `\n\n... (output truncated at ${MAX_OUTPUT_LINES} lines, ${matches.length} matches total. Use --max or --type to narrow results)`;
+    }
+
+    return fullOutput;
   }
 
   /**
