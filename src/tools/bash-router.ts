@@ -1,11 +1,11 @@
 /**
- * Bash 命令路由器
+ * Bash Command Router
  *
- * 功能：解析和路由 Bash 命令到不同的处理器（Native Shell Command / Agent Shell Command / extend Shell command）
+ * Function: Parse and route Bash commands to different handlers (Native Shell Command / Agent Shell Command / extend Shell command)
  *
- * 核心导出：
- * - BashRouter: Bash 命令路由器类
- * - CommandType: 命令类型枚举
+ * Core Exports:
+ * - BashRouter: Bash command router class
+ * - CommandType: Command type enum
  */
 
 import * as path from 'node:path';
