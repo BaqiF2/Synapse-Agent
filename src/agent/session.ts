@@ -295,6 +295,23 @@ export class Session {
   }
 
   /**
+   * 清空会话历史（保留文件，清空内容）
+   */
+  async clear(): Promise<void> {
+    // 清空文件内容
+    fs.writeFileSync(this._historyPath, '', 'utf-8');
+
+    // 重置消息计数和标题
+    this._messageCount = 0;
+    this._title = undefined;
+
+    // 更新索引
+    await this.updateIndex();
+
+    logger.info(`Cleared session history: ${this._id}`);
+  }
+
+  /**
    * 刷新会话状态（从文件重新加载）
    */
   async refresh(): Promise<void> {

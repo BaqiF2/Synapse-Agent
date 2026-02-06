@@ -70,13 +70,13 @@ describe('REPL commands', () => {
   it('handleSpecialCommand should clear history on /clear', async () => {
     console.log = mock(() => {}) as unknown as typeof console.log;
     const rl = createMockRl();
-    const agentRunner = { clearHistory: mock(() => {}) } as unknown as AgentRunner;
+    const agentRunner = { clearSession: mock(() => Promise.resolve()) } as unknown as AgentRunner;
     const { handleSpecialCommand } = await loadRepl();
 
     const handled = handleSpecialCommand('/clear', rl as unknown as readline.Interface, agentRunner, { skipExit: true });
 
     expect(handled).toBe(true);
-    expect(agentRunner.clearHistory).toHaveBeenCalled();
+    expect(agentRunner.clearSession).toHaveBeenCalled();
 
     console.log = originalConsoleLog;
   });

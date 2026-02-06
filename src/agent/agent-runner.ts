@@ -144,10 +144,25 @@ export class AgentRunner {
   }
 
   /**
-   * Clear conversation history
+   * Clear conversation history (memory only)
    */
   clearHistory(): void {
     this.history = [];
+  }
+
+  /**
+   * Clear session history
+   * 清除当前会话历史（清空文件内容，不删除文件）
+   */
+  async clearSession(): Promise<void> {
+    // 清空内存中的历史
+    this.history = [];
+
+    // 清空 session 文件内容
+    if (this.session) {
+      await this.session.clear();
+      logger.info(`Cleared session history: ${this.session.id}`);
+    }
   }
 
   /**

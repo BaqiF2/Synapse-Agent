@@ -315,7 +315,9 @@ export function handleSpecialCommand(
 
     case '/clear':
       if (agentRunner) {
-        agentRunner.clearHistory();
+        agentRunner.clearSession().catch((err) => {
+          console.error(chalk.red(`Failed to clear session: ${err.message}`));
+        });
       }
       console.log(chalk.green('\nConversation history cleared.\n'));
       return true;
