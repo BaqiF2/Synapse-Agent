@@ -15,7 +15,9 @@ import { RestrictedBashTool } from '../tools/restricted-bash-tool.ts';
 import type { AnthropicClient } from '../providers/anthropic/anthropic-client.ts';
 import type { BashTool } from '../tools/bash-tool.ts';
 import type { SubAgentType, TaskCommandParams, ToolPermissions } from './sub-agent-types.ts';
+import type { ToolResultEvent, SubAgentCompleteEvent, SubAgentToolCallEvent } from '../cli/terminal-renderer-types.ts';
 import { getConfig } from './configs/index.ts';
+import type { ToolCall, ToolResult } from '../providers/message.ts';
 
 const logger = createLogger('sub-agent-manager');
 
@@ -23,6 +25,21 @@ const logger = createLogger('sub-agent-manager');
  * 默认最大迭代次数（从环境变量读取）
  */
 const DEFAULT_MAX_ITERATIONS = parseInt(process.env.SYNAPSE_MAX_TOOL_ITERATIONS || '50', 10);
+
+/**
+ * SubAgent 工具调用回调
+ */
+export type OnSubAgentToolCall = (event: SubAgentToolCallEvent) => void;
+
+/**
+ * SubAgent 工具结果回调
+ */
+export type OnSubAgentToolResult = (event: ToolResultEvent) => void;
+
+/**
+ * SubAgent 完成回调
+ */
+export type OnSubAgentComplete = (event: SubAgentCompleteEvent) => void;
 
 /**
  * SubAgentManager 配置选项
@@ -34,6 +51,12 @@ export interface SubAgentManagerOptions {
   bashTool: BashTool;
   /** 最大迭代次数（默认继承主 Agent） */
   maxIterations?: number;
+  /** 工具调用开始回调 */
+  onToolStart?: OnSubAgentToolCall;
+  /** 工具调用结束回调 */
+  onToolEnd?: OnSubAgentToolResult;
+  /** SubAgent 完成回调 */
+  onComplete?: OnSubAgentComplete;
 }
 
 /**
@@ -58,11 +81,19 @@ export class SubAgentManager {
   private bashTool: BashTool;
   private maxIterations: number;
   private agents: Map<SubAgentType, SubAgentInstance> = new Map();
+  private onToolStart?: OnSubAgentToolCall;
+  private onToolEnd?: OnSubAgentToolResult;
+  private onComplete?: OnSubAgentComplete;
+  /** 全局计数器，用于生成唯一的 SubAgent ID */
+  private subAgentCounter = 0;
 
   constructor(options: SubAgentManagerOptions) {
     this.client = options.client;
     this.bashTool = options.bashTool;
     this.maxIterations = options.maxIterations ?? DEFAULT_MAX_ITERATIONS;
+    this.onToolStart = options.onToolStart;
+    this.onToolEnd = options.onToolEnd;
+    this.onComplete = options.onComplete;
   }
 
   /**
@@ -73,17 +104,52 @@ export class SubAgentManager {
    * @returns 执行结果
    */
   async execute(type: SubAgentType, params: TaskCommandParams): Promise<string> {
-    const agent = this.getOrCreate(type);
+    const subAgentId = this.generateSubAgentId();
+    const startTime = Date.now();
+    let toolCount = 0;
 
     logger.info('Executing sub agent task', {
       type,
+      subAgentId,
       description: params.description,
     });
 
-    const result = await agent.runner.run(params.prompt);
+    // 创建带有回调的 AgentRunner
+    const agent = this.createAgentWithCallbacks(type, subAgentId, params.description, () => {
+      toolCount++;
+    });
+
+    let success = true;
+    let error: string | undefined;
+    let result: string;
+
+    try {
+      result = await agent.run(params.prompt);
+    } catch (err) {
+      success = false;
+      error = err instanceof Error ? err.message : String(err);
+      result = error;
+    }
+
+    const duration = Date.now() - startTime;
+
+    // 触发完成回调
+    if (this.onComplete) {
+      this.onComplete({
+        id: subAgentId,
+        success,
+        toolCount,
+        duration,
+        error,
+      });
+    }
 
     logger.info('Sub agent task completed', {
       type,
+      subAgentId,
+      success,
+      toolCount,
+      duration,
       resultLength: result.length,
     });
 
@@ -91,36 +157,61 @@ export class SubAgentManager {
   }
 
   /**
-   * 获取或创建 Sub Agent 实例
+   * 生成唯一的 SubAgent ID
    */
-  private getOrCreate(type: SubAgentType): SubAgentInstance {
-    const existing = this.agents.get(type);
-    if (existing) {
-      logger.debug('Reusing existing sub agent', { type });
-      return existing;
-    }
+  private generateSubAgentId(): string {
+    this.subAgentCounter++;
+    return `subagent-${this.subAgentCounter}-${Date.now()}`;
+  }
 
-    logger.info('Creating new sub agent', { type });
-
+  /**
+   * 创建带有回调的 AgentRunner
+   */
+  private createAgentWithCallbacks(
+    type: SubAgentType,
+    subAgentId: string,
+    description: string,
+    onToolCount: () => void
+  ): AgentRunner {
     const config = getConfig(type);
     const toolset = this.createToolset(config.permissions, type);
 
-    const runner = new AgentRunner({
+    // 包装工具调用回调
+    const onToolCall = this.onToolStart
+      ? (toolCall: ToolCall) => {
+          onToolCount();
+          this.onToolStart!({
+            id: toolCall.id,
+            command: `${toolCall.name}(${toolCall.arguments})`,
+            depth: 1, // SubAgent 内部工具 depth = 1
+            parentId: subAgentId,
+            subAgentId,
+            subAgentType: type,
+            subAgentDescription: description,
+          });
+        }
+      : undefined;
+
+    // 包装工具结果回调
+    const onToolResult = this.onToolEnd
+      ? (toolResult: ToolResult) => {
+          this.onToolEnd!({
+            id: toolResult.toolCallId,
+            success: !toolResult.returnValue.isError,
+            output: toolResult.returnValue.output || '',
+          });
+        }
+      : undefined;
+
+    return new AgentRunner({
       client: this.client,
       systemPrompt: config.systemPrompt,
       toolset,
       maxIterations: config.maxIterations ?? this.maxIterations,
       enableStopHooks: false,
+      onToolCall,
+      onToolResult,
     });
-
-    const instance: SubAgentInstance = {
-      runner,
-      type,
-      createdAt: new Date(),
-    };
-
-    this.agents.set(type, instance);
-    return instance;
   }
 
   /**

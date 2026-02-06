@@ -1,11 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
-import * as fs from 'node:fs';
-import * as os from 'node:os';
-import * as path from 'node:path';
 import { SubAgentManager } from '../../../src/sub-agents/sub-agent-manager.ts';
 import { BashTool } from '../../../src/tools/bash-tool.ts';
 import type { AnthropicClient } from '../../../src/providers/anthropic/anthropic-client.ts';
 import type { StreamedMessagePart } from '../../../src/providers/anthropic/anthropic-types.ts';
+import type { SubAgentCompleteEvent } from '../../../src/cli/terminal-renderer-types.ts';
 
 function createMockClient(responses: StreamedMessagePart[][]): AnthropicClient {
   let callIndex = 0;
@@ -34,44 +32,54 @@ describe('SubAgentManager', () => {
     bashTool.cleanup();
   });
 
-  it('should execute task and reuse agent instance', async () => {
+  it('should execute task successfully', async () => {
     const client = createMockClient([[{ type: 'text', text: 'Hello!' }]]);
     const manager = new SubAgentManager({ client, bashTool });
 
-    const first = await manager.execute('general', { prompt: 'Hi', description: 'Test' });
-    expect(first).toBe('Hello!');
-    expect(manager.has('general')).toBe(true);
-    const firstInstance = manager.get('general');
-
-    const second = await manager.execute('general', { prompt: 'Hi again', description: 'Test' });
-    expect(second).toBe('Default');
-    expect(manager.get('general')).toBe(firstInstance);
-    expect(manager.size).toBe(1);
+    const result = await manager.execute('general', { prompt: 'Hi', description: 'Test' });
+    expect(result).toBe('Hello!');
   });
 
-  it('should destroy agents', async () => {
-    const client = createMockClient([[{ type: 'text', text: 'Hello!' }]]);
-    const manager = new SubAgentManager({ client, bashTool });
-
-    await manager.execute('general', { prompt: 'Hi', description: 'Test' });
-
-    expect(manager.destroy('general')).toBe(true);
-    expect(manager.has('general')).toBe(false);
-    expect(manager.size).toBe(0);
-  });
-
-  it('should destroy all agents', async () => {
+  it('should execute multiple tasks', async () => {
     const client = createMockClient([
-      [{ type: 'text', text: 'One' }],
-      [{ type: 'text', text: 'Two' }],
+      [{ type: 'text', text: 'First!' }],
+      [{ type: 'text', text: 'Second!' }],
     ]);
     const manager = new SubAgentManager({ client, bashTool });
 
+    const first = await manager.execute('general', { prompt: 'Hi', description: 'Test 1' });
+    expect(first).toBe('First!');
+
+    const second = await manager.execute('general', { prompt: 'Hi again', description: 'Test 2' });
+    expect(second).toBe('Second!');
+  });
+
+  it('should trigger onComplete callback', async () => {
+    const client = createMockClient([[{ type: 'text', text: 'Done!' }]]);
+    const completedEvents: SubAgentCompleteEvent[] = [];
+
+    const manager = new SubAgentManager({
+      client,
+      bashTool,
+      onComplete: (event) => completedEvents.push(event),
+    });
+
     await manager.execute('general', { prompt: 'Hi', description: 'Test' });
-    await manager.execute('explore', { prompt: 'Hi', description: 'Test' });
 
-    manager.destroyAll();
+    expect(completedEvents.length).toBe(1);
+    const event = completedEvents[0]!;
+    expect(event.success).toBe(true);
+    expect(event.toolCount).toBe(0);
+    expect(typeof event.duration).toBe('number');
+  });
 
-    expect(manager.size).toBe(0);
+  it('should shutdown and cleanup', async () => {
+    const client = createMockClient([[{ type: 'text', text: 'Hello!' }]]);
+    const manager = new SubAgentManager({ client, bashTool });
+
+    await manager.execute('general', { prompt: 'Hi', description: 'Test' });
+
+    // shutdown should not throw
+    expect(() => manager.shutdown()).not.toThrow();
   });
 });

@@ -7,8 +7,12 @@
  * - ToolCallEvent: Event when tool starts
  * - ToolResultEvent: Event when tool completes
  * - SubAgentEvent: Event for SubAgent lifecycle
+ * - SubAgentToolCallEvent: Event for SubAgent internal tool call
+ * - SubAgentCompleteEvent: Event when SubAgent completes
  * - TreeSymbols: Unicode tree symbols
  */
+
+import type { SubAgentType } from '../sub-agents/sub-agent-types.ts';
 
 /**
  * Event emitted when a tool call starts
@@ -44,6 +48,36 @@ export interface SubAgentEvent {
   id: string;
   /** SubAgent name/description */
   name: string;
+}
+
+/**
+ * SubAgent 内部工具调用事件
+ *
+ * 继承 ToolCallEvent，增加 SubAgent 相关信息
+ */
+export interface SubAgentToolCallEvent extends ToolCallEvent {
+  /** SubAgent 实例 ID */
+  subAgentId: string;
+  /** SubAgent 类型 */
+  subAgentType: SubAgentType;
+  /** SubAgent 描述（显示用） */
+  subAgentDescription: string;
+}
+
+/**
+ * SubAgent 完成事件
+ */
+export interface SubAgentCompleteEvent {
+  /** SubAgent 实例 ID */
+  id: string;
+  /** 是否成功 */
+  success: boolean;
+  /** 总工具调用次数 */
+  toolCount: number;
+  /** 执行耗时（毫秒） */
+  duration: number;
+  /** 失败时的错误信息 */
+  error?: string;
 }
 
 /**
