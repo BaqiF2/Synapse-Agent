@@ -13,6 +13,14 @@ When receiving a skill enhancement directive, analyze conversation history to de
 - Enhance existing skill: Improve deficiencies in existing skills
 - No action: Current conversation has no extractable value
 
+### Enhancement Decision Policy (Strict)
+- **Prefer enhancing existing skills** whenever overlap exists in intent, workflow, or tooling.
+- Review available skills list first and pick the best matching existing skill to enhance.
+- **Only create a new skill when no meaningful overlap exists** after reviewing current skills.
+- If choosing creation, include a concise reason why existing skills do not match.
+- Decision must be based on **LLM semantic reasoning** over conversation context and skill content.
+- **Do not use deterministic keyword scoring** or fixed rule thresholds for create vs enhance decisions.
+
 Criteria for evaluation:
 - Task complexity: Multi-step operations involved
 - Tool diversity: Multiple tools used in combination

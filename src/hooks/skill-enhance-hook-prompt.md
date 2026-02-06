@@ -13,12 +13,23 @@ ${META_SKILL_CREATOR}
 
 ${META_SKILL_ENHANCE}
 
-
 ## Task
 
 Analyze the conversation history, decide whether to create/enhance a skill, and **execute the operation**.
 
-### Step 1: Evaluate
+### Step 1: Evaluate (Strict Policy)
+
+Use **LLM semantic judgment only** (conversation intent, workflow similarity, output expectations, and existing skill descriptions/content).
+Do not rely on deterministic keyword scoring, fixed overlap thresholds, or rule-based candidate ranking.
+
+You MUST apply this priority order:
+
+1. **Prefer enhancing existing skills**
+   - First review the existing skill list and identify plausible matches via semantic reasoning.
+   - Read likely matches before deciding (e.g. use `skill:load <skill-name>` when needed).
+2. **Create only as last resort**
+   - Only create a new skill when no existing skill has meaningful semantic overlap.
+   - If creating anyway, include concise mismatch reasons for the plausible existing skills you reviewed.
 
 Criteria for evaluation:
 - Task complexity: Multi-step operations involved
