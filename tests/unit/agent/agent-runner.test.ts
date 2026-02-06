@@ -245,6 +245,36 @@ describe('AgentRunner', () => {
       expect(response).toBe('Second');
       expect(runner.getHistory()).toHaveLength(4); // 2 user + 2 assistant
     });
+
+    it('should prepend English skill-search instruction loaded from prompt file before execution', async () => {
+      const client = createMockClient([[{ type: 'text', text: 'Done' }]]);
+      const toolset = new CallableToolset([createMockCallableTool(() =>
+        Promise.resolve(ToolOk({ output: '' }))
+      )]);
+
+      const runner = new AgentRunner({
+        client,
+        systemPrompt: 'Test',
+        toolset,
+        enableStopHooks: false,
+      });
+
+      const input = '请帮我实现一个命令行功能';
+      await runner.run(input);
+
+      const firstMessage = runner.getHistory()[0];
+      expect(firstMessage?.role).toBe('user');
+      expect(firstMessage?.content[0]?.type).toBe('text');
+      const userText = (firstMessage?.content[0] as { text: string }).text;
+      const [instructionBlock = ''] = userText.split('\n\nOriginal user request:\n');
+      expect(instructionBlock).toContain('Analyze the task first.');
+      expect(instructionBlock).toContain('Assess task complexity');
+      expect(instructionBlock).toContain('skip skill discovery');
+      expect(instructionBlock).toContain('prioritize running task:skill:search');
+      expect(instructionBlock).toContain('load it with skill:load');
+      expect(instructionBlock).not.toContain('请');
+      expect(userText).toContain(input);
+    });
   });
 });
 
