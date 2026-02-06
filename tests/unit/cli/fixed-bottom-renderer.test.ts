@@ -4,11 +4,15 @@
  * 测试目标：验证固定底部渲染器的初始化、状态管理、ANSI 控制、任务渲染等功能
  */
 
-import { describe, test, expect, beforeEach, afterEach, mock, spyOn } from 'bun:test';
+import { describe, test, expect, beforeEach, afterEach, spyOn } from 'bun:test';
 import { FixedBottomRenderer, type FixedBottomRendererOptions } from '../../../src/cli/fixed-bottom-renderer.ts';
 import type { TodoStore, TodoState } from '../../../src/tools/handlers/agent-bash/todo/todo-store.ts';
 
-// 模拟 TodoStore
+// ═══════════════════════════════════════════════════════════════════════
+// 测试辅助函数
+// ═══════════════════════════════════════════════════════════════════════
+
+/** 模拟 TodoStore */
 function createMockTodoStore(initialState?: Partial<TodoState>): {
   store: Pick<TodoStore, 'onChange' | 'get'>;
   triggerChange: (state: TodoState) => void;
@@ -36,6 +40,56 @@ function createMockTodoStore(initialState?: Partial<TodoState>): {
       }
     },
   };
+}
+
+/** 终端模拟上下文 - 用于保存和恢复 stdout 状态 */
+interface StdoutMockContext {
+  mockWrite: ReturnType<typeof spyOn>;
+  mockConsoleLog?: ReturnType<typeof spyOn>;
+  originalIsTTY: boolean | undefined;
+  originalRows: number | undefined;
+  originalColumns: number | undefined;
+}
+
+/** 创建终端模拟环境 */
+function setupStdoutMock(options: {
+  isTTY?: boolean;
+  rows?: number;
+  columns?: number;
+  mockConsoleLog?: boolean;
+} = {}): StdoutMockContext {
+  const { isTTY = true, rows = 24, columns = 80, mockConsoleLog = false } = options;
+
+  const context: StdoutMockContext = {
+    mockWrite: spyOn(process.stdout, 'write').mockImplementation(() => true),
+    originalIsTTY: process.stdout.isTTY,
+    originalRows: process.stdout.rows,
+    originalColumns: process.stdout.columns,
+  };
+
+  if (mockConsoleLog) {
+    context.mockConsoleLog = spyOn(console, 'log').mockImplementation(() => {});
+  }
+
+  (process.stdout as { isTTY: boolean }).isTTY = isTTY;
+  (process.stdout as { rows: number }).rows = rows;
+  (process.stdout as { columns: number }).columns = columns;
+
+  return context;
+}
+
+/** 恢复终端状态 */
+function restoreStdoutMock(context: StdoutMockContext): void {
+  context.mockWrite.mockRestore();
+  context.mockConsoleLog?.mockRestore();
+  (process.stdout as { isTTY: boolean | undefined }).isTTY = context.originalIsTTY;
+  (process.stdout as { rows: number | undefined }).rows = context.originalRows;
+  (process.stdout as { columns: number | undefined }).columns = context.originalColumns;
+}
+
+/** 获取 mock 输出内容 */
+function getMockOutput(mockWrite: ReturnType<typeof spyOn>): string {
+  return mockWrite.mock.calls.map((c: unknown[]) => c[0]).join('');
 }
 
 describe('FixedBottomRenderer', () => {
@@ -92,46 +146,29 @@ describe('FixedBottomRenderer', () => {
   // Feature 2: ANSI 滚动区域控制
   // ═══════════════════════════════════════════════════════════════
   describe('ANSI 滚动区域控制', () => {
-    let mockWrite: ReturnType<typeof spyOn>;
-    let originalIsTTY: boolean | undefined;
-    let originalRows: number | undefined;
-    let originalColumns: number | undefined;
+    let ctx: StdoutMockContext;
 
     beforeEach(() => {
-      mockWrite = spyOn(process.stdout, 'write').mockImplementation(() => true);
-      originalIsTTY = process.stdout.isTTY;
-      originalRows = process.stdout.rows;
-      originalColumns = process.stdout.columns;
-      (process.stdout as { isTTY: boolean }).isTTY = true;
-      (process.stdout as { rows: number }).rows = 24;
-      (process.stdout as { columns: number }).columns = 80;
+      ctx = setupStdoutMock();
     });
 
     afterEach(() => {
-      mockWrite.mockRestore();
-      (process.stdout as { isTTY: boolean | undefined }).isTTY = originalIsTTY;
-      (process.stdout as { rows: number | undefined }).rows = originalRows;
-      (process.stdout as { columns: number | undefined }).columns = originalColumns;
+      restoreStdoutMock(ctx);
     });
 
     test('设置滚动区域', () => {
       const renderer = createRenderer();
-      // 终端高度 24 行，固定区高度 5 行
       renderer.setScrollRegion(24, 5);
 
-      // 滚动区域应为 1-19 行
-      const calls = mockWrite.mock.calls;
-      const output = calls.map((c: any[]) => c[0]).join('');
+      const output = getMockOutput(ctx.mockWrite);
       expect(output).toContain('\x1b[1;19r');
     });
 
     test('光标定位到固定区', () => {
       const renderer = createRenderer();
-      // 终端高度 24 行，固定区从第 20 行开始
       renderer.moveCursorToFixedArea(24, 5);
 
-      const calls = mockWrite.mock.calls;
-      const output = calls.map((c: any[]) => c[0]).join('');
+      const output = getMockOutput(ctx.mockWrite);
       expect(output).toContain('\x1b[20;1H');
     });
 
@@ -139,9 +176,8 @@ describe('FixedBottomRenderer', () => {
       const renderer = createRenderer();
       renderer.clearFixedArea(5);
 
-      const calls = mockWrite.mock.calls;
-      const output = calls.map((c: any[]) => c[0]).join('');
-      // 5 行，每行清除一次
+      const output = getMockOutput(ctx.mockWrite);
+      // eslint-disable-next-line no-control-regex
       const clearCount = (output.match(/\x1b\[K/g) || []).length;
       expect(clearCount).toBe(5);
     });
@@ -157,9 +193,7 @@ describe('FixedBottomRenderer', () => {
         updatedAt: new Date(),
       });
 
-      const calls = mockWrite.mock.calls;
-      const output = calls.map((c: any[]) => c[0]).join('');
-      // 渲染前保存光标，渲染后恢复光标
+      const output = getMockOutput(ctx.mockWrite);
       expect(output).toContain('\x1b[s');
       expect(output).toContain('\x1b[u');
     });
@@ -169,26 +203,14 @@ describe('FixedBottomRenderer', () => {
   // Feature 3: Todo 列表渲染
   // ═══════════════════════════════════════════════════════════════
   describe('Todo 列表渲染', () => {
-    let mockWrite: ReturnType<typeof spyOn>;
-    let originalIsTTY: boolean | undefined;
-    let originalRows: number | undefined;
-    let originalColumns: number | undefined;
+    let ctx: StdoutMockContext;
 
     beforeEach(() => {
-      mockWrite = spyOn(process.stdout, 'write').mockImplementation(() => true);
-      originalIsTTY = process.stdout.isTTY;
-      originalRows = process.stdout.rows;
-      originalColumns = process.stdout.columns;
-      (process.stdout as { isTTY: boolean }).isTTY = true;
-      (process.stdout as { rows: number }).rows = 24;
-      (process.stdout as { columns: number }).columns = 80;
+      ctx = setupStdoutMock();
     });
 
     afterEach(() => {
-      mockWrite.mockRestore();
-      (process.stdout as { isTTY: boolean | undefined }).isTTY = originalIsTTY;
-      (process.stdout as { rows: number | undefined }).rows = originalRows;
-      (process.stdout as { columns: number | undefined }).columns = originalColumns;
+      restoreStdoutMock(ctx);
     });
 
     test('渲染单个任务', () => {
@@ -202,9 +224,7 @@ describe('FixedBottomRenderer', () => {
         updatedAt: new Date(),
       });
 
-      const calls = mockWrite.mock.calls;
-      const output = calls.map((c: any[]) => c[0]).join('');
-      // 任务行应显示 '● Doing task 1...'
+      const output = getMockOutput(ctx.mockWrite);
       expect(output).toContain('● Doing task 1...');
     });
 
@@ -223,9 +243,7 @@ describe('FixedBottomRenderer', () => {
         updatedAt: new Date(),
       });
 
-      const calls = mockWrite.mock.calls;
-      const output = calls.map((c: any[]) => c[0]).join('');
-      // in_progress 显示 ●，pending 显示 ○，completed 显示 ✓
+      const output = getMockOutput(ctx.mockWrite);
       expect(output).toContain('●');
       expect(output).toContain('○');
       expect(output).toContain('✓');
@@ -233,10 +251,45 @@ describe('FixedBottomRenderer', () => {
 
     test('高度计算正确', () => {
       const renderer = createRenderer();
-
-      // 3 个任务 + 2 行边框 = 5 行
       const height = renderer.calculateFixedHeight(3);
-      expect(height).toBe(5);
+      expect(height).toBe(4);
+    });
+
+    test('渲染使用着色块标识', () => {
+      const renderer = createRenderer();
+      const { store, triggerChange } = createMockTodoStore();
+
+      renderer.attachTodoStore(store);
+
+      triggerChange({
+        items: [{ content: 'Task 1', status: 'in_progress', activeForm: 'Doing task 1' }],
+        updatedAt: new Date(),
+      });
+
+      const output = getMockOutput(ctx.mockWrite);
+      expect(output).toContain('▌');
+      expect(output).toContain('Tasks');
+    });
+
+    test('渲染后立即还原滚动区域', () => {
+      const renderer = createRenderer();
+      const { store, triggerChange } = createMockTodoStore();
+
+      renderer.attachTodoStore(store);
+
+      triggerChange({
+        items: [{ content: 'Task 1', status: 'in_progress', activeForm: 'Doing task 1' }],
+        updatedAt: new Date(),
+      });
+
+      const output = getMockOutput(ctx.mockWrite);
+
+      expect(output).toContain('\x1b[1;');
+      expect(output).toContain('\x1b[r');
+
+      const tasksIndex = output.indexOf('Tasks');
+      const resetIndex = output.indexOf('\x1b[r');
+      expect(resetIndex).toBeGreaterThan(tasksIndex);
     });
 
     test('全量替换渲染', () => {
@@ -245,7 +298,6 @@ describe('FixedBottomRenderer', () => {
 
       renderer.attachTodoStore(store);
 
-      // 首次渲染 2 个任务
       triggerChange({
         items: [
           { content: 'Task 1', status: 'in_progress', activeForm: 'Doing task 1' },
@@ -254,9 +306,8 @@ describe('FixedBottomRenderer', () => {
         updatedAt: new Date(),
       });
 
-      mockWrite.mockClear();
+      ctx.mockWrite.mockClear();
 
-      // 更新为 3 个任务
       triggerChange({
         items: [
           { content: 'Task 1', status: 'completed', activeForm: 'Done task 1' },
@@ -266,13 +317,10 @@ describe('FixedBottomRenderer', () => {
         updatedAt: new Date(),
       });
 
-      const calls = mockWrite.mock.calls;
-      const output = calls.map((c: any[]) => c[0]).join('');
-      // 第二次渲染应显示 3 个任务（按优先级排序）
-      // in_progress 显示 activeForm，pending/completed 显示 content
-      expect(output).toContain('Doing task 2');  // in_progress 显示 activeForm
-      expect(output).toContain('Task 3');        // pending 显示 content
-      expect(output).toContain('Task 1');        // completed 显示 content
+      const output = getMockOutput(ctx.mockWrite);
+      expect(output).toContain('Doing task 2');
+      expect(output).toContain('Task 3');
+      expect(output).toContain('Task 1');
     });
   });
 
@@ -280,26 +328,14 @@ describe('FixedBottomRenderer', () => {
   // Feature 4: 任务溢出处理与优先级截断
   // ═══════════════════════════════════════════════════════════════
   describe('任务溢出处理与优先级截断', () => {
-    let mockWrite: ReturnType<typeof spyOn>;
-    let originalIsTTY: boolean | undefined;
-    let originalRows: number | undefined;
-    let originalColumns: number | undefined;
+    let ctx: StdoutMockContext;
 
     beforeEach(() => {
-      mockWrite = spyOn(process.stdout, 'write').mockImplementation(() => true);
-      originalIsTTY = process.stdout.isTTY;
-      originalRows = process.stdout.rows;
-      originalColumns = process.stdout.columns;
-      (process.stdout as { isTTY: boolean }).isTTY = true;
-      (process.stdout as { rows: number }).rows = 24;
-      (process.stdout as { columns: number }).columns = 80;
+      ctx = setupStdoutMock();
     });
 
     afterEach(() => {
-      mockWrite.mockRestore();
-      (process.stdout as { isTTY: boolean | undefined }).isTTY = originalIsTTY;
-      (process.stdout as { rows: number | undefined }).rows = originalRows;
-      (process.stdout as { columns: number | undefined }).columns = originalColumns;
+      restoreStdoutMock(ctx);
     });
 
     test('任务不超过 5 个时全部显示', () => {
@@ -319,9 +355,7 @@ describe('FixedBottomRenderer', () => {
         updatedAt: new Date(),
       });
 
-      const calls = mockWrite.mock.calls;
-      const output = calls.map((c: any[]) => c[0]).join('');
-      // 全部 5 个任务都应显示
+      const output = getMockOutput(ctx.mockWrite);
       expect(output).not.toContain('...and');
     });
 
@@ -345,9 +379,7 @@ describe('FixedBottomRenderer', () => {
         updatedAt: new Date(),
       });
 
-      const calls = mockWrite.mock.calls;
-      const output = calls.map((c: any[]) => c[0]).join('');
-      // 应显示溢出提示
+      const output = getMockOutput(ctx.mockWrite);
       expect(output).toContain('...and 3 more');
     });
 
@@ -371,15 +403,12 @@ describe('FixedBottomRenderer', () => {
         updatedAt: new Date(),
       });
 
-      const calls = mockWrite.mock.calls;
-      const output = calls.map((c: any[]) => c[0]).join('');
-      // 显示 2 个 in_progress + 3 个 pending，截断 3 个 completed
-      // in_progress 显示 activeForm，pending 显示 content
-      expect(output).toContain('P1');          // in_progress activeForm
-      expect(output).toContain('P2');          // in_progress activeForm
-      expect(output).toContain('Pending 1');   // pending content
-      expect(output).toContain('Pending 2');   // pending content
-      expect(output).toContain('Pending 3');   // pending content
+      const output = getMockOutput(ctx.mockWrite);
+      expect(output).toContain('P1');
+      expect(output).toContain('P2');
+      expect(output).toContain('Pending 1');
+      expect(output).toContain('Pending 2');
+      expect(output).toContain('Pending 3');
       expect(output).toContain('...and 3 more');
     });
   });
@@ -388,32 +417,16 @@ describe('FixedBottomRenderer', () => {
   // Feature 5: 边界情况与降级处理
   // ═══════════════════════════════════════════════════════════════
   describe('边界情况与降级处理', () => {
-    let mockWrite: ReturnType<typeof spyOn>;
-    let mockConsoleLog: ReturnType<typeof spyOn>;
-    let originalIsTTY: boolean | undefined;
-    let originalRows: number | undefined;
-    let originalColumns: number | undefined;
-
-    beforeEach(() => {
-      mockWrite = spyOn(process.stdout, 'write').mockImplementation(() => true);
-      mockConsoleLog = spyOn(console, 'log').mockImplementation(() => {});
-      originalIsTTY = process.stdout.isTTY;
-      originalRows = process.stdout.rows;
-      originalColumns = process.stdout.columns;
-    });
+    let ctx: StdoutMockContext;
 
     afterEach(() => {
-      mockWrite.mockRestore();
-      mockConsoleLog.mockRestore();
-      (process.stdout as { isTTY: boolean | undefined }).isTTY = originalIsTTY;
-      (process.stdout as { rows: number | undefined }).rows = originalRows;
-      (process.stdout as { columns: number | undefined }).columns = originalColumns;
+      if (ctx) {
+        restoreStdoutMock(ctx);
+      }
     });
 
     test('非 TTY 环境降级', () => {
-      (process.stdout as { isTTY: boolean }).isTTY = false;
-      (process.stdout as { rows: number }).rows = 24;
-      (process.stdout as { columns: number }).columns = 80;
+      ctx = setupStdoutMock({ isTTY: false, mockConsoleLog: true });
 
       const renderer = createRenderer();
       const { store, triggerChange } = createMockTodoStore();
@@ -425,17 +438,13 @@ describe('FixedBottomRenderer', () => {
         updatedAt: new Date(),
       });
 
-      const writeOutput = mockWrite.mock.calls.map((c: any[]) => c[0]).join('');
-      // 非 TTY 不应输出 ANSI 滚动区域序列
-      expect(writeOutput).not.toContain('\x1b[');
-      // 应使用 console.log 输出
-      expect(mockConsoleLog).toHaveBeenCalled();
+      const output = getMockOutput(ctx.mockWrite);
+      expect(output).not.toContain('\x1b[');
+      expect(ctx.mockConsoleLog).toHaveBeenCalled();
     });
 
     test('终端高度过小时降级', () => {
-      (process.stdout as { isTTY: boolean }).isTTY = true;
-      (process.stdout as { rows: number }).rows = 10;
-      (process.stdout as { columns: number }).columns = 80;
+      ctx = setupStdoutMock({ rows: 10, mockConsoleLog: true });
 
       const renderer = createRenderer();
       const { store, triggerChange } = createMockTodoStore();
@@ -447,17 +456,13 @@ describe('FixedBottomRenderer', () => {
         updatedAt: new Date(),
       });
 
-      const writeOutput = mockWrite.mock.calls.map((c: any[]) => c[0]).join('');
-      // 终端过小不应设置滚动区域
-      expect(writeOutput).not.toContain('\x1b[1;');
-      // 应使用 console.log 输出
-      expect(mockConsoleLog).toHaveBeenCalled();
+      const output = getMockOutput(ctx.mockWrite);
+      expect(output).not.toContain('\x1b[1;');
+      expect(ctx.mockConsoleLog).toHaveBeenCalled();
     });
 
     test('终端高度刚好 12 行时启用', () => {
-      (process.stdout as { isTTY: boolean }).isTTY = true;
-      (process.stdout as { rows: number }).rows = 12;
-      (process.stdout as { columns: number }).columns = 80;
+      ctx = setupStdoutMock({ rows: 12 });
 
       const renderer = createRenderer();
       const { store, triggerChange } = createMockTodoStore();
@@ -472,22 +477,18 @@ describe('FixedBottomRenderer', () => {
         updatedAt: new Date(),
       });
 
-      const writeOutput = mockWrite.mock.calls.map((c: any[]) => c[0]).join('');
-      // 应正常设置滚动区域
-      expect(writeOutput).toContain('\x1b[');
+      const output = getMockOutput(ctx.mockWrite);
+      expect(output).toContain('\x1b[');
     });
 
     test('空列表时隐藏固定区', () => {
-      (process.stdout as { isTTY: boolean }).isTTY = true;
-      (process.stdout as { rows: number }).rows = 24;
-      (process.stdout as { columns: number }).columns = 80;
+      ctx = setupStdoutMock();
 
       const renderer = createRenderer();
       const { store, triggerChange } = createMockTodoStore();
 
       renderer.attachTodoStore(store);
 
-      // 先渲染有任务的状态
       triggerChange({
         items: [
           { content: 'Task 1', status: 'in_progress', activeForm: 'Doing 1' },
@@ -496,17 +497,15 @@ describe('FixedBottomRenderer', () => {
         updatedAt: new Date(),
       });
 
-      mockWrite.mockClear();
+      ctx.mockWrite.mockClear();
 
-      // 清空任务列表
       triggerChange({
         items: [],
         updatedAt: new Date(),
       });
 
-      const writeOutput = mockWrite.mock.calls.map((c: any[]) => c[0]).join('');
-      // 应重置滚动区域为全屏
-      expect(writeOutput).toContain('\x1b[r');
+      const output = getMockOutput(ctx.mockWrite);
+      expect(output).toContain('\x1b[K');
     });
   });
 
@@ -514,26 +513,14 @@ describe('FixedBottomRenderer', () => {
   // Feature 6: 生命周期管理
   // ═══════════════════════════════════════════════════════════════
   describe('生命周期管理', () => {
-    let mockWrite: ReturnType<typeof spyOn>;
-    let originalIsTTY: boolean | undefined;
-    let originalRows: number | undefined;
-    let originalColumns: number | undefined;
+    let ctx: StdoutMockContext;
 
     beforeEach(() => {
-      mockWrite = spyOn(process.stdout, 'write').mockImplementation(() => true);
-      originalIsTTY = process.stdout.isTTY;
-      originalRows = process.stdout.rows;
-      originalColumns = process.stdout.columns;
-      (process.stdout as { isTTY: boolean }).isTTY = true;
-      (process.stdout as { rows: number }).rows = 24;
-      (process.stdout as { columns: number }).columns = 80;
+      ctx = setupStdoutMock();
     });
 
     afterEach(() => {
-      mockWrite.mockRestore();
-      (process.stdout as { isTTY: boolean | undefined }).isTTY = originalIsTTY;
-      (process.stdout as { rows: number | undefined }).rows = originalRows;
-      (process.stdout as { columns: number | undefined }).columns = originalColumns;
+      restoreStdoutMock(ctx);
     });
 
     test('resize 时自动重绘', () => {
@@ -551,15 +538,13 @@ describe('FixedBottomRenderer', () => {
         updatedAt: new Date(),
       });
 
-      mockWrite.mockClear();
+      ctx.mockWrite.mockClear();
 
-      // 模拟 resize 到 30 行
       (process.stdout as { rows: number }).rows = 30;
       renderer.handleResize();
 
-      const writeOutput = mockWrite.mock.calls.map((c: any[]) => c[0]).join('');
-      // 应重新设置滚动区域
-      expect(writeOutput).toContain('\x1b[');
+      const output = getMockOutput(ctx.mockWrite);
+      expect(output).toContain('\x1b[');
     });
 
     test('resize 到更小时重新截断', () => {
@@ -568,7 +553,6 @@ describe('FixedBottomRenderer', () => {
 
       renderer.attachTodoStore(store);
 
-      // 初始 6 个任务，显示 5 个 + 溢出
       triggerChange({
         items: [
           { content: 'Task 1', status: 'in_progress', activeForm: 'Doing 1' },
@@ -581,15 +565,13 @@ describe('FixedBottomRenderer', () => {
         updatedAt: new Date(),
       });
 
-      mockWrite.mockClear();
+      ctx.mockWrite.mockClear();
 
-      // 模拟 resize 到 15 行
       (process.stdout as { rows: number }).rows = 15;
       renderer.handleResize();
 
-      const writeOutput = mockWrite.mock.calls.map((c: any[]) => c[0]).join('');
-      // 应重新渲染，仍显示溢出提示
-      expect(writeOutput).toContain('...and 1 more');
+      const output = getMockOutput(ctx.mockWrite);
+      expect(output).toContain('...and 1 more');
     });
 
     test('dispose 恢复终端状态', () => {
@@ -603,13 +585,12 @@ describe('FixedBottomRenderer', () => {
         updatedAt: new Date(),
       });
 
-      mockWrite.mockClear();
+      ctx.mockWrite.mockClear();
 
       renderer.dispose();
 
-      const writeOutput = mockWrite.mock.calls.map((c: any[]) => c[0]).join('');
-      // 应重置滚动区域为全屏
-      expect(writeOutput).toContain('\x1b[r');
+      const output = getMockOutput(ctx.mockWrite);
+      expect(output).toContain('\x1b[r');
     });
   });
 });
