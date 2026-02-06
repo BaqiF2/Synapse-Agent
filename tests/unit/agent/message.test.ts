@@ -91,14 +91,14 @@ describe('Message', () => {
       expect((message.content[0] as TextPart).text).toBe('success');
     });
 
-    it('should only include output and ignore message', () => {
+    it('should include output and message when both are present', () => {
       const result = {
         toolCallId: 'call2',
         returnValue: { isError: false, output: 'primary', message: 'secondary', brief: '' },
       };
       const message = toolResultToMessage(result);
 
-      expect((message.content[0] as TextPart).text).toBe('primary');
+      expect((message.content[0] as TextPart).text).toBe('primary\n\nsecondary');
     });
   });
 

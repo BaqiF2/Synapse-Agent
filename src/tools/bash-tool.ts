@@ -18,9 +18,15 @@ import { BashSession } from './bash-session.ts';
 import { loadDesc } from '../utils/load-desc.js';
 import type { AnthropicClient } from '../providers/anthropic/anthropic-client.ts';
 import { extractBaseCommand } from './constants.ts';
+import { classifyToolFailure, shouldAttachToolSelfDescription } from '../utils/tool-failure.ts';
 
 const COMMAND_TIMEOUT_MARKER = 'Command execution timeout';
-const HELP_HINT_TEMPLATE = '\n\nHint: Run `{command} --help` to learn the correct usage before retrying.';
+const HELP_HINT_TEMPLATE =
+  '\n\nSelf-description: The command failed. Next step: run `Bash(command="{command} --help")` to learn usage, then retry with valid arguments.';
+
+function appendSelfDescription(output: string, helpHint: string): string {
+  return `${output}\n\n${helpHint.trim()}`;
+}
 
 /**
  * Zod schema for Bash tool parameters
@@ -114,10 +120,19 @@ export class BashTool extends CallableTool<BashToolParams> {
       } else {
         const baseCommand = extractBaseCommand(command);
         const helpHint = HELP_HINT_TEMPLATE.replace('{command}', baseCommand);
+        const failureCategory = classifyToolFailure(result.stderr);
+        const outputWithCorrection = shouldAttachToolSelfDescription(failureCategory)
+          ? appendSelfDescription(output, helpHint)
+          : output;
         return ToolError({
-          output,
+          output: outputWithCorrection,
           message: `Command failed with exit code ${result.exitCode}${helpHint}`,
           brief: 'Bash command failed',
+          extras: {
+            failureCategory,
+            baseCommand,
+            exitCode: result.exitCode,
+          },
         });
       }
     } catch (error) {

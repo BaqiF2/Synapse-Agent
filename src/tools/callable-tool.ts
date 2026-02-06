@@ -14,6 +14,7 @@
 
 import type Anthropic from '@anthropic-ai/sdk';
 import {toJSONSchema, type ZodType} from 'zod';
+import { TOOL_FAILURE_CATEGORIES } from '../utils/tool-failure.ts';
 
 /**
  * Structured return value of a tool execution.
@@ -79,6 +80,9 @@ export function ToolValidateError(detail: string): ToolReturnValue {
   return ToolError({
     message: `Invalid parameters: ${detail}`,
     brief: 'Invalid parameters',
+    extras: {
+      failureCategory: TOOL_FAILURE_CATEGORIES.invalidUsage,
+    },
   });
 }
 

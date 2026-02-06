@@ -115,9 +115,13 @@ export function extractText(message: Message, separator: string = ''): string {
  * Convert ToolResult to Message
  */
 export function toolResultToMessage(result: ToolResult): Message {
+  const output = result.returnValue.output ?? '';
+  const message = result.returnValue.message ?? '';
+  const contentText = [output, message].filter((part) => part.length > 0).join('\n\n');
+
   return {
     role: 'tool',
-    content: [{ type: 'text', text: result.returnValue.output }],
+    content: [{ type: 'text', text: contentText }],
     toolCallId: result.toolCallId,
   };
 }

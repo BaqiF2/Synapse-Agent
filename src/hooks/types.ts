@@ -25,6 +25,8 @@ export interface StopHookContext {
   messages: readonly Message[];
   /** Agent 的最终响应文本 */
   finalResponse: string;
+  /** 进度消息回调（可选，用于实时输出 Hook 执行状态） */
+  onProgress?: (message: string) => void | Promise<void>;
 }
 
 /**

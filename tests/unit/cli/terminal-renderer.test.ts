@@ -2,6 +2,13 @@ import { describe, it, expect, beforeEach, afterEach, mock } from 'bun:test';
 import readline from 'readline';
 import { TerminalRenderer } from '../../../src/cli/terminal-renderer.ts';
 
+const ansiEscape = String.fromCharCode(27);
+const ansiPattern = new RegExp(`${ansiEscape}\\[[0-9;]*m`, 'g');
+
+function stripAnsi(text: string): string {
+  return text.replace(ansiPattern, '');
+}
+
 describe('TerminalRenderer', () => {
   const originalStdoutWrite = process.stdout.write.bind(process.stdout);
   const originalConsoleLog = console.log.bind(console);
@@ -52,5 +59,19 @@ describe('TerminalRenderer', () => {
 
     expect(process.stdout.write).not.toHaveBeenCalled();
     expect(console.log).toHaveBeenCalled();
+  });
+
+  it('should show skill enhance analysis message for task:skill:enhance', () => {
+    const renderer = new TerminalRenderer();
+
+    renderer.renderToolStart({
+      id: '3',
+      command: 'task:skill:enhance --prompt "session-id" --description "Enhance skills"',
+      depth: 0,
+    });
+
+    const writes = (process.stdout.write as unknown as { mock: { calls: unknown[][] } }).mock.calls;
+    const output = writes.map((call) => String(call[0] ?? '')).join('');
+    expect(stripAnsi(output)).toContain('Analyzing skill enhancement...');
   });
 });

@@ -21,6 +21,7 @@ import type { AnthropicClient } from '../../../src/providers/anthropic/anthropic
 import type { StreamedMessagePart } from '../../../src/providers/anthropic/anthropic-types.ts';
 import { Logger } from '../../../src/utils/logger.ts';
 import { Session } from '../../../src/agent/session.ts';
+import { stopHookRegistry } from '../../../src/hooks/stop-hook-registry.ts';
 
 function createMockCallableTool(handler: (args: unknown) => Promise<ToolReturnValue>): CallableTool<unknown> {
   return {
@@ -179,7 +180,11 @@ describe('AgentRunner', () => {
       ]);
 
       const toolset = new CallableToolset([createMockCallableTool(() =>
-        Promise.resolve(ToolError({ message: 'error', output: 'error' }))
+        Promise.resolve(ToolError({
+          message: 'Invalid parameters: Usage: read <file_path>',
+          output: '[stderr]\nUsage: read <file_path> [--offset N] [--limit N]',
+          extras: { failureCategory: 'invalid_usage' },
+        }))
       )]);
 
       const runner = new AgentRunner({
@@ -196,6 +201,74 @@ describe('AgentRunner', () => {
       const history = runner.getHistory();
       expect(history).toHaveLength(5);
       expect(history.at(-1)?.role).toBe('tool');
+    });
+
+    it('should skip stop hooks when stopping due to consecutive tool failures', async () => {
+      const originalExecuteAll = stopHookRegistry.executeAll.bind(stopHookRegistry);
+      const executeAllMock = mock(async () => [{ message: 'should-not-run' }]);
+      (stopHookRegistry as unknown as { executeAll: typeof stopHookRegistry.executeAll }).executeAll =
+        executeAllMock;
+
+      try {
+        const client = createMockClient([
+          [{ type: 'tool_call', id: 'c1', name: 'Bash', input: { command: 'fail' } }],
+          [{ type: 'tool_call', id: 'c2', name: 'Bash', input: { command: 'fail' } }],
+        ]);
+
+        const toolset = new CallableToolset([createMockCallableTool(() =>
+          Promise.resolve(ToolError({
+            message: 'Unknown tool: read',
+            output: '',
+            extras: { failureCategory: 'command_not_found' },
+          }))
+        )]);
+
+        const runner = new AgentRunner({
+          client,
+          systemPrompt: 'Test',
+          toolset,
+          maxConsecutiveToolFailures: 2,
+          enableStopHooks: true,
+        });
+
+        const response = await runner.run('Fail');
+
+        expect(response).toContain('Consecutive tool execution failures');
+        expect(response).not.toContain('[StopHook]');
+        expect(executeAllMock).not.toHaveBeenCalled();
+      } finally {
+        (stopHookRegistry as unknown as { executeAll: typeof stopHookRegistry.executeAll }).executeAll =
+          originalExecuteAll;
+      }
+    });
+
+    it('should not count file path execution errors toward consecutive failures', async () => {
+      const client = createMockClient([
+        [{ type: 'tool_call', id: 'c1', name: 'Bash', input: { command: 'read /missing-1' } }],
+        [{ type: 'tool_call', id: 'c2', name: 'Bash', input: { command: 'read /missing-2' } }],
+        [{ type: 'text', text: 'Recovered after path correction' }],
+      ]);
+
+      const toolset = new CallableToolset([createMockCallableTool(() =>
+        Promise.resolve(ToolError({
+          message: 'Command failed with exit code 1',
+          output: '[stderr]\nFile not found: /missing',
+          extras: { failureCategory: 'execution_error' },
+        }))
+      )]);
+
+      const runner = new AgentRunner({
+        client,
+        systemPrompt: 'Test',
+        toolset,
+        maxConsecutiveToolFailures: 2,
+        enableStopHooks: false,
+      });
+
+      const response = await runner.run('Read missing files then recover');
+
+      expect(response).toBe('Recovered after path correction');
+      expect(response).not.toContain('Consecutive tool execution failures');
     });
 
     it('should stop when max iterations reached', async () => {
@@ -221,6 +294,39 @@ describe('AgentRunner', () => {
       expect(lastMessage?.role).toBe('assistant');
       expect(lastMessage?.content[0]?.type).toBe('text');
       expect((lastMessage?.content[0] as { text: string }).text).toContain('Reached tool iteration limit (1)');
+    });
+
+    it('should skip stop hooks when stopping due to max iterations', async () => {
+      const originalExecuteAll = stopHookRegistry.executeAll.bind(stopHookRegistry);
+      const executeAllMock = mock(async () => [{ message: 'should-not-run' }]);
+      (stopHookRegistry as unknown as { executeAll: typeof stopHookRegistry.executeAll }).executeAll =
+        executeAllMock;
+
+      try {
+        const client = createMockClient([
+          [{ type: 'tool_call', id: 'c1', name: 'Bash', input: { command: 'ls' } }],
+        ]);
+        const toolset = new CallableToolset([createMockCallableTool(() =>
+          Promise.resolve(ToolOk({ output: 'ok' }))
+        )]);
+
+        const runner = new AgentRunner({
+          client,
+          systemPrompt: 'Test',
+          toolset,
+          maxIterations: 1,
+          enableStopHooks: true,
+        });
+
+        const response = await runner.run('Hi');
+
+        expect(response).toContain('Reached tool iteration limit (1)');
+        expect(response).not.toContain('[StopHook]');
+        expect(executeAllMock).not.toHaveBeenCalled();
+      } finally {
+        (stopHookRegistry as unknown as { executeAll: typeof stopHookRegistry.executeAll }).executeAll =
+          originalExecuteAll;
+      }
     });
 
     it('should maintain history across calls', async () => {

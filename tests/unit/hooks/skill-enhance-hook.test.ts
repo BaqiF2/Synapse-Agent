@@ -147,6 +147,33 @@ describe('SkillEnhanceHook - 配置检查 (Feature 9)', () => {
       settingsProto.getMaxEnhanceContextChars = originalGetMaxEnhanceContextChars;
     }
   });
+
+  it('autoEnhance 启用且执行增强时应发送进度提示', async () => {
+    const { SettingsManager } = await import('../../../src/config/settings-manager.ts');
+    const { skillEnhanceHook } = await import('../../../src/hooks/skill-enhance-hook.ts');
+
+    const settingsProto = SettingsManager.prototype;
+    const originalIsAutoEnhanceEnabled = settingsProto.isAutoEnhanceEnabled;
+    const originalGetMaxEnhanceContextChars = settingsProto.getMaxEnhanceContextChars;
+
+    settingsProto.isAutoEnhanceEnabled = () => true;
+    settingsProto.getMaxEnhanceContextChars = () => 50000;
+
+    const progressMessages: string[] = [];
+
+    try {
+      const context = createTestContext({
+        onProgress: (message: string) => {
+          progressMessages.push(message);
+        },
+      });
+      await skillEnhanceHook(context);
+      expect(progressMessages).toContain('Analyzing skill enhancement...');
+    } finally {
+      settingsProto.isAutoEnhanceEnabled = originalIsAutoEnhanceEnabled;
+      settingsProto.getMaxEnhanceContextChars = originalGetMaxEnhanceContextChars;
+    }
+  });
 });
 
 describe('SkillEnhanceHook - SessionId 检查 (Feature 10)', () => {

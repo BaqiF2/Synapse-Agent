@@ -32,12 +32,15 @@ import { SettingsManager } from '../config/settings-manager.ts';
 import { TerminalRenderer } from './terminal-renderer.ts';
 import { extractHookOutput } from './hook-output.ts';
 import { todoStore } from '../tools/handlers/agent-bash/todo/todo-store.ts';
+import { SKILL_ENHANCE_PROGRESS_TEXT } from '../hooks/skill-enhance-constants.ts';
 // ════════════════════════════════════════════════════════════════════
 //  Constants & Configuration
 // ════════════════════════════════════════════════════════════════════
 
 const cliLogger = createLogger('cli');
 const MAX_TOOL_ITERATIONS = parseInt(process.env.SYNAPSE_MAX_TOOL_ITERATIONS || '50', 10);
+const BRIGHT_PROGRESS_START = '\x1b[1;93m';
+const BRIGHT_PROGRESS_END = '\x1b[0m';
 
 // ════════════════════════════════════════════════════════════════════
 //  Types
@@ -76,6 +79,16 @@ function clearPromptLine(rl: readline.Interface): void {
   if (!output || !output.isTTY) return;
   readline.clearLine(output, 0);
   readline.cursorTo(output, 0);
+}
+
+export function formatStreamText(text: string): string {
+  if (
+    text.includes(SKILL_ENHANCE_PROGRESS_TEXT) &&
+    (process.stdout as { isTTY?: boolean }).isTTY
+  ) {
+    return `${BRIGHT_PROGRESS_START}${text}${BRIGHT_PROGRESS_END}`;
+  }
+  return text;
 }
 
 /**
@@ -537,7 +550,7 @@ function initializeAgent(session: Session): AgentRunner | null {
       sessionId: session.id,
       onMessagePart: (part) => {
         if (part.type === 'text' && part.text.trim()) {
-          process.stdout.write(part.text);
+          process.stdout.write(formatStreamText(part.text));
         }
       },
       onToolCall: (toolCall) => {
