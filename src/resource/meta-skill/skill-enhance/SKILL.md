@@ -17,6 +17,32 @@ Enhance a skill when any of these conditions are met:
 3. **Error Correction**: Skill contains incorrect, outdated, or misleading information
 4. **Completeness Gap**: Missing edge cases, examples, or error handling that would improve usability
 
+## Content Refinement Principles
+
+**Core Rule: Information Density Over Length**
+
+When enhancing a skill, your goal is to increase information density, not file length.
+
+### Merge, Don't Append
+- Found similar content → Merge into one better version
+- Found duplicate examples → Keep only the most representative one
+- Found verbose description → Condense to essential points
+
+### Refinement Triggers
+Apply active refinement when:
+1. File exceeds 500 lines → Must refine before adding new content
+2. Multiple sections cover similar topics → Consolidate into one
+3. Examples repeat the same pattern → Keep 1-2 best examples
+4. Mixed languages → Unify to primary language (English)
+
+### Refinement Actions
+| Situation | Action |
+|-----------|--------|
+| 2+ similar sections | Merge into single comprehensive section |
+| Verbose explanations | Reduce to key points with examples |
+| Redundant examples | Keep most illustrative, delete others |
+| Outdated content | Replace entirely, don't append updates |
+
 ## Enhancement Process
 
 Follow these steps in order:
@@ -26,8 +52,15 @@ Follow these steps in order:
 Before making changes, gather context:
 
 1. Read the current skill's SKILL.md to understand existing content
-2. Identify the specific gap or improvement opportunity
-3. Determine if this is an additive change (new content) or corrective change (fixing existing content)
+2. **Assess file health:**
+   - Count total lines (healthy: <500, warning: 500-800, critical: >800)
+   - Identify duplicate/similar sections
+   - Check for mixed languages or inconsistent style
+3. Identify the specific gap or improvement opportunity
+4. **Determine enhancement strategy:**
+   - If file is healthy (<500 lines): proceed with enhancement
+   - If file is warning (500-800 lines): must refine before adding
+   - If file is critical (>800 lines): primary goal is reduction, not addition
 
 ### Step 2: Classify the Enhancement Type
 
@@ -66,11 +99,23 @@ For each enhancement type:
 
 ### Step 4: Apply Changes
 
-When editing the skill:
+**Before adding ANY new content, apply refinement:**
 
-1. **Preserve working content** - Do not remove content that is functioning correctly
-2. **Maintain consistency** - Match the existing writing style (imperative form)
-3. **Add version notes** - For significant changes, add a comment noting what changed
+1. **Scan for merge opportunities:**
+   - Similar sections → Merge into one
+   - Redundant examples → Keep best one
+   - Verbose descriptions → Condense
+
+2. **Apply changes based on file health:**
+   - Healthy file: Add new content, maintain density
+   - Warning file: Remove 1 line for every 1 line added
+   - Critical file: Must achieve net reduction
+
+3. **Preserve quality, not quantity:**
+   - Keep content that provides unique value
+   - Remove content that duplicates or restates
+   - Maintain consistent style and language
+
 4. **Update frontmatter** - If the skill's scope or triggers changed, update the description
 
 ### Step 5: Verify Enhancement
@@ -83,6 +128,37 @@ After making changes:
 4. Ensure the skill still fits within token budget guidelines (~5k words for SKILL.md)
 
 ## Enhancement Patterns
+
+### Merging Redundant Content
+
+When you find similar content scattered across the file, merge them:
+
+**Before (redundant):**
+```markdown
+## When to Use
+- Analyzing unfamiliar codebases
+- Evaluating code quality
+
+## Usage Scenarios
+- Analyze unfamiliar code repositories
+- Evaluate code quality
+
+## Core Analysis Framework
+Use this when analyzing repositories...
+```
+
+**After (refined):**
+```markdown
+## When to Use
+Use this skill when:
+- Analyzing unfamiliar codebases for improvement opportunities
+- Evaluating code quality and identifying technical debt
+```
+
+**Refinement applied:**
+- Merged 3 overlapping sections into 1
+- Removed duplicate descriptions
+- Eliminated redundant intro sentence
 
 ### Adding New Examples
 

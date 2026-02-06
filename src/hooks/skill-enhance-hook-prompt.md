@@ -52,8 +52,17 @@ Criteria for evaluation:
 
 **If enhancing an existing skill:**
 1. Read the existing skill's SKILL.md
-2. Apply changes following the skill-enhance meta-skill guidelines
-3. Preserve working content, maintain consistency
+2. **Assess file health first:**
+   - <500 lines: Healthy, can add content
+   - 500-800 lines: Warning, must refine before adding
+   - >800 lines: Critical, primary goal is reduction
+3. **Apply refinement before enhancement:**
+   - Merge similar/duplicate sections
+   - Remove redundant examples (keep 1-2 best)
+   - Condense verbose descriptions
+   - Unify mixed languages to English
+4. Apply new insights using skill-enhance meta-skill guidelines
+5. **Verify net result:** File should be more refined, not just longer
 
 **If no action needed:**
 - Skip execution, proceed to output
