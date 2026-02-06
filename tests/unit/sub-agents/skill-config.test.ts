@@ -87,6 +87,20 @@ describe('Skill Sub Agent Config', () => {
       expect(prompt).toContain('2. second: Second skill');
       expect(prompt).toContain('3. third: Third skill');
     });
+
+    test('should enforce enhance-first policy in enhancement mode', () => {
+      const metadata = [
+        { name: 'repository-analyzer', description: 'Analyze repository quality and security' },
+      ];
+
+      const prompt = buildSystemPrompt(metadata);
+
+      expect(prompt).toContain('Enhancement Decision Policy');
+      expect(prompt).toContain('Prefer enhancing existing skills');
+      expect(prompt).toContain('Only create a new skill when no meaningful overlap exists');
+      expect(prompt).toContain('LLM semantic reasoning');
+      expect(prompt).toContain('Do not use deterministic keyword scoring');
+    });
   });
 
   describe('createSkillConfig', () => {

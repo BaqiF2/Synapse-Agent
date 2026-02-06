@@ -11,10 +11,13 @@ import * as path from 'node:path';
 import * as os from 'node:os';
 import type { StopHookContext } from '../../../src/hooks/types.ts';
 
+let capturedSkillEnhancePrompt: string | null = null;
+
 // Mock SubAgentManager，避免真实 API 调用
 mock.module('../../../src/sub-agents/sub-agent-manager.ts', () => ({
   SubAgentManager: class MockSubAgentManager {
-    execute() {
+    execute(_type: string, params: { prompt: string }) {
+      capturedSkillEnhancePrompt = params.prompt;
       return Promise.resolve('Mocked enhancement result');
     }
     shutdown() {}
@@ -38,6 +41,7 @@ let tempHomeDir: string;
 let homedirSpy: ReturnType<typeof spyOn> | null = null;
 
 beforeEach(() => {
+  capturedSkillEnhancePrompt = null;
   originalHomeDir = process.env.HOME;
   tempHomeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skill-enhance-home-'));
   process.env.HOME = tempHomeDir;
@@ -346,6 +350,35 @@ describe('SkillEnhanceHook - Meta-skill 加载 (Feature 12)', () => {
         // 如果 meta-skills 不存在，这可能是因为测试环境路径问题
         console.warn('Meta-skills not found - this may be a path issue in test environment');
       }
+    } finally {
+      settingsProto.isAutoEnhanceEnabled = originalIsAutoEnhanceEnabled;
+      settingsProto.getMaxEnhanceContextChars = originalGetMaxEnhanceContextChars;
+    }
+  });
+
+  it('增强 prompt 不应包含规则化候选列表区块（纯 LLM 判定）', async () => {
+    const { SettingsManager } = await import('../../../src/config/settings-manager.ts');
+    const { skillEnhanceHook } = await import('../../../src/hooks/skill-enhance-hook.ts');
+
+    const sessionPath = path.join(tempDir, 'llm-only-test.jsonl');
+    fs.writeFileSync(
+      sessionPath,
+      '{"id":"msg-1","timestamp":"2025-01-01T00:00:00Z","role":"user","content":"请分析仓库质量并给出优化建议"}\n' +
+        '{"id":"msg-2","timestamp":"2025-01-01T00:00:01Z","role":"assistant","content":"好的"}\n'
+    );
+
+    const settingsProto = SettingsManager.prototype;
+    const originalIsAutoEnhanceEnabled = settingsProto.isAutoEnhanceEnabled;
+    const originalGetMaxEnhanceContextChars = settingsProto.getMaxEnhanceContextChars;
+    settingsProto.isAutoEnhanceEnabled = () => true;
+    settingsProto.getMaxEnhanceContextChars = () => 50000;
+
+    try {
+      await skillEnhanceHook(createTestContext({ sessionId: 'llm-only-test' }));
+
+      expect(capturedSkillEnhancePrompt).toBeDefined();
+      expect(capturedSkillEnhancePrompt || '').not.toContain('Similar Skill Candidates');
+      expect(capturedSkillEnhancePrompt || '').not.toContain('SIMILAR_SKILL_CANDIDATES');
     } finally {
       settingsProto.isAutoEnhanceEnabled = originalIsAutoEnhanceEnabled;
       settingsProto.getMaxEnhanceContextChars = originalGetMaxEnhanceContextChars;
