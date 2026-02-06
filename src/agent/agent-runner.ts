@@ -13,7 +13,9 @@ import {type OnToolCall, type OnToolResult, step} from './step.ts';
 import {type OnMessagePart} from '../providers/generate.ts';
 import {createTextMessage, extractText, type Message, toolResultToMessage} from '../providers/message.ts';
 import type {Toolset} from '../tools/toolset.ts';
+import path from 'node:path';
 import {createLogger} from '../utils/logger.ts';
+import {loadDesc} from '../utils/load-desc.ts';
 import {Session} from './session.ts';
 import type {StopHookContext, HookResult} from '../hooks/index.ts';
 import {stopHookRegistry} from '../hooks/stop-hook-registry.ts';
@@ -39,6 +41,13 @@ const DEFAULT_MAX_ITERATIONS = parseInt(process.env.SYNAPSE_MAX_TOOL_ITERATIONS 
 const parsedMaxFailures = parseInt(process.env.SYNAPSE_MAX_CONSECUTIVE_TOOL_FAILURES || '3', 10);
 const DEFAULT_MAX_CONSECUTIVE_TOOL_FAILURES =
   Number.isFinite(parsedMaxFailures) ? Math.max(1, parsedMaxFailures) : 3;
+const SKILL_SEARCH_INSTRUCTION_PREFIX = loadDesc(
+  path.join(import.meta.dirname, 'prompts', 'skill-search-priority.md')
+);
+
+function prependSkillSearchInstruction(userMessage: string): string {
+  return `${SKILL_SEARCH_INSTRUCTION_PREFIX}\n\nOriginal user request:\n${userMessage}`;
+}
 
 /**
  * Options for AgentRunner
@@ -181,7 +190,8 @@ export class AgentRunner {
     await this.initHooks();
 
     // 添加用户消息到聊天历史中
-    const userMsg = createTextMessage('user', userMessage);
+    const enhancedUserMessage = prependSkillSearchInstruction(userMessage);
+    const userMsg = createTextMessage('user', enhancedUserMessage);
     this.history.push(userMsg);
     if (this.session) {
       await this.session.appendMessage(userMsg);

@@ -36,3 +36,15 @@
 ## 约定
 - 当前处于项目开发阶段，任何调整优先考虑重构而非向后的兼容。
 - 与用户沟通时请使用中文。
+
+## Code Review
+
+When checking implementation against PRD documents, first summarize the key requirements, then systematically verify each one against the codebase before providing a gap analysis.
+
+## Debugging
+
+For test failures, always check both authentication/credentials issues AND timeout configurations as common root causes before diving deeper.
+
+## Workflow Preferences
+
+When executing multi-step plans or skills, provide a brief progress checkpoint after each major step so the user knows status if they need to interrupt.
