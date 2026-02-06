@@ -5,7 +5,7 @@
  */
 
 import { describe, test, expect, beforeEach, afterEach, mock, spyOn } from 'bun:test';
-import { FixedBottomRenderer, type FixedBottomRendererOptions } from '../../../src/cli/fixed-bottom-renderer.ts';
+import { FixedBottomRenderer } from '../../../src/cli/fixed-bottom-renderer.ts';
 import type { TodoStore, TodoState } from '../../../src/tools/handlers/agent-bash/todo/todo-store.ts';
 
 // 模拟 TodoStore
@@ -51,7 +51,7 @@ describe('FixedBottomRenderer', () => {
   });
 
   // 辅助函数：创建渲染器并跟踪以便清理
-  function createRenderer(options?: FixedBottomRendererOptions) {
+  function createRenderer(options?: Parameters<typeof FixedBottomRenderer.prototype.constructor>[0]) {
     const renderer = new FixedBottomRenderer(options);
     testRenderers.push(renderer);
     return renderer;
@@ -121,7 +121,7 @@ describe('FixedBottomRenderer', () => {
 
       // 滚动区域应为 1-19 行
       const calls = mockWrite.mock.calls;
-      const output = calls.map((c: any[]) => c[0]).join('');
+      const output = calls.map((c) => c[0]).join('');
       expect(output).toContain('\x1b[1;19r');
     });
 
@@ -131,7 +131,7 @@ describe('FixedBottomRenderer', () => {
       renderer.moveCursorToFixedArea(24, 5);
 
       const calls = mockWrite.mock.calls;
-      const output = calls.map((c: any[]) => c[0]).join('');
+      const output = calls.map((c) => c[0]).join('');
       expect(output).toContain('\x1b[20;1H');
     });
 
@@ -140,7 +140,7 @@ describe('FixedBottomRenderer', () => {
       renderer.clearFixedArea(5);
 
       const calls = mockWrite.mock.calls;
-      const output = calls.map((c: any[]) => c[0]).join('');
+      const output = calls.map((c) => c[0]).join('');
       // 5 行，每行清除一次
       const clearCount = (output.match(/\x1b\[K/g) || []).length;
       expect(clearCount).toBe(5);
@@ -158,7 +158,7 @@ describe('FixedBottomRenderer', () => {
       });
 
       const calls = mockWrite.mock.calls;
-      const output = calls.map((c: any[]) => c[0]).join('');
+      const output = calls.map((c) => c[0]).join('');
       // 渲染前保存光标，渲染后恢复光标
       expect(output).toContain('\x1b[s');
       expect(output).toContain('\x1b[u');
@@ -203,7 +203,7 @@ describe('FixedBottomRenderer', () => {
       });
 
       const calls = mockWrite.mock.calls;
-      const output = calls.map((c: any[]) => c[0]).join('');
+      const output = calls.map((c) => c[0]).join('');
       // 任务行应显示 '● Doing task 1...'
       expect(output).toContain('● Doing task 1...');
     });
@@ -224,7 +224,7 @@ describe('FixedBottomRenderer', () => {
       });
 
       const calls = mockWrite.mock.calls;
-      const output = calls.map((c: any[]) => c[0]).join('');
+      const output = calls.map((c) => c[0]).join('');
       // in_progress 显示 ●，pending 显示 ○，completed 显示 ✓
       expect(output).toContain('●');
       expect(output).toContain('○');
@@ -267,7 +267,7 @@ describe('FixedBottomRenderer', () => {
       });
 
       const calls = mockWrite.mock.calls;
-      const output = calls.map((c: any[]) => c[0]).join('');
+      const output = calls.map((c) => c[0]).join('');
       // 第二次渲染应显示 3 个任务（按优先级排序）
       // in_progress 显示 activeForm，pending/completed 显示 content
       expect(output).toContain('Doing task 2');  // in_progress 显示 activeForm
@@ -320,7 +320,7 @@ describe('FixedBottomRenderer', () => {
       });
 
       const calls = mockWrite.mock.calls;
-      const output = calls.map((c: any[]) => c[0]).join('');
+      const output = calls.map((c) => c[0]).join('');
       // 全部 5 个任务都应显示
       expect(output).not.toContain('...and');
     });
@@ -346,7 +346,7 @@ describe('FixedBottomRenderer', () => {
       });
 
       const calls = mockWrite.mock.calls;
-      const output = calls.map((c: any[]) => c[0]).join('');
+      const output = calls.map((c) => c[0]).join('');
       // 应显示溢出提示
       expect(output).toContain('...and 3 more');
     });
@@ -372,7 +372,7 @@ describe('FixedBottomRenderer', () => {
       });
 
       const calls = mockWrite.mock.calls;
-      const output = calls.map((c: any[]) => c[0]).join('');
+      const output = calls.map((c) => c[0]).join('');
       // 显示 2 个 in_progress + 3 个 pending，截断 3 个 completed
       // in_progress 显示 activeForm，pending 显示 content
       expect(output).toContain('P1');          // in_progress activeForm
@@ -425,7 +425,7 @@ describe('FixedBottomRenderer', () => {
         updatedAt: new Date(),
       });
 
-      const writeOutput = mockWrite.mock.calls.map((c: any[]) => c[0]).join('');
+      const writeOutput = mockWrite.mock.calls.map((c) => c[0]).join('');
       // 非 TTY 不应输出 ANSI 滚动区域序列
       expect(writeOutput).not.toContain('\x1b[');
       // 应使用 console.log 输出
@@ -447,7 +447,7 @@ describe('FixedBottomRenderer', () => {
         updatedAt: new Date(),
       });
 
-      const writeOutput = mockWrite.mock.calls.map((c: any[]) => c[0]).join('');
+      const writeOutput = mockWrite.mock.calls.map((c) => c[0]).join('');
       // 终端过小不应设置滚动区域
       expect(writeOutput).not.toContain('\x1b[1;');
       // 应使用 console.log 输出
@@ -472,7 +472,7 @@ describe('FixedBottomRenderer', () => {
         updatedAt: new Date(),
       });
 
-      const writeOutput = mockWrite.mock.calls.map((c: any[]) => c[0]).join('');
+      const writeOutput = mockWrite.mock.calls.map((c) => c[0]).join('');
       // 应正常设置滚动区域
       expect(writeOutput).toContain('\x1b[');
     });
@@ -504,7 +504,7 @@ describe('FixedBottomRenderer', () => {
         updatedAt: new Date(),
       });
 
-      const writeOutput = mockWrite.mock.calls.map((c: any[]) => c[0]).join('');
+      const writeOutput = mockWrite.mock.calls.map((c) => c[0]).join('');
       // 应重置滚动区域为全屏
       expect(writeOutput).toContain('\x1b[r');
     });
@@ -557,7 +557,7 @@ describe('FixedBottomRenderer', () => {
       (process.stdout as { rows: number }).rows = 30;
       renderer.handleResize();
 
-      const writeOutput = mockWrite.mock.calls.map((c: any[]) => c[0]).join('');
+      const writeOutput = mockWrite.mock.calls.map((c) => c[0]).join('');
       // 应重新设置滚动区域
       expect(writeOutput).toContain('\x1b[');
     });
@@ -587,7 +587,7 @@ describe('FixedBottomRenderer', () => {
       (process.stdout as { rows: number }).rows = 15;
       renderer.handleResize();
 
-      const writeOutput = mockWrite.mock.calls.map((c: any[]) => c[0]).join('');
+      const writeOutput = mockWrite.mock.calls.map((c) => c[0]).join('');
       // 应重新渲染，仍显示溢出提示
       expect(writeOutput).toContain('...and 1 more');
     });
@@ -607,7 +607,7 @@ describe('FixedBottomRenderer', () => {
 
       renderer.dispose();
 
-      const writeOutput = mockWrite.mock.calls.map((c: any[]) => c[0]).join('');
+      const writeOutput = mockWrite.mock.calls.map((c) => c[0]).join('');
       // 应重置滚动区域为全屏
       expect(writeOutput).toContain('\x1b[r');
     });
