@@ -1,0 +1,335 @@
+[
+  {
+    "category": "functional",
+    "prd": "2026-02-06-subagent-tool-rendering-design.md#新增类型定义",
+    "description": "扩展 terminal-renderer-types.ts 添加 SubAgent 相关事件类型",
+    "bdd": [
+      {
+        "title": "SubAgentToolCallEvent 类型定义",
+        "description": "定义 SubAgent 内部工具调用事件类型，继承 ToolCallEvent",
+        "steps": [
+          "导入 SubAgentToolCallEvent 类型",
+          "创建符合该类型的事件对象，包含 subAgentId, subAgentType, subAgentDescription 字段"
+        ],
+        "expected": "TypeScript 编译通过，类型包含所有必需字段：id, command, depth, subAgentId, subAgentType, subAgentDescription"
+      },
+      {
+        "title": "SubAgentCompleteEvent 类型定义",
+        "description": "定义 SubAgent 完成事件类型",
+        "steps": [
+          "导入 SubAgentCompleteEvent 类型",
+          "创建符合该类型的事件对象，包含 id, success, toolCount, duration 字段",
+          "可选包含 error 字段"
+        ],
+        "expected": "TypeScript 编译通过，success 为 boolean，toolCount 和 duration 为 number，error 为可选 string"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-06-subagent-tool-rendering-design.md#AgentRunner-扩展",
+    "description": "AgentRunner 支持工具调用回调机制",
+    "bdd": [
+      {
+        "title": "onToolStart 回调触发",
+        "description": "工具调用开始时触发 onToolStart 回调",
+        "steps": [
+          "创建 AgentRunner 实例，传入 onToolStart 回调",
+          "执行一个会触发工具调用的 prompt",
+          "观察回调触发情况"
+        ],
+        "expected": "每次工具调用开始时，onToolStart 回调被调用一次，参数包含 ToolCallEvent 对象"
+      },
+      {
+        "title": "onToolEnd 回调触发",
+        "description": "工具调用结束时触发 onToolEnd 回调",
+        "steps": [
+          "创建 AgentRunner 实例，传入 onToolEnd 回调",
+          "执行一个会触发工具调用的 prompt",
+          "观察回调触发情况"
+        ],
+        "expected": "每次工具调用结束时，onToolEnd 回调被调用一次，参数包含 ToolResultEvent 对象，id 与对应的 onToolStart 事件匹配"
+      },
+      {
+        "title": "回调可选性",
+        "description": "不传入回调时不影响正常执行",
+        "steps": [
+          "创建 AgentRunner 实例，不传入任何回调",
+          "执行一个会触发工具调用的 prompt"
+        ],
+        "expected": "正常执行完成，无错误抛出"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-06-subagent-tool-rendering-design.md#TerminalRenderer-扩展",
+    "description": "TerminalRenderer 管理 SubAgent 状态",
+    "bdd": [
+      {
+        "title": "ActiveSubAgent 状态初始化",
+        "description": "调用 renderSubAgentToolStart 时初始化 SubAgent 状态",
+        "steps": [
+          "调用 renderSubAgentToolStart，传入首个工具调用事件",
+          "检查内部 activeSubAgents Map"
+        ],
+        "expected": "Map 中存在对应 subAgentId 的条目，toolCount 为 1，startTime 为当前时间戳"
+      },
+      {
+        "title": "工具计数递增",
+        "description": "每次 renderSubAgentToolStart 时 toolCount 加 1",
+        "steps": [
+          "同一 subAgentId 连续调用 renderSubAgentToolStart 3 次"
+        ],
+        "expected": "对应 SubAgent 的 toolCount 为 3"
+      },
+      {
+        "title": "状态清理",
+        "description": "调用 renderSubAgentComplete 时清理状态",
+        "steps": [
+          "先调用 renderSubAgentToolStart 初始化状态",
+          "再调用 renderSubAgentComplete"
+        ],
+        "expected": "activeSubAgents Map 中不再包含该 subAgentId"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-06-subagent-tool-rendering-design.md#视觉效果",
+    "description": "SubAgent 启动和完成的基础渲染",
+    "bdd": [
+      {
+        "title": "PENDING 状态渲染",
+        "description": "SubAgent 启动时显示灰色空心圆",
+        "steps": [
+          "调用 renderSubAgentToolStart，传入首个工具调用事件"
+        ],
+        "expected": "输出包含灰色圆点前缀和黄色 Task 名称，格式为 '○ Task(type: description)'"
+      },
+      {
+        "title": "COMPLETED 成功状态渲染",
+        "description": "SubAgent 成功完成时显示绿色勾和汇总",
+        "steps": [
+          "调用 renderSubAgentComplete，传入 success=true, toolCount=5, duration=2300"
+        ],
+        "expected": "输出包含绿色 ✓ 前缀，格式为 '✓ Task(type: description) [5 tools, 2.3s]'"
+      },
+      {
+        "title": "FAILED 状态渲染",
+        "description": "SubAgent 失败时显示红色叉和错误信息",
+        "steps": [
+          "调用 renderSubAgentComplete，传入 success=false, error='Max iterations exceeded'"
+        ],
+        "expected": "输出包含红色 ✗ 前缀和 FAILED 标记，底部显示 'error: Max iterations exceeded'"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-06-subagent-tool-rendering-design.md#视觉效果",
+    "description": "SubAgent 内部工具的嵌套树形渲染",
+    "bdd": [
+      {
+        "title": "子工具树形缩进",
+        "description": "SubAgent 内部工具调用显示为缩进的树形结构",
+        "steps": [
+          "调用 renderSubAgentToolStart 3 次，传入同一 subAgentId 的不同工具"
+        ],
+        "expected": "输出 3 行子工具，每行以 '  ├─' 或 '  └─' 开头，depth=1 的缩进"
+      },
+      {
+        "title": "最后一个子工具使用 └─",
+        "description": "完成时最后一个子工具使用 └─ 前缀",
+        "steps": [
+          "调用 renderSubAgentToolStart 2 次",
+          "调用 renderSubAgentComplete"
+        ],
+        "expected": "最后一个子工具行以 '  └─' 开头，之前的以 '  ├─' 开头"
+      },
+      {
+        "title": "子工具成功状态",
+        "description": "子工具完成时显示绿色点",
+        "steps": [
+          "调用 renderSubAgentToolStart",
+          "调用 renderSubAgentToolEnd，传入 success=true"
+        ],
+        "expected": "该子工具行的点变为绿色"
+      },
+      {
+        "title": "子工具失败状态",
+        "description": "子工具失败时显示红色叉",
+        "steps": [
+          "调用 renderSubAgentToolStart",
+          "调用 renderSubAgentToolEnd，传入 success=false"
+        ],
+        "expected": "该子工具行显示红色 ✗ 前缀"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-06-subagent-tool-rendering-design.md#视觉效果",
+    "description": "进度动画和工具计数器",
+    "bdd": [
+      {
+        "title": "Task 行 spinner 动画",
+        "description": "RUNNING 状态时 Task 行显示 spinner 动画",
+        "steps": [
+          "调用 renderSubAgentToolStart 启动 SubAgent",
+          "等待 700ms 观察动画变化"
+        ],
+        "expected": "Task 行前缀在 cyan 和 gray 之间交替闪烁，间隔约 350ms"
+      },
+      {
+        "title": "工具计数器显示",
+        "description": "Task 行显示已启动的工具计数",
+        "steps": [
+          "调用 renderSubAgentToolStart 3 次"
+        ],
+        "expected": "Task 行显示 '[3 tools]'"
+      },
+      {
+        "title": "当前工具闪烁动画",
+        "description": "正在执行的子工具显示闪烁动画",
+        "steps": [
+          "调用 renderSubAgentToolStart，工具尚未完成",
+          "等待 700ms 观察动画变化"
+        ],
+        "expected": "当前执行的子工具行前缀在 cyan 和 gray 之间交替闪烁"
+      },
+      {
+        "title": "动画停止",
+        "description": "SubAgent 完成后停止所有动画",
+        "steps": [
+          "调用 renderSubAgentToolStart 启动动画",
+          "调用 renderSubAgentComplete 完成"
+        ],
+        "expected": "所有 spinner 和闪烁动画停止，显示静态最终状态"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-06-subagent-tool-rendering-design.md#错误处理",
+    "description": "错误处理渲染",
+    "bdd": [
+      {
+        "title": "子工具失败展开错误信息",
+        "description": "子工具失败时展开显示错误信息",
+        "steps": [
+          "调用 renderSubAgentToolEnd，传入 success=false, output='error: Invalid regex pattern'"
+        ],
+        "expected": "子工具行下方显示缩进的错误信息 '│   error: Invalid regex pattern'"
+      },
+      {
+        "title": "错误信息截断",
+        "description": "错误信息超过 5 行时截断并显示省略提示",
+        "steps": [
+          "调用 renderSubAgentToolEnd，传入包含 10 行的错误信息"
+        ],
+        "expected": "显示前 5 行错误信息，末尾显示 '...[omit 5 lines]'"
+      },
+      {
+        "title": "成功工具不显示输出",
+        "description": "子工具成功时不显示输出内容",
+        "steps": [
+          "调用 renderSubAgentToolEnd，传入 success=true, output='5 files found'"
+        ],
+        "expected": "不显示输出内容，只显示工具行本身"
+      },
+      {
+        "title": "SubAgent 整体失败显示错误原因",
+        "description": "SubAgent 失败时在树底部显示整体错误",
+        "steps": [
+          "调用 renderSubAgentComplete，传入 success=false, error='Max iterations exceeded'"
+        ],
+        "expected": "在工具树下方显示 'error: Max iterations exceeded'"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-06-subagent-tool-rendering-design.md#并行处理策略",
+    "description": "并行 SubAgent 渲染队列",
+    "bdd": [
+      {
+        "title": "第一个 SubAgent 直接渲染",
+        "description": "没有其他 SubAgent 渲染时直接渲染",
+        "steps": [
+          "调用 renderSubAgentToolStart 启动第一个 SubAgent"
+        ],
+        "expected": "立即渲染 Task 行和子工具，不进入队列"
+      },
+      {
+        "title": "第二个 SubAgent 进入队列",
+        "description": "已有 SubAgent 渲染时新 SubAgent 进入队列",
+        "steps": [
+          "启动第一个 SubAgent（未完成）",
+          "启动第二个 SubAgent"
+        ],
+        "expected": "第二个 SubAgent 的渲染事件进入 pendingTools 队列，不立即渲染"
+      },
+      {
+        "title": "队列触发渲染",
+        "description": "前一个 SubAgent 完成后触发队列中的渲染",
+        "steps": [
+          "启动两个 SubAgent",
+          "完成第一个 SubAgent"
+        ],
+        "expected": "第一个完成后，第二个 SubAgent 开始渲染"
+      },
+      {
+        "title": "SubAgent 之间空行分隔",
+        "description": "不同 SubAgent 之间用空行分隔",
+        "steps": [
+          "渲染两个 SubAgent 的完整流程"
+        ],
+        "expected": "两个 SubAgent 的树形结构之间有一个空行"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-06-subagent-tool-rendering-design.md#错误处理",
+    "description": "非 TTY 环境支持",
+    "bdd": [
+      {
+        "title": "非 TTY 禁用动画",
+        "description": "process.stdout.isTTY 为 false 时禁用所有动画",
+        "steps": [
+          "设置 process.stdout.isTTY = false",
+          "调用 renderSubAgentToolStart"
+        ],
+        "expected": "不启动任何 setInterval 动画，直接输出静态内容"
+      },
+      {
+        "title": "非 TTY 保持树形结构",
+        "description": "非 TTY 环境保持树形结构输出",
+        "steps": [
+          "设置 process.stdout.isTTY = false",
+          "渲染完整的 SubAgent 流程"
+        ],
+        "expected": "输出保持 ├─ 和 └─ 的树形结构，但无颜色代码"
+      },
+      {
+        "title": "非 TTY 不原地更新",
+        "description": "非 TTY 环境不使用光标移动原地更新",
+        "steps": [
+          "设置 process.stdout.isTTY = false",
+          "连续调用 renderSubAgentToolStart 多次"
+        ],
+        "expected": "每次调用都输出新行，不使用 \\r 或 ANSI 光标控制序列"
+      }
+    ],
+    "passes": false
+  }
+]
