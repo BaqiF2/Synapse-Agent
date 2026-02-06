@@ -1,0 +1,253 @@
+[
+  {
+    "category": "functional",
+    "prd": "2026-02-06-fixed-bottom-todo-design.md#核心架构",
+    "description": "FixedBottomRenderer 初始化与状态管理",
+    "bdd": [
+      {
+        "title": "构造函数使用默认配置",
+        "description": "不传参数时使用默认值",
+        "steps": [
+          "创建 FixedBottomRenderer 实例，不传参数",
+          "检查内部配置"
+        ],
+        "expected": "maxHeight=8, minTerminalHeight=12"
+      },
+      {
+        "title": "构造函数接受自定义配置",
+        "description": "传入自定义参数时使用自定义值",
+        "steps": [
+          "创建 FixedBottomRenderer 实例，传入 { maxHeight: 6, minTerminalHeight: 10 }",
+          "检查内部配置"
+        ],
+        "expected": "maxHeight=6, minTerminalHeight=10"
+      },
+      {
+        "title": "初始状态正确",
+        "description": "初始化后状态符合预期",
+        "steps": [
+          "创建 FixedBottomRenderer 实例",
+          "检查初始状态"
+        ],
+        "expected": "enabled=true, fixedHeight=0, todoItems=[]"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-06-fixed-bottom-todo-design.md#渲染流程",
+    "description": "ANSI 滚动区域控制",
+    "bdd": [
+      {
+        "title": "设置滚动区域",
+        "description": "根据终端高度和固定区高度设置滚动区域",
+        "steps": [
+          "终端高度 24 行",
+          "固定区高度 5 行",
+          "调用设置滚动区域方法"
+        ],
+        "expected": "输出 ANSI 序列 \\x1b[1;19r 设置滚动区域为第 1-19 行"
+      },
+      {
+        "title": "光标定位到固定区",
+        "description": "渲染固定区前正确定位光标",
+        "steps": [
+          "终端高度 24 行",
+          "固定区从第 20 行开始",
+          "调用光标定位方法"
+        ],
+        "expected": "输出 ANSI 序列 \\x1b[20;1H 定位到第 20 行第 1 列"
+      },
+      {
+        "title": "清除固定区内容",
+        "description": "重绘前清除固定区所有行",
+        "steps": [
+          "固定区高度 5 行",
+          "调用清除固定区方法"
+        ],
+        "expected": "对每行输出 \\x1b[K 清除行内容，共 5 次"
+      },
+      {
+        "title": "保存和恢复光标位置",
+        "description": "渲染固定区时保存并恢复原光标位置",
+        "steps": [
+          "渲染固定区内容"
+        ],
+        "expected": "渲染前输出 \\x1b[s 保存光标，渲染后输出 \\x1b[u 恢复光标"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-06-fixed-bottom-todo-design.md#渲染流程",
+    "description": "Todo 列表渲染",
+    "bdd": [
+      {
+        "title": "渲染单个任务",
+        "description": "正确渲染不同状态的任务",
+        "steps": [
+          "TodoStore 包含 1 个 in_progress 任务 { content: 'Task 1', status: 'in_progress', activeForm: 'Doing task 1' }",
+          "触发渲染"
+        ],
+        "expected": "固定区显示边框和任务，任务行显示 '● Doing task 1...'"
+      },
+      {
+        "title": "渲染多个任务",
+        "description": "正确渲染多个不同状态的任务",
+        "steps": [
+          "TodoStore 包含 3 个任务：in_progress、pending、completed 各 1 个",
+          "触发渲染"
+        ],
+        "expected": "固定区显示 3 行任务，in_progress 显示 ●，pending 显示 ○，completed 显示 ✓"
+      },
+      {
+        "title": "高度计算正确",
+        "description": "固定区高度根据任务数量计算",
+        "steps": [
+          "TodoStore 包含 3 个任务",
+          "触发渲染"
+        ],
+        "expected": "固定区高度 = 3(任务) + 2(边框) = 5 行"
+      },
+      {
+        "title": "全量替换渲染",
+        "description": "每次更新全量重绘固定区",
+        "steps": [
+          "初始 TodoStore 包含 2 个任务",
+          "触发渲染",
+          "更新 TodoStore 为 3 个任务",
+          "再次触发渲染"
+        ],
+        "expected": "第二次渲染完全覆盖第一次内容，固定区显示 3 个任务"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-06-fixed-bottom-todo-design.md#溢出处理",
+    "description": "任务溢出处理与优先级截断",
+    "bdd": [
+      {
+        "title": "任务不超过 5 个时全部显示",
+        "description": "5 个及以下任务全部显示",
+        "steps": [
+          "TodoStore 包含 5 个任务",
+          "触发渲染"
+        ],
+        "expected": "固定区显示全部 5 个任务，无溢出提示"
+      },
+      {
+        "title": "任务超过 5 个时显示溢出提示",
+        "description": "超过 5 个任务时截断并显示提示",
+        "steps": [
+          "TodoStore 包含 8 个任务",
+          "触发渲染"
+        ],
+        "expected": "固定区显示 5 个任务 + 1 行 '...and 3 more'"
+      },
+      {
+        "title": "按优先级排序后截断",
+        "description": "优先显示高优先级任务",
+        "steps": [
+          "TodoStore 包含 8 个任务：2 个 in_progress、3 个 pending、3 个 completed",
+          "触发渲染"
+        ],
+        "expected": "显示 2 个 in_progress + 3 个 pending，截断 3 个 completed，显示 '...and 3 more'"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-06-fixed-bottom-todo-design.md#边界情况处理",
+    "description": "边界情况与降级处理",
+    "bdd": [
+      {
+        "title": "非 TTY 环境降级",
+        "description": "管道输出时禁用固定区",
+        "steps": [
+          "process.stdout.isTTY = false",
+          "创建 FixedBottomRenderer",
+          "TodoStore 更新为非空"
+        ],
+        "expected": "不输出 ANSI 序列，使用 console.log 输出任务列表"
+      },
+      {
+        "title": "终端高度过小时降级",
+        "description": "终端高度 < 12 行时禁用固定区",
+        "steps": [
+          "终端高度设为 10 行",
+          "创建 FixedBottomRenderer",
+          "TodoStore 更新为非空"
+        ],
+        "expected": "不设置滚动区域，使用 console.log 输出任务列表"
+      },
+      {
+        "title": "终端高度刚好 12 行时启用",
+        "description": "终端高度 = 12 行时正常启用固定区",
+        "steps": [
+          "终端高度设为 12 行",
+          "创建 FixedBottomRenderer",
+          "TodoStore 更新为 2 个任务"
+        ],
+        "expected": "正常设置滚动区域，固定区高度 4 行，滚动区 8 行"
+      },
+      {
+        "title": "空列表时隐藏固定区",
+        "description": "任务列表为空时完全隐藏固定区",
+        "steps": [
+          "初始 TodoStore 包含 2 个任务",
+          "触发渲染",
+          "清空 TodoStore",
+          "再次触发渲染"
+        ],
+        "expected": "重置滚动区域为全屏，清除固定区内容"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-06-fixed-bottom-todo-design.md#状态与生命周期",
+    "description": "生命周期管理",
+    "bdd": [
+      {
+        "title": "resize 时自动重绘",
+        "description": "终端大小变化时重新计算并重绘",
+        "steps": [
+          "初始终端高度 24 行",
+          "TodoStore 包含 3 个任务",
+          "触发渲染",
+          "终端 resize 到 30 行",
+          "触发 resize 事件"
+        ],
+        "expected": "重新设置滚动区域为 1-25 行，固定区移动到 26-30 行"
+      },
+      {
+        "title": "resize 到更小时重新截断",
+        "description": "终端变小导致需要截断更多任务",
+        "steps": [
+          "初始终端高度 24 行",
+          "TodoStore 包含 6 个任务（显示 5 个 + 溢出）",
+          "终端 resize 到 15 行",
+          "触发 resize 事件"
+        ],
+        "expected": "根据新高度重新计算，可能截断更多任务"
+      },
+      {
+        "title": "dispose 恢复终端状态",
+        "description": "销毁时重置终端到默认状态",
+        "steps": [
+          "创建 FixedBottomRenderer",
+          "TodoStore 更新为非空",
+          "调用 dispose()"
+        ],
+        "expected": "输出 ANSI 序列重置滚动区域为全屏，清除固定区，移除 resize 监听器"
+      }
+    ],
+    "passes": false
+  }
+]
