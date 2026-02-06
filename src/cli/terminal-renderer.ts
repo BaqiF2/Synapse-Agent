@@ -179,6 +179,10 @@ export class TerminalRenderer {
    * Render Todo list to terminal
    */
   renderTodos(state: TodoState): void {
+    // 如果没有任务，不显示Task框
+    if (state.items.length === 0) {
+      return;
+    }
     const lines = state.items.map((item) => {
       if (item.status === 'completed') {
         return chalk.gray(`✓ ${item.content}`);
@@ -199,10 +203,7 @@ export class TerminalRenderer {
 
     const topPadding = Math.max(0, innerWidth - header.length - 1);
     const top = `┌─ ${header} ${'─'.repeat(topPadding)}┐`;
-    const body =
-      lines.length > 0
-        ? lines.map((line) => `│ ${line}${' '.repeat(innerWidth - this.stripAnsi(line).length)} │`)
-        : [`│ ${' '.repeat(innerWidth)} │`];
+    const body = lines.map((line) => `│ ${line}${' '.repeat(innerWidth - this.stripAnsi(line).length)} │`);
     const bottom = `└${'─'.repeat(innerWidth + 2)}┘`;
 
     console.log(top);
