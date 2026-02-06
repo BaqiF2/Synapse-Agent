@@ -17,6 +17,7 @@ import {
 } from './terminal-renderer-types.ts';
 import type { TodoState } from '../tools/handlers/agent-bash/todo/todo-store.ts';
 import type { TodoStore } from '../tools/handlers/agent-bash/todo/todo-store.ts';
+import { SKILL_ENHANCE_PROGRESS_TEXT, isSkillEnhanceCommand } from '../hooks/skill-enhance-constants.ts';
 
 const MAX_OUTPUT_LINES = parseInt(process.env.SYNAPSE_MAX_OUTPUT_LINES || '5', 10);
 
@@ -250,8 +251,16 @@ export class TerminalRenderer {
     command: string;
   }): string {
     const prefix = this.getToolPrefix(options.depth, options.isLast, options.dotColor);
-    const toolName = chalk.yellow(`Bash(${options.command})`);
+    const displayCommand = this.formatCommandDisplay(options.command);
+    const toolName = chalk.yellow(`Bash(${displayCommand})`);
     return `${prefix}${toolName}`;
+  }
+
+  private formatCommandDisplay(command: string): string {
+    if (isSkillEnhanceCommand(command)) {
+      return SKILL_ENHANCE_PROGRESS_TEXT;
+    }
+    return command;
   }
 
   private getToolPrefix(

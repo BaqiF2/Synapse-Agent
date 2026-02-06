@@ -75,4 +75,23 @@ describe('BashTool', () => {
     expect(result.output).toContain('Command execution timeout');
     expect(result.output).toContain('Bash session restarted after timeout.');
   });
+
+  it('should provide self-correction guidance when read command fails', async () => {
+    const bashTool = new BashTool();
+    instances.push(bashTool);
+
+    setRouterResult(bashTool, {
+      stdout: '',
+      stderr: 'Usage: read <file_path> [--offset N] [--limit N]',
+      exitCode: 1,
+    });
+
+    const result = await bashTool.call({ command: 'read' });
+
+    expect(result.isError).toBe(true);
+    expect(result.message).toContain('Bash(command="read --help")');
+    expect(result.message).toContain('learn usage, then retry');
+    expect(result.output).toContain('Bash(command="read --help")');
+    expect(result.extras?.failureCategory).toBe('invalid_usage');
+  });
 });

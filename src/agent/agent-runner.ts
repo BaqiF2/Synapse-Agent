@@ -11,7 +11,7 @@
 import type {AnthropicClient} from '../providers/anthropic/anthropic-client.ts';
 import {type OnToolCall, type OnToolResult, step} from './step.ts';
 import {type OnMessagePart} from '../providers/generate.ts';
-import {createTextMessage, extractText, type Message, toolResultToMessage} from '../providers/message.ts';
+import {createTextMessage, extractText, type Message, type ToolResult as MessageToolResult, toolResultToMessage} from '../providers/message.ts';
 import type {Toolset} from '../tools/toolset.ts';
 import path from 'node:path';
 import {createLogger} from '../utils/logger.ts';
@@ -22,6 +22,7 @@ import {stopHookRegistry} from '../hooks/stop-hook-registry.ts';
 import {loadStopHooks} from '../hooks/load-stop-hooks.ts';
 import {STOP_HOOK_MARKER} from '../hooks/stop-hook-constants.ts';
 import {todoStore} from '../tools/handlers/agent-bash/todo/todo-store.ts';
+import {shouldCountToolFailure} from '../utils/tool-failure.ts';
 
 const logger = createLogger('agent-runner');
 
@@ -144,6 +145,21 @@ export class AgentRunner {
   }
 
   /**
+   * Determine whether a tool failure should count toward consecutive-failure stop logic.
+   *
+   * Count only:
+   * - command_not_found
+   * - invalid_usage
+   *
+   * Do not count execution/environment failures (e.g. file not found, permission denied, runtime issues).
+   */
+  private shouldCountFailure(result: MessageToolResult): boolean {
+    const category = result.returnValue.extras?.failureCategory;
+    const hintText = `${result.returnValue.brief}\n${result.returnValue.output}`;
+    return shouldCountToolFailure(category, hintText);
+  }
+
+  /**
    * Clear conversation history (memory only)
    */
   clearHistory(): void {
@@ -215,6 +231,7 @@ export class AgentRunner {
     let iteration = 0;
     let consecutiveFailures = 0;
     let finalResponse = '';
+    let completedNormally = false;
 
     while (iteration < this.maxIterations) {
       // 循环的次数
@@ -269,6 +286,7 @@ export class AgentRunner {
 
         finalResponse = extractText(result.message);
         logger.info(`Agent loop completed, no tool calls，messages : ${finalResponse}`);
+        completedNormally = true;
         break;
       }
 
@@ -285,28 +303,30 @@ export class AgentRunner {
       }
 
       // Check for failures
-      const failedResults = toolResults.filter((r) => r.returnValue.isError);
-      const hasFailure = failedResults.length > 0;
-      if (hasFailure) {
-        consecutiveFailures++;
-        const errors = failedResults.map((result) => ({
-          toolCallId: result.toolCallId,
-          message: result.returnValue.message,
-          brief: result.returnValue.brief,
-          output: result.returnValue.output,
-          extras: result.returnValue.extras,
-        }));
-        logger.warn(
-          `Tool execution failed (consecutive: ${consecutiveFailures}/${this.maxConsecutiveToolFailures})`,
-          { errors }
-        );
-
-        if (consecutiveFailures >= this.maxConsecutiveToolFailures) {
-          finalResponse = 'Consecutive tool execution failures; stopping.';
-          break;
-        }
-      } else {
+      const failedResults = toolResults.filter((result) => result.returnValue.isError);
+      if (failedResults.length === 0) {
         consecutiveFailures = 0;
+        continue;
+      }
+
+      const countableFailures = failedResults.filter((result) => this.shouldCountFailure(result));
+      const nextConsecutiveFailures = countableFailures.length > 0 ? consecutiveFailures + 1 : 0;
+      const errors = failedResults.map((result) => ({
+        toolCallId: result.toolCallId,
+        message: result.returnValue.message,
+        brief: result.returnValue.brief,
+        output: result.returnValue.output,
+        extras: result.returnValue.extras,
+      }));
+      logger.warn(
+        `Tool execution failed (counted: ${countableFailures.length}/${failedResults.length}, consecutive: ${nextConsecutiveFailures}/${this.maxConsecutiveToolFailures})`,
+        { errors, countableFailureIds: countableFailures.map((result) => result.toolCallId) }
+      );
+
+      consecutiveFailures = nextConsecutiveFailures;
+      if (consecutiveFailures >= this.maxConsecutiveToolFailures) {
+        finalResponse = 'Consecutive tool execution failures; stopping.';
+        break;
       }
     }
 
@@ -317,13 +337,14 @@ export class AgentRunner {
       this.history.push(createTextMessage('assistant', stopMessage));
     }
 
-    if (this.shouldExecuteStopHooks()) {
+    if (completedNormally && this.shouldExecuteStopHooks()) {
       // 执行 Stop Hooks（正常完成时）
       const hookResults = await this.executeStopHooks({
         sessionId: this.getSessionId(),
         cwd: process.cwd(),
         messages: this.history,
         finalResponse,
+        onProgress: (message) => this.emitStopHookProgress(message),
       });
 
       const hookMessages = hookResults
@@ -351,6 +372,25 @@ export class AgentRunner {
    */
   private async executeStopHooks(context: StopHookContext): Promise<HookResult[]> {
     return stopHookRegistry.executeAll(context);
+  }
+
+  /**
+   * Emit Stop Hook progress through the existing message streaming callback.
+   */
+  private async emitStopHookProgress(message: string): Promise<void> {
+    const text = message.trim();
+    if (!text || !this.onMessagePart) {
+      return;
+    }
+
+    try {
+      await this.onMessagePart({
+        type: 'text',
+        text: `\n${text}\n`,
+      });
+    } catch (error) {
+      logger.warn('Stop hook progress callback failed', { error });
+    }
   }
 
   /**

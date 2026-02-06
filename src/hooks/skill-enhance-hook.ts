@@ -27,6 +27,7 @@ import { AnthropicClient } from '../providers/anthropic/anthropic-client.ts';
 import { BashTool } from '../tools/bash-tool.ts';
 import { SubAgentManager } from '../sub-agents/sub-agent-manager.ts';
 import { stopHookRegistry } from './stop-hook-registry.ts';
+import { SKILL_ENHANCE_PROGRESS_TEXT } from './skill-enhance-constants.ts';
 import { loadDesc } from '../utils/load-desc.js';
 import type { StopHookContext, HookResult } from './types.ts';
 
@@ -256,6 +257,7 @@ export async function skillEnhanceHook(context: StopHookContext): Promise<HookRe
     promptLength: prompt.length,
     timeoutMs,
   });
+  await context.onProgress?.(SKILL_ENHANCE_PROGRESS_TEXT);
 
   try {
     // 创建必要的组件

@@ -176,6 +176,23 @@ describe('REPL commands', () => {
 
     console.log = originalConsoleLog;
   });
+
+  it('formatStreamText should highlight skill enhancement progress', async () => {
+    const { formatStreamText } = await loadRepl();
+    const raw = '\nAnalyzing skill enhancement...\n';
+    const originalIsTTY = (process.stdout as { isTTY?: boolean }).isTTY;
+    (process.stdout as { isTTY?: boolean }).isTTY = true;
+
+    try {
+      const formatted = formatStreamText(raw);
+
+      expect(formatted).toContain('Analyzing skill enhancement...');
+      expect(formatted).not.toBe(raw);
+      expect(formatted).toContain('\u001b[1;93m');
+    } finally {
+      (process.stdout as { isTTY?: boolean }).isTTY = originalIsTTY;
+    }
+  });
 });
 
 function getConsoleOutput(): string {

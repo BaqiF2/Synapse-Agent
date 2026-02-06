@@ -14,6 +14,7 @@ import type Anthropic from '@anthropic-ai/sdk';
 import type { ToolCall, ToolResult } from '../providers/message.ts';
 import type { CallableTool, ToolReturnValue } from './callable-tool.ts';
 import { ToolError } from './callable-tool.ts';
+import { TOOL_FAILURE_CATEGORIES } from '../utils/tool-failure.ts';
 
 export type { ToolResult };
 
@@ -59,6 +60,10 @@ export class CallableToolset implements Toolset {
       returnValue = ToolError({
         message: `Unknown tool: ${toolCall.name}${correctionHint}`,
         brief: 'Unknown tool',
+        extras: {
+          failureCategory: TOOL_FAILURE_CATEGORIES.commandNotFound,
+          toolName: toolCall.name,
+        },
       });
     } else {
       const args = JSON.parse(toolCall.arguments);
