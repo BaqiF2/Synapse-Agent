@@ -73,11 +73,13 @@ export class BashTool extends CallableTool<BashToolParams> {
   readonly description: string;
   readonly paramsSchema = BashToolParamsSchema;
 
+  private readonly optionsSnapshot: BashToolOptions;
   private session: BashSession;
   private router: BashRouter;
 
   constructor(options: BashToolOptions = {}) {
     super();
+    this.optionsSnapshot = { ...options };
     this.description = loadDesc(path.join(import.meta.dirname, 'bash-tool.md'));
 
     this.session = new BashSession();
@@ -88,6 +90,7 @@ export class BashTool extends CallableTool<BashToolParams> {
       onSubAgentToolEnd: options.onSubAgentToolEnd,
       onSubAgentComplete: options.onSubAgentComplete,
     });
+    this.router.setToolExecutor(this);
   }
 
   protected async execute(params: BashToolParams): Promise<ToolReturnValue> {
@@ -170,7 +173,7 @@ export class BashTool extends CallableTool<BashToolParams> {
   }
 
   /**
-   * Get the BashRouter (for delayed binding of toolExecutor)
+   * Get the BashRouter (for advanced integrations/testing)
    */
   getRouter(): BashRouter {
     return this.router;
@@ -195,5 +198,15 @@ export class BashTool extends CallableTool<BashToolParams> {
    */
   cleanup(): void {
     this.session.cleanup();
+  }
+
+  /**
+   * Create a new BashTool instance with an isolated BashSession.
+   */
+  createIsolatedCopy(overrides: Partial<BashToolOptions> = {}): BashTool {
+    return new BashTool({
+      ...this.optionsSnapshot,
+      ...overrides,
+    });
   }
 }

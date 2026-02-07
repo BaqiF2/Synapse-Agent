@@ -212,6 +212,23 @@ Bash(command="task:explore --prompt 'Find auth code' --description 'Explore auth
 Bash(command="task:general --prompt 'Analyze logs' --description 'Research task'")
 ```
 
+#### Parallel Path Routing for task:explore
+
+When user intent is codebase exploration across multiple areas, route by path.
+
+**Hard rules:**
+- For `task:explore`, create **one task:explore per path**.
+- Emit those `task:explore` calls **in the same response** and keep them consecutive, so runtime can execute them in parallel.
+- Each explore prompt must include explicit scope, e.g. `ONLY inspect ./src/agent`.
+- `task:general` is semantic research mode; do not replace path-scoped explore tasks with a single semantic general task.
+- If user asks for N explore tasks (e.g. "at least two"), satisfy that count.
+
+**Example (path parallel):**
+```bash
+Bash(command="task:explore --prompt 'ONLY inspect ./src/agent for agent loop code' --description 'Explore src/agent'")
+Bash(command="task:explore --prompt 'ONLY inspect ./src/providers for message loop code' --description 'Explore src/providers'")
+```
+
 **Parameters:**
 - `--prompt, -p` — Task prompt (required)
 - `--description, -d` — Short description, 3-5 words (required)

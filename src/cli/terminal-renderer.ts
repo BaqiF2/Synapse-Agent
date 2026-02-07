@@ -29,6 +29,11 @@ const MAX_OUTPUT_LINES = parseEnvInt(process.env.SYNAPSE_MAX_OUTPUT_LINES, 5);
 const MAX_RECENT_TOOLS = parseEnvInt(process.env.SYNAPSE_MAX_RECENT_TOOLS, 5);
 /** Bash 命令显示最大字符数（超出后截断） */
 const MAX_COMMAND_DISPLAY_LENGTH = 40;
+/** Task 描述摘要最大长度（超出后截断） */
+const TASK_DESCRIPTION_SUMMARY_LIMIT = parseEnvInt(
+  process.env.TOOL_RESULT_SUMMARY_LIMIT ?? process.env.SYNAPSE_TOOL_RESULT_SUMMARY_LIMIT,
+  200
+);
 /** spinner 动画间隔（毫秒） */
 const ANIMATION_INTERVAL = 350;
 
@@ -66,12 +71,12 @@ interface ActiveSubAgentState {
   lineOpen: boolean;
   /** 待渲染的工具事件队列（并行时使用） */
   pendingTools: SubAgentToolCallEvent[];
-  /** 是否正在渲染 */
-  isRendering: boolean;
   /** 子工具状态 Map（只保留最近工具的状态） */
   toolStates: Map<string, { command: string; success?: boolean; output?: string }>;
   /** 已渲染的行数（用于滚动清除，不包括 Task 行） */
   renderedLines: number;
+  /** Task 行是否已经输出 */
+  taskLineRendered: boolean;
 }
 
 /**
@@ -96,6 +101,8 @@ export class TerminalRenderer {
   private currentRenderingSubAgentId: string | null = null;
   /** 等待渲染的 SubAgent ID 队列 */
   private pendingSubAgentQueue: string[] = [];
+  /** 并行输出场景下最近一次输出工具行的 SubAgent ID */
+  private lastConcurrentOutputSubAgentId: string | null = null;
 
   constructor() {
     this.treeBuilder = new TreeBuilder();
@@ -291,9 +298,9 @@ export class TerminalRenderer {
         recentToolIds: [],
         lineOpen: false,
         pendingTools: [],
-        isRendering: false,
         toolStates: new Map(),
         renderedLines: 0,
+        taskLineRendered: false,
       };
       this.activeSubAgentStates.set(event.subAgentId, state);
     }
@@ -309,6 +316,15 @@ export class TerminalRenderer {
       state.toolStates.delete(oldestId);
     }
     state.toolStates.set(event.id, { command: event.command });
+
+    // 所有环境都应立即显示 Task 行，确保并行任务可见
+    this.ensureTaskLineRendered(state);
+
+    // 并行场景下直接渲染，避免队列导致只有单个 Task 持续输出工具调用
+    if (this.hasConcurrentSubAgents()) {
+      this.doRenderSubAgentToolStart(state, event);
+      return;
+    }
 
     // 检查是否可以渲染（队列机制）
     if (!this.canRenderSubAgent(event.subAgentId)) {
@@ -340,8 +356,8 @@ export class TerminalRenderer {
       toolState.output = event.output;
     }
 
-    // 如果当前正在渲染该 SubAgent，更新显示
-    if (this.currentRenderingSubAgentId === targetState.id) {
+    // 并行场景下直接处理，避免非当前渲染权任务的结果被延后
+    if (this.currentRenderingSubAgentId === targetState.id || this.hasConcurrentSubAgents()) {
       this.doRenderSubAgentToolEnd(targetState, event);
     }
   }
@@ -366,6 +382,9 @@ export class TerminalRenderer {
 
     // 清理状态
     this.activeSubAgentStates.delete(event.id);
+    if (this.lastConcurrentOutputSubAgentId === event.id) {
+      this.lastConcurrentOutputSubAgentId = null;
+    }
 
     // 触发队列中的下一个 SubAgent
     if (this.currentRenderingSubAgentId === event.id) {
@@ -436,6 +455,7 @@ export class TerminalRenderer {
     }
 
     this.currentRenderingSubAgentId = nextId;
+    this.ensureTaskLineRendered(state);
 
     // 渲染所有待渲染的工具
     for (const event of state.pendingTools) {
@@ -450,31 +470,44 @@ export class TerminalRenderer {
   private doRenderSubAgentToolStart(state: ActiveSubAgentState, event: SubAgentToolCallEvent): void {
     const isFirstTool = state.toolCount === 1;
     const shouldScroll = state.toolCount > MAX_RECENT_TOOLS;
+    const hasConcurrentSubAgents = this.hasConcurrentSubAgents();
 
     // 非 TTY 环境
     if (!process.stdout.isTTY) {
-      if (isFirstTool) {
-        // 渲染 Task 行
-        console.log(this.buildSubAgentTaskLine(state));
-      }
       // 渲染工具行（始终使用 ├─，完成时会修正最后一个为 └─）
       console.log(this.buildSubAgentToolLine(event.command, false, chalk.gray));
       return;
     }
 
-    // TTY 环境
-    if (isFirstTool) {
-      // 首次：渲染 Task 行 + 换行 + 渲染工具行
-      const taskLine = this.buildSubAgentTaskLine(state);
-      console.log(taskLine);
-    } else {
-      // 后续：停止上一个工具的动画，换行（如果需要）
-      this.stopCurrentToolAnimation(state.id);
-      if (state.lineOpen) {
-        process.stdout.write('\n');
-        state.lineOpen = false;
-        state.renderedLines++;
+    // TTY 并行模式：使用追加输出，避免向上清屏覆盖其他任务行
+    if (hasConcurrentSubAgents) {
+      this.closeOpenToolLine(state);
+
+      const switchedTask = this.lastConcurrentOutputSubAgentId !== state.id;
+      if (switchedTask && state.toolCount > 1) {
+        console.log(this.buildSubAgentTaskLine(state));
       }
+
+      const toolLine = this.buildSubAgentToolLine(event.command, false, chalk.gray);
+      if (state.toolCount > MAX_RECENT_TOOLS) {
+        const omittedCount = state.toolCount - MAX_RECENT_TOOLS;
+        console.log(this.buildOmittedToolsLine(omittedCount));
+        console.log(toolLine);
+        state.renderedLines += 2;
+        this.lastConcurrentOutputSubAgentId = state.id;
+        return;
+      }
+
+      console.log(toolLine);
+      state.renderedLines++;
+      this.lastConcurrentOutputSubAgentId = state.id;
+      return;
+    }
+
+    // TTY 环境
+    if (!isFirstTool) {
+      // 后续：停止上一个工具的动画，换行（如果需要）
+      this.closeOpenToolLine(state);
 
       // 滚动窗口：当超过限制时，清除旧行并重新渲染
       if (shouldScroll) {
@@ -493,8 +526,7 @@ export class TerminalRenderer {
 
         // 输出省略行
         const omittedCount = state.toolCount - MAX_RECENT_TOOLS;
-        const omitLine = chalk.gray(`  ⋮ ... (${omittedCount} earlier tool${omittedCount > 1 ? 's' : ''})`);
-        console.log(omitLine);
+        console.log(this.buildOmittedToolsLine(omittedCount));
         state.renderedLines++;
 
         // 重新渲染最近的工具（除了当前这个，因为它还没被添加到 recentToolIds）
@@ -502,9 +534,7 @@ export class TerminalRenderer {
           const toolId = state.recentToolIds[i]!;
           const toolState = state.toolStates.get(toolId);
           if (toolState) {
-            const dotColor = toolState.success === undefined
-              ? chalk.gray
-              : (toolState.success ? chalk.green : chalk.red);
+            const dotColor = this.getToolDotColor(toolState.success);
             console.log(this.buildSubAgentToolLine(toolState.command, false, dotColor));
             state.renderedLines++;
           }
@@ -517,6 +547,11 @@ export class TerminalRenderer {
     process.stdout.write(toolLine);
     state.lineOpen = true;
     this.startToolAnimation(state.id, event.id, event.command);
+    this.lastConcurrentOutputSubAgentId = state.id;
+  }
+
+  private hasConcurrentSubAgents(): boolean {
+    return this.activeSubAgentStates.size > 1;
   }
 
   /**
@@ -567,9 +602,7 @@ export class TerminalRenderer {
 
     // TTY 环境下：用 └─ 重新渲染最后一个工具行
     if (process.stdout.isTTY && state.lineOpen && lastToolState) {
-      const dotColor = lastToolState.success === undefined
-        ? chalk.gray
-        : (lastToolState.success ? chalk.green : chalk.red);
+      const dotColor = this.getToolDotColor(lastToolState.success);
       const lastLine = this.buildSubAgentToolLine(lastToolState.command, true, dotColor);
       process.stdout.write(`\r${lastLine}\x1b[K`);
       process.stdout.write('\n');
@@ -587,7 +620,7 @@ export class TerminalRenderer {
     // 渲染完成状态的 Task 行
     const duration = (event.duration / 1000).toFixed(1);
     const prefix = event.success ? chalk.green('✓') : chalk.red('✗');
-    const taskName = chalk.yellow(`Task(${state.type}: ${state.description})`);
+    const taskName = chalk.yellow(this.buildSubAgentTaskLabel(state));
     const stats = chalk.gray(`[${event.toolCount} tools, ${duration}s]`);
     const failedSuffix = event.success ? '' : chalk.red(' FAILED');
 
@@ -603,10 +636,63 @@ export class TerminalRenderer {
    * 构建 SubAgent Task 行
    */
   private buildSubAgentTaskLine(state: ActiveSubAgentState): string {
-    const prefix = chalk.gray('○');
-    const taskName = chalk.yellow(`Task(${state.type}: ${state.description})`);
+    const prefix = chalk.gray('◐');
+    const taskName = chalk.yellow(this.buildSubAgentTaskLabel(state));
     const toolCount = state.toolCount > 0 ? chalk.gray(` [${state.toolCount} tools]`) : '';
     return `${prefix} ${taskName}${toolCount}`;
+  }
+
+  private ensureTaskLineRendered(state: ActiveSubAgentState): void {
+    if (state.taskLineRendered) {
+      return;
+    }
+
+    // TTY 下如果当前有其他 SubAgent 的工具行处于打开状态，先换行避免 Task 行粘连
+    if (process.stdout.isTTY && this.currentRenderingSubAgentId && this.currentRenderingSubAgentId !== state.id) {
+      const currentState = this.activeSubAgentStates.get(this.currentRenderingSubAgentId);
+      if (currentState?.lineOpen) {
+        this.closeOpenToolLine(currentState);
+      }
+    }
+
+    console.log(this.buildSubAgentTaskLine(state));
+    state.taskLineRendered = true;
+  }
+
+  private buildSubAgentTaskLabel(state: ActiveSubAgentState): string {
+    return `Task(${state.type}: ${this.truncateTaskDescription(state.description)})`;
+  }
+
+  private buildOmittedToolsLine(omittedCount: number): string {
+    const suffix = omittedCount > 1 ? 's' : '';
+    return chalk.gray(`  ⋮ ... (${omittedCount} earlier tool${suffix})`);
+  }
+
+  private getToolDotColor(success: boolean | undefined): (text: string) => string {
+    if (success === undefined) {
+      return chalk.gray;
+    }
+    return success ? chalk.green : chalk.red;
+  }
+
+  private closeOpenToolLine(state: ActiveSubAgentState): void {
+    this.stopCurrentToolAnimation(state.id);
+    if (!state.lineOpen) {
+      return;
+    }
+    process.stdout.write('\n');
+    state.lineOpen = false;
+    state.renderedLines++;
+  }
+
+  private truncateTaskDescription(description: string): string {
+    if (description.length <= TASK_DESCRIPTION_SUMMARY_LIMIT) {
+      return description;
+    }
+    if (TASK_DESCRIPTION_SUMMARY_LIMIT <= 3) {
+      return description.slice(0, TASK_DESCRIPTION_SUMMARY_LIMIT);
+    }
+    return `${description.slice(0, TASK_DESCRIPTION_SUMMARY_LIMIT - 3)}...`;
   }
 
   /**

@@ -41,4 +41,12 @@ describe('buildSystemPrompt', () => {
     expect(prompt).toContain('`/tmp/test-dir`');
   });
 
+  it('should include explore path-parallel routing rule in command system section', () => {
+    const prompt = buildSystemPrompt();
+
+    expect(prompt).toContain('Parallel Path Routing for task:explore');
+    expect(prompt).toContain('one task:explore per path');
+    expect(prompt).toContain('in the same response');
+  });
+
 });

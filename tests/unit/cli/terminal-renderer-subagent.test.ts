@@ -202,7 +202,7 @@ describe('SubAgent 渲染 BDD 测试', () => {
 
       const output = consoleOutput.map(stripAnsi).join('\n');
       expect(output).toContain('Task(explore: 查找认证代码)');
-      expect(output).toContain('○'); // 灰色空心圆
+      expect(output).toContain('◐'); // 执行中状态
     });
 
     it('should render COMPLETED success state with green checkmark', () => {
@@ -475,10 +475,10 @@ describe('SubAgent 渲染 BDD 测试', () => {
   });
 
   // ============================================================
-  // Feature 8: 并行 SubAgent 渲染队列
+  // Feature 8: 并行 SubAgent 渲染
   // ============================================================
 
-  describe('并行 SubAgent 渲染队列', () => {
+  describe('并行 SubAgent 渲染', () => {
     it('should render first SubAgent immediately', () => {
       const renderer = new TerminalRenderer();
 
@@ -496,7 +496,7 @@ describe('SubAgent 渲染 BDD 测试', () => {
       expect(consoleOutput.length).toBeGreaterThan(0);
     });
 
-    it('should queue second SubAgent when first is rendering', () => {
+    it('should render second SubAgent immediately when first is rendering', () => {
       const renderer = new TerminalRenderer();
 
       renderer.renderSubAgentToolStart({
@@ -518,10 +518,13 @@ describe('SubAgent 渲染 BDD 测试', () => {
       });
 
       const state2 = renderer.getSubAgentState('agent-2');
-      expect(state2?.pendingTools.length).toBe(1);
+      expect(state2?.pendingTools.length).toBe(0);
+      const output = consoleOutput.map(stripAnsi).join('\n');
+      expect(output).toContain('Task(explore: 查找配置)');
+      expect(output).toContain('glob config/**/*.json');
     });
 
-    it('should trigger queued SubAgent rendering after first completes', () => {
+    it('should keep rendering second SubAgent without waiting first completion', () => {
       const renderer = new TerminalRenderer();
 
       renderer.renderSubAgentToolStart({
@@ -551,6 +554,8 @@ describe('SubAgent 渲染 BDD 测试', () => {
 
       const state2 = renderer.getSubAgentState('agent-2');
       expect(state2?.pendingTools.length).toBe(0);
+      const output = consoleOutput.map(stripAnsi).join('\n');
+      expect(output).toContain('Task(explore: 查找配置)');
     });
   });
 

@@ -49,6 +49,10 @@ function createMockClient(responses: StreamedMessagePart[][]): AnthropicClient {
   } as unknown as AnthropicClient;
 }
 
+function createBashToolCallPart(id: string, command: string): StreamedMessagePart {
+  return { type: 'tool_call', id, name: 'Bash', input: { command } };
+}
+
 describe('AgentRunner', () => {
   describe('run', () => {
     it('should process user message and return response (no tools)', async () => {
@@ -94,6 +98,465 @@ describe('AgentRunner', () => {
 
       expect(response).toBe('Done!');
       expect(toolHandler).toHaveBeenCalled();
+    });
+
+    it('should execute single task command and return one tool_result', async () => {
+      const command = 'task:explore --prompt "Analyze src/agent" --description "Explore agent"';
+      const client = createMockClient([
+        [createBashToolCallPart('c1', command)],
+        [{ type: 'text', text: 'Done!' }],
+      ]);
+
+      const toolHandler = mock((args: unknown) => {
+        const parsed = args as { command?: string };
+        return Promise.resolve(ToolOk({ output: `ok:${parsed.command ?? ''}` }));
+      });
+      const toolset = new CallableToolset([createMockCallableTool(toolHandler)]);
+
+      const runner = new AgentRunner({
+        client,
+        systemPrompt: 'Test',
+        toolset,
+        enableStopHooks: false,
+      });
+
+      const response = await runner.run('Run one task');
+
+      expect(response).toBe('Done!');
+      expect(toolHandler).toHaveBeenCalledTimes(1);
+      const history = runner.getHistory();
+      expect(history.find((message) => message.role === 'tool')?.content[0]?.type).toBe('text');
+    });
+
+    it('should execute consecutive task commands in parallel', async () => {
+      const commands = [
+        'task:explore --prompt "A" --description "Task A"',
+        'task:explore --prompt "B" --description "Task B"',
+        'task:explore --prompt "C" --description "Task C"',
+      ];
+      const client = createMockClient([
+        commands.map((command, index) => createBashToolCallPart(`c${index + 1}`, command)),
+        [{ type: 'text', text: 'Done!' }],
+      ]);
+
+      let active = 0;
+      let maxActive = 0;
+      const toolHandler = mock(async (args: unknown) => {
+        active++;
+        maxActive = Math.max(maxActive, active);
+        await new Promise((resolve) => setTimeout(resolve, 30));
+        active--;
+        const parsed = args as { command?: string };
+        return ToolOk({ output: parsed.command ?? '' });
+      });
+      const toolset = new CallableToolset([createMockCallableTool(toolHandler)]);
+
+      const runner = new AgentRunner({
+        client,
+        systemPrompt: 'Test',
+        toolset,
+        enableStopHooks: false,
+      });
+
+      const response = await runner.run('Run task batch');
+
+      expect(response).toBe('Done!');
+      expect(toolHandler).toHaveBeenCalledTimes(3);
+      expect(maxActive).toBe(3);
+    });
+
+    it('should execute mixed task:explore and task:general commands in parallel', async () => {
+      const commands = [
+        'task:explore --prompt "A" --description "Explore A"',
+        'task:general --prompt "B" --description "General B"',
+        'task:explore --prompt "C" --description "Explore C"',
+      ];
+      const client = createMockClient([
+        commands.map((command, index) => createBashToolCallPart(`c${index + 1}`, command)),
+        [{ type: 'text', text: 'Done!' }],
+      ]);
+
+      let active = 0;
+      let maxActive = 0;
+      const toolHandler = mock(async () => {
+        active++;
+        maxActive = Math.max(maxActive, active);
+        await new Promise((resolve) => setTimeout(resolve, 30));
+        active--;
+        return ToolOk({ output: 'ok' });
+      });
+      const toolset = new CallableToolset([createMockCallableTool(toolHandler)]);
+
+      const runner = new AgentRunner({
+        client,
+        systemPrompt: 'Test',
+        toolset,
+        enableStopHooks: false,
+      });
+
+      const response = await runner.run('Run mixed task batch');
+
+      expect(response).toBe('Done!');
+      expect(toolHandler).toHaveBeenCalledTimes(3);
+      expect(maxActive).toBe(3);
+    });
+
+    it('should execute mixed tool calls by grouped order: read -> task batch -> write', async () => {
+      const readCommand = 'read ./README.md';
+      const taskCommandA = 'task:explore --prompt "A" --description "Task A"';
+      const taskCommandB = 'task:explore --prompt "B" --description "Task B"';
+      const taskCommandC = 'task:general --prompt "C" --description "Task C"';
+      const writeCommand = 'write ./out.txt "done"';
+
+      const commands = [readCommand, taskCommandA, taskCommandB, taskCommandC, writeCommand];
+      const client = createMockClient([
+        commands.map((command, index) => createBashToolCallPart(`c${index + 1}`, command)),
+        [{ type: 'text', text: 'Done!' }],
+      ]);
+
+      const starts = new Map<string, number>();
+      const ends = new Map<string, number>();
+      let active = 0;
+      let maxActive = 0;
+      const toolHandler = mock(async (args: unknown) => {
+        const parsed = args as { command?: string };
+        const command = parsed.command ?? '';
+        starts.set(command, Date.now());
+        active++;
+        maxActive = Math.max(maxActive, active);
+
+        let delay = 10;
+        if (command.startsWith('read')) {
+          delay = 40;
+        } else if (command.startsWith('task:')) {
+          delay = 30;
+        }
+        await new Promise((resolve) => setTimeout(resolve, delay));
+
+        active--;
+        ends.set(command, Date.now());
+        return ToolOk({ output: command });
+      });
+      const toolset = new CallableToolset([createMockCallableTool(toolHandler)]);
+
+      const runner = new AgentRunner({
+        client,
+        systemPrompt: 'Test',
+        toolset,
+        enableStopHooks: false,
+      });
+
+      const response = await runner.run('Run grouped tools');
+
+      expect(response).toBe('Done!');
+      expect(toolHandler).toHaveBeenCalledTimes(5);
+      expect(maxActive).toBe(3);
+      expect(ends.get(readCommand)).toBeLessThanOrEqual(
+        Math.min(
+          starts.get(taskCommandA) ?? Infinity,
+          starts.get(taskCommandB) ?? Infinity,
+          starts.get(taskCommandC) ?? Infinity
+        )
+      );
+      expect(starts.get(writeCommand)).toBeGreaterThanOrEqual(
+        Math.max(
+          ends.get(taskCommandA) ?? -Infinity,
+          ends.get(taskCommandB) ?? -Infinity,
+          ends.get(taskCommandC) ?? -Infinity
+        )
+      );
+    });
+
+    it('should run separated task batches in parallel per batch', async () => {
+      const firstTaskA = 'task:explore --prompt "A" --description "Batch1 A"';
+      const firstTaskB = 'task:explore --prompt "B" --description "Batch1 B"';
+      const readCommand = 'read ./README.md';
+      const secondTaskA = 'task:general --prompt "C" --description "Batch2 A"';
+      const secondTaskB = 'task:general --prompt "D" --description "Batch2 B"';
+      const commands = [firstTaskA, firstTaskB, readCommand, secondTaskA, secondTaskB];
+
+      const client = createMockClient([
+        commands.map((command, index) => createBashToolCallPart(`c${index + 1}`, command)),
+        [{ type: 'text', text: 'Done!' }],
+      ]);
+
+      const starts = new Map<string, number>();
+      const ends = new Map<string, number>();
+      const toolHandler = mock(async (args: unknown) => {
+        const command = (args as { command?: string }).command ?? '';
+        starts.set(command, Date.now());
+        const delay = command.startsWith('read') ? 20 : 35;
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        ends.set(command, Date.now());
+        return ToolOk({ output: command });
+      });
+      const toolset = new CallableToolset([createMockCallableTool(toolHandler)]);
+
+      const runner = new AgentRunner({
+        client,
+        systemPrompt: 'Test',
+        toolset,
+        enableStopHooks: false,
+      });
+
+      const response = await runner.run('Run separated task batches');
+
+      expect(response).toBe('Done!');
+      expect(toolHandler).toHaveBeenCalledTimes(5);
+      expect(ends.get(firstTaskA)).toBeLessThanOrEqual(starts.get(readCommand) ?? Infinity);
+      expect(ends.get(firstTaskB)).toBeLessThanOrEqual(starts.get(readCommand) ?? Infinity);
+      expect(ends.get(readCommand)).toBeLessThanOrEqual(starts.get(secondTaskA) ?? Infinity);
+      expect(ends.get(readCommand)).toBeLessThanOrEqual(starts.get(secondTaskB) ?? Infinity);
+    });
+
+    it('should execute up to 5 task commands in parallel by default', async () => {
+      delete process.env.SYNAPSE_MAX_PARALLEL_TASKS;
+      const commands = Array.from(
+        { length: 5 },
+        (_, index) => `task:explore --prompt "T${index + 1}" --description "Task ${index + 1}"`
+      );
+      const client = createMockClient([
+        commands.map((command, index) => createBashToolCallPart(`c${index + 1}`, command)),
+        [{ type: 'text', text: 'Done!' }],
+      ]);
+
+      let active = 0;
+      let maxActive = 0;
+      const toolHandler = mock(async () => {
+        active++;
+        maxActive = Math.max(maxActive, active);
+        await new Promise((resolve) => setTimeout(resolve, 40));
+        active--;
+        return ToolOk({ output: 'ok' });
+      });
+      const toolset = new CallableToolset([createMockCallableTool(toolHandler)]);
+      const runner = new AgentRunner({
+        client,
+        systemPrompt: 'Test',
+        toolset,
+        enableStopHooks: false,
+      });
+
+      const response = await runner.run('Run 5 tasks');
+
+      expect(response).toBe('Done!');
+      expect(toolHandler).toHaveBeenCalledTimes(5);
+      expect(maxActive).toBe(5);
+    });
+
+    it('should queue task commands exceeding default parallel limit', async () => {
+      delete process.env.SYNAPSE_MAX_PARALLEL_TASKS;
+      const commands = Array.from(
+        { length: 7 },
+        (_, index) => `task:explore --prompt "T${index + 1}" --description "Task ${index + 1}"`
+      );
+      const client = createMockClient([
+        commands.map((command, index) => createBashToolCallPart(`c${index + 1}`, command)),
+        [{ type: 'text', text: 'Done!' }],
+      ]);
+
+      let active = 0;
+      let maxActive = 0;
+      const toolHandler = mock(async () => {
+        active++;
+        maxActive = Math.max(maxActive, active);
+        await new Promise((resolve) => setTimeout(resolve, 35));
+        active--;
+        return ToolOk({ output: 'ok' });
+      });
+      const toolset = new CallableToolset([createMockCallableTool(toolHandler)]);
+      const runner = new AgentRunner({
+        client,
+        systemPrompt: 'Test',
+        toolset,
+        enableStopHooks: false,
+      });
+
+      const response = await runner.run('Run 7 tasks');
+
+      expect(response).toBe('Done!');
+      expect(toolHandler).toHaveBeenCalledTimes(7);
+      expect(maxActive).toBe(5);
+    });
+
+    it('should respect SYNAPSE_MAX_PARALLEL_TASKS when scheduling task batches', async () => {
+      const previous = process.env.SYNAPSE_MAX_PARALLEL_TASKS;
+      process.env.SYNAPSE_MAX_PARALLEL_TASKS = '3';
+
+      try {
+        const commands = Array.from(
+          { length: 5 },
+          (_, index) => `task:explore --prompt "T${index + 1}" --description "Task ${index + 1}"`
+        );
+        const client = createMockClient([
+          commands.map((command, index) => createBashToolCallPart(`c${index + 1}`, command)),
+          [{ type: 'text', text: 'Done!' }],
+        ]);
+
+        let active = 0;
+        let maxActive = 0;
+        const toolHandler = mock(async () => {
+          active++;
+          maxActive = Math.max(maxActive, active);
+          await new Promise((resolve) => setTimeout(resolve, 35));
+          active--;
+          return ToolOk({ output: 'ok' });
+        });
+        const toolset = new CallableToolset([createMockCallableTool(toolHandler)]);
+        const runner = new AgentRunner({
+          client,
+          systemPrompt: 'Test',
+          toolset,
+          enableStopHooks: false,
+        });
+
+        const response = await runner.run('Run with custom task limit');
+
+        expect(response).toBe('Done!');
+        expect(toolHandler).toHaveBeenCalledTimes(5);
+        expect(maxActive).toBe(3);
+      } finally {
+        if (previous === undefined) {
+          delete process.env.SYNAPSE_MAX_PARALLEL_TASKS;
+        } else {
+          process.env.SYNAPSE_MAX_PARALLEL_TASKS = previous;
+        }
+      }
+    });
+
+    it('should keep successful task results when one task in parallel batch fails', async () => {
+      const commands = [
+        'task:explore --prompt "A" --description "Task A"',
+        'task:explore --prompt "B" --description "Task B"',
+        'task:explore --prompt "C" --description "Task C"',
+      ];
+      const client = createMockClient([
+        commands.map((command, index) => createBashToolCallPart(`c${index + 1}`, command)),
+        [{ type: 'text', text: 'Done!' }],
+      ]);
+
+      const toolHandler = mock((args: unknown) => {
+        const command = (args as { command?: string }).command ?? '';
+        if (command.includes('--prompt "B"')) {
+          return Promise.resolve(ToolError({
+            message: 'Connection timeout',
+            output: 'Error: Connection timeout',
+            extras: { failureCategory: 'execution_error' },
+          }));
+        }
+        return Promise.resolve(ToolOk({ output: `ok:${command}` }));
+      });
+      const toolset = new CallableToolset([createMockCallableTool(toolHandler)]);
+      const runner = new AgentRunner({
+        client,
+        systemPrompt: 'Test',
+        toolset,
+        enableStopHooks: false,
+      });
+
+      const response = await runner.run('Run task batch with one failure');
+      const toolMessages = runner.getHistory().filter((message) => message.role === 'tool');
+
+      expect(response).toBe('Done!');
+      expect(toolHandler).toHaveBeenCalledTimes(3);
+      expect(toolMessages).toHaveLength(3);
+      const secondToolContent = toolMessages[1]?.content[0];
+      expect(secondToolContent?.type).toBe('text');
+      expect((secondToolContent as { text: string }).text).toContain('Connection timeout');
+    });
+
+    it('should return independent errors when all tasks in parallel batch fail', async () => {
+      const commands = [
+        'task:explore --prompt "A" --description "Task A"',
+        'task:explore --prompt "B" --description "Task B"',
+        'task:general --prompt "C" --description "Task C"',
+      ];
+      const client = createMockClient([
+        commands.map((command, index) => createBashToolCallPart(`c${index + 1}`, command)),
+        [{ type: 'text', text: 'Done!' }],
+      ]);
+
+      const toolset = new CallableToolset([createMockCallableTool((args: unknown) => {
+        const command = (args as { command?: string }).command ?? '';
+        return Promise.resolve(ToolError({
+          message: `Task failed: ${command}`,
+          output: 'error',
+          extras: { failureCategory: 'execution_error' },
+        }));
+      })]);
+      const runner = new AgentRunner({
+        client,
+        systemPrompt: 'Test',
+        toolset,
+        enableStopHooks: false,
+      });
+
+      const response = await runner.run('Run task batch all fail');
+      const toolMessages = runner.getHistory().filter((message) => message.role === 'tool');
+
+      expect(response).toBe('Done!');
+      expect(toolMessages).toHaveLength(3);
+      for (const message of toolMessages) {
+        const content = message.content[0];
+        expect(content?.type).toBe('text');
+        expect((content as { text: string }).text).toContain('Task failed');
+      }
+    });
+
+    it('should not block other tasks when one task times out in parallel batch', async () => {
+      const commands = [
+        'task:explore --prompt "slow" --description "Task slow"',
+        'task:explore --prompt "fast-1" --description "Task fast"',
+        'task:general --prompt "fast-2" --description "Task fast"',
+      ];
+      const client = createMockClient([
+        commands.map((command, index) => createBashToolCallPart(`c${index + 1}`, command)),
+        [{ type: 'text', text: 'Done!' }],
+      ]);
+
+      const ends = new Map<string, number>();
+      let active = 0;
+      let maxActive = 0;
+      const toolHandler = mock(async (args: unknown) => {
+        const command = (args as { command?: string }).command ?? '';
+        active++;
+        maxActive = Math.max(maxActive, active);
+
+        if (command.includes('"slow"')) {
+          await new Promise((resolve) => setTimeout(resolve, 90));
+          active--;
+          ends.set(command, Date.now());
+          return ToolError({
+            message: 'Task timeout',
+            output: 'timeout',
+            extras: { failureCategory: 'execution_error' },
+          });
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, 15));
+        active--;
+        ends.set(command, Date.now());
+        return ToolOk({ output: `ok:${command}` });
+      });
+      const toolset = new CallableToolset([createMockCallableTool(toolHandler)]);
+      const runner = new AgentRunner({
+        client,
+        systemPrompt: 'Test',
+        toolset,
+        enableStopHooks: false,
+      });
+
+      const response = await runner.run('Run task batch with timeout');
+
+      expect(response).toBe('Done!');
+      expect(toolHandler).toHaveBeenCalledTimes(3);
+      expect(maxActive).toBe(3);
+      expect(
+        (ends.get('task:explore --prompt "fast-1" --description "Task fast"') ?? Infinity)
+      ).toBeLessThan(ends.get('task:explore --prompt "slow" --description "Task slow"') ?? -Infinity);
+      expect(
+        (ends.get('task:general --prompt "fast-2" --description "Task fast"') ?? Infinity)
+      ).toBeLessThan(ends.get('task:explore --prompt "slow" --description "Task slow"') ?? -Infinity);
     });
 
     it('should call onMessagePart callback', async () => {

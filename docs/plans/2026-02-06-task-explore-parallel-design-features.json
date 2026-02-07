@@ -32,7 +32,7 @@
         "expected": "3 个任务并行执行，返回 3 个独立的 tool_result"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -67,7 +67,7 @@
         "expected": "前 2 个 task 并行 → read 执行 → 后 2 个 task 并行，返回 5 个 tool_result"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -102,7 +102,7 @@
         "expected": "前 3 个任务并行执行，完成后再执行剩余 2 个"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -137,7 +137,7 @@
         "expected": "第 1 个任务返回超时错误，第 2、3 个任务正常返回结果"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -190,6 +190,6 @@
         "expected": "任务描述被截断显示，不超过配置的最大长度"
       }
     ],
-    "passes": false
+    "passes": true
   }
 ]
