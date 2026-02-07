@@ -21,10 +21,11 @@ import {
 } from './anthropic-types.ts';
 import { AnthropicStreamedMessage } from './anthropic-streamed-message.ts';
 import { createLogger } from '../../utils/logger.ts';
+import { parseEnvInt } from '../../utils/env.ts';
 
 const logger = createLogger('anthropic-client');
 
-const DEFAULT_MAX_TOKENS = parseInt(process.env.MAX_TOKENS || '4096', 10);
+const DEFAULT_MAX_TOKENS = parseEnvInt(process.env.MAX_TOKENS, 4096);
 
 /**
  * Generation parameters

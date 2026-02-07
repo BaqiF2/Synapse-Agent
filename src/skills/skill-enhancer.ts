@@ -14,6 +14,7 @@
 import * as path from 'node:path';
 import * as os from 'node:os';
 import { createLogger } from '../utils/logger.ts';
+import { parseEnvPositiveInt } from '../utils/env.ts';
 import { ConversationReader, type ConversationTurn, type ConversationSummary } from './conversation-reader.ts';
 import { SkillGenerator, type SkillSpec } from './skill-generator.ts';
 import { SkillLoader } from './skill-loader.ts';
@@ -23,26 +24,18 @@ const logger = createLogger('skill-enhancer');
 const DEFAULT_MIN_TOOL_CALLS = 3;
 const DEFAULT_MIN_UNIQUE_TOOLS = 2;
 
-function parseThreshold(value: string | undefined, fallback: number): number {
-  const parsed = parseInt(value ?? '', 10);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    return fallback;
-  }
-  return parsed;
-}
-
 /**
  * Minimum tool calls to consider enhancement
  */
 function getMinToolCalls(): number {
-  return parseThreshold(process.env.SYNAPSE_MIN_ENHANCE_TOOL_CALLS, DEFAULT_MIN_TOOL_CALLS);
+  return parseEnvPositiveInt(process.env.SYNAPSE_MIN_ENHANCE_TOOL_CALLS, DEFAULT_MIN_TOOL_CALLS);
 }
 
 /**
  * Minimum unique tools to consider enhancement
  */
 function getMinUniqueTools(): number {
-  return parseThreshold(process.env.SYNAPSE_MIN_ENHANCE_UNIQUE_TOOLS, DEFAULT_MIN_UNIQUE_TOOLS);
+  return parseEnvPositiveInt(process.env.SYNAPSE_MIN_ENHANCE_UNIQUE_TOOLS, DEFAULT_MIN_UNIQUE_TOOLS);
 }
 
 /**
@@ -284,7 +277,7 @@ export class SkillEnhancer {
    * Enhance an existing skill
    */
   private enhanceExistingSkill(analysis: ConversationAnalysis, skillName: string): EnhanceResult {
-    const updates = this.generateUpdates(analysis, skillName);
+    const updates = this.generateUpdates(analysis);
     const result = this.generator.updateSkill(skillName, updates);
 
     if (result.success) {
@@ -377,13 +370,9 @@ export class SkillEnhancer {
       .slice(0, 2)
       .map(([word]) => word);
 
-    if (sorted.length >= 2) {
-      return `${sorted[0]}-${sorted[1]}`;
-    } else if (sorted.length === 1) {
-      return `${sorted[0]}-task`;
-    }
-
-    return `task-${Date.now()}`;
+    if (sorted.length === 0) return `task-${Date.now()}`;
+    if (sorted.length === 1) return `${sorted[0]}-task`;
+    return `${sorted[0]}-${sorted[1]}`;
   }
 
   /**
@@ -438,7 +427,7 @@ export class SkillEnhancer {
   /**
    * Generate updates for existing skill
    */
-  private generateUpdates(analysis: ConversationAnalysis, _skillName: string): Partial<SkillSpec> {
+  private generateUpdates(analysis: ConversationAnalysis): Partial<SkillSpec> {
     return {
       executionSteps: this.generateExecutionSteps(analysis.turns),
       bestPractices: this.generateBestPractices(analysis),

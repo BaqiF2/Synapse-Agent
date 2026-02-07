@@ -22,6 +22,7 @@ import { SkillStructure, SUPPORTED_EXTENSIONS } from './skill-structure.js';
 import type { SupportedExtension } from './skill-structure.js';
 import { SkillWrapperGenerator } from './wrapper-generator.js';
 import { createLogger } from '../../../utils/logger.ts';
+import { parseEnvInt } from '../../../utils/env.ts';
 
 /**
  * Default skills directory
@@ -31,7 +32,7 @@ const DEFAULT_SKILLS_DIR = '.synapse/skills';
 /**
  * Default debounce delay in milliseconds
  */
-const DEFAULT_DEBOUNCE_MS = parseInt(process.env.SKILL_WATCHER_DEBOUNCE_MS || '1500', 10);
+const DEFAULT_DEBOUNCE_MS = parseEnvInt(process.env.SKILL_WATCHER_DEBOUNCE_MS, 1500);
 
 const logger = createLogger('skill-watcher');
 

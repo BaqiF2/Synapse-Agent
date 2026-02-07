@@ -28,6 +28,7 @@ import { BashTool } from '../tools/bash-tool.ts';
 import { McpInstaller, initializeMcpTools } from '../tools/converters/mcp/index.ts';
 import { initializeSkillTools } from '../tools/converters/skill/index.ts';
 import { createLogger } from '../utils/logger.ts';
+import { parseEnvInt } from '../utils/env.ts';
 import { SettingsManager } from '../config/settings-manager.ts';
 import { TerminalRenderer } from './terminal-renderer.ts';
 import { FixedBottomRenderer } from './fixed-bottom-renderer.ts';
@@ -39,7 +40,7 @@ import { SKILL_ENHANCE_PROGRESS_TEXT } from '../hooks/skill-enhance-constants.ts
 // ════════════════════════════════════════════════════════════════════
 
 const cliLogger = createLogger('cli');
-const MAX_TOOL_ITERATIONS = parseInt(process.env.SYNAPSE_MAX_TOOL_ITERATIONS || '50', 10);
+const MAX_TOOL_ITERATIONS = parseEnvInt(process.env.SYNAPSE_MAX_TOOL_ITERATIONS, 50);
 const BRIGHT_PROGRESS_START = '\x1b[1;93m';
 const BRIGHT_PROGRESS_END = '\x1b[0m';
 
@@ -196,14 +197,9 @@ function showToolsList(): void {
   const installer = new McpInstaller();
   const result = installer.search({ pattern: '*', type: 'all' });
   const output = installer.formatSearchResult(result);
-  const lines = output.split('\n');
-  if (lines[0]?.startsWith('Found ')) {
-    lines.shift();
-    if (lines[0] === '') {
-      lines.shift();
-    }
-  }
-  console.log(lines.join('\n'));
+  // 移除开头的 "Found N tools" 行及其后的空行
+  const cleanedOutput = output.replace(/^Found \d+.*\n\n?/, '');
+  console.log(cleanedOutput);
   console.log();
 }
 

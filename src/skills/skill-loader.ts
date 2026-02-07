@@ -16,11 +16,12 @@
 import * as os from 'node:os';
 import { SkillIndexer, type SkillIndexEntry } from './indexer.js';
 import { SkillDocParser, type SkillDoc } from './skill-schema.js';
+import { parseEnvInt } from '../utils/env.ts';
 
 /**
  * Cache entry TTL in milliseconds (default: 5 minutes)
  */
-const DEFAULT_CACHE_TTL_MS = parseInt(process.env.SKILL_CACHE_TTL_MS || '300000', 10);
+const DEFAULT_CACHE_TTL_MS = parseEnvInt(process.env.SKILL_CACHE_TTL_MS, 300000);
 
 /**
  * Level 1 skill data - basic metadata from index

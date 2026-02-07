@@ -13,14 +13,15 @@
 
 import chalk from 'chalk';
 import type { TodoStore, TodoState, TodoItem, TodoStatus } from '../tools/handlers/agent-bash/todo/todo-store.ts';
+import { parseEnvInt } from '../utils/env.ts';
 
 // ═══════════════════════════════════════════════════════════════════════
 // 配置常量
 // ═══════════════════════════════════════════════════════════════════════
 
 /** 终端渲染输出的最大行数，与 TerminalRenderer 共用配置 */
-const MAX_OUTPUT_LINES = parseInt(process.env.SYNAPSE_MAX_OUTPUT_LINES || '5', 10);
-const DEFAULT_MIN_TERMINAL_HEIGHT = parseInt(process.env.FIXED_BOTTOM_MIN_TERMINAL_HEIGHT || '12', 10);
+const MAX_OUTPUT_LINES = parseEnvInt(process.env.SYNAPSE_MAX_OUTPUT_LINES, 5);
+const DEFAULT_MIN_TERMINAL_HEIGHT = parseEnvInt(process.env.FIXED_BOTTOM_MIN_TERMINAL_HEIGHT, 12);
 
 /** 标题行占用行数（仅标题行，无边框设计） */
 const HEADER_LINES = 1;

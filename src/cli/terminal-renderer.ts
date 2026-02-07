@@ -22,10 +22,11 @@ import type { SubAgentType } from '../sub-agents/sub-agent-types.ts';
 import type { TodoState } from '../tools/handlers/agent-bash/todo/todo-store.ts';
 import type { TodoStore } from '../tools/handlers/agent-bash/todo/todo-store.ts';
 import { SKILL_ENHANCE_PROGRESS_TEXT, isSkillEnhanceCommand } from '../hooks/skill-enhance-constants.ts';
+import { parseEnvInt } from '../utils/env.ts';
 
-const MAX_OUTPUT_LINES = parseInt(process.env.SYNAPSE_MAX_OUTPUT_LINES || '5', 10);
+const MAX_OUTPUT_LINES = parseEnvInt(process.env.SYNAPSE_MAX_OUTPUT_LINES, 5);
 /** SubAgent 渲染时最多显示的最近工具数 */
-const MAX_RECENT_TOOLS = parseInt(process.env.SYNAPSE_MAX_RECENT_TOOLS || '5', 10);
+const MAX_RECENT_TOOLS = parseEnvInt(process.env.SYNAPSE_MAX_RECENT_TOOLS, 5);
 /** Bash 命令显示最大字符数（超出后截断） */
 const MAX_COMMAND_DISPLAY_LENGTH = 40;
 /** spinner 动画间隔（毫秒） */
@@ -236,13 +237,14 @@ export class TerminalRenderer {
       return;
     }
     const lines = state.items.map((item) => {
-      if (item.status === 'completed') {
-        return chalk.gray(`✓ ${item.content}`);
+      switch (item.status) {
+        case 'completed':
+          return chalk.gray(`✓ ${item.content}`);
+        case 'in_progress':
+          return chalk.yellow(`● ${item.activeForm}...`);
+        default:
+          return chalk.dim(`○ ${item.content}`);
       }
-      if (item.status === 'in_progress') {
-        return chalk.yellow(`● ${item.activeForm}...`);
-      }
-      return chalk.dim(`○ ${item.content}`);
     });
 
     const header = 'Tasks';
@@ -325,13 +327,7 @@ export class TerminalRenderer {
    */
   renderSubAgentToolEnd(event: ToolResultEvent): void {
     // 找到对应的 SubAgent（只在 recentToolIds 中查找，已删除的工具无需处理）
-    let targetState: ActiveSubAgentState | undefined;
-    for (const [, state] of this.activeSubAgentStates) {
-      if (state.recentToolIds.includes(event.id)) {
-        targetState = state;
-        break;
-      }
-    }
+    const targetState = this.findSubAgentStateByToolId(event.id);
 
     if (!targetState) {
       return;
@@ -388,6 +384,18 @@ export class TerminalRenderer {
   // ============================================================
   // SubAgent 渲染辅助方法
   // ============================================================
+
+  /**
+   * 根据工具 ID 查找对应的 SubAgent 状态
+   */
+  private findSubAgentStateByToolId(toolId: string): ActiveSubAgentState | undefined {
+    for (const [, state] of this.activeSubAgentStates) {
+      if (state.recentToolIds.includes(toolId)) {
+        return state;
+      }
+    }
+    return undefined;
+  }
 
   /**
    * 检查是否可以渲染指定的 SubAgent
@@ -634,17 +642,20 @@ export class TerminalRenderer {
   }
 
   /**
+   * 停止指定 key 的动画
+   */
+  private stopAnimation(key: string): void {
+    const interval = this.activeAnimations.get(key);
+    if (!interval) return;
+    clearInterval(interval);
+    this.activeAnimations.delete(key);
+  }
+
+  /**
    * 停止 SubAgent 动画
    */
   private stopSubAgentAnimation(subAgentId: string): void {
-    const key = `subagent-${subAgentId}`;
-    const interval = this.activeAnimations.get(key);
-    if (!interval) {
-      return;
-    }
-
-    clearInterval(interval);
-    this.activeAnimations.delete(key);
+    this.stopAnimation(`subagent-${subAgentId}`);
   }
 
   /**
@@ -680,14 +691,7 @@ export class TerminalRenderer {
    * 停止当前子工具动画
    */
   private stopCurrentToolAnimation(subAgentId: string): void {
-    const key = `tool-${subAgentId}`;
-    const interval = this.activeAnimations.get(key);
-    if (!interval) {
-      return;
-    }
-
-    clearInterval(interval);
-    this.activeAnimations.delete(key);
+    this.stopAnimation(`tool-${subAgentId}`);
   }
 
   /**
@@ -793,13 +797,7 @@ export class TerminalRenderer {
   }
 
   private stopProgressAnimation(id: string): void {
-    const interval = this.activeAnimations.get(id);
-    if (!interval) {
-      return;
-    }
-
-    clearInterval(interval);
-    this.activeAnimations.delete(id);
+    this.stopAnimation(id);
   }
 
   private finalizeOpenLines(excludeId?: string): void {

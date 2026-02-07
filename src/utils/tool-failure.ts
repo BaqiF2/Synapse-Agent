@@ -28,12 +28,7 @@ const COUNTABLE_FAILURE_CATEGORIES = new Set<ToolFailureCategory>([
 ]);
 
 function includesAnyKeyword(text: string, keywords: readonly string[]): boolean {
-  for (const keyword of keywords) {
-    if (text.includes(keyword)) {
-      return true;
-    }
-  }
-  return false;
+  return keywords.some((keyword) => text.includes(keyword));
 }
 
 /**

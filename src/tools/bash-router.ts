@@ -14,6 +14,7 @@ import type { BashSession } from './bash-session.ts';
 import { NativeShellCommandHandler, type CommandResult } from './handlers/base-bash-handler.ts';
 import { ReadHandler, WriteHandler, EditHandler, BashWrapperHandler, TodoWriteHandler } from './handlers/agent-bash/index.ts';
 import { CommandSearchHandler } from './handlers/extend-bash/index.ts';
+import { parseCommandArgs, toCommandErrorResult, parseColonCommand } from './handlers/agent-bash/command-utils.ts';
 import { McpConfigParser, McpClient, McpInstaller } from './converters/mcp/index.ts';
 import { SkillStructure, DocstringParser } from './converters/skill/index.ts';
 import { SkillCommandHandler } from './handlers/skill-command-handler.ts';
@@ -60,6 +61,13 @@ function startsWithAny(value: string, prefixes: readonly string[]): boolean {
 
 function isSkillToolCommand(value: string): boolean {
   return value.startsWith('skill:') && value.split(':').length >= 3;
+}
+
+/**
+ * Create an error result with the given message
+ */
+function errorResult(message: string): CommandResult {
+  return { stdout: '', stderr: message, exitCode: 1 };
 }
 
 /**
@@ -153,11 +161,7 @@ export class BashRouter {
         return this.executeExtendShellCommand(command);
 
       default:
-        return {
-          stdout: '',
-          stderr: `Unknown command type: ${command}`,
-          exitCode: 1,
-        };
+        return errorResult(`Unknown command type: ${command}`);
     }
   }
 
@@ -248,11 +252,7 @@ export class BashRouter {
       return this.executeSkillManagementCommand(command);
     }
 
-    return {
-      stdout: '',
-      stderr: `Unknown Agent Shell Command: ${command}`,
-      exitCode: 1,
-    };
+    return errorResult(`Unknown Agent Shell Command: ${command}`);
   }
 
   /**
@@ -287,11 +287,7 @@ export class BashRouter {
       return this.executeSkillCommand(trimmed);
     }
 
-    return {
-      stdout: '',
-      stderr: `Unknown extend Shell command: ${command}`,
-      exitCode: 1,
-    };
+    return errorResult(`Unknown extend Shell command: ${command}`);
   }
 
   /**
@@ -299,37 +295,14 @@ export class BashRouter {
    * Format: mcp:<server>:<tool> [args...]
    */
   private async executeMcpCommand(command: string): Promise<CommandResult> {
-    // Parse command with proper quote handling
-    const parts = this.parseCommandArgs(command);
-    const commandPart = parts[0]; // mcp:server:tool
-    const args = parts.slice(1);
+    const MCP_FORMAT_ERROR = 'Invalid MCP command format. Expected: mcp:<server>:<tool> [args...]';
 
-    // Parse mcp:server:tool
-    if (!commandPart) {
-      return {
-        stdout: '',
-        stderr: 'Invalid MCP command format. Expected: mcp:<server>:<tool> [args...]',
-        exitCode: 1,
-      };
-    }
-    const mcpParts = commandPart.split(':');
-    if (mcpParts.length < 3) {
-      return {
-        stdout: '',
-        stderr: `Invalid MCP command format. Expected: mcp:<server>:<tool> [args...]`,
-        exitCode: 1,
-      };
+    const parsed = parseColonCommand(command);
+    if (!parsed) {
+      return errorResult(MCP_FORMAT_ERROR);
     }
 
-    const serverName = mcpParts[1] ?? '';
-    const toolName = mcpParts.slice(2).join(':');
-    if (!serverName || !toolName) {
-      return {
-        stdout: '',
-        stderr: 'Invalid MCP command format. Expected: mcp:<server>:<tool> [args...]',
-        exitCode: 1,
-      };
-    }
+    const { name: serverName, toolName, args } = parsed;
 
     // Parse arguments
     const positionalArgs: string[] = [];
@@ -338,7 +311,7 @@ export class BashRouter {
     for (const arg of args) {
       if (arg === '-h' || arg === '--help') {
         // Show tool help by running the wrapper with -h
-        const tool = this.mcpInstaller.search({ pattern: commandPart }).tools[0];
+        const tool = this.mcpInstaller.search({ pattern: command.split(' ')[0] ?? '' }).tools[0];
         if (tool) {
           const { execSync } = await import('child_process');
           try {
@@ -349,7 +322,7 @@ export class BashRouter {
           }
         }
         return {
-          stdout: `Usage: ${commandPart} [args...]\nUse command:search "${commandPart}" for more info.`,
+          stdout: `Usage: mcp:${serverName}:${toolName} [args...]\nUse command:search "mcp:${serverName}:${toolName}" for more info.`,
           stderr: '',
           exitCode: 0,
         };
@@ -371,22 +344,14 @@ export class BashRouter {
       const serverEntry = parser.getServer(serverName);
 
       if (!serverEntry) {
-        return {
-          stdout: '',
-          stderr: `MCP server '${serverName}' not found in configuration`,
-          exitCode: 1,
-        };
+        return errorResult(`MCP server '${serverName}' not found in configuration`);
       }
 
       const client = new McpClient(serverEntry, { timeout: 30000 });
       const connectResult = await client.connect();
 
       if (!connectResult.success) {
-        return {
-          stdout: '',
-          stderr: `Failed to connect to MCP server '${serverName}': ${connectResult.error}`,
-          exitCode: 1,
-        };
+        return errorResult(`Failed to connect to MCP server '${serverName}': ${connectResult.error}`);
       }
 
       try {
@@ -396,11 +361,7 @@ export class BashRouter {
 
         if (!tool) {
           await client.disconnect();
-          return {
-            stdout: '',
-            stderr: `Tool '${toolName}' not found on server '${serverName}'`,
-            exitCode: 1,
-          };
+          return errorResult(`Tool '${toolName}' not found on server '${serverName}'`);
         }
 
         // Map positional args based on schema
@@ -451,50 +412,8 @@ export class BashRouter {
         throw error;
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      return {
-        stdout: '',
-        stderr: `MCP command failed: ${errorMessage}`,
-        exitCode: 1,
-      };
+      return errorResult(`MCP command failed: ${error instanceof Error ? error.message : String(error)}`);
     }
-  }
-
-  /**
-   * Parse command arguments with proper quote handling
-   * Supports both single and double quotes
-   */
-  private parseCommandArgs(command: string): string[] {
-    const args: string[] = [];
-    let current = '';
-    let inQuote: string | null = null;
-
-    for (let i = 0; i < command.length; i++) {
-      const char = command[i];
-
-      if (inQuote) {
-        if (char === inQuote) {
-          inQuote = null;
-        } else {
-          current += char;
-        }
-      } else if (char === '"' || char === "'") {
-        inQuote = char;
-      } else if (char === ' ' || char === '\t') {
-        if (current) {
-          args.push(current);
-          current = '';
-        }
-      } else {
-        current += char;
-      }
-    }
-
-    if (current) {
-      args.push(current);
-    }
-
-    return args;
   }
 
   /**
@@ -502,43 +421,20 @@ export class BashRouter {
    * Format: skill:<skill>:<tool> [args...]
    */
   private async executeSkillCommand(command: string): Promise<CommandResult> {
-    // Parse command with proper quote handling
-    const parts = this.parseCommandArgs(command);
-    const commandPart = parts[0]; // skill:skill-name:tool
-    const args = parts.slice(1);
+    const SKILL_FORMAT_ERROR = 'Invalid skill command format. Expected: skill:<skill>:<tool> [args...]';
 
-    // Parse skill:skill:tool
-    if (!commandPart) {
-      return {
-        stdout: '',
-        stderr: 'Invalid skill command format. Expected: skill:<skill>:<tool> [args...]',
-        exitCode: 1,
-      };
-    }
-    const skillParts = commandPart.split(':');
-    if (skillParts.length < 3) {
-      return {
-        stdout: '',
-        stderr: `Invalid skill command format. Expected: skill:<skill>:<tool> [args...]`,
-        exitCode: 1,
-      };
+    const parsed = parseColonCommand(command);
+    if (!parsed) {
+      return errorResult(SKILL_FORMAT_ERROR);
     }
 
-    const skillName = skillParts[1] ?? '';
-    const toolName = skillParts.slice(2).join(':');
-    if (!skillName || !toolName) {
-      return {
-        stdout: '',
-        stderr: 'Invalid skill command format. Expected: skill:<skill>:<tool> [args...]',
-        exitCode: 1,
-      };
-    }
+    const { name: skillName, toolName, args } = parsed;
 
     // Check for help flags
     if (args.includes('-h') || args.includes('--help')) {
       const helpFlag = args.includes('--help') ? '--help' : '-h';
       // Try to find and run the wrapper
-      const wrapperPath = `${process.env.HOME}/.synapse/bin/${commandPart}`;
+      const wrapperPath = `${process.env.HOME}/.synapse/bin/skill:${skillName}:${toolName}`;
       const fs = await import('fs');
       if (fs.existsSync(wrapperPath)) {
         const { execSync } = await import('child_process');
@@ -550,7 +446,7 @@ export class BashRouter {
         }
       }
       return {
-        stdout: `Usage: ${commandPart} [args...]\nUse command:search "${commandPart}" for more info.`,
+        stdout: `Usage: skill:${skillName}:${toolName} [args...]\nUse command:search "skill:${skillName}:${toolName}" for more info.`,
         stderr: '',
         exitCode: 0,
       };
@@ -561,11 +457,7 @@ export class BashRouter {
     const scripts = structure.listScripts(skillName);
 
     if (scripts.length === 0) {
-      return {
-        stdout: '',
-        stderr: `Skill '${skillName}' not found or has no scripts`,
-        exitCode: 1,
-      };
+      return errorResult(`Skill '${skillName}' not found or has no scripts`);
     }
 
     // Find the matching script
@@ -581,11 +473,7 @@ export class BashRouter {
     }
 
     if (!targetScript) {
-      return {
-        stdout: '',
-        stderr: `Tool '${toolName}' not found in skill '${skillName}'`,
-        exitCode: 1,
-      };
+      return errorResult(`Tool '${toolName}' not found in skill '${skillName}'`);
     }
 
     // Determine interpreter based on extension
@@ -634,12 +522,7 @@ export class BashRouter {
           exitCode: execError.status || 1,
         };
       }
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      return {
-        stdout: '',
-        stderr: `Skill command failed: ${errorMessage}`,
-        exitCode: 1,
-      };
+      return errorResult(`Skill command failed: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -650,11 +533,7 @@ export class BashRouter {
     // Lazy initialize task command handler
     if (!this.taskCommandHandler) {
       if (!this.llmClient || !this.toolExecutor) {
-        return {
-          stdout: '',
-          stderr: 'Task commands require LLM client and tool executor',
-          exitCode: 1,
-        };
+        return errorResult('Task commands require LLM client and tool executor');
       }
 
       this.taskCommandHandler = new TaskCommandHandler({

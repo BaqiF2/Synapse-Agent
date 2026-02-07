@@ -60,3 +60,57 @@ export function toCommandErrorResult(error: unknown): CommandResult {
     exitCode: 1,
   };
 }
+
+/**
+ * 冒号分隔命令的解析结果
+ */
+export interface ColonCommandParts {
+  /** 命名空间（如 mcp, skill） */
+  namespace: string;
+  /** 服务/技能名称 */
+  name: string;
+  /** 工具名称 */
+  toolName: string;
+  /** 命令参数 */
+  args: string[];
+}
+
+/**
+ * 解析冒号分隔的命令格式
+ *
+ * 支持格式：
+ * - prefix:name:tool [args...]
+ * - 如: mcp:server:tool, skill:name:tool
+ *
+ * @param command - 完整命令字符串
+ * @param minParts - 最少需要的冒号分隔部分数（默认 3）
+ * @returns 解析结果或 null（格式无效时）
+ */
+export function parseColonCommand(command: string, minParts: number = 3): ColonCommandParts | null {
+  const parts = parseCommandArgs(command);
+  const commandPart = parts[0];
+
+  if (!commandPart) {
+    return null;
+  }
+
+  const colonParts = commandPart.split(':');
+  if (colonParts.length < minParts) {
+    return null;
+  }
+
+  const namespace = colonParts[0] ?? '';
+  const name = colonParts[1] ?? '';
+  const toolName = colonParts.slice(2).join(':');
+
+  if (!name || !toolName) {
+    return null;
+  }
+
+  return {
+    namespace,
+    name,
+    toolName,
+    args: parts.slice(1),
+  };
+}

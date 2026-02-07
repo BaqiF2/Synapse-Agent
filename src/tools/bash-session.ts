@@ -9,8 +9,9 @@
 
 import { spawn, type ChildProcess } from 'node:child_process';
 import type { CommandResult } from './handlers/base-bash-handler.ts';
+import { parseEnvInt } from '../utils/env.ts';
 
-const COMMAND_TIMEOUT = parseInt(process.env.COMMAND_TIMEOUT || '30000', 10);
+const COMMAND_TIMEOUT = parseEnvInt(process.env.COMMAND_TIMEOUT, 30000);
 const COMMAND_END_MARKER = '___SYNAPSE_COMMAND_END___';
 const EXIT_CODE_MARKER = '___SYNAPSE_EXIT_CODE___';
 

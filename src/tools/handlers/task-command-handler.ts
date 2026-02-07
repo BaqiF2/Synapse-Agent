@@ -9,6 +9,7 @@
  */
 
 import type { CommandResult } from './base-bash-handler.ts';
+import { parseCommandArgs } from './agent-bash/command-utils.ts';
 import { SubAgentManager, type SubAgentManagerOptions } from '../../sub-agents/sub-agent-manager.ts';
 import {
   type SubAgentType,
@@ -56,7 +57,7 @@ export function parseTaskCommand(command: string): ParsedTaskCommand {
   };
 
   // 分词（支持引号）
-  const tokens = tokenize(command);
+  const tokens = parseCommandArgs(command);
   if (tokens.length === 0) return result;
 
   // 解析命令前缀
@@ -94,42 +95,6 @@ export function parseTaskCommand(command: string): ParsedTaskCommand {
   }
 
   return result;
-}
-
-/**
- * 分词（支持引号）
- */
-function tokenize(command: string): string[] {
-  const tokens: string[] = [];
-  let current = '';
-  let inQuote: string | null = null;
-
-  for (let i = 0; i < command.length; i++) {
-    const char = command[i];
-
-    if (inQuote) {
-      if (char === inQuote) {
-        inQuote = null;
-      } else {
-        current += char;
-      }
-    } else if (char === '"' || char === "'") {
-      inQuote = char;
-    } else if (char === ' ' || char === '\t') {
-      if (current) {
-        tokens.push(current);
-        current = '';
-      }
-    } else {
-      current += char;
-    }
-  }
-
-  if (current) {
-    tokens.push(current);
-  }
-
-  return tokens;
 }
 
 /**

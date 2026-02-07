@@ -16,6 +16,7 @@ import type {Toolset} from '../tools/toolset.ts';
 import path from 'node:path';
 import {createLogger} from '../utils/logger.ts';
 import {loadDesc} from '../utils/load-desc.ts';
+import {parseEnvInt, parseEnvPositiveInt} from '../utils/env.ts';
 import {Session} from './session.ts';
 import type {StopHookContext, HookResult} from '../hooks/index.ts';
 import {stopHookRegistry} from '../hooks/stop-hook-registry.ts';
@@ -39,10 +40,11 @@ async function ensureStopHooksLoaded(): Promise<void> {
 /**
  * Default max iterations for Agent Loop
  */
-const DEFAULT_MAX_ITERATIONS = parseInt(process.env.SYNAPSE_MAX_TOOL_ITERATIONS || '50', 10);
-const parsedMaxFailures = parseInt(process.env.SYNAPSE_MAX_CONSECUTIVE_TOOL_FAILURES || '3', 10);
-const DEFAULT_MAX_CONSECUTIVE_TOOL_FAILURES =
-  Number.isFinite(parsedMaxFailures) ? Math.max(1, parsedMaxFailures) : 3;
+const DEFAULT_MAX_ITERATIONS = parseEnvInt(process.env.SYNAPSE_MAX_TOOL_ITERATIONS, 50);
+const DEFAULT_MAX_CONSECUTIVE_TOOL_FAILURES = parseEnvPositiveInt(
+  process.env.SYNAPSE_MAX_CONSECUTIVE_TOOL_FAILURES,
+  3
+);
 const SKILL_SEARCH_INSTRUCTION_PREFIX = loadDesc(
   path.join(import.meta.dirname, 'prompts', 'skill-search-priority.md')
 );

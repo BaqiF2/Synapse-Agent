@@ -15,6 +15,7 @@ import * as path from 'node:path';
 import * as os from 'node:os';
 import { z } from 'zod';
 import { createLogger } from '../utils/logger.ts';
+import { parseEnvInt } from '../utils/env.ts';
 import type { Message } from '../providers/message.ts';
 
 // ════════════════════════════════════════════════════════════════════
@@ -23,7 +24,7 @@ import type { Message } from '../providers/message.ts';
 
 const DEFAULT_SESSIONS_DIR =
   process.env.SYNAPSE_SESSIONS_DIR || path.join(os.homedir(), '.synapse', 'sessions');
-const MAX_SESSIONS = parseInt(process.env.SYNAPSE_MAX_SESSIONS || '100', 10);
+const MAX_SESSIONS = parseEnvInt(process.env.SYNAPSE_MAX_SESSIONS, 100);
 const SESSION_INDEX_FILE = 'sessions.json';
 export const TITLE_MAX_LENGTH = 50;
 

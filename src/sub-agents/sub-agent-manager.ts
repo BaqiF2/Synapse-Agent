@@ -9,6 +9,7 @@
  */
 
 import { createLogger } from '../utils/logger.ts';
+import { parseEnvInt } from '../utils/env.ts';
 import { AgentRunner } from '../agent/agent-runner.ts';
 import { CallableToolset } from '../tools/toolset.ts';
 import { RestrictedBashTool } from '../tools/restricted-bash-tool.ts';
@@ -24,7 +25,7 @@ const logger = createLogger('sub-agent-manager');
 /**
  * 默认最大迭代次数（从环境变量读取）
  */
-const DEFAULT_MAX_ITERATIONS = parseInt(process.env.SYNAPSE_MAX_TOOL_ITERATIONS || '50', 10);
+const DEFAULT_MAX_ITERATIONS = parseEnvInt(process.env.SYNAPSE_MAX_TOOL_ITERATIONS, 50);
 
 /**
  * SubAgent 工具调用回调

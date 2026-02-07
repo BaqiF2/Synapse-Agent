@@ -17,13 +17,14 @@ import { McpClient } from './mcp-client.js';
 import { McpWrapperGenerator } from './wrapper-generator.js';
 import { McpInstaller } from './installer.js';
 import { createLogger } from '../../../utils/logger.js';
+import { parseEnvInt } from '../../../utils/env.js';
 
 const logger = createLogger('mcp-init');
 
 /**
  * Default timeout for MCP operations in milliseconds
  */
-const DEFAULT_TIMEOUT_MS = parseInt(process.env.MCP_INIT_TIMEOUT_MS || '30000', 10);
+const DEFAULT_TIMEOUT_MS = parseEnvInt(process.env.MCP_INIT_TIMEOUT_MS, 30000);
 
 /**
  * Result of MCP tool initialization for a single server

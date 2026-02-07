@@ -11,10 +11,11 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { loadDesc } from '../../../utils/load-desc.js';
+import { parseEnvInt } from '../../../utils/env.js';
 import type { CommandResult } from '../base-bash-handler.ts';
 import { parseCommandArgs, toCommandErrorResult } from './command-utils.ts';
 
-const DEFAULT_LIMIT = parseInt(process.env.READ_DEFAULT_LIMIT || '2000', 10);
+const DEFAULT_LIMIT = parseEnvInt(process.env.READ_DEFAULT_LIMIT, 2000);
 const USAGE = 'Usage: read <file_path> [--offset N] [--limit N]';
 
 /**

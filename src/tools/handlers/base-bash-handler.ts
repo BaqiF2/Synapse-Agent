@@ -26,19 +26,12 @@ export class NativeShellCommandHandler {
    */
   async execute(command: string): Promise<CommandResult> {
     try {
-      const result = await this.session.execute(command);
-      return result;
+      return await this.session.execute(command);
     } catch (error) {
-      if (error instanceof Error) {
-        return {
-          stdout: '',
-          stderr: `Command execution failed: ${error.message}`,
-          exitCode: 1,
-        };
-      }
+      const message = error instanceof Error ? error.message : 'unknown error';
       return {
         stdout: '',
-        stderr: 'Command execution failed with unknown error',
+        stderr: `Command execution failed: ${message}`,
         exitCode: 1,
       };
     }

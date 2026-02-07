@@ -23,3 +23,8 @@ export {
 } from './skill-xml-formatter.js';
 
 export { loadDesc } from './load-desc.js';
+
+export {
+  parseEnvInt,
+  parseEnvPositiveInt,
+} from './env.js';

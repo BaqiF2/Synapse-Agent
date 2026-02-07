@@ -14,22 +14,23 @@
 
 import * as fs from 'node:fs';
 import { createLogger } from '../utils/logger.ts';
+import { parseEnvInt } from '../utils/env.ts';
 
 const logger = createLogger('conversation-reader');
 
 /**
  * Estimated characters per token (rough approximation)
  */
-const CHARS_PER_TOKEN = parseInt(process.env.SYNAPSE_CHARS_PER_TOKEN || '4', 10);
+const CHARS_PER_TOKEN = parseEnvInt(process.env.SYNAPSE_CHARS_PER_TOKEN, 4);
 
 /**
  * Tool result summary character limit
  * 用于 compact() 时截断工具结果内容
  */
 const DEFAULT_TOOL_RESULT_SUMMARY_LIMIT = 200;
-const TOOL_RESULT_SUMMARY_LIMIT = parseInt(
-  process.env.SYNAPSE_TOOL_RESULT_SUMMARY_LIMIT || String(DEFAULT_TOOL_RESULT_SUMMARY_LIMIT),
-  10
+const TOOL_RESULT_SUMMARY_LIMIT = parseEnvInt(
+  process.env.SYNAPSE_TOOL_RESULT_SUMMARY_LIMIT,
+  DEFAULT_TOOL_RESULT_SUMMARY_LIMIT
 );
 
 /**

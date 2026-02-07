@@ -61,9 +61,7 @@ export class SettingsManager {
    */
   get(): SynapseSettings {
     if (!fs.existsSync(this.settingsPath)) {
-      const defaults = JSON.parse(
-        JSON.stringify(DEFAULT_SETTINGS)
-      ) as SynapseSettings;
+      const defaults = structuredClone(DEFAULT_SETTINGS);
       this.save(defaults);
       return defaults;
     }
