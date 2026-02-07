@@ -5,10 +5,10 @@
  */
 
 import { describe, expect, it, mock } from 'bun:test';
-import { generate, type GenerateResult } from '../../../src/providers/generate.ts';
+import { generate } from '../../../src/providers/generate.ts';
 import { createTextMessage, type Message } from '../../../src/providers/message.ts';
 import type { AnthropicClient } from '../../../src/providers/anthropic/anthropic-client.ts';
-import type { StreamedMessagePart, TokenUsage } from '../../../src/providers/anthropic/anthropic-types.ts';
+import type { StreamedMessagePart } from '../../../src/providers/anthropic/anthropic-types.ts';
 
 function createMockClient(parts: StreamedMessagePart[]): AnthropicClient {
   return {
@@ -126,5 +126,18 @@ describe('generate', () => {
 
     expect(toolCalls).toHaveLength(1);
     expect(toolCalls[0].id).toBe('call1');
+  });
+
+  it('should forward AbortSignal to client.generate', async () => {
+    const client = createMockClient([{ type: 'text', text: 'Hello' }]);
+    const history: Message[] = [createTextMessage('user', 'Hi')];
+    const controller = new AbortController();
+
+    await generate(client, 'System prompt', [], history, {
+      signal: controller.signal,
+    });
+
+    const call = (client.generate as unknown as { mock: { calls: unknown[][] } }).mock.calls[0];
+    expect(call?.[3]).toEqual(expect.objectContaining({ signal: controller.signal }));
   });
 });

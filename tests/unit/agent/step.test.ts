@@ -7,7 +7,7 @@
 import { describe, expect, it, mock } from 'bun:test';
 import { step, type StepResult } from '../../../src/agent/step.ts';
 import { createTextMessage, type Message, type ToolCall, type ToolResult } from '../../../src/providers/message.ts';
-import { CallableToolset } from '../../../src/tools/toolset.ts';
+import { CallableToolset, type Toolset } from '../../../src/tools/toolset.ts';
 import { ToolOk, ToolError } from '../../../src/tools/callable-tool.ts';
 import type { CallableTool, ToolReturnValue } from '../../../src/tools/callable-tool.ts';
 import type { AnthropicClient } from '../../../src/providers/anthropic/anthropic-client.ts';
@@ -144,5 +144,32 @@ describe('step', () => {
     expect(toolResults[0]?.returnValue.message).toContain('Tool execution failed');
     expect(toolResults[1]?.returnValue.isError).toBe(false);
     expect(toolResults[1]?.returnValue.output).toBe('ok');
+  });
+
+  it('should abort tool results immediately when signal is aborted', async () => {
+    const client = createMockClient([
+      { type: 'tool_call', id: 'call1', name: 'Bash', input: { command: 'sleep 10' } },
+    ]);
+    const cancel = mock(() => {});
+    const toolset: Toolset = {
+      tools: [BashToolSchema],
+      handle: mock(() => {
+        const pending = new Promise<ToolResult>(() => {}) as Promise<ToolResult> & { cancel?: () => void };
+        pending.cancel = cancel;
+        return pending;
+      }),
+    };
+    const history: Message[] = [createTextMessage('user', 'Run')];
+    const controller = new AbortController();
+
+    const result = await step(client, 'System', toolset, history, {
+      signal: controller.signal,
+    });
+
+    const toolResultsPromise = result.toolResults();
+    controller.abort();
+
+    await expect(toolResultsPromise).rejects.toMatchObject({ name: 'AbortError' });
+    expect(cancel).toHaveBeenCalled();
   });
 });

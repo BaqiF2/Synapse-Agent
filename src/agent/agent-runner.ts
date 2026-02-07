@@ -23,6 +23,7 @@ import {loadStopHooks} from '../hooks/load-stop-hooks.ts';
 import {STOP_HOOK_MARKER} from '../hooks/stop-hook-constants.ts';
 import {todoStore} from '../tools/handlers/agent-bash/todo/todo-store.ts';
 import {shouldCountToolFailure} from '../utils/tool-failure.ts';
+import {throwIfAborted} from '../utils/abort.ts';
 
 const logger = createLogger('agent-runner');
 
@@ -48,6 +49,75 @@ const SKILL_SEARCH_INSTRUCTION_PREFIX = loadDesc(
 
 function prependSkillSearchInstruction(userMessage: string): string {
   return `${SKILL_SEARCH_INSTRUCTION_PREFIX}\n\nOriginal user request:\n${userMessage}`;
+}
+
+function sanitizeToolProtocolHistory(messages: readonly Message[]): { sanitized: Message[]; changed: boolean } {
+  const sanitized: Message[] = [];
+  let changed = false;
+  let index = 0;
+
+  while (index < messages.length) {
+    const message = messages[index];
+    if (!message) {
+      break;
+    }
+
+    if (message.role === 'assistant' && (message.toolCalls?.length ?? 0) > 0) {
+      const expectedToolCallIds = new Set((message.toolCalls ?? []).map((call) => call.id));
+      const matchedToolCallIds = new Set<string>();
+      const toolMessages: Message[] = [];
+
+      let cursor = index + 1;
+      let invalidSequence = false;
+      while (cursor < messages.length) {
+        const next = messages[cursor];
+        if (!next || next.role !== 'tool') {
+          break;
+        }
+
+        const toolCallId = next.toolCallId;
+        if (!toolCallId || !expectedToolCallIds.has(toolCallId) || matchedToolCallIds.has(toolCallId)) {
+          invalidSequence = true;
+          break;
+        }
+
+        matchedToolCallIds.add(toolCallId);
+        toolMessages.push(next);
+        cursor += 1;
+
+        if (matchedToolCallIds.size === expectedToolCallIds.size) {
+          break;
+        }
+      }
+
+      if (!invalidSequence && matchedToolCallIds.size === expectedToolCallIds.size) {
+        sanitized.push(message, ...toolMessages);
+        index += 1 + toolMessages.length;
+        continue;
+      }
+
+      changed = true;
+      index += 1;
+
+      // Drop contiguous orphan tool messages attached to this dangling assistant tool call block.
+      while (index < messages.length && messages[index]?.role === 'tool') {
+        changed = true;
+        index += 1;
+      }
+      continue;
+    }
+
+    if (message.role === 'tool') {
+      changed = true;
+      index += 1;
+      continue;
+    }
+
+    sanitized.push(message);
+    index += 1;
+  }
+
+  return { sanitized, changed };
 }
 
 /**
@@ -76,6 +146,10 @@ export interface AgentRunnerOptions {
   sessionsDir?: string;
   /** Enable Stop Hooks execution (default: true) */
   enableStopHooks?: boolean;
+}
+
+export interface AgentRunOptions {
+  signal?: AbortSignal;
 }
 
 /**
@@ -214,19 +288,46 @@ export class AgentRunner {
    * @param userMessage - User message to process
    * @returns Final text response
    */
-  async run(userMessage: string): Promise<string> {
+  async run(userMessage: string, options?: AgentRunOptions): Promise<string> {
+    const signal = options?.signal;
+    throwIfAborted(signal);
+
     // 延迟初始化 Session
     await this.initSession();
     // 初始化 hooks（仅主 Agent 会执行实际加载）
     await this.initHooks();
+    throwIfAborted(signal);
+
+    // Recover from interrupted runs that may have left dangling tool_call history.
+    const { sanitized, changed } = sanitizeToolProtocolHistory(this.history);
+    if (changed) {
+      const beforeCount = this.history.length;
+      this.history = sanitized;
+
+      if (this.session) {
+        await this.session.clear();
+        if (this.history.length > 0) {
+          await this.session.appendMessage(this.history);
+        }
+      }
+
+      logger.warn('Sanitized dangling tool-call history before run', {
+        beforeCount,
+        afterCount: this.history.length,
+      });
+    }
+    throwIfAborted(signal);
 
     // 添加用户消息到聊天历史中
     const enhancedUserMessage = prependSkillSearchInstruction(userMessage);
     const userMsg = createTextMessage('user', enhancedUserMessage);
-    this.history.push(userMsg);
-    if (this.session) {
-      await this.session.appendMessage(userMsg);
-    }
+    const appendMessage = async (message: Message): Promise<void> => {
+      this.history.push(message);
+      if (this.session) {
+        await this.session.appendMessage(message);
+      }
+    };
+    await appendMessage(userMsg);
 
     let iteration = 0;
     let consecutiveFailures = 0;
@@ -234,6 +335,8 @@ export class AgentRunner {
     let completedNormally = false;
 
     while (iteration < this.maxIterations) {
+      throwIfAborted(signal);
+
       // 循环的次数
       iteration++;
       logger.info('Agent loop iteration', { iteration });
@@ -248,17 +351,14 @@ export class AgentRunner {
           onMessagePart: this.onMessagePart,
           onToolCall: this.onToolCall,
           onToolResult: this.onToolResult,
+          signal,
         }
       );
 
-      // Add assistant message to history
-      this.history.push(result.message);
-      if (this.session) {
-        await this.session.appendMessage(result.message);
-      }
-
       // done
       if (result.toolCalls.length === 0) {
+        await appendMessage(result.message);
+
         // 检查是否有未完成的 todo 任务
         const todoState = todoStore.get();
         const incompleteTodos = todoState.items.filter(
@@ -274,10 +374,7 @@ export class AgentRunner {
             'user',
             `[System Reminder] You have incomplete tasks in your todo list. You MUST continue working on them before stopping:\n${pendingTasks}\n\nPlease continue with the next task.`
           );
-          this.history.push(reminderMsg);
-          if (this.session) {
-            await this.session.appendMessage(reminderMsg);
-          }
+          await appendMessage(reminderMsg);
           logger.info('Agent attempted to stop with incomplete todos, continuing...', {
             incompleteTodosCount: incompleteTodos.length,
           });
@@ -291,15 +388,17 @@ export class AgentRunner {
       }
 
       // Wait for tool results
+      throwIfAborted(signal);
       const toolResults = await result.toolResults();
+      throwIfAborted(signal);
+
+      // Commit assistant tool call message only after tool results complete
+      await appendMessage(result.message);
 
       // Add tool results to history
       for (const tr of toolResults) {
         const toolMsg = toolResultToMessage(tr);
-        this.history.push(toolMsg);
-        if (this.session) {
-          await this.session.appendMessage(toolMsg);
-        }
+        await appendMessage(toolMsg);
       }
 
       // Check for failures

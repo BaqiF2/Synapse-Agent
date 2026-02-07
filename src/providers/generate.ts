@@ -24,6 +24,7 @@ import {
   appendToMessage,
   isToolCallPart,
 } from './message.ts';
+import { throwIfAborted } from '../utils/abort.ts';
 
 /**
  * Callback for raw streamed message parts
@@ -41,6 +42,7 @@ export type OnToolCall = (toolCall: ToolCall) => void | Promise<void>;
 export interface GenerateOptions {
   onMessagePart?: OnMessagePart;
   onToolCall?: OnToolCall;
+  signal?: AbortSignal;
 }
 
 /**
@@ -70,10 +72,11 @@ export async function generate(
   history: readonly Message[],
   options?: GenerateOptions
 ): Promise<GenerateResult> {
-  const { onMessagePart, onToolCall } = options ?? {};
+  const { onMessagePart, onToolCall, signal } = options ?? {};
+  throwIfAborted(signal);
 
   // Call LLM
-  const stream = await client.generate(systemPrompt, history, tools);
+  const stream = await client.generate(systemPrompt, history, tools, { signal });
 
   // Initialize message
   const message: Message = { role: 'assistant', content: [] };
@@ -81,6 +84,8 @@ export async function generate(
 
   // Process stream
   for await (const part of stream) {
+    throwIfAborted(signal);
+
     if (onMessagePart) {
       await onMessagePart(structuredClone(part));
     }
@@ -113,6 +118,7 @@ export async function generate(
 
   // Flush last pending part
   if (pendingPart !== null) {
+    throwIfAborted(signal);
     appendToMessage(message, pendingPart);
 
     if (isToolCallPart(pendingPart) && onToolCall) {

@@ -38,6 +38,10 @@ export interface GenerationKwargs {
   toolChoice?: Anthropic.ToolChoice;
 }
 
+export interface GenerateOptions {
+  signal?: AbortSignal;
+}
+
 /**
  * Client configuration
  */
@@ -136,7 +140,8 @@ export class AnthropicClient {
   async generate(
     systemPrompt: string,
     messages: readonly Message[],
-    tools: Anthropic.Tool[]
+    tools: Anthropic.Tool[],
+    options?: GenerateOptions
   ): Promise<AnthropicStreamedMessage> {
     try {
       // Build system prompt with cache_control
@@ -161,7 +166,7 @@ export class AnthropicClient {
       // Build request parameters
       const { thinking, toolChoice, maxTokens, ...restKwargs } = this.config.generationKwargs;
 
-      const response = await this.client.messages.create({
+      const requestParams = {
         model: this.config.model,
         system,
         messages: processedMessages,
@@ -173,7 +178,16 @@ export class AnthropicClient {
         top_p: restKwargs.topP,
         thinking,
         tool_choice: toolChoice,
-      });
+      };
+
+      const requestOptions = options?.signal ? { signal: options.signal } : undefined;
+      const response = await (this.client.messages.create as (
+        params: typeof requestParams,
+        requestOptions?: { signal?: AbortSignal }
+      ) => Promise<Anthropic.Message | AsyncIterable<Anthropic.RawMessageStreamEvent>>)(
+        requestParams,
+        requestOptions
+      );
 
       return new AnthropicStreamedMessage(response);
     } catch (error) {

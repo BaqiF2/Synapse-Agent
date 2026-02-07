@@ -51,6 +51,18 @@ export interface ReplState {
   isProcessing: boolean;
 }
 
+interface ActiveTurnController {
+  abortController: AbortController;
+  interrupted: boolean;
+}
+
+export interface SigintHandlerOptions {
+  state: ReplState;
+  promptUser: () => void;
+  interruptCurrentTurn: () => void;
+  clearCurrentInput?: () => void;
+}
+
 // ════════════════════════════════════════════════════════════════════
 //  Utility Helpers
 // ════════════════════════════════════════════════════════════════════
@@ -159,9 +171,23 @@ function showHelp(): void {
   console.log(chalk.gray('                   ') + chalk.white('Example: !ls -la, !git status'));
   console.log();
   console.log(chalk.white.bold('Keyboard Shortcuts:'));
-  console.log(chalk.gray('  Ctrl+C           ') + chalk.white('Prompt for exit confirmation'));
+  console.log(chalk.gray('  Ctrl+C           ') + chalk.white('Interrupt current turn immediately'));
   console.log(chalk.gray('  Ctrl+D           ') + chalk.white('Exit immediately'));
   console.log();
+}
+
+export function handleSigint(options: SigintHandlerOptions): void {
+  const { state, promptUser, interruptCurrentTurn, clearCurrentInput } = options;
+
+  if (state.isProcessing) {
+    interruptCurrentTurn();
+    state.isProcessing = false;
+  } else {
+    // 空闲时 Ctrl+C 仅清空当前输入并回到提示符，不触发退出确认。
+    clearCurrentInput?.();
+  }
+
+  promptUser();
 }
 
 function showToolsList(): void {
@@ -677,6 +703,7 @@ export async function startRepl(): Promise<void> {
 
   // State
   const state: ReplState = { isProcessing: false };
+  let activeTurn: ActiveTurnController | null = null;
 
   // Welcome banner
   showWelcomeBanner(session.id);
@@ -694,18 +721,38 @@ export async function startRepl(): Promise<void> {
     rl.prompt(true);
   };
 
-  const runAgentTurn = async (trimmedInput: string) => {
+  const clearCurrentInput = () => {
+    const rlState = rl as unknown as {
+      line?: string;
+      cursor?: number;
+    };
+    rlState.line = '';
+    rlState.cursor = 0;
+  };
+
+  const runAgentTurn = async (trimmedInput: string, signal?: AbortSignal) => {
     if (!agentRunner) {
       // Echo mode when agent is not available
       console.log(chalk.gray(`(echo) ${trimmedInput}`));
       return;
     }
 
-    const response = await agentRunner.run(trimmedInput);
+    const response = await agentRunner.run(trimmedInput, { signal });
     const hookOutput = extractHookOutput(response);
     if (hookOutput) {
       process.stdout.write(chalk.cyan(`\n${hookOutput}`));
     }
+  };
+
+  const interruptCurrentTurn = () => {
+    const currentTurn = activeTurn;
+    if (!currentTurn) {
+      return;
+    }
+
+    currentTurn.interrupted = true;
+    currentTurn.abortController.abort();
+    activeTurn = null;
   };
 
   // 处理 resume 的回调
@@ -762,22 +809,32 @@ export async function startRepl(): Promise<void> {
 
     // Agent conversation
     state.isProcessing = true;
-    rl.pause();
+    const turnController: ActiveTurnController = {
+      abortController: new AbortController(),
+      interrupted: false,
+    };
+    activeTurn = turnController;
     clearPromptLine(rl);
     console.log();
     process.stdout.write(chalk.magenta('Agent> '));
 
     try {
-      await runAgentTurn(trimmedInput);
-      process.stdout.write('\n');
+      await runAgentTurn(trimmedInput, turnController.abortController.signal);
+      if (!turnController.interrupted) {
+        process.stdout.write('\n');
+      }
     } catch (error) {
-      const message = getErrorMessage(error);
-      console.log(chalk.red(`\nError: ${message}\n`));
-      cliLogger.error('Agent request failed', { error: message });
+      if (!turnController.interrupted) {
+        const message = getErrorMessage(error);
+        console.log(chalk.red(`\nError: ${message}\n`));
+        cliLogger.error('Agent request failed', { error: message });
+      }
     } finally {
-      state.isProcessing = false;
-      rl.resume();
-      promptUser();
+      if (activeTurn === turnController) {
+        activeTurn = null;
+        state.isProcessing = false;
+        promptUser();
+      }
     }
   };
 
@@ -786,29 +843,18 @@ export async function startRepl(): Promise<void> {
 
   rl.on('close', () => {
     fixedBottomRenderer.dispose();
-    console.log(chalk.yellow('\nREPL session ended.\n'));
+    rl.off('SIGINT', onProcessSigint);
     process.exit(0);
   });
 
-  rl.on('SIGINT', () => {
-    if (state.isProcessing) {
-      console.log(chalk.yellow('\n\n[Request cancelled]\n'));
-      state.isProcessing = false;
-      promptUser();
-      return;
-    }
-
-    console.log();
-    rl.question(chalk.yellow('Do you want to exit? (y/n) '), (answer) => {
-      if (answer.toLowerCase() === 'y' || answer.toLowerCase() === 'yes') {
-        console.log(chalk.yellow('\nGoodbye!\n'));
-        rl.close();
-      } else {
-        console.log();
-        promptUser();
-      }
-    });
+  const onProcessSigint = () => handleSigint({
+    state,
+    promptUser,
+    interruptCurrentTurn,
+    clearCurrentInput,
   });
+
+  rl.on('SIGINT', onProcessSigint);
 
   // Start
   promptUser();
