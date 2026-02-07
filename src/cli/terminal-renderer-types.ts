@@ -22,6 +22,8 @@ export interface ToolCallEvent {
   id: string;
   /** Command being executed */
   command: string;
+  /** Whether to render this tool call in terminal output (default: true) */
+  shouldRender?: boolean;
   /** Parent SubAgent ID (for nested calls) */
   parentId?: string;
   /** Nesting depth (0 = top-level, 1 = inside SubAgent) */
