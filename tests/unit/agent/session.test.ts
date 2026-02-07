@@ -46,6 +46,21 @@ describe('Session', () => {
       expect(content.sessions).toHaveLength(1);
       expect(content.sessions[0]!.id).toBe(session.id);
     });
+
+    test('should initialize empty usage on session create', async () => {
+      const session = await Session.create({ sessionsDir: testDir, model: 'claude-sonnet-4-20250514' });
+      const usage = session.getUsage();
+
+      expect(usage).toEqual({
+        totalInputOther: 0,
+        totalOutput: 0,
+        totalCacheRead: 0,
+        totalCacheCreation: 0,
+        model: 'claude-sonnet-4-20250514',
+        rounds: [],
+        totalCost: null,
+      });
+    });
   });
 
   describe('find', () => {
@@ -217,6 +232,83 @@ describe('Session', () => {
 
       expect(reloaded!.title).toBe('Test message');
       expect(reloaded!.messageCount).toBe(1);
+    });
+  });
+
+  describe('usage persistence', () => {
+    test('should persist usage after updateUsage', async () => {
+      const session = await Session.create({ sessionsDir: testDir, model: 'claude-sonnet-4-20250514' });
+
+      await session.updateUsage({
+        inputOther: 100,
+        output: 50,
+        inputCacheRead: 200,
+        inputCacheCreation: 30,
+      }, 'claude-sonnet-4-20250514');
+
+      const indexPath = path.join(testDir, 'sessions.json');
+      const content = JSON.parse(fs.readFileSync(indexPath, 'utf-8'));
+      const info = content.sessions[0];
+
+      expect(info.usage.totalInputOther).toBe(100);
+      expect(info.usage.totalOutput).toBe(50);
+      expect(info.usage.totalCacheRead).toBe(200);
+      expect(info.usage.totalCacheCreation).toBe(30);
+      expect(info.usage.rounds).toHaveLength(1);
+    });
+
+    test('clear should reset usage to initial state', async () => {
+      const session = await Session.create({ sessionsDir: testDir, model: 'claude-sonnet-4-20250514' });
+      await session.updateUsage({
+        inputOther: 100,
+        output: 50,
+        inputCacheRead: 200,
+        inputCacheCreation: 30,
+      }, 'claude-sonnet-4-20250514');
+
+      await session.clear();
+
+      const usage = session.getUsage();
+      expect(usage.totalInputOther).toBe(0);
+      expect(usage.totalOutput).toBe(0);
+      expect(usage.totalCacheRead).toBe(0);
+      expect(usage.totalCacheCreation).toBe(0);
+      expect(usage.rounds).toEqual([]);
+      expect(usage.totalCost).toBeNull();
+    });
+
+    test('find should restore saved usage', async () => {
+      const session = await Session.create({ sessionsDir: testDir, model: 'claude-sonnet-4-20250514' });
+      await session.updateUsage({
+        inputOther: 150,
+        output: 80,
+        inputCacheRead: 300,
+        inputCacheCreation: 20,
+      }, 'claude-sonnet-4-20250514');
+
+      const found = await Session.find(session.id, { sessionsDir: testDir });
+      const usage = found!.getUsage();
+
+      expect(usage.totalInputOther).toBe(150);
+      expect(usage.totalOutput).toBe(80);
+      expect(usage.totalCacheRead).toBe(300);
+      expect(usage.totalCacheCreation).toBe(20);
+      expect(usage.rounds).toHaveLength(1);
+    });
+
+    test('list should include usage field in SessionInfo', async () => {
+      const session = await Session.create({ sessionsDir: testDir, model: 'claude-sonnet-4-20250514' });
+      await session.updateUsage({
+        inputOther: 1,
+        output: 2,
+        inputCacheRead: 3,
+        inputCacheCreation: 4,
+      }, 'claude-sonnet-4-20250514');
+
+      const sessions = await Session.list({ sessionsDir: testDir });
+      expect(sessions).toHaveLength(1);
+      expect(sessions[0]?.usage).toBeDefined();
+      expect(sessions[0]?.usage?.totalOutput).toBe(2);
     });
   });
 });

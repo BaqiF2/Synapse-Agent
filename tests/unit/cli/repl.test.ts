@@ -63,6 +63,7 @@ describe('REPL commands', () => {
       .map((call) => call.join(' '))
       .join('\n');
     expect(output).toContain('Synapse Agent - Help');
+    expect(output).toContain('/cost');
 
     console.log = originalConsoleLog;
   });
@@ -173,6 +174,34 @@ describe('REPL commands', () => {
     expect(handled).toBe(true);
     const output = getConsoleOutput();
     expect(output).toContain('Resume not available in this context.');
+
+    console.log = originalConsoleLog;
+  });
+
+  it('handleSpecialCommand should handle /cost output', async () => {
+    console.log = mock(() => {}) as unknown as typeof console.log;
+    const rl = createMockRl();
+    const agentRunner = {
+      getSessionUsage: mock(() => ({
+        totalInputOther: 1545,
+        totalOutput: 3456,
+        totalCacheRead: 9600,
+        totalCacheCreation: 1200,
+        model: 'claude-sonnet-4-20250514',
+        rounds: [{ inputOther: 1545, output: 3456, inputCacheRead: 9600, inputCacheCreation: 1200 }],
+        totalCost: 0.42,
+      })),
+    } as unknown as AgentRunner;
+    const { handleSpecialCommand } = await loadRepl();
+
+    const handled = handleSpecialCommand('/cost', rl as unknown as readline.Interface, agentRunner, { skipExit: true });
+
+    expect(handled).toBe(true);
+    expect(agentRunner.getSessionUsage).toHaveBeenCalled();
+    const output = getConsoleOutput();
+    expect(output).toContain(
+      'Token: 12,345 in / 3,456 out | Cache: 9,600 read / 1,200 write (78% hit) | Cost: $0.42'
+    );
 
     console.log = originalConsoleLog;
   });

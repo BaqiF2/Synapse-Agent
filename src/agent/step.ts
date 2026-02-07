@@ -14,7 +14,7 @@
 
 import type { AnthropicClient } from '../providers/anthropic/anthropic-client.ts';
 import type { TokenUsage } from '../providers/anthropic/anthropic-types.ts';
-import { generate, type OnMessagePart } from '../providers/generate.ts';
+import { generate, type OnMessagePart, type OnUsage } from '../providers/generate.ts';
 import type { Message, ToolCall, ToolResult } from '../providers/message.ts';
 import type { Toolset } from '../tools/toolset.ts';
 import { ToolError } from '../tools/callable-tool.ts';
@@ -222,6 +222,7 @@ export interface StepOptions {
   onMessagePart?: OnMessagePart;
   onToolCall?: OnToolCall;
   onToolResult?: OnToolResult;
+  onUsage?: OnUsage;
   signal?: AbortSignal;
 }
 
@@ -255,7 +256,7 @@ export async function step(
   history: readonly Message[],
   options?: StepOptions
 ): Promise<StepResult> {
-  const { onMessagePart, onToolCall, onToolResult, signal } = options ?? {};
+  const { onMessagePart, onToolCall, onToolResult, onUsage, signal } = options ?? {};
   throwIfAborted(signal);
 
   const toolCalls: ToolCall[] = [];
@@ -359,6 +360,7 @@ export async function step(
     result = await generate(client, systemPrompt, toolset.tools, history, {
       onMessagePart,
       onToolCall: handleToolCall,
+      onUsage,
       signal,
     });
   } catch (error) {

@@ -73,6 +73,7 @@ bun run src/cli/index.ts chat
 | `/help` | 显示帮助信息 |
 | `/exit` | 退出 REPL |
 | `/clear` | 清空对话历史 |
+| `/cost` | 查看当前会话 token/费用统计 |
 | `/tools` | 列出可用工具 |
 | `/skills` | 列出本地技能 |
 | `/sessions` | 列出已保存会话 |

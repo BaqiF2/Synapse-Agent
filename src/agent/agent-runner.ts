@@ -10,7 +10,7 @@
 
 import type {AnthropicClient} from '../providers/anthropic/anthropic-client.ts';
 import {type OnToolCall, type OnToolResult, step} from './step.ts';
-import {type OnMessagePart} from '../providers/generate.ts';
+import {type OnMessagePart, type OnUsage} from '../providers/generate.ts';
 import {createTextMessage, extractText, type Message, type ToolResult as MessageToolResult, toolResultToMessage} from '../providers/message.ts';
 import type {Toolset} from '../tools/toolset.ts';
 import path from 'node:path';
@@ -18,6 +18,8 @@ import {createLogger} from '../utils/logger.ts';
 import {loadDesc} from '../utils/load-desc.ts';
 import {parseEnvInt, parseEnvPositiveInt} from '../utils/env.ts';
 import {Session} from './session.ts';
+import type { SessionUsage } from './session-usage.ts';
+import type { TokenUsage } from '../providers/anthropic/anthropic-types.ts';
 import type {StopHookContext, HookResult} from '../hooks/index.ts';
 import {stopHookRegistry} from '../hooks/stop-hook-registry.ts';
 import {loadStopHooks} from '../hooks/load-stop-hooks.ts';
@@ -142,8 +144,12 @@ export interface AgentRunnerOptions {
   onToolCall?: OnToolCall;
   /** Callback for tool results */
   onToolResult?: OnToolResult;
+  /** Callback for usage after each API call */
+  onUsage?: OnUsage;
   /** Session ID for resuming (optional) */
   sessionId?: string;
+  /** Existing session instance (optional) */
+  session?: Session;
   /** Sessions directory (optional, for testing) */
   sessionsDir?: string;
   /** Enable Stop Hooks execution (default: true) */
@@ -180,6 +186,7 @@ export class AgentRunner {
   private onMessagePart?: OnMessagePart;
   private onToolCall?: OnToolCall;
   private onToolResult?: OnToolResult;
+  private onUsage?: OnUsage;
   private enableStopHooks: boolean;
 
   /** Session management */
@@ -201,7 +208,9 @@ export class AgentRunner {
     this.onMessagePart = options.onMessagePart;
     this.onToolCall = options.onToolCall;
     this.onToolResult = options.onToolResult;
-    this.sessionId = options.sessionId;
+    this.onUsage = options.onUsage;
+    this.session = options.session ?? null;
+    this.sessionId = options.sessionId ?? options.session?.id;
     this.sessionsDir = options.sessionsDir;
     this.enableStopHooks = options.enableStopHooks ?? true;
   }
@@ -220,6 +229,14 @@ export class AgentRunner {
     return this.history;
   }
 
+  getSessionUsage(): SessionUsage | null {
+    return this.session?.getUsage() ?? null;
+  }
+
+  async recordUsage(usage: TokenUsage, model: string): Promise<void> {
+    await this.handleUsage(usage, model);
+  }
+
   /**
    * Determine whether a tool failure should count toward consecutive-failure stop logic.
    *
@@ -233,6 +250,20 @@ export class AgentRunner {
     const category = result.returnValue.extras?.failureCategory;
     const hintText = `${result.returnValue.brief}\n${result.returnValue.output}`;
     return shouldCountToolFailure(category, hintText);
+  }
+
+  private async handleUsage(usage: TokenUsage, model: string): Promise<void> {
+    if (this.session) {
+      await this.session.updateUsage(usage, model);
+    }
+
+    if (this.onUsage) {
+      try {
+        await this.onUsage(usage, model);
+      } catch (error) {
+        logger.warn('onUsage callback failed', { error });
+      }
+    }
   }
 
   /**
@@ -263,22 +294,29 @@ export class AgentRunner {
   private async initSession(): Promise<void> {
     if (this.sessionInitialized) return;
 
+    if (this.session) {
+      this.history = await this.session.loadHistory();
+      this.sessionInitialized = true;
+      return;
+    }
+
     const options = this.sessionsDir ? { sessionsDir: this.sessionsDir } : {};
+    const model = this.client.modelName;
 
     if (this.sessionId) {
       // 恢复现有会话
-      this.session = await Session.find(this.sessionId, options);
+      this.session = await Session.find(this.sessionId, { ...options, model });
       if (this.session) {
         // 加载历史消息
         this.history = await this.session.loadHistory();
         logger.info(`Resumed session: ${this.sessionId} (${this.history.length} messages)`);
       } else {
         logger.warn(`Session not found: ${this.sessionId}, creating new one`);
-        this.session = await Session.create(options);
+        this.session = await Session.create({ ...options, model });
       }
     } else {
       // 创建新会话
-      this.session = await Session.create(options);
+      this.session = await Session.create({ ...options, model });
     }
 
     this.sessionInitialized = true;
@@ -307,7 +345,7 @@ export class AgentRunner {
       this.history = sanitized;
 
       if (this.session) {
-        await this.session.clear();
+        await this.session.clear({ resetUsage: false });
         if (this.history.length > 0) {
           await this.session.appendMessage(this.history);
         }
@@ -353,6 +391,9 @@ export class AgentRunner {
           onMessagePart: this.onMessagePart,
           onToolCall: this.onToolCall,
           onToolResult: this.onToolResult,
+          onUsage: async (usage, model) => {
+            await this.handleUsage(usage, model);
+          },
           signal,
         }
       );

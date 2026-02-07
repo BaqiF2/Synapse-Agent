@@ -17,6 +17,14 @@ import { z } from 'zod';
 import { createLogger } from '../utils/logger.ts';
 import { parseEnvInt } from '../utils/env.ts';
 import type { Message } from '../providers/message.ts';
+import type { TokenUsage } from '../providers/anthropic/anthropic-types.ts';
+import { loadPricing } from '../config/pricing.ts';
+import {
+  accumulateUsage,
+  createEmptySessionUsage,
+  resetSessionUsage,
+  type SessionUsage,
+} from './session-usage.ts';
 
 // ════════════════════════════════════════════════════════════════════
 // 环境变量配置
@@ -27,6 +35,7 @@ const DEFAULT_SESSIONS_DIR =
 const MAX_SESSIONS = parseEnvInt(process.env.SYNAPSE_MAX_SESSIONS, 100);
 const SESSION_INDEX_FILE = 'sessions.json';
 export const TITLE_MAX_LENGTH = 50;
+const DEFAULT_SESSION_MODEL = 'unknown-model';
 
 const logger = createLogger('session');
 
@@ -44,6 +53,24 @@ export const SessionInfoSchema = z.object({
   messageCount: z.number(),
   title: z.string().optional(),
   cwd: z.string().optional(),
+  usage: z
+    .object({
+      totalInputOther: z.number(),
+      totalOutput: z.number(),
+      totalCacheRead: z.number(),
+      totalCacheCreation: z.number(),
+      model: z.string(),
+      rounds: z.array(
+        z.object({
+          inputOther: z.number(),
+          output: z.number(),
+          inputCacheRead: z.number(),
+          inputCacheCreation: z.number(),
+        })
+      ),
+      totalCost: z.number().nullable(),
+    })
+    .optional(),
 });
 
 export type SessionInfo = z.infer<typeof SessionInfoSchema>;
@@ -69,6 +96,7 @@ export type SessionsIndex = z.infer<typeof SessionsIndexSchema>;
 export interface SessionCreateOptions {
   sessionId?: string;
   sessionsDir?: string;
+  model?: string;
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -112,12 +140,14 @@ export class Session {
   private _historyPath: string;
   private _indexPath: string;
   private _messageCount: number = 0;
+  private _usage: SessionUsage;
 
-  private constructor(id: string, sessionsDir: string) {
+  private constructor(id: string, sessionsDir: string, model: string = DEFAULT_SESSION_MODEL) {
     this._id = id;
     this._sessionsDir = sessionsDir;
     this._historyPath = path.join(sessionsDir, `${id}.jsonl`);
     this._indexPath = path.join(sessionsDir, SESSION_INDEX_FILE);
+    this._usage = createEmptySessionUsage(model);
   }
 
   // ════════════════════════════════════════════════════════════════════
@@ -140,6 +170,10 @@ export class Session {
     return this._messageCount;
   }
 
+  getUsage(): SessionUsage {
+    return structuredClone(this._usage);
+  }
+
   // ════════════════════════════════════════════════════════════════════
   // 静态工厂方法
   // ════════════════════════════════════════════════════════════════════
@@ -150,13 +184,14 @@ export class Session {
   static async create(options: SessionCreateOptions = {}): Promise<Session> {
     const sessionsDir = options.sessionsDir ?? DEFAULT_SESSIONS_DIR;
     const sessionId = options.sessionId ?? generateSessionId();
+    const model = options.model ?? DEFAULT_SESSION_MODEL;
 
     // 确保目录存在
     if (!fs.existsSync(sessionsDir)) {
       fs.mkdirSync(sessionsDir, { recursive: true });
     }
 
-    const session = new Session(sessionId, sessionsDir);
+    const session = new Session(sessionId, sessionsDir, model);
     await session.register();
 
     logger.info(`Created new session: ${sessionId}`);
@@ -168,7 +203,7 @@ export class Session {
    */
   static async find(
     sessionId: string,
-    options: { sessionsDir?: string } = {}
+    options: { sessionsDir?: string; model?: string } = {}
   ): Promise<Session | null> {
     const sessionsDir = options.sessionsDir ?? DEFAULT_SESSIONS_DIR;
     const indexPath = path.join(sessionsDir, SESSION_INDEX_FILE);
@@ -186,9 +221,11 @@ export class Session {
         return null;
       }
 
-      const session = new Session(sessionId, sessionsDir);
+      const model = info.usage?.model ?? options.model ?? DEFAULT_SESSION_MODEL;
+      const session = new Session(sessionId, sessionsDir, model);
       session._title = info.title;
       session._messageCount = info.messageCount;
+      session._usage = info.usage ?? createEmptySessionUsage(model);
 
       return session;
     } catch {
@@ -278,6 +315,19 @@ export class Session {
     return lines.map((line) => JSON.parse(line) as Message);
   }
 
+  async updateUsage(usage: TokenUsage, model?: string): Promise<void> {
+    if (model && model !== this._usage.model) {
+      this._usage = {
+        ...this._usage,
+        model,
+      };
+    }
+
+    const pricingConfig = loadPricing();
+    this._usage = accumulateUsage(this._usage, usage, pricingConfig);
+    await this.updateIndex();
+  }
+
   /**
    * 删除会话
    */
@@ -298,13 +348,18 @@ export class Session {
   /**
    * 清空会话历史（保留文件，清空内容）
    */
-  async clear(): Promise<void> {
+  async clear(options?: { resetUsage?: boolean }): Promise<void> {
+    const resetUsage = options?.resetUsage ?? true;
+
     // 清空文件内容
     fs.writeFileSync(this._historyPath, '', 'utf-8');
 
     // 重置消息计数和标题
     this._messageCount = 0;
     this._title = undefined;
+    if (resetUsage) {
+      this._usage = resetSessionUsage(this._usage);
+    }
 
     // 更新索引
     await this.updateIndex();
@@ -322,6 +377,7 @@ export class Session {
     if (info) {
       this._title = info.title;
       this._messageCount = info.messageCount;
+      this._usage = info.usage ?? createEmptySessionUsage(this._usage.model);
     }
   }
 
@@ -341,6 +397,7 @@ export class Session {
       updatedAt: new Date().toISOString(),
       messageCount: 0,
       cwd: process.cwd(),
+      usage: this._usage,
     };
 
     // 添加到开头（最新的在前）
@@ -423,6 +480,7 @@ export class Session {
     if (sessionInfo) {
       sessionInfo.updatedAt = new Date().toISOString();
       sessionInfo.messageCount = this._messageCount;
+      sessionInfo.usage = this._usage;
       if (this._title) {
         sessionInfo.title = this._title;
       }

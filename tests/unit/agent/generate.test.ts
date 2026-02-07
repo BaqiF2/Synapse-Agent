@@ -12,6 +12,7 @@ import type { StreamedMessagePart } from '../../../src/providers/anthropic/anthr
 
 function createMockClient(parts: StreamedMessagePart[]): AnthropicClient {
   return {
+    modelName: 'claude-sonnet-4-20250514',
     generate: mock(() =>
       Promise.resolve({
         id: 'msg_test',
@@ -139,5 +140,26 @@ describe('generate', () => {
 
     const call = (client.generate as unknown as { mock: { calls: unknown[][] } }).mock.calls[0];
     expect(call?.[3]).toEqual(expect.objectContaining({ signal: controller.signal }));
+  });
+
+  it('should call onUsage callback with usage and model after completion', async () => {
+    const usageEvents: Array<{ usage: unknown; model: string }> = [];
+    const client = createMockClient([{ type: 'text', text: 'Hello' }]);
+    const history: Message[] = [createTextMessage('user', 'Hi')];
+
+    await generate(client, 'System prompt', [], history, {
+      onUsage: (usage, model) => {
+        usageEvents.push({ usage, model });
+      },
+    });
+
+    expect(usageEvents).toHaveLength(1);
+    expect(usageEvents[0]?.model).toBe('claude-sonnet-4-20250514');
+    expect(usageEvents[0]?.usage).toEqual({
+      inputOther: 100,
+      output: 50,
+      inputCacheRead: 0,
+      inputCacheCreation: 0,
+    });
   });
 });

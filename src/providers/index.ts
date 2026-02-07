@@ -8,6 +8,7 @@ export {
   type GenerateOptions,
   type OnMessagePart,
   type OnToolCall,
+  type OnUsage,
 } from './generate.ts';
 
 export {

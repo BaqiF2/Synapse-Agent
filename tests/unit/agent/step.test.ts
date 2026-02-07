@@ -26,6 +26,7 @@ function createMockCallableTool(handler: (args: unknown) => Promise<ToolReturnVa
 
 function createMockClient(parts: StreamedMessagePart[]): AnthropicClient {
   return {
+    modelName: 'claude-sonnet-4-20250514',
     generate: mock(() =>
       Promise.resolve({
         id: 'msg_test',
@@ -262,5 +263,29 @@ describe('step', () => {
 
     await expect(toolResultsPromise).rejects.toMatchObject({ name: 'AbortError' });
     expect(cancel).toHaveBeenCalled();
+  });
+
+  it('should forward onUsage callback to generate', async () => {
+    const usageEvents: Array<{ model: string; usage: unknown }> = [];
+    const client = createMockClient([{ type: 'text', text: 'Hello' }]);
+    const toolset = new CallableToolset([createMockCallableTool(() =>
+      Promise.resolve(ToolOk({ output: '' }))
+    )]);
+    const history: Message[] = [createTextMessage('user', 'Hi')];
+
+    await step(client, 'System', toolset, history, {
+      onUsage: (usage, model) => {
+        usageEvents.push({ usage, model });
+      },
+    });
+
+    expect(usageEvents).toHaveLength(1);
+    expect(usageEvents[0]?.model).toBe('claude-sonnet-4-20250514');
+    expect(usageEvents[0]?.usage).toEqual({
+      inputOther: 100,
+      output: 50,
+      inputCacheRead: 0,
+      inputCacheCreation: 0,
+    });
   });
 });
