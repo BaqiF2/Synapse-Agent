@@ -71,8 +71,8 @@ export const TaskCommandParamsSchema = z.object({
   description: z.string().min(1, 'description is required'),
   model: z.string().optional(),
   maxTurns: z.number().positive().optional(),
-  /** Skill action（仅 skill 类型使用） */
-  action: z.string().optional(),
+  /** Skill action（仅 skill 类型使用），支持 null 或 undefined */
+  action: z.string().nullish(),
 });
 
 /**

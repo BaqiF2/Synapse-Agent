@@ -30,6 +30,7 @@ import { initializeSkillTools } from '../tools/converters/skill/index.ts';
 import { createLogger } from '../utils/logger.ts';
 import { SettingsManager } from '../config/settings-manager.ts';
 import { TerminalRenderer } from './terminal-renderer.ts';
+import { FixedBottomRenderer } from './fixed-bottom-renderer.ts';
 import { extractHookOutput } from './hook-output.ts';
 import { todoStore } from '../tools/handlers/agent-bash/todo/todo-store.ts';
 import { SKILL_ENHANCE_PROGRESS_TEXT } from '../hooks/skill-enhance-constants.ts';
@@ -667,6 +668,10 @@ export async function startRepl(): Promise<void> {
   await initializeMcp();
   await initializeSkills();
 
+  // 初始化固定底部渲染器（Todo 列表）
+  const fixedBottomRenderer = new FixedBottomRenderer();
+  fixedBottomRenderer.attachTodoStore(todoStore);
+
   // 初始化agent
   let agentRunner = initializeAgent(session);
 
@@ -780,6 +785,7 @@ export async function startRepl(): Promise<void> {
   rl.on('line', handleLine);
 
   rl.on('close', () => {
+    fixedBottomRenderer.dispose();
     console.log(chalk.yellow('\nREPL session ended.\n'));
     process.exit(0);
   });
