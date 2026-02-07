@@ -12,13 +12,13 @@ Everything you do — reading files, writing code, searching content, executing 
 Bash(command="your shell command here")
 ```
 
-There are NO other tools. `read`, `write`, `edit`, `glob`, `search` are **shell commands**, not tools.
+There are NO other tools. `read`, `write`, `edit`, `bash` are **shell commands**, not tools.
 
 ## Your Capabilities
 
 Through the Bash tool, you can:
 - Execute any shell command (ls, git, npm, python...)
-- Use Agent commands (read, write, edit, glob, search)
+- Use Agent commands (read, write, edit, bash)
 - Load and execute skills
 - Interact with MCP extensions
 

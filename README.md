@@ -95,9 +95,9 @@ bun run src/cli/index.ts chat
 | `read <file>` | 读取文件（支持偏移量和行数限制） |
 | `write <file>` | 创建/覆写文件 |
 | `edit <file>` | 基于正则的文本替换编辑 |
-| `glob <pattern>` | 文件模式匹配 |
-| `search <pattern>` | 代码搜索（基于 ripgrep） |
 | `bash <cmd>` | 执行原生 Shell 命令 |
+
+> 文件查找与内容搜索请使用原生命令（如 `find` / `rg` / `grep`）。
 
 ### Layer 3: 扩展工具
 

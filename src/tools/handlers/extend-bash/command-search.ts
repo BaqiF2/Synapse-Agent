@@ -122,7 +122,7 @@ EXAMPLES:
 DESCRIPTION:
     Searches across all three command layers:
     - Native Shell Commands (ls, git, etc.)
-    - Agent Shell Commands (read, write, edit, glob, search, skill:*)
+    - Agent Shell Commands (read, write, edit, bash, TodoWrite, skill:load, task:*)
     - Extend Shell Commands (mcp:*, skill:<name>:<tool>)`;
 
     return {

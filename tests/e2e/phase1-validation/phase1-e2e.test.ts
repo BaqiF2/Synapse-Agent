@@ -139,11 +139,11 @@ if __name__ == "__main__":
 When you need to perform batch file operations or gather file statistics.
 
 ## Tool Dependencies
-- glob (Agent Shell Command)
+- find (Native Shell Command)
 - bash (Native Shell Command)
 
 ## Execution Steps
-1. Use glob to find matching files
+1. Use find to locate matching files
 2. Process files as needed
 3. Return results summary
 `
@@ -305,7 +305,7 @@ describe('Phase 1 E2E: TC-1 Three-Layer Bash Architecture', () => {
       expect(echoResult.stdout).toContain('routing test');
     });
 
-    test('should execute Agent Shell Command commands (read, write, edit)', async () => {
+    test('should execute Agent Shell Command commands (read, write, edit, bash)', async () => {
       // Test that agent bash commands are routed correctly
       // read -h should show help (indicates read handler is active)
       const readHelpResult = await router.route('read -h');
@@ -317,10 +317,10 @@ describe('Phase 1 E2E: TC-1 Three-Layer Bash Architecture', () => {
       expect(writeHelpResult.exitCode).toBe(0);
       expect(writeHelpResult.stdout.toLowerCase()).toMatch(/usage|write/i);
 
-      // glob -h should show help
-      const globHelpResult = await router.route('glob -h');
-      expect(globHelpResult.exitCode).toBe(0);
-      expect(globHelpResult.stdout.toLowerCase()).toMatch(/usage|glob/i);
+      // bash -h should show help
+      const bashHelpResult = await router.route('bash -h');
+      expect(bashHelpResult.exitCode).toBe(0);
+      expect(bashHelpResult.stdout.toLowerCase()).toMatch(/usage|bash/i);
     });
 
     test('should execute extend Shell command commands (command:search)', async () => {
@@ -530,78 +530,8 @@ describe('Phase 1 E2E: TC-2 Agent Shell Command Tools', () => {
     });
   });
 
-  describe('TC-2.4: glob Tool', () => {
-    const globTestDir = path.join(TEST_WORK_DIR, 'glob-test');
-
-    beforeAll(() => {
-      fs.mkdirSync(path.join(globTestDir, 'sub'), { recursive: true });
-      fs.writeFileSync(path.join(globTestDir, 'file1.ts'), '');
-      fs.writeFileSync(path.join(globTestDir, 'file2.ts'), '');
-      fs.writeFileSync(path.join(globTestDir, 'file3.js'), '');
-      fs.writeFileSync(path.join(globTestDir, 'sub', 'nested.ts'), '');
-    });
-
-    afterAll(() => {
-      fs.rmSync(globTestDir, { recursive: true, force: true });
-    });
-
-    test('should find files matching pattern', async () => {
-      const result = await router.route(`glob "*.ts" --path ${globTestDir}`);
-      expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain('file1.ts');
-      expect(result.stdout).toContain('file2.ts');
-      expect(result.stdout).not.toContain('file3.js');
-    });
-
-    test('should find files recursively', async () => {
-      const result = await router.route(`glob "**/*.ts" --path ${globTestDir}`);
-      expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain('nested.ts');
-    });
-
-    test('should show help with -h flag', async () => {
-      const result = await router.route('glob -h');
-      expect(result.exitCode).toBe(0);
-      expect(result.stdout.toLowerCase()).toMatch(/usage|glob/i);
-    });
-  });
-
-  describe('TC-2.5: search Tool', () => {
-    const grepTestDir = path.join(TEST_WORK_DIR, 'search-test');
-
-    beforeAll(() => {
-      fs.mkdirSync(grepTestDir, { recursive: true });
-      fs.writeFileSync(
-        path.join(grepTestDir, 'test.js'),
-        'function hello() {\n  console.log("Hello");\n}\n\nfunction world() {\n  return "World";\n}'
-      );
-    });
-
-    afterAll(() => {
-      fs.rmSync(grepTestDir, { recursive: true, force: true });
-    });
-
-    test('should search for pattern', async () => {
-      const result = await router.route(`search "function" --path ${grepTestDir}`);
-      expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain('function');
-    });
-
-    test('should support regex patterns', async () => {
-      const result = await router.route(`search "console\\.log" --path ${grepTestDir}`);
-      expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain('console.log');
-    });
-
-    test('should show help with --help flag', async () => {
-      const result = await router.route('search --help');
-      expect(result.exitCode).toBe(0);
-      expect(result.stdout.toLowerCase()).toMatch(/usage|search|options/i);
-    });
-  });
-
-  describe('TC-2.6: Tool Help Information', () => {
-    const toolsToTest = ['read', 'write', 'edit', 'glob', 'search'];
+  describe('TC-2.4: Tool Help Information', () => {
+    const toolsToTest = ['read', 'write', 'edit', 'bash'];
 
     for (const tool of toolsToTest) {
       test(`${tool} should respond to -h flag`, async () => {
@@ -1095,10 +1025,11 @@ describe('Phase 1 E2E: TC-8 Error Handling', () => {
       // Should not throw, just return error
     });
 
-    test('should handle invalid glob pattern gracefully', async () => {
-      const result = await router.route('glob "[invalid"');
-      // Should handle gracefully
-      expect(result).toBeDefined();
+    test('should treat removed glob/search commands as native fallbacks', async () => {
+      const globResult = await router.route('glob "[invalid"');
+      const searchResult = await router.route('search "ERROR"');
+      expect(globResult.exitCode).not.toBe(0);
+      expect(searchResult.exitCode).not.toBe(0);
     });
 
     test('should handle skill index with no matching results', () => {

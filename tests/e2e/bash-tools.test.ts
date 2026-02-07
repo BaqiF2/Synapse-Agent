@@ -3,7 +3,7 @@
  *
  * Tests the complete flow of Bash tool execution including:
  * - Native Shell Command commands (Layer 1)
- * - Agent Shell Command tools (Layer 2): read, write, edit, glob, search
+ * - Agent Shell Command tools (Layer 2): read, write, edit, bash/TodoWrite/task:*
  * - Bash session persistence
  *
  * @module tests/e2e/bash-tools
@@ -15,7 +15,7 @@ import * as path from 'node:path';
 import * as os from 'node:os';
 
 import { BashSession } from '../../src/tools/bash-session.js';
-import { BashRouter, CommandType } from '../../src/tools/bash-router.js';
+import { BashRouter } from '../../src/tools/bash-router.js';
 
 // Test configuration
 const TEST_DIR = path.join(os.tmpdir(), `synapse-e2e-${Date.now()}`);
@@ -166,53 +166,15 @@ describe('E2E: Bash Tools Integration', () => {
     });
   });
 
-  describe('Scenario 2: Agent Shell Command - Glob Tool', () => {
-    beforeAll(() => {
-      // Create test files
-      fs.writeFileSync(path.join(TEST_DIR, 'file1.ts'), '');
-      fs.writeFileSync(path.join(TEST_DIR, 'file2.ts'), '');
-      fs.writeFileSync(path.join(TEST_DIR, 'file3.js'), '');
-      fs.mkdirSync(path.join(TEST_DIR, 'subdir'), { recursive: true });
-      fs.writeFileSync(path.join(TEST_DIR, 'subdir', 'nested.ts'), '');
+  describe('Scenario 2: Removed Agent Commands Fallback', () => {
+    test('should route removed glob command as native command', async () => {
+      const result = await router.route('glob "*.ts"');
+      expect(result.exitCode).not.toBe(0);
     });
 
-    test('should find files matching pattern', async () => {
-      const result = await router.route(`glob "*.ts" --path ${TEST_DIR}`);
-      expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain('file1.ts');
-      expect(result.stdout).toContain('file2.ts');
-    });
-
-    test('should find files recursively', async () => {
-      const result = await router.route(`glob "**/*.ts" --path ${TEST_DIR}`);
-      expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain('nested.ts');
-    });
-  });
-
-  describe('Scenario 2: Agent Shell Command - Search Tool', () => {
-    beforeAll(() => {
-      // Create a subdirectory with a test file for search
-      const searchDir = path.join(TEST_DIR, 'search-test-dir');
-      fs.mkdirSync(searchDir, { recursive: true });
-      fs.writeFileSync(
-        path.join(searchDir, 'test.js'),
-        'function hello() {\n  console.log("Hello");\n}\n\nfunction world() {\n  return "World";\n}'
-      );
-    });
-
-    test('should search for pattern in directory', async () => {
-      const searchDir = path.join(TEST_DIR, 'search-test-dir');
-      const result = await router.route(`search "function" --path ${searchDir}`);
-      expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain('function');
-    });
-
-    test('should support regex patterns', async () => {
-      const searchDir = path.join(TEST_DIR, 'search-test-dir');
-      const result = await router.route(`search "console\\.log" --path ${searchDir}`);
-      expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain('console.log');
+    test('should route removed search command as native command', async () => {
+      const result = await router.route('search "TODO"');
+      expect(result.exitCode).not.toBe(0);
     });
   });
 
