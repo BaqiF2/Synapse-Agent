@@ -435,6 +435,7 @@ describe('AgentRunner', () => {
       expect(instructionBlock).toContain('Never guess skill names');
       expect(instructionBlock).toContain('task:skill:search');
       expect(instructionBlock).toContain('skill:load');
+      expect(instructionBlock).toContain('command:search');
       expect(instructionBlock).not.toContain('请');
       expect(userText).toContain(input);
     });
