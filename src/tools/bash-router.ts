@@ -14,7 +14,7 @@ import type { BashSession } from './bash-session.ts';
 import { NativeShellCommandHandler, type CommandResult } from './handlers/base-bash-handler.ts';
 import { ReadHandler, WriteHandler, EditHandler, BashWrapperHandler, TodoWriteHandler } from './handlers/agent-bash/index.ts';
 import { CommandSearchHandler } from './handlers/extend-bash/index.ts';
-import { parseCommandArgs, toCommandErrorResult, parseColonCommand } from './handlers/agent-bash/command-utils.ts';
+import { parseColonCommand } from './handlers/agent-bash/command-utils.ts';
 import { McpConfigParser, McpClient, McpInstaller } from './converters/mcp/index.ts';
 import { SkillStructure, DocstringParser } from './converters/skill/index.ts';
 import { SkillCommandHandler } from './handlers/skill-command-handler.ts';
