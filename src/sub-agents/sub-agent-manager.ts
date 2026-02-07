@@ -116,7 +116,7 @@ export class SubAgentManager {
     });
 
     // 创建带有回调的 AgentRunner，传递 action 参数
-    const agent = this.createAgentWithCallbacks(type, subAgentId, params.description, params.action, () => {
+    const agent = this.createAgentWithCallbacks(type, subAgentId, params.description, params.action ?? undefined, () => {
       toolCount++;
     });
 

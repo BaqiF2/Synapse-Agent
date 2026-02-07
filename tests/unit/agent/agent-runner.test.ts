@@ -373,11 +373,11 @@ describe('AgentRunner', () => {
       expect(firstMessage?.content[0]?.type).toBe('text');
       const userText = (firstMessage?.content[0] as { text: string }).text;
       const [instructionBlock = ''] = userText.split('\n\nOriginal user request:\n');
-      expect(instructionBlock).toContain('Analyze the task first.');
-      expect(instructionBlock).toContain('Assess task complexity');
-      expect(instructionBlock).toContain('skip skill discovery');
-      expect(instructionBlock).toContain('prioritize running task:skill:search');
-      expect(instructionBlock).toContain('load it with skill:load');
+      // 验证 skill-search-priority.md 的关键内容
+      expect(instructionBlock).toContain('Skill Search Priority');
+      expect(instructionBlock).toContain('Never guess skill names');
+      expect(instructionBlock).toContain('task:skill:search');
+      expect(instructionBlock).toContain('skill:load');
       expect(instructionBlock).not.toContain('请');
       expect(userText).toContain(input);
     });
