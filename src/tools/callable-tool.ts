@@ -37,6 +37,20 @@ export interface ToolReturnValue {
   readonly extras?: Record<string, unknown>;
 }
 
+export type CancelablePromise<T> = Promise<T> & { cancel: () => void };
+
+const NOOP_CANCEL = (): void => {};
+
+export function asCancelablePromise<T>(
+  promise: Promise<T>,
+  cancel?: () => void
+): CancelablePromise<T> {
+  const cancelable = promise as CancelablePromise<T>;
+  const existingCancel = (promise as { cancel?: () => void }).cancel;
+  cancelable.cancel = cancel ?? (typeof existingCancel === 'function' ? existingCancel.bind(promise) : NOOP_CANCEL);
+  return cancelable;
+}
+
 /**
  * Create a successful ToolReturnValue.
  */
@@ -128,12 +142,12 @@ export abstract class CallableTool<Params> {
    * @param args - Raw JSON arguments from the model
    * @returns Structured tool return value
    */
-  async call(args: unknown): Promise<ToolReturnValue> {
+  call(args: unknown): CancelablePromise<ToolReturnValue> {
     const parseResult = this.paramsSchema.safeParse(args);
     if (!parseResult.success) {
-      return ToolValidateError(parseResult.error.message);
+      return asCancelablePromise(Promise.resolve(ToolValidateError(parseResult.error.message)));
     }
-    return await this.execute(parseResult.data as Params);
+    return this.execute(parseResult.data as Params);
   }
 
   /**
@@ -141,5 +155,5 @@ export abstract class CallableTool<Params> {
    *
    * @param params - Validated, typed parameters
    */
-  protected abstract execute(params: Params): Promise<ToolReturnValue>;
+  protected abstract execute(params: Params): CancelablePromise<ToolReturnValue>;
 }

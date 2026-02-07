@@ -64,6 +64,10 @@ export interface SubAgentManagerOptions {
   onUsage?: OnUsage;
 }
 
+export interface SubAgentExecuteOptions {
+  signal?: AbortSignal;
+}
+
 /**
  * Sub Agent 实例信息
  */
@@ -120,7 +124,11 @@ export class SubAgentManager {
    * @param params - 任务参数（包含可选的 action）
    * @returns 执行结果
    */
-  async execute(type: SubAgentType, params: TaskCommandParams): Promise<string> {
+  async execute(
+    type: SubAgentType,
+    params: TaskCommandParams,
+    options: SubAgentExecuteOptions = {}
+  ): Promise<string> {
     const subAgentId = this.generateSubAgentId();
     const startTime = Date.now();
     let toolCount = 0;
@@ -145,14 +153,20 @@ export class SubAgentManager {
 
     let success = true;
     let error: string | undefined;
-    let result: string;
+    let result = '';
+    let abortError: unknown;
 
     try {
-      result = await agent.run(params.prompt);
+      result = await agent.run(params.prompt, { signal: options.signal });
     } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
       success = false;
-      error = err instanceof Error ? err.message : String(err);
-      result = error;
+      error = message;
+      if (options.signal?.aborted || (err instanceof Error && err.name === 'AbortError')) {
+        abortError = err;
+      } else {
+        result = message;
+      }
     } finally {
       cleanup();
     }
@@ -178,6 +192,10 @@ export class SubAgentManager {
       duration,
       resultLength: result.length,
     });
+
+    if (abortError) {
+      throw abortError;
+    }
 
     return result;
   }

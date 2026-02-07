@@ -17,7 +17,7 @@ import type { TokenUsage } from '../providers/anthropic/anthropic-types.ts';
 import { generate, type OnMessagePart, type OnUsage } from '../providers/generate.ts';
 import type { Message, ToolCall, ToolResult } from '../providers/message.ts';
 import type { Toolset } from '../tools/toolset.ts';
-import { ToolError } from '../tools/callable-tool.ts';
+import { ToolError, type CancelablePromise } from '../tools/callable-tool.ts';
 import { createLogger } from '../utils/logger.ts';
 import { createAbortError, isAbortError, throwIfAborted } from '../utils/abort.ts';
 import { parseEnvPositiveInt } from '../utils/env.ts';
@@ -32,8 +32,6 @@ type ToolResultTask = {
   promise: Promise<ToolResult>;
   cancel: () => void;
 };
-
-type CancelablePromise<T> = Promise<T> & { cancel?: () => void };
 
 type ToolCallGroup = {
   isTaskBatch: boolean;
@@ -123,9 +121,7 @@ function createToolResultTask(toolset: Toolset, toolCall: ToolCall): ToolResultT
   }
 
   const cancel =
-    typeof rawResult.cancel === 'function'
-      ? rawResult.cancel.bind(rawResult)
-      : NOOP;
+    rawResult.cancel.bind(rawResult);
   const promise = rawResult.catch((error) => toToolErrorResult(toolCall.id, error));
 
   return { promise, cancel };

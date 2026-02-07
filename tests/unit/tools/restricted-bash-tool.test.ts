@@ -4,10 +4,11 @@
  * Tests for the restricted bash tool permission filtering.
  */
 
-import { describe, test, expect, beforeAll, afterAll } from 'bun:test';
+import { describe, test, expect, beforeAll, afterAll, mock } from 'bun:test';
 import { RestrictedBashTool, isCommandBlocked } from '../../../src/tools/restricted-bash-tool.ts';
 import { BashTool } from '../../../src/tools/bash-tool.ts';
 import type { ToolPermissions } from '../../../src/sub-agents/sub-agent-types.ts';
+import type { CancelablePromise, ToolReturnValue } from '../../../src/tools/callable-tool.ts';
 
 describe('isCommandBlocked', () => {
   describe('prefix matching (patterns ending with ":")', () => {
@@ -225,6 +226,27 @@ describe('RestrictedBashTool', () => {
       // 即使是 edit 命令也应该被允许（虽然执行可能失败，但不应该被权限阻止）
       const result = await restrictedTool.call({ command: 'echo "test"' });
       expect(result.isError).toBe(false);
+    });
+
+    test('should preserve cancel method from delegate promise', () => {
+      const permissions: ToolPermissions = {
+        include: 'all',
+        exclude: [],
+      };
+      const cancel = mock(() => {});
+      const pending = new Promise<ToolReturnValue>(() => {}) as CancelablePromise<ToolReturnValue>;
+      pending.cancel = cancel;
+      const delegate = {
+        description: 'mock bash tool',
+        call: mock(() => pending),
+      } as unknown as BashTool;
+
+      const restrictedTool = new RestrictedBashTool(delegate, permissions);
+      const resultPromise = restrictedTool.call({ command: 'echo "test"' }) as CancelablePromise<ToolReturnValue>;
+      resultPromise.cancel?.();
+
+      expect(typeof resultPromise.cancel).toBe('function');
+      expect(cancel).toHaveBeenCalledTimes(1);
     });
   });
 

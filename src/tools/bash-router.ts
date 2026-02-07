@@ -24,6 +24,7 @@ import { getDisallowedShellWriteReason } from './constants.ts';
 import type { AnthropicClient } from '../providers/anthropic/anthropic-client.ts';
 import type { OnUsage } from '../providers/generate.ts';
 import type { BashTool } from './bash-tool.ts';
+import { asCancelablePromise, type CancelablePromise } from './callable-tool.ts';
 import type {
   ToolResultEvent,
   SubAgentCompleteEvent,
@@ -158,31 +159,53 @@ export class BashRouter {
   /**
    * Route and execute a command
    */
-  async route(command: string, restart: boolean = false): Promise<CommandResult> {
+  route(command: string, restart: boolean = false): CancelablePromise<CommandResult> {
     // Handle session restart
     if (restart) {
-      await this.session.restart();
+      let cancelled = false;
+      let routedPromise: CancelablePromise<CommandResult> | null = null;
+      return asCancelablePromise(
+        this.session.restart().then(() => {
+          if (cancelled) {
+            return {
+              stdout: '',
+              stderr: 'Command execution interrupted.',
+              exitCode: 130,
+            };
+          }
+
+          routedPromise = this.route(command, false);
+          if (cancelled) {
+            routedPromise.cancel?.();
+          }
+          return routedPromise;
+        }),
+        () => {
+          cancelled = true;
+          routedPromise?.cancel?.();
+        }
+      );
     }
 
     const disallowedWriteReason = this.detectDisallowedWritePattern(command);
     if (disallowedWriteReason) {
-      return buildWritePolicyError(disallowedWriteReason);
+      return asCancelablePromise(Promise.resolve(buildWritePolicyError(disallowedWriteReason)));
     }
 
     const commandType = this.identifyCommandType(command);
 
     switch (commandType) {
       case CommandType.NATIVE_SHELL_COMMAND:
-        return this.nativeShellCommandHandler.execute(command);
+        return asCancelablePromise(this.nativeShellCommandHandler.execute(command));
 
       case CommandType.AGENT_SHELL_COMMAND:
         return this.executeAgentShellCommand(command);
 
       case CommandType.EXTEND_SHELL_COMMAND:
-        return this.executeExtendShellCommand(command);
+        return asCancelablePromise(this.executeExtendShellCommand(command));
 
       default:
-        return errorResult(`Unknown command type: ${command}`);
+        return asCancelablePromise(Promise.resolve(errorResult(`Unknown command type: ${command}`)));
     }
   }
 
@@ -275,19 +298,19 @@ export class BashRouter {
   /**
    * Execute Agent Shell Command commands (Layer 2)
    */
-  private async executeAgentShellCommand(command: string): Promise<CommandResult> {
+  private executeAgentShellCommand(command: string): CancelablePromise<CommandResult> {
     const trimmed = command.trim();
 
     // Route to appropriate handler based on command prefix
     for (const entry of this.agentHandlers) {
       if (this.matchesCommand(trimmed, entry.command)) {
-        return entry.handler.execute(command);
+        return asCancelablePromise(entry.handler.execute(command));
       }
     }
 
     // command:search
     if (trimmed.startsWith(COMMAND_SEARCH_PREFIX)) {
-      return this.commandSearchHandler.execute(command);
+      return asCancelablePromise(this.commandSearchHandler.execute(command));
     }
 
     // task:* commands
@@ -297,10 +320,10 @@ export class BashRouter {
 
     // Skill management commands: skill:search, skill:load, skill:enhance
     if (startsWithAny(trimmed, SKILL_MANAGEMENT_COMMAND_PREFIXES)) {
-      return this.executeSkillManagementCommand(command);
+      return asCancelablePromise(this.executeSkillManagementCommand(command));
     }
 
-    return errorResult(`Unknown Agent Shell Command: ${command}`);
+    return asCancelablePromise(Promise.resolve(errorResult(`Unknown Agent Shell Command: ${command}`)));
   }
 
   /**
@@ -577,11 +600,11 @@ export class BashRouter {
   /**
    * Execute task command
    */
-  private async executeTaskCommand(command: string): Promise<CommandResult> {
+  private executeTaskCommand(command: string): CancelablePromise<CommandResult> {
     // Lazy initialize task command handler
     if (!this.taskCommandHandler) {
       if (!this.llmClient || !this.toolExecutor) {
-        return errorResult('Task commands require LLM client and tool executor');
+        return asCancelablePromise(Promise.resolve(errorResult('Task commands require LLM client and tool executor')));
       }
 
       this.taskCommandHandler = new TaskCommandHandler({

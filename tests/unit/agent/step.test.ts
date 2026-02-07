@@ -8,19 +8,21 @@ import { describe, expect, it, mock } from 'bun:test';
 import { step, type StepResult } from '../../../src/agent/step.ts';
 import { createTextMessage, type Message, type ToolCall, type ToolResult } from '../../../src/providers/message.ts';
 import { CallableToolset, type Toolset } from '../../../src/tools/toolset.ts';
-import { ToolOk, ToolError } from '../../../src/tools/callable-tool.ts';
-import type { CallableTool, ToolReturnValue } from '../../../src/tools/callable-tool.ts';
+import { ToolOk, ToolError, asCancelablePromise } from '../../../src/tools/callable-tool.ts';
+import type { CallableTool, CancelablePromise, ToolReturnValue } from '../../../src/tools/callable-tool.ts';
 import type { AnthropicClient } from '../../../src/providers/anthropic/anthropic-client.ts';
 import type { StreamedMessagePart } from '../../../src/providers/anthropic/anthropic-types.ts';
 import { BashToolSchema } from '../../../src/tools/bash-tool-schema.ts';
 
-function createMockCallableTool(handler: (args: unknown) => Promise<ToolReturnValue>): CallableTool<unknown> {
+function createMockCallableTool(
+  handler: (args: unknown) => Promise<ToolReturnValue> | CancelablePromise<ToolReturnValue>
+): CallableTool<unknown> {
   return {
     name: 'Bash',
     description: 'Mock bash tool',
     paramsSchema: {} as any,
     toolDefinition: BashToolSchema,
-    call: handler,
+    call: (args: unknown) => asCancelablePromise(Promise.resolve(handler(args))),
   } as unknown as CallableTool<unknown>;
 }
 
@@ -246,7 +248,7 @@ describe('step', () => {
     const toolset: Toolset = {
       tools: [BashToolSchema],
       handle: mock(() => {
-        const pending = new Promise<ToolResult>(() => {}) as Promise<ToolResult> & { cancel?: () => void };
+        const pending = new Promise<ToolResult>(() => {}) as Promise<ToolResult> & { cancel: () => void };
         pending.cancel = cancel;
         return pending;
       }),

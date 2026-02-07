@@ -9,7 +9,13 @@
  */
 
 import { z } from 'zod';
-import { CallableTool, ToolError, type ToolReturnValue } from './callable-tool.ts';
+import {
+  CallableTool,
+  ToolError,
+  asCancelablePromise,
+  type ToolReturnValue,
+  type CancelablePromise,
+} from './callable-tool.ts';
 import type { BashTool, BashToolParams } from './bash-tool.ts';
 import type { ToolPermissions } from '../sub-agents/sub-agent-types.ts';
 import { extractBaseCommand } from './constants.ts';
@@ -115,15 +121,15 @@ export class RestrictedBashTool extends CallableTool<BashToolParams> {
     this.description = delegate.description;
   }
 
-  protected async execute(params: BashToolParams): Promise<ToolReturnValue> {
+  protected execute(params: BashToolParams): CancelablePromise<ToolReturnValue> {
     const { command } = params;
 
     // 检查命令是否被阻止
     if (isCommandBlocked(command, this.permissions.exclude)) {
-      return ToolError({
+      return asCancelablePromise(Promise.resolve(ToolError({
         message: getBlockedCommandMessage(command, this.agentType),
         brief: 'Command blocked',
-      });
+      })));
     }
 
     // 委托给原 BashTool 执行

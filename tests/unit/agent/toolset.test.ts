@@ -57,4 +57,23 @@ describe('SimpleToolset', () => {
     expect(result.returnValue.message).toContain('Unknown tool');
     expect(result.returnValue.message).toContain('CORRECTION');
   });
+
+  it('should preserve cancel method from tool promise', async () => {
+    const cancel = mock(() => {});
+    const handler = mock(() => {
+      const pending = new Promise<ToolReturnValue>(() => {}) as Promise<ToolReturnValue> & {
+        cancel?: () => void;
+      };
+      pending.cancel = cancel;
+      return pending;
+    });
+    const toolset = new CallableToolset([createMockCallableTool(handler)]);
+
+    const toolCall: ToolCall = { id: 'call-cancel', name: 'Bash', arguments: '{"command":"sleep 5"}' };
+    const resultPromise = toolset.handle(toolCall) as Promise<ToolResult> & { cancel?: () => void };
+    resultPromise.cancel?.();
+
+    expect(typeof resultPromise.cancel).toBe('function');
+    expect(cancel).toHaveBeenCalledTimes(1);
+  });
 });

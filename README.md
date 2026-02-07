@@ -77,7 +77,9 @@ bun run src/cli/index.ts chat
 | `/tools` | 列出可用工具 |
 | `/skills` | 列出本地技能 |
 | `/sessions` | 列出已保存会话 |
-| `/resume <id>` | 恢复会话 |
+| `/resume` | 列出可恢复会话并选择恢复 |
+| `/resume --latest` | 恢复最近的可恢复会话 |
+| `/resume <id>` | 按会话 ID 恢复会话 |
 | `/skill enhance` | 查看技能自动增强状态 |
 
 ### Shell 命令（以 ! 开头）
@@ -116,7 +118,7 @@ bun run src/cli/index.ts chat
 
 - 默认启用持久化（`SYNAPSE_PERSISTENCE_ENABLED`）
 - 会话存储于 `~/.synapse/sessions/`
-- `/sessions` 查看会话，`/resume <id>` 恢复
+- 使用 `/resume` 查看可恢复会话，`/resume --latest` 恢复最近会话
 
 ### 自动技能增强
 

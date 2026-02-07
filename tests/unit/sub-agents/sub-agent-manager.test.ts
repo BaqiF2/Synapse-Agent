@@ -163,4 +163,29 @@ describe('SubAgentManager', () => {
     expect(alphaResult).toContain('done:ALPHA:ALPHA');
     expect(betaResult).toContain('done:BETA:BETA');
   });
+
+  it('should abort execution when signal is aborted', async () => {
+    const client = createMockClient([
+      [{ type: 'tool_call', id: 'abort-call', name: 'Bash', input: { command: 'sleep 2' } }],
+    ]);
+    const completedEvents: SubAgentCompleteEvent[] = [];
+    const manager = new SubAgentManager({
+      client,
+      bashTool,
+      onComplete: (event) => completedEvents.push(event),
+    });
+    const controller = new AbortController();
+
+    const execution = manager.execute(
+      'general',
+      { prompt: 'abort test', description: 'Abort test' },
+      { signal: controller.signal }
+    );
+    setTimeout(() => controller.abort(), 20);
+
+    await expect(execution).rejects.toMatchObject({ name: 'AbortError' });
+    expect(completedEvents).toHaveLength(1);
+    expect(completedEvents[0]?.success).toBe(false);
+    expect(completedEvents[0]?.error).toBeString();
+  });
 });

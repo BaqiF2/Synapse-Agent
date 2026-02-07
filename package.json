@@ -4,6 +4,9 @@
   "description": "A self-growing AI agent framework based on unified Bash abstraction",
   "type": "module",
   "private": true,
+  "bin": {
+    "synapse": "./src/cli/index.ts"
+  },
   "scripts": {
     "start": "bun run src/cli/index.ts",
     "chat": "bun run src/cli/index.ts chat",

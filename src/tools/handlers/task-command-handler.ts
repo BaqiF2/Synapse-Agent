@@ -18,6 +18,8 @@ import {
   isSubAgentType,
 } from '../../sub-agents/sub-agent-types.ts';
 import { createLogger } from '../../utils/logger.ts';
+import { isAbortError } from '../../utils/abort.ts';
+import { asCancelablePromise, type CancelablePromise } from '../callable-tool.ts';
 
 const logger = createLogger('task-command-handler');
 
@@ -117,7 +119,15 @@ export class TaskCommandHandler {
   /**
    * 执行 Task 命令
    */
-  async execute(command: string): Promise<CommandResult> {
+  execute(command: string): CancelablePromise<CommandResult> {
+    const controller = new AbortController();
+    return asCancelablePromise(
+      this.executeInternal(command, controller.signal),
+      () => controller.abort()
+    );
+  }
+
+  private async executeInternal(command: string, signal: AbortSignal): Promise<CommandResult> {
     try {
       const parsed = parseTaskCommand(command);
 
@@ -150,7 +160,7 @@ export class TaskCommandHandler {
       }
 
       // 执行 Sub Agent
-      const result = await this.manager.execute(parsed.type, validation.data);
+      const result = await this.manager.execute(parsed.type, validation.data, { signal });
 
       return {
         stdout: result,
@@ -158,6 +168,13 @@ export class TaskCommandHandler {
         exitCode: 0,
       };
     } catch (error) {
+      if (signal.aborted || isAbortError(error)) {
+        return {
+          stdout: '',
+          stderr: 'Task execution interrupted.',
+          exitCode: 130,
+        };
+      }
       const message = error instanceof Error ? error.message : String(error);
       logger.error('Task command failed', { error: message });
       return {

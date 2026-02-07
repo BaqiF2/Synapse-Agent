@@ -5,6 +5,7 @@
 import { describe, expect, it, mock, afterEach } from 'bun:test';
 import { BashRouter, CommandType } from '../../../src/tools/bash-router.ts';
 import type { BashSession } from '../../../src/tools/bash-session.ts';
+import type { CancelablePromise } from '../../../src/tools/callable-tool.ts';
 import { McpClient, McpConfigParser } from '../../../src/tools/converters/mcp/index.ts';
 
 function createSessionStub() {
@@ -51,6 +52,46 @@ describe('BashRouter', () => {
     await router.route('echo hello', true);
 
     expect((session as unknown as { restart: ReturnType<typeof mock> }).restart).toHaveBeenCalled();
+  });
+
+  it('should keep cancel propagation when restart is enabled', async () => {
+    let resolveRestart: (() => void) | undefined;
+    const session = createSessionStub() as unknown as {
+      execute: ReturnType<typeof mock>;
+      restart: ReturnType<typeof mock>;
+    };
+    session.restart = mock(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveRestart = resolve;
+        })
+    );
+
+    const router = new BashRouter(session as unknown as BashSession);
+    const innerCancel = mock(() => {});
+    let resolveInner: ((value: { stdout: string; stderr: string; exitCode: number }) => void) | undefined;
+    const innerPromise = new Promise<{ stdout: string; stderr: string; exitCode: number }>((resolve) => {
+      resolveInner = resolve;
+    }) as CancelablePromise<{ stdout: string; stderr: string; exitCode: number }>;
+    innerPromise.cancel = innerCancel;
+    (router as unknown as { executeAgentShellCommand: ReturnType<typeof mock> }).executeAgentShellCommand =
+      mock(() => innerPromise);
+
+    const resultPromise = router.route('task:general --prompt "hi" --description "cancel"', true) as CancelablePromise<{
+      stdout: string;
+      stderr: string;
+      exitCode: number;
+    }>;
+
+    expect(typeof resultPromise.cancel).toBe('function');
+
+    resolveRestart?.();
+    await Promise.resolve();
+    resultPromise.cancel?.();
+    resolveInner?.({ stdout: '', stderr: '', exitCode: 0 });
+    await resultPromise;
+
+    expect(innerCancel).toHaveBeenCalledTimes(1);
   });
 
   it('should reject task commands when dependencies are missing', async () => {

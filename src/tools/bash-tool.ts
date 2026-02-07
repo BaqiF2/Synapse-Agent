@@ -12,7 +12,14 @@
 
 import path from 'node:path';
 import { z } from 'zod';
-import { CallableTool, ToolOk, ToolError, type ToolReturnValue } from './callable-tool.ts';
+import {
+  CallableTool,
+  ToolOk,
+  ToolError,
+  asCancelablePromise,
+  type ToolReturnValue,
+  type CancelablePromise,
+} from './callable-tool.ts';
 import { BashRouter } from './bash-router.ts';
 import { BashSession } from './bash-session.ts';
 import { loadDesc } from '../utils/load-desc.js';
@@ -97,48 +104,50 @@ export class BashTool extends CallableTool<BashToolParams> {
     this.router.setToolExecutor(this);
   }
 
-  protected async execute(params: BashToolParams): Promise<ToolReturnValue> {
+  protected execute(params: BashToolParams): CancelablePromise<ToolReturnValue> {
     const { command, restart } = params;
 
     // Validate command
     if (!command.trim()) {
-      return ToolError({
+      return asCancelablePromise(Promise.resolve(ToolError({
         message: 'Error: command parameter is required and must be a non-empty string',
         brief: 'Empty command',
-      });
+      })));
     }
 
-    try {
-      const result = await this.router.route(command, restart);
-      const timeoutDetected = result.stderr.includes(COMMAND_TIMEOUT_MARKER);
+    const routePromise = this.router.route(command, restart);
+    const resultPromise: CancelablePromise<ToolReturnValue> = asCancelablePromise(routePromise
+      .then(async (result) => {
+        const timeoutDetected = result.stderr.includes(COMMAND_TIMEOUT_MARKER);
 
-      if (timeoutDetected) {
-        await this.restartSessionSafely();
-      }
+        if (timeoutDetected) {
+          await this.restartSessionSafely();
+        }
 
-      // Format output
-      let output = '';
-      if (result.stdout) {
-        output += result.stdout;
-      }
-      let stderr = result.stderr;
-      if (timeoutDetected) {
-        const restartNote = 'Bash session restarted after timeout.';
-        stderr = stderr ? `${stderr}\n${restartNote}` : restartNote;
-      }
-      if (stderr) {
-        if (output) output += '\n\n';
-        output += `[stderr]\n${stderr}`;
-      }
+        // Format output
+        let output = '';
+        if (result.stdout) {
+          output += result.stdout;
+        }
+        let stderr = result.stderr;
+        if (timeoutDetected) {
+          const restartNote = 'Bash session restarted after timeout.';
+          stderr = stderr ? `${stderr}\n${restartNote}` : restartNote;
+        }
+        if (stderr) {
+          if (output) output += '\n\n';
+          output += `[stderr]\n${stderr}`;
+        }
 
-      // Empty output handling
-      if (!output.trim()) {
-        output = '(Command executed successfully with no output)';
-      }
+        // Empty output handling
+        if (!output.trim()) {
+          output = '(Command executed successfully with no output)';
+        }
 
-      if (result.exitCode === 0) {
-        return ToolOk({ output });
-      } else {
+        if (result.exitCode === 0) {
+          return ToolOk({ output });
+        }
+
         const baseCommand = extractBaseCommand(command);
         const helpHint = HELP_HINT_TEMPLATE.replace('{command}', baseCommand);
         const failureCategory = classifyToolFailure(result.stderr);
@@ -155,17 +164,19 @@ export class BashTool extends CallableTool<BashToolParams> {
             exitCode: result.exitCode,
           },
         });
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      if (message.includes(COMMAND_TIMEOUT_MARKER)) {
-        await this.restartSessionSafely();
-      }
-      return ToolError({
-        message: `Command execution failed: ${message}`,
-        brief: 'Command execution failed',
-      });
-    }
+      })
+      .catch(async (error: unknown) => {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        if (message.includes(COMMAND_TIMEOUT_MARKER)) {
+          await this.restartSessionSafely();
+        }
+        return ToolError({
+          message: `Command execution failed: ${message}`,
+          brief: 'Command execution failed',
+        });
+      }), () => routePromise.cancel?.());
+
+    return resultPromise;
   }
 
   private async restartSessionSafely(): Promise<void> {

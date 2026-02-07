@@ -21,7 +21,7 @@ import chalk from 'chalk';
 // Agent imports
 import { AnthropicClient } from '../providers/anthropic/anthropic-client.ts';
 import { buildSystemPrompt } from '../agent/system-prompt.ts';
-import { Session } from '../agent/session.ts';
+import { Session, type SessionInfo } from '../agent/session.ts';
 import { AgentRunner } from '../agent/agent-runner.ts';
 import { formatCostOutput } from '../agent/session-usage.ts';
 import { CallableToolset } from '../tools/toolset.ts';
@@ -63,6 +63,12 @@ export interface SigintHandlerOptions {
   promptUser: () => void;
   interruptCurrentTurn: () => void;
   clearCurrentInput?: () => void;
+}
+
+interface SpecialCommandOptions {
+  skipExit?: boolean;
+  onResumeSession?: (sessionId: string) => void;
+  getCurrentSessionId?: () => string | null;
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -123,6 +129,15 @@ function formatRelativeTime(dateString: string): string {
   return `${diffDays}d ago`;
 }
 
+function filterResumableSessions(
+  sessions: SessionInfo[],
+  currentSessionId: string | null
+): SessionInfo[] {
+  return sessions.filter(
+    (session) => session.messageCount > 0 && session.id !== currentSessionId
+  );
+}
+
 function extractSkillDescription(content: string): string | null {
   const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
   if (frontmatterMatch?.[1]) {
@@ -161,7 +176,7 @@ function showHelp(): void {
   console.log();
   console.log(chalk.white.bold('Session:'));
   console.log(chalk.gray('  /resume          ') + chalk.white('List and resume a previous session'));
-  console.log(chalk.gray('  /resume --last   ') + chalk.white('Resume the most recent session'));
+  console.log(chalk.gray('  /resume --latest ') + chalk.white('Resume the most recent previous session'));
   console.log();
   console.log(chalk.white.bold('Skill:'));
   console.log(chalk.gray('  /skill enhance       ') + chalk.white('Show auto-enhance status'));
@@ -329,7 +344,7 @@ export function handleSpecialCommand(
   command: string,
   rl: readline.Interface,
   agentRunner?: AgentRunner | null,
-  options?: { skipExit?: boolean; onResumeSession?: (sessionId: string) => void }
+  options?: SpecialCommandOptions
 ): boolean {
   const cmd = command.toLowerCase().trim();
   const parts = command.trim().split(/\s+/);
@@ -389,7 +404,8 @@ export function handleSpecialCommand(
       if (cmd === '/resume' || cmd.startsWith('/resume ')) {
         const args = parts.slice(1);
         if (options?.onResumeSession) {
-          handleResumeCommand(args, rl, options.onResumeSession);
+          const currentSessionId = options.getCurrentSessionId?.() ?? null;
+          handleResumeCommand(args, rl, options.onResumeSession, currentSessionId);
         } else {
           console.log(chalk.yellow('\nResume not available in this context.\n'));
         }
@@ -481,17 +497,30 @@ function handleSkillEnhanceCommand(args: string[], _agentRunner?: AgentRunner | 
 async function handleResumeCommand(
   args: string[],
   rl: readline.Interface,
-  onSessionSelected: (sessionId: string) => void
+  onSessionSelected: (sessionId: string) => void,
+  currentSessionId: string | null
 ): Promise<void> {
-  // /resume --last
+  const loadResumableSessions = async (): Promise<SessionInfo[]> => {
+    const sessions = await Session.list();
+    return filterResumableSessions(sessions, currentSessionId);
+  };
+
   if (args.includes('--last')) {
-    const session = await Session.continue();
-    if (!session) {
+    console.log(chalk.red('\nInvalid option: --last'));
+    console.log(chalk.gray('Use /resume --latest instead.\n'));
+    return;
+  }
+
+  // /resume --latest
+  if (args.includes('--latest')) {
+    const sessions = await loadResumableSessions();
+    const latest = sessions[0];
+    if (!latest) {
       console.log(chalk.yellow('\nNo previous sessions found.\n'));
       return;
     }
-    console.log(chalk.green(`\n✓ Resuming session: ${session.id}\n`));
-    onSessionSelected(session.id);
+    console.log(chalk.green(`\n✓ Resuming session: ${latest.id}\n`));
+    onSessionSelected(latest.id);
     return;
   }
 
@@ -499,6 +528,11 @@ async function handleResumeCommand(
   const firstArg = args[0];
   if (args.length > 0 && firstArg && !firstArg.startsWith('-')) {
     const sessionId = firstArg;
+    if (sessionId === currentSessionId) {
+      onSessionSelected(sessionId);
+      return;
+    }
+
     const session = await Session.find(sessionId);
     if (!session) {
       console.log(chalk.red(`\nSession not found: ${sessionId}\n`));
@@ -510,7 +544,7 @@ async function handleResumeCommand(
   }
 
   // /resume (interactive list)
-  const sessions = await Session.list();
+  const sessions = await loadResumableSessions();
 
   if (sessions.length === 0) {
     console.log(chalk.yellow('\nNo previous sessions found.\n'));
@@ -567,7 +601,10 @@ async function handleResumeCommand(
 /**
  * Initialize the AgentRunner with LLM client and tools
  */
-function initializeAgent(session: Session): AgentRunner | null {
+function initializeAgent(
+  session: Session,
+  options: { shouldRenderTurn: () => boolean }
+): AgentRunner | null {
   try {
     const llmClient = new AnthropicClient();
     let runnerRef: AgentRunner | null = null;
@@ -579,9 +616,18 @@ function initializeAgent(session: Session): AgentRunner | null {
     const bashTool = new BashTool({
       llmClient,
       getConversationPath: () => session?.historyPath ?? null,
-      onSubAgentToolStart: (event) => terminalRenderer.renderSubAgentToolStart(event),
-      onSubAgentToolEnd: (event) => terminalRenderer.renderSubAgentToolEnd(event),
-      onSubAgentComplete: (event) => terminalRenderer.renderSubAgentComplete(event),
+      onSubAgentToolStart: (event) => {
+        if (!options.shouldRenderTurn()) return;
+        terminalRenderer.renderSubAgentToolStart(event);
+      },
+      onSubAgentToolEnd: (event) => {
+        if (!options.shouldRenderTurn()) return;
+        terminalRenderer.renderSubAgentToolEnd(event);
+      },
+      onSubAgentComplete: (event) => {
+        if (!options.shouldRenderTurn()) return;
+        terminalRenderer.renderSubAgentComplete(event);
+      },
       onSubAgentUsage: async (usage, model) => {
         if (!runnerRef) {
           return;
@@ -600,11 +646,13 @@ function initializeAgent(session: Session): AgentRunner | null {
       maxIterations: MAX_TOOL_ITERATIONS,
       session,
       onMessagePart: (part) => {
+        if (!options.shouldRenderTurn()) return;
         if (part.type === 'text' && part.text.trim()) {
           process.stdout.write(formatStreamText(part.text));
         }
       },
       onToolCall: (toolCall) => {
+        if (!options.shouldRenderTurn()) return;
         let command = toolCall.name;
         if (toolCall.name === 'Bash') {
           try {
@@ -632,6 +680,7 @@ function initializeAgent(session: Session): AgentRunner | null {
         });
       },
       onToolResult: (result) => {
+        if (!options.shouldRenderTurn()) return;
         terminalRenderer.renderToolEnd({
           id: result.toolCallId,
           success: !result.returnValue.isError,
@@ -728,12 +777,13 @@ export async function startRepl(): Promise<void> {
   const fixedBottomRenderer = new FixedBottomRenderer();
   fixedBottomRenderer.attachTodoStore(todoStore);
 
-  // 初始化agent
-  let agentRunner = initializeAgent(session);
-
   // State
   const state: ReplState = { isProcessing: false };
   let activeTurn: ActiveTurnController | null = null;
+  const shouldRenderTurn = () => Boolean(activeTurn && !activeTurn.interrupted);
+
+  // 初始化agent
+  let agentRunner = initializeAgent(session, { shouldRenderTurn });
 
   // Welcome banner
   showWelcomeBanner(session.id);
@@ -769,7 +819,7 @@ export async function startRepl(): Promise<void> {
 
     const response = await agentRunner.run(trimmedInput, { signal });
     const hookOutput = extractHookOutput(response);
-    if (hookOutput) {
+    if (hookOutput && shouldRenderTurn()) {
       process.stdout.write(chalk.cyan(`\n${hookOutput}`));
     }
   };
@@ -792,12 +842,17 @@ export async function startRepl(): Promise<void> {
     if (resumedSession) {
       session = resumedSession;
       // 重新初始化 agent 使用恢复的 session
-      agentRunner = initializeAgent(session);
+      agentRunner = initializeAgent(session, { shouldRenderTurn });
       const history = await session.loadHistory();
       console.log(chalk.green(`✓ Loaded ${history.length} messages from session\n`));
     }
     promptUser();
   };
+
+  const createSpecialCommandOptions = (): SpecialCommandOptions => ({
+    onResumeSession: handleResumeSession,
+    getCurrentSessionId: () => session.id,
+  });
 
   // 包装 handleLineInput 以传递 onResumeSession
   const handleLine = async (input: string) => {
@@ -808,7 +863,7 @@ export async function startRepl(): Promise<void> {
       const isExitCommand = trimmedInput === '/exit' || trimmedInput === '/quit';
       if (isExitCommand) {
         interruptCurrentTurn();
-        handleSpecialCommand(trimmedInput, rl, agentRunner, { onResumeSession: handleResumeSession });
+        handleSpecialCommand(trimmedInput, rl, agentRunner, createSpecialCommandOptions());
         return;
       }
       clearPromptLine(rl);
@@ -837,7 +892,7 @@ export async function startRepl(): Promise<void> {
 
     // Special commands (/ prefix)
     if (trimmedInput.startsWith('/')) {
-      handleSpecialCommand(trimmedInput, rl, agentRunner, { onResumeSession: handleResumeSession });
+      handleSpecialCommand(trimmedInput, rl, agentRunner, createSpecialCommandOptions());
       promptUser();
       return;
     }

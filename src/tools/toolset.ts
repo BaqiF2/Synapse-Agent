@@ -12,8 +12,8 @@
 
 import type Anthropic from '@anthropic-ai/sdk';
 import type { ToolCall, ToolResult } from '../providers/message.ts';
-import type { CallableTool, ToolReturnValue } from './callable-tool.ts';
-import { ToolError } from './callable-tool.ts';
+import type { CallableTool, CancelablePromise } from './callable-tool.ts';
+import { ToolError, asCancelablePromise } from './callable-tool.ts';
 import { TOOL_FAILURE_CATEGORIES } from '../utils/tool-failure.ts';
 
 export type { ToolResult };
@@ -26,7 +26,7 @@ export interface Toolset {
   readonly tools: Anthropic.Tool[];
 
   /** Handle a tool call, returns result promise */
-  handle(toolCall: ToolCall): Promise<ToolResult>;
+  handle(toolCall: ToolCall): CancelablePromise<ToolResult>;
 }
 
 /**
@@ -47,32 +47,34 @@ export class CallableToolset implements Toolset {
     }
   }
 
-  async handle(toolCall: ToolCall): Promise<ToolResult> {
+  handle(toolCall: ToolCall): CancelablePromise<ToolResult> {
     const tool = this.toolMap.get(toolCall.name);
-
-    let returnValue: ToolReturnValue;
 
     if (!tool) {
       // 提供明确的纠正指导，告诉模型正确的工具调用方式
       const correctionHint = toolCall.name !== 'Bash'
         ? `\n\nCORRECTION: You can ONLY call the "Bash" tool. To use "${toolCall.name}", call Bash with command parameter:\nBash(command="${toolCall.name} <args>")\n\nExample: Bash(command="read ./README.md")`
         : '';
-      returnValue = ToolError({
-        message: `Unknown tool: ${toolCall.name}${correctionHint}`,
-        brief: 'Unknown tool',
-        extras: {
-          failureCategory: TOOL_FAILURE_CATEGORIES.commandNotFound,
-          toolName: toolCall.name,
-        },
-      });
-    } else {
-      const args = JSON.parse(toolCall.arguments);
-      returnValue = await tool.call(args);
+      return asCancelablePromise(Promise.resolve({
+        toolCallId: toolCall.id,
+        returnValue: ToolError({
+          message: `Unknown tool: ${toolCall.name}${correctionHint}`,
+          brief: 'Unknown tool',
+          extras: {
+            failureCategory: TOOL_FAILURE_CATEGORIES.commandNotFound,
+            toolName: toolCall.name,
+          },
+        }),
+      }));
     }
 
-    return {
+    const args = JSON.parse(toolCall.arguments);
+    const toolPromise = tool.call(args);
+    const resultPromise: CancelablePromise<ToolResult> = asCancelablePromise(toolPromise.then((returnValue) => ({
       toolCallId: toolCall.id,
       returnValue,
-    };
+    })), () => toolPromise.cancel?.());
+
+    return resultPromise;
   }
 }

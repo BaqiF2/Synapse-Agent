@@ -178,6 +178,143 @@ describe('REPL commands', () => {
     console.log = originalConsoleLog;
   });
 
+  it('handleSpecialCommand should use --latest and exclude current/empty sessions', async () => {
+    console.log = mock(() => {}) as unknown as typeof console.log;
+    const rl = createMockRl();
+    const onResumeSession = mock((_sessionId: string) => {});
+    const { handleSpecialCommand } = await loadRepl();
+    const { Session } = await import('../../../src/agent/session.ts');
+
+    const listSpy = spyOn(Session, 'list').mockResolvedValue([
+      {
+        id: 'session-current',
+        createdAt: '2026-02-07T00:00:00.000Z',
+        updatedAt: '2026-02-07T00:02:00.000Z',
+        messageCount: 2,
+      },
+      {
+        id: 'session-empty',
+        createdAt: '2026-02-07T00:00:00.000Z',
+        updatedAt: '2026-02-07T00:01:00.000Z',
+        messageCount: 0,
+      },
+      {
+        id: 'session-previous',
+        createdAt: '2026-02-07T00:00:00.000Z',
+        updatedAt: '2026-02-07T00:00:30.000Z',
+        messageCount: 3,
+      },
+    ]);
+
+    const handled = handleSpecialCommand('/resume --latest', rl as unknown as readline.Interface, null, {
+      skipExit: true,
+      onResumeSession,
+      getCurrentSessionId: () => 'session-current',
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(handled).toBe(true);
+    expect(listSpy).toHaveBeenCalled();
+    expect(onResumeSession).toHaveBeenCalledWith('session-previous');
+
+    listSpy.mockRestore();
+    console.log = originalConsoleLog;
+  });
+
+  it('handleSpecialCommand should reject /resume --last and suggest --latest', async () => {
+    console.log = mock(() => {}) as unknown as typeof console.log;
+    const rl = createMockRl();
+    const onResumeSession = mock((_sessionId: string) => {});
+    const { handleSpecialCommand } = await loadRepl();
+
+    const handled = handleSpecialCommand('/resume --last', rl as unknown as readline.Interface, null, {
+      skipExit: true,
+      onResumeSession,
+      getCurrentSessionId: () => 'session-current',
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(handled).toBe(true);
+    expect(onResumeSession).not.toHaveBeenCalled();
+    const output = getConsoleOutput();
+    expect(output).toContain('Invalid option: --last');
+    expect(output).toContain('--latest');
+
+    console.log = originalConsoleLog;
+  });
+
+  it('handleSpecialCommand should filter session list and not show current/empty items', async () => {
+    console.log = mock(() => {}) as unknown as typeof console.log;
+    const onResumeSession = mock((_sessionId: string) => {});
+    const rl = createMockRl();
+    rl.question = mock((_prompt: string, cb: (answer: string) => void) => cb('1'));
+    const { handleSpecialCommand } = await loadRepl();
+    const { Session } = await import('../../../src/agent/session.ts');
+
+    const listSpy = spyOn(Session, 'list').mockResolvedValue([
+      {
+        id: 'session-current-abcdef',
+        createdAt: '2026-02-07T00:00:00.000Z',
+        updatedAt: '2026-02-07T00:02:00.000Z',
+        messageCount: 8,
+      },
+      {
+        id: 'session-empty-abcdef',
+        createdAt: '2026-02-07T00:00:00.000Z',
+        updatedAt: '2026-02-07T00:01:00.000Z',
+        messageCount: 0,
+      },
+      {
+        id: 'session-visible-abcdef',
+        createdAt: '2026-02-07T00:00:00.000Z',
+        updatedAt: '2026-02-07T00:00:30.000Z',
+        messageCount: 3,
+      },
+    ]);
+
+    const handled = handleSpecialCommand('/resume', rl as unknown as readline.Interface, null, {
+      skipExit: true,
+      onResumeSession,
+      getCurrentSessionId: () => 'session-current-abcdef',
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(handled).toBe(true);
+    expect(onResumeSession).toHaveBeenCalledWith('session-visible-abcdef');
+    const output = getConsoleOutput();
+    expect(output).toContain('session-visible-abcde');
+    expect(output).not.toContain('session-current-abcde');
+    expect(output).not.toContain('session-empty-abcde');
+
+    listSpy.mockRestore();
+    console.log = originalConsoleLog;
+  });
+
+  it('handleSpecialCommand should allow /resume <current-id> without lookup errors', async () => {
+    console.log = mock(() => {}) as unknown as typeof console.log;
+    const rl = createMockRl();
+    const onResumeSession = mock((_sessionId: string) => {});
+    const { handleSpecialCommand } = await loadRepl();
+    const { Session } = await import('../../../src/agent/session.ts');
+    const findSpy = spyOn(Session, 'find').mockResolvedValue(null);
+
+    const handled = handleSpecialCommand('/resume session-current', rl as unknown as readline.Interface, null, {
+      skipExit: true,
+      onResumeSession,
+      getCurrentSessionId: () => 'session-current',
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(handled).toBe(true);
+    expect(onResumeSession).toHaveBeenCalledWith('session-current');
+    expect(findSpy).not.toHaveBeenCalled();
+    const output = getConsoleOutput();
+    expect(output).not.toContain('Session not found');
+
+    findSpy.mockRestore();
+    console.log = originalConsoleLog;
+  });
+
   it('handleSpecialCommand should handle /cost output', async () => {
     console.log = mock(() => {}) as unknown as typeof console.log;
     const rl = createMockRl();
