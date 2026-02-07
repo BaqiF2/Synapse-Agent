@@ -30,6 +30,21 @@ describe('Sub-agent configs index', () => {
     expect(config.permissions.exclude).toContain('task:');
   });
 
+  it('should keep explore sub-agent path-scoped instead of semantic-wide search', () => {
+    const config = getConfig('explore');
+
+    expect(config.systemPrompt).toContain('path-scoped');
+    expect(config.systemPrompt).toContain('ONLY inspect the assigned path');
+    expect(config.systemPrompt).toContain('do not run repository-wide semantic exploration');
+  });
+
+  it('should keep general sub-agent as semantic research mode', () => {
+    const config = getConfig('general');
+
+    expect(config.systemPrompt).toContain('semantic');
+    expect(config.systemPrompt).toContain('broad synthesis');
+  });
+
   it('should build skill search config with empty permissions', () => {
     const config = getConfig('skill', 'search');
 

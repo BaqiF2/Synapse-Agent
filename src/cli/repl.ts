@@ -590,9 +590,6 @@ function initializeAgent(session: Session): AgentRunner | null {
       },
     });
 
-    // Delayed binding: pass BashTool to its own router for skill sub-agent
-    bashTool.getRouter().setToolExecutor(bashTool);
-
     const toolset = new CallableToolset([bashTool]);
     const systemPrompt = buildSystemPrompt({ cwd: process.cwd() });
 
@@ -806,6 +803,18 @@ export async function startRepl(): Promise<void> {
   const handleLine = async (input: string) => {
     const trimmedInput = input.trim();
 
+    // 执行中忽略后续输入，避免刷出额外 You> 提示干扰渲染
+    if (state.isProcessing) {
+      const isExitCommand = trimmedInput === '/exit' || trimmedInput === '/quit';
+      if (isExitCommand) {
+        interruptCurrentTurn();
+        handleSpecialCommand(trimmedInput, rl, agentRunner, { onResumeSession: handleResumeSession });
+        return;
+      }
+      clearPromptLine(rl);
+      return;
+    }
+
     // 处理空输入
     if (!trimmedInput) {
       promptUser();
@@ -833,13 +842,6 @@ export async function startRepl(): Promise<void> {
       return;
     }
 
-    // Prevent concurrent requests
-    if (state.isProcessing) {
-      console.log(chalk.yellow('\nPlease wait for the current request to complete.\n'));
-      promptUser();
-      return;
-    }
-
     // Agent conversation
     state.isProcessing = true;
     const turnController: ActiveTurnController = {
@@ -847,6 +849,7 @@ export async function startRepl(): Promise<void> {
       interrupted: false,
     };
     activeTurn = turnController;
+    rl.setPrompt('');
     clearPromptLine(rl);
     console.log();
     process.stdout.write(chalk.magenta('Agent> '));

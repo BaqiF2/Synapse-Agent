@@ -4,6 +4,7 @@ import { BashTool } from '../../../src/tools/bash-tool.ts';
 import type { AnthropicClient } from '../../../src/providers/anthropic/anthropic-client.ts';
 import type { StreamedMessagePart } from '../../../src/providers/anthropic/anthropic-types.ts';
 import type { SubAgentCompleteEvent } from '../../../src/cli/terminal-renderer-types.ts';
+import type { Message } from '../../../src/providers/message.ts';
 
 function createMockClient(responses: StreamedMessagePart[][]): AnthropicClient {
   let callIndex = 0;
@@ -16,6 +17,48 @@ function createMockClient(responses: StreamedMessagePart[][]): AnthropicClient {
         usage: { inputOther: 1, output: 1, inputCacheRead: 0, inputCacheCreation: 0 },
         async *[Symbol.asyncIterator]() {
           for (const part of parts) yield part;
+        },
+      });
+    },
+  } as unknown as AnthropicClient;
+}
+
+function extractTextContent(message: Message | undefined): string {
+  if (!message) {
+    return '';
+  }
+  return message.content
+    .filter((part): part is { type: 'text'; text: string } => part.type === 'text')
+    .map((part) => part.text)
+    .join(' ');
+}
+
+function createParallelToolClient(): AnthropicClient {
+  let sequence = 0;
+
+  return {
+    generate: (_systemPrompt: string, messages: readonly Message[]) => {
+      sequence++;
+      const userPrompt = extractTextContent(messages.find((message) => message.role === 'user'));
+      const token = userPrompt.includes('alpha') ? 'ALPHA' : 'BETA';
+      const toolMessage = messages.find((message) => message.role === 'tool');
+
+      const parts: StreamedMessagePart[] = toolMessage
+        ? [{ type: 'text', text: `done:${token}:${extractTextContent(toolMessage)}` }]
+        : [{
+            type: 'tool_call',
+            id: `tc-${token}-${sequence}`,
+            name: 'Bash',
+            input: { command: `sleep 0.4; printf ${token}` },
+          }];
+
+      return Promise.resolve({
+        id: `msg-${token}-${sequence}`,
+        usage: { inputOther: 1, output: 1, inputCacheRead: 0, inputCacheCreation: 0 },
+        async *[Symbol.asyncIterator]() {
+          for (const part of parts) {
+            yield part;
+          }
         },
       });
     },
@@ -106,5 +149,18 @@ describe('SubAgentManager', () => {
 
     // shutdown should not throw
     expect(() => manager.shutdown()).not.toThrow();
+  });
+
+  it('should isolate bash execution for parallel sub-agent tasks', async () => {
+    const client = createParallelToolClient();
+    const manager = new SubAgentManager({ client, bashTool });
+
+    const [alphaResult, betaResult] = await Promise.all([
+      manager.execute('general', { prompt: 'alpha', description: 'Alpha task' }),
+      manager.execute('general', { prompt: 'beta', description: 'Beta task' }),
+    ]);
+
+    expect(alphaResult).toContain('done:ALPHA:ALPHA');
+    expect(betaResult).toContain('done:BETA:BETA');
   });
 });

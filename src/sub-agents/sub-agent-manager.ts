@@ -22,6 +22,7 @@ import { getConfig } from './configs/index.ts';
 import type { ToolCall, ToolResult } from '../providers/message.ts';
 
 const logger = createLogger('sub-agent-manager');
+const NOOP_CLEANUP = (): void => {};
 
 /**
  * 默认最大迭代次数（从环境变量读取）
@@ -70,6 +71,16 @@ interface SubAgentInstance {
   runner: AgentRunner;
   type: SubAgentType;
   createdAt: Date;
+}
+
+interface AgentWithCleanup {
+  runner: AgentRunner;
+  cleanup: () => void;
+}
+
+interface ToolsetWithCleanup {
+  toolset: CallableToolset;
+  cleanup: () => void;
 }
 
 /**
@@ -122,9 +133,15 @@ export class SubAgentManager {
     });
 
     // 创建带有回调的 AgentRunner，传递 action 参数
-    const agent = this.createAgentWithCallbacks(type, subAgentId, params.description, params.action ?? undefined, () => {
-      toolCount++;
-    });
+    const { runner: agent, cleanup } = this.createAgentWithCallbacks(
+      type,
+      subAgentId,
+      params.description,
+      params.action ?? undefined,
+      () => {
+        toolCount++;
+      }
+    );
 
     let success = true;
     let error: string | undefined;
@@ -136,6 +153,8 @@ export class SubAgentManager {
       success = false;
       error = err instanceof Error ? err.message : String(err);
       result = error;
+    } finally {
+      cleanup();
     }
 
     const duration = Date.now() - startTime;
@@ -180,15 +199,17 @@ export class SubAgentManager {
     description: string,
     action: string | undefined,
     onToolCount: () => void
-  ): AgentRunner {
+  ): AgentWithCleanup {
     const config = getConfig(type, action);
-    const toolset = this.createToolset(config.permissions, type);
+    const { toolset, cleanup } = this.createToolset(config.permissions, type);
+    const onToolStart = this.onToolStart;
+    const onToolEnd = this.onToolEnd;
 
     // 包装工具调用回调
-    const onToolCall = this.onToolStart
+    const onToolCall = onToolStart
       ? (toolCall: ToolCall) => {
           onToolCount();
-          this.onToolStart!({
+          onToolStart({
             id: toolCall.id,
             command: `${toolCall.name}(${toolCall.arguments})`,
             depth: 1, // SubAgent 内部工具 depth = 1
@@ -201,9 +222,9 @@ export class SubAgentManager {
       : undefined;
 
     // 包装工具结果回调
-    const onToolResult = this.onToolEnd
+    const onToolResult = onToolEnd
       ? (toolResult: ToolResult) => {
-          this.onToolEnd!({
+          onToolEnd({
             id: toolResult.toolCallId,
             success: !toolResult.returnValue.isError,
             output: toolResult.returnValue.output || '',
@@ -211,7 +232,7 @@ export class SubAgentManager {
         }
       : undefined;
 
-    return new AgentRunner({
+    const runner = new AgentRunner({
       client: this.client,
       systemPrompt: config.systemPrompt,
       toolset,
@@ -221,6 +242,11 @@ export class SubAgentManager {
       onToolResult,
       onUsage: this.onUsage,
     });
+
+    return {
+      runner,
+      cleanup,
+    };
   }
 
   /**
@@ -228,33 +254,45 @@ export class SubAgentManager {
    *
    * 权限处理逻辑：
    * - include: [] → 返回空 Toolset（不允许任何工具）
-   * - include: 'all' + exclude: [] → 直接使用原始 BashTool
+   * - include: 'all' + exclude: [] → 使用隔离 BashTool（独立 session）
    * - include: 'all' + exclude 非空 → 创建 RestrictedBashTool 进行命令过滤
    *
    * @param permissions - 权限配置
    * @param agentType - Agent 类型（用于错误信息）
    */
-  private createToolset(permissions: ToolPermissions, agentType: SubAgentType): CallableToolset {
+  private createToolset(permissions: ToolPermissions, agentType: SubAgentType): ToolsetWithCleanup {
     // 纯文本推理模式：不允许任何工具
     const isNoToolMode = Array.isArray(permissions.include) && permissions.include.length === 0;
     if (isNoToolMode) {
-      return new CallableToolset([]);
+      return {
+        toolset: new CallableToolset([]),
+        cleanup: NOOP_CLEANUP,
+      };
     }
 
-    // 无排除项：直接使用原始 BashTool
+    const isolatedBashTool = this.bashTool.createIsolatedCopy();
+    const cleanup = () => isolatedBashTool.cleanup();
+
+    // 无排除项：直接使用隔离 BashTool
     const hasNoExclusions = permissions.include === 'all' && permissions.exclude.length === 0;
     if (hasNoExclusions) {
-      return new CallableToolset([this.bashTool]);
+      return {
+        toolset: new CallableToolset([isolatedBashTool]),
+        cleanup,
+      };
     }
 
     // 有排除项：创建受限的 BashTool
     const restrictedBashTool = new RestrictedBashTool(
-      this.bashTool,
+      isolatedBashTool,
       permissions,
       agentType
     );
 
-    return new CallableToolset([restrictedBashTool]);
+    return {
+      toolset: new CallableToolset([restrictedBashTool]),
+      cleanup,
+    };
   }
 
   /**

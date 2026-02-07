@@ -20,8 +20,13 @@ import type { Toolset } from '../tools/toolset.ts';
 import { ToolError } from '../tools/callable-tool.ts';
 import { createLogger } from '../utils/logger.ts';
 import { createAbortError, isAbortError, throwIfAborted } from '../utils/abort.ts';
+import { parseEnvPositiveInt } from '../utils/env.ts';
 
 const logger = createLogger('step');
+const TASK_COMMAND_PREFIX = 'task:';
+const BASH_TOOL_NAME = 'Bash';
+const DEFAULT_MAX_PARALLEL_TASKS = 5;
+const NOOP = (): void => {};
 
 type ToolResultTask = {
   promise: Promise<ToolResult>;
@@ -29,6 +34,11 @@ type ToolResultTask = {
 };
 
 type CancelablePromise<T> = Promise<T> & { cancel?: () => void };
+
+type ToolCallGroup = {
+  isTaskBatch: boolean;
+  toolCalls: ToolCall[];
+};
 
 function toToolErrorResult(toolCallId: string, error: unknown): ToolResult {
   const message = error instanceof Error ? error.message : 'Unknown error';
@@ -39,6 +49,160 @@ function toToolErrorResult(toolCallId: string, error: unknown): ToolResult {
       brief: 'Tool execution failed',
     }),
   };
+}
+
+function parseBashCommand(toolCall: ToolCall): string | null {
+  if (toolCall.name !== BASH_TOOL_NAME) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(toolCall.arguments) as { command?: unknown };
+    return typeof parsed.command === 'string' ? parsed.command : null;
+  } catch {
+    return null;
+  }
+}
+
+function isTaskToolCall(toolCall: ToolCall): boolean {
+  const command = parseBashCommand(toolCall);
+  return command?.trimStart().startsWith(TASK_COMMAND_PREFIX) ?? false;
+}
+
+function groupToolCallsByOrder(toolCalls: readonly ToolCall[]): ToolCallGroup[] {
+  const groups: ToolCallGroup[] = [];
+  let cursor = 0;
+
+  while (cursor < toolCalls.length) {
+    const current = toolCalls[cursor];
+    if (!current) {
+      break;
+    }
+
+    if (!isTaskToolCall(current)) {
+      groups.push({
+        isTaskBatch: false,
+        toolCalls: [current],
+      });
+      cursor += 1;
+      continue;
+    }
+
+    const batch: ToolCall[] = [];
+    while (cursor < toolCalls.length) {
+      const call = toolCalls[cursor];
+      if (!call || !isTaskToolCall(call)) {
+        break;
+      }
+      batch.push(call);
+      cursor += 1;
+    }
+
+    groups.push({
+      isTaskBatch: true,
+      toolCalls: batch,
+    });
+  }
+
+  return groups;
+}
+
+function getMaxParallelTaskLimit(): number {
+  return parseEnvPositiveInt(process.env.SYNAPSE_MAX_PARALLEL_TASKS, DEFAULT_MAX_PARALLEL_TASKS);
+}
+
+function createToolResultTask(toolset: Toolset, toolCall: ToolCall): ToolResultTask {
+  let rawResult: CancelablePromise<ToolResult>;
+  try {
+    rawResult = toolset.handle(toolCall) as CancelablePromise<ToolResult>;
+  } catch (error) {
+    return {
+      promise: Promise.resolve(toToolErrorResult(toolCall.id, error)),
+      cancel: NOOP,
+    };
+  }
+
+  const cancel =
+    typeof rawResult.cancel === 'function'
+      ? rawResult.cancel.bind(rawResult)
+      : NOOP;
+  const promise = rawResult.catch((error) => toToolErrorResult(toolCall.id, error));
+
+  return { promise, cancel };
+}
+
+function notifyToolResult(
+  promise: Promise<ToolResult>,
+  onToolResult: OnToolResult | undefined,
+  isCancelled: () => boolean
+): void {
+  if (!onToolResult) {
+    return;
+  }
+
+  promise
+    .then((result) => {
+      if (isCancelled()) {
+        return;
+      }
+      return Promise.resolve()
+        .then(() => onToolResult(result))
+        .catch((error) => {
+          logger.warn('onToolResult callback failed', { error });
+        });
+    })
+    .catch((error) => {
+      logger.warn('Tool result promise rejected', { error });
+    });
+}
+
+async function waitForSettledResults(
+  toolCalls: readonly ToolCall[],
+  tasks: readonly ToolResultTask[]
+): Promise<ToolResult[]> {
+  const settled = await Promise.allSettled(tasks.map((task) => task.promise));
+
+  return settled.map((entry, index) => {
+    if (entry.status === 'fulfilled') {
+      return entry.value;
+    }
+    const toolCallId = toolCalls[index]?.id ?? `unknown-tool-call-${index}`;
+    return toToolErrorResult(toolCallId, entry.reason);
+  });
+}
+
+async function guardWithAbort<T>(
+  signal: AbortSignal | undefined,
+  task: Promise<T>,
+  onAbort: () => void
+): Promise<T> {
+  if (!signal) {
+    return task;
+  }
+
+  if (signal.aborted) {
+    onAbort();
+    throw createAbortError();
+  }
+
+  return await new Promise<T>((resolve, reject) => {
+    const abort = () => {
+      onAbort();
+      reject(createAbortError());
+    };
+
+    signal.addEventListener('abort', abort, { once: true });
+
+    task
+      .then((value) => {
+        signal.removeEventListener('abort', abort);
+        resolve(value);
+      })
+      .catch((error) => {
+        signal.removeEventListener('abort', abort);
+        reject(error);
+      });
+  });
 }
 
 /**
@@ -96,39 +260,87 @@ export async function step(
   throwIfAborted(signal);
 
   const toolCalls: ToolCall[] = [];
-  const toolResultTasks: Map<string, ToolResultTask> = new Map();
-  let cancelled = false;
+  const startedTasks: Map<string, ToolResultTask> = new Map();
+  let isCancelled = false;
 
-  const cancelAllToolTasks = () => {
-    cancelled = true;
-    for (const task of toolResultTasks.values()) {
+  const cancelTasks = (tasks: Iterable<ToolResultTask>): void => {
+    for (const task of tasks) {
       task.cancel();
     }
   };
 
-  const notifyToolResult = (promise: Promise<ToolResult>) => {
-    if (!onToolResult) {
-      return;
-    }
-
-    promise
-      .then((result) => {
-        if (cancelled) {
-          return;
-        }
-        return Promise.resolve()
-          .then(() => onToolResult(result))
-          .catch((error) => {
-            logger.warn('onToolResult callback failed', { error });
-          });
-      })
-      .catch((error) => {
-        logger.warn('Tool result promise rejected', { error });
-      });
+  const markCancelledAndCancelTasks = (tasks: Iterable<ToolResultTask>): void => {
+    isCancelled = true;
+    cancelTasks(tasks);
   };
 
-  // Tool call callback - start execution immediately
-  const handleToolCall = async (toolCall: ToolCall) => {
+  const cancelStartedTasks = () => {
+    markCancelledAndCancelTasks(startedTasks.values());
+  };
+
+  const startToolTask = (toolCall: ToolCall): ToolResultTask => {
+    const existing = startedTasks.get(toolCall.id);
+    if (existing) {
+      return existing;
+    }
+
+    const task = createToolResultTask(toolset, toolCall);
+
+    startedTasks.set(toolCall.id, task);
+    notifyToolResult(task.promise, onToolResult, () => isCancelled);
+    return task;
+  };
+
+  const executeTaskBatch = async (batch: readonly ToolCall[]): Promise<ToolResult[]> => {
+    const maxParallelTasks = getMaxParallelTaskLimit();
+    const results: ToolResult[] = [];
+
+    for (let start = 0; start < batch.length; start += maxParallelTasks) {
+      throwIfAborted(signal);
+      const chunkToolCalls = batch.slice(start, start + maxParallelTasks);
+      const chunkTasks = chunkToolCalls.map((toolCall) => startToolTask(toolCall));
+
+      const chunkPromise = waitForSettledResults(chunkToolCalls, chunkTasks);
+      const chunkResults = await guardWithAbort(signal, chunkPromise, () => markCancelledAndCancelTasks(chunkTasks));
+
+      results.push(...chunkResults);
+    }
+
+    return results;
+  };
+
+  const executeGroupedToolCalls = async (): Promise<ToolResult[]> => {
+    const groups = groupToolCallsByOrder(toolCalls);
+    const results: ToolResult[] = [];
+
+    for (const group of groups) {
+      throwIfAborted(signal);
+
+      if (group.isTaskBatch) {
+        const batchResults = await executeTaskBatch(group.toolCalls);
+        results.push(...batchResults);
+        continue;
+      }
+
+      const toolCall = group.toolCalls[0];
+      if (!toolCall) {
+        continue;
+      }
+
+      const task = startToolTask(toolCall);
+      const singlePromise = waitForSettledResults([toolCall], [task]);
+      const [singleResult] = await guardWithAbort(signal, singlePromise, () => markCancelledAndCancelTasks([task]));
+
+      if (singleResult) {
+        results.push(singleResult);
+      }
+    }
+
+    return results;
+  };
+
+  // Tool call callback - register call and defer execution until toolResults()
+  const handleToolCall = (toolCall: ToolCall) => {
     logger.debug('Tool call received', { id: toolCall.id, name: toolCall.name });
     toolCalls.push(toolCall);
 
@@ -140,23 +352,6 @@ export async function step(
         logger.warn('onToolCall callback failed', { error });
       }
     }
-
-    let rawResult: CancelablePromise<ToolResult>;
-    try {
-      rawResult = toolset.handle(toolCall) as CancelablePromise<ToolResult>;
-    } catch (error) {
-      rawResult = Promise.resolve(toToolErrorResult(toolCall.id, error)) as CancelablePromise<ToolResult>;
-    }
-
-    const cancel =
-      typeof rawResult.cancel === 'function'
-        ? rawResult.cancel.bind(rawResult)
-        : () => {};
-
-    const promise = rawResult.catch((error) => toToolErrorResult(toolCall.id, error));
-
-    toolResultTasks.set(toolCall.id, { promise, cancel });
-    notifyToolResult(promise);
   };
 
   // Generate response
@@ -169,12 +364,12 @@ export async function step(
       signal,
     });
   } catch (error) {
-    cancelAllToolTasks();
+    cancelStartedTasks();
     if (isAbortError(error) || signal?.aborted) {
       throw createAbortError();
     }
 
-    const tasks = [...toolResultTasks.values()];
+    const tasks = [...startedTasks.values()];
     await Promise.allSettled(tasks.map((task) => task.promise));
     throw error;
   }
@@ -190,46 +385,22 @@ export async function step(
         return [];
       }
 
-      const tasks: ToolResultTask[] = toolCalls
-        .map((toolCall) => toolResultTasks.get(toolCall.id))
-        .filter((task): task is ToolResultTask => Boolean(task));
-
-      if (tasks.length === 0) {
-        return [];
-      }
-
       throwIfAborted(signal);
 
       let aborted = false;
-      let onAbort: (() => void) | null = null;
-      const resultsPromise = Promise.all(tasks.map((task) => task.promise));
-      const guardedPromise = signal
-        ? Promise.race<ToolResult[]>([
-            resultsPromise,
-            new Promise<never>((_, reject) => {
-              onAbort = () => {
-                aborted = true;
-                for (const task of tasks) {
-                  task.cancel();
-                }
-                reject(createAbortError());
-              };
-              signal.addEventListener('abort', onAbort, { once: true });
-            }),
-          ])
-        : resultsPromise;
 
       try {
-        return await guardedPromise;
+        return await executeGroupedToolCalls();
+      } catch (error) {
+        if (isAbortError(error) || signal?.aborted) {
+          aborted = true;
+          throw createAbortError();
+        }
+        throw error;
       } finally {
-        if (signal && onAbort) {
-          signal.removeEventListener('abort', onAbort);
-        }
-        for (const task of tasks) {
-          task.cancel();
-        }
+        cancelTasks(startedTasks.values());
         if (!aborted) {
-          await Promise.allSettled(tasks.map((task) => task.promise));
+          await Promise.allSettled([...startedTasks.values()].map((task) => task.promise));
         }
       }
     },
