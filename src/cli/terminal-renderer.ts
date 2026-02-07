@@ -108,6 +108,10 @@ export class TerminalRenderer {
    * Render tool call start (pending state)
    */
   renderToolStart(event: ToolCallEvent): void {
+    if (event.shouldRender === false) {
+      return;
+    }
+
     this.finalizeOpenLines(event.id);
 
     const call: ActiveCall = {

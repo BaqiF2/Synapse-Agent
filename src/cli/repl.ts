@@ -587,20 +587,30 @@ function initializeAgent(session: Session): AgentRunner | null {
         }
       },
       onToolCall: (toolCall) => {
-        const command =
-          toolCall.name === 'Bash'
-            ? JSON.parse(toolCall.arguments).command
-            : toolCall.name;
+        let command = toolCall.name;
+        if (toolCall.name === 'Bash') {
+          try {
+            const parsed = JSON.parse(toolCall.arguments) as { command?: unknown };
+            if (typeof parsed.command === 'string') {
+              command = parsed.command;
+            }
+          } catch {
+            command = 'Bash';
+          }
+        }
 
         // 跳过 task:* 命令的主层级渲染，由 SubAgent 渲染接管
         if (command.startsWith('task:')) {
           return;
         }
 
+        const shouldRender = !(toolCall.name === 'Bash' && command.trimStart().startsWith('TodoWrite'));
+
         terminalRenderer.renderToolStart({
           id: toolCall.id,
           command,
           depth: 0,
+          shouldRender,
         });
       },
       onToolResult: (result) => {

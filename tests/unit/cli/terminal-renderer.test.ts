@@ -92,4 +92,19 @@ describe('TerminalRenderer', () => {
     expect(output).toContain(`Bash(${expectedPrefix}...)`);
     expect(output).not.toContain(`Bash(${longCommand})`);
   });
+
+  it('should not render tool start/end when shouldRender is false', () => {
+    const renderer = new TerminalRenderer();
+
+    renderer.renderToolStart({
+      id: '5',
+      command: 'TodoWrite \'{"todos":[]}\'',
+      depth: 0,
+      shouldRender: false,
+    });
+    renderer.renderToolEnd({ id: '5', success: true, output: 'ok' });
+
+    expect(process.stdout.write).not.toHaveBeenCalled();
+    expect(console.log).not.toHaveBeenCalled();
+  });
 });
