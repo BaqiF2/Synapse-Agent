@@ -10,6 +10,9 @@
  * - skillEnhanceHook: Main hook function for skill enhancement analysis
  * - HOOK_NAME: Hook registration name constant
  *
+ * Internal Functions:
+ * - hasTodoWriteCall: Check if TodoWrite was called in conversation (prerequisite for enhancement)
+ *
  * Environment Variables:
  * - SYNAPSE_SESSIONS_DIR: Session files directory (default: ~/.synapse/sessions)
  * - SYNAPSE_META_SKILLS_DIR: Meta-skill directory (default: ~/.synapse/skills)
@@ -30,6 +33,7 @@ import { stopHookRegistry } from './stop-hook-registry.ts';
 import { SKILL_ENHANCE_PROGRESS_TEXT } from './skill-enhance-constants.ts';
 import { loadDesc } from '../utils/load-desc.js';
 import type { StopHookContext, HookResult } from './types.ts';
+import type { Message } from '../providers/message.ts';
 
 const logger = createLogger('skill-enhance-hook');
 const PROMPT_TEMPLATE_PATH = path.join(import.meta.dirname, 'skill-enhance-hook-prompt.md');
@@ -183,14 +187,45 @@ async function executeWithTimeout(
 }
 
 /**
+ * Check if TodoWrite was called in the conversation
+ *
+ * 遍历所有 assistant 消息的 toolCalls，检测是否有 TodoWrite 调用。
+ * TodoWrite 是 Agent Shell Command，通过 Bash 工具路由，
+ * 因此需要解析 Bash 工具的 arguments 来检测。
+ *
+ * @param messages - Conversation messages
+ * @returns true if TodoWrite was called at least once
+ */
+function hasTodoWriteCall(messages: readonly Message[]): boolean {
+  for (const message of messages) {
+    if (message.role !== 'assistant' || !message.toolCalls) continue;
+
+    for (const toolCall of message.toolCalls) {
+      if (toolCall.name !== 'Bash') continue;
+
+      try {
+        const args = JSON.parse(toolCall.arguments) as { command?: string };
+        if (typeof args.command === 'string' && args.command.trimStart().startsWith('TodoWrite')) {
+          return true;
+        }
+      } catch {
+        // 忽略 JSON 解析失败的情况
+      }
+    }
+  }
+  return false;
+}
+
+/**
  * Skill Enhancement Hook
  *
  * Analyzes completed conversations and triggers skill enhancement
  * when conditions are met:
  * 1. autoEnhance is enabled in settings
  * 2. sessionId is available (not null)
- * 3. Session file exists and is readable
- * 4. Meta-skills are available
+ * 3. TodoWrite was called at least once in the conversation
+ * 4. Session file exists and is readable
+ * 5. Meta-skills are available
  *
  * @param context - Stop hook context containing session info and messages
  * @returns Hook result with message, or void if skipped
@@ -208,6 +243,12 @@ export async function skillEnhanceHook(context: StopHookContext): Promise<HookRe
   if (!context.sessionId) {
     logger.warn('Enhancement skipped: session not found');
     return { message: 'Enhancement skipped: session not found' };
+  }
+
+  // Step 2.5: 检查是否调用过 TodoWrite
+  if (!hasTodoWriteCall(context.messages)) {
+    logger.debug('No TodoWrite call found, skipping skill enhancement');
+    return;
   }
 
   // Step 3: 读取并压缩会话历史

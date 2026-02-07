@@ -100,7 +100,7 @@ export class SubAgentManager {
    * 执行 Sub Agent 任务
    *
    * @param type - Sub Agent 类型
-   * @param params - 任务参数
+   * @param params - 任务参数（包含可选的 action）
    * @returns 执行结果
    */
   async execute(type: SubAgentType, params: TaskCommandParams): Promise<string> {
@@ -110,12 +110,13 @@ export class SubAgentManager {
 
     logger.info('Executing sub agent task', {
       type,
+      action: params.action,
       subAgentId,
       description: params.description,
     });
 
-    // 创建带有回调的 AgentRunner
-    const agent = this.createAgentWithCallbacks(type, subAgentId, params.description, () => {
+    // 创建带有回调的 AgentRunner，传递 action 参数
+    const agent = this.createAgentWithCallbacks(type, subAgentId, params.description, params.action, () => {
       toolCount++;
     });
 
@@ -171,9 +172,10 @@ export class SubAgentManager {
     type: SubAgentType,
     subAgentId: string,
     description: string,
+    action: string | undefined,
     onToolCount: () => void
   ): AgentRunner {
-    const config = getConfig(type);
+    const config = getConfig(type, action);
     const toolset = this.createToolset(config.permissions, type);
 
     // 包装工具调用回调
@@ -217,19 +219,28 @@ export class SubAgentManager {
   /**
    * 根据权限配置创建 Toolset
    *
-   * 当 permissions.exclude 非空时，创建 RestrictedBashTool 进行命令过滤
-   * 否则直接使用原始 BashTool
+   * 权限处理逻辑：
+   * - include: [] → 返回空 Toolset（不允许任何工具）
+   * - include: 'all' + exclude: [] → 直接使用原始 BashTool
+   * - include: 'all' + exclude 非空 → 创建 RestrictedBashTool 进行命令过滤
    *
    * @param permissions - 权限配置
    * @param agentType - Agent 类型（用于错误信息）
    */
   private createToolset(permissions: ToolPermissions, agentType: SubAgentType): CallableToolset {
-    // 如果没有排除项，直接使用原始 BashTool
-    if (permissions.exclude.length === 0) {
+    // 纯文本推理模式：不允许任何工具
+    const isNoToolMode = Array.isArray(permissions.include) && permissions.include.length === 0;
+    if (isNoToolMode) {
+      return new CallableToolset([]);
+    }
+
+    // 无排除项：直接使用原始 BashTool
+    const hasNoExclusions = permissions.include === 'all' && permissions.exclude.length === 0;
+    if (hasNoExclusions) {
       return new CallableToolset([this.bashTool]);
     }
 
-    // 创建受限的 BashTool
+    // 有排除项：创建受限的 BashTool
     const restrictedBashTool = new RestrictedBashTool(
       this.bashTool,
       permissions,

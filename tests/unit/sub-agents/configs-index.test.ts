@@ -23,12 +23,32 @@ describe('Sub-agent configs index', () => {
     expect(getConfig('explore')).toBe(exploreConfig);
   });
 
-  it('should build skill config with permissions', () => {
+  it('should build skill search config with empty permissions', () => {
+    const config = getConfig('skill', 'search');
+
+    expect(config.type).toBe('skill');
+    // search 模式：纯文本推理，不允许任何工具
+    expect(config.permissions.include).toEqual([]);
+    expect(config.permissions.exclude).toEqual([]);
+    expect(config.maxIterations).toBe(1);
+    expect(config.systemPrompt).toContain('Skill Search Agent');
+  });
+
+  it('should build skill enhance config with restricted permissions', () => {
+    const config = getConfig('skill', 'enhance');
+
+    expect(config.type).toBe('skill');
+    // enhance 模式：允许所有命令，但禁止 task:* 防止递归
+    expect(config.permissions.include).toBe('all');
+    expect(config.permissions.exclude).toContain('task:');
+    expect(config.systemPrompt).toContain('Skill Enhancement Agent');
+  });
+
+  it('should default to enhance config when action not specified', () => {
     const config = getConfig('skill');
 
     expect(config.type).toBe('skill');
-    expect(config.permissions.exclude).toContain('task:skill:search');
-    expect(config.permissions.exclude).toContain('task:skill:enhance');
-    expect(config.systemPrompt).toContain('Skill');
+    expect(config.permissions.include).toBe('all');
+    expect(config.permissions.exclude).toContain('task:');
   });
 });

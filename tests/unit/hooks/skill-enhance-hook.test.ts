@@ -1,8 +1,8 @@
 /**
  * SkillEnhanceHook Tests
  *
- * 测试 SkillEnhanceHook 的配置检查、SessionId 检查、会话读取与压缩、
- * Meta-skill 加载、Sub-agent 执行和超时处理功能。
+ * 测试 SkillEnhanceHook 的配置检查、SessionId 检查、TodoWrite 调用检测、
+ * 会话读取与压缩、Meta-skill 加载、Sub-agent 执行和超时处理功能。
  */
 
 import { describe, expect, it, beforeEach, afterEach, afterAll, mock, spyOn } from 'bun:test';
@@ -10,6 +10,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
 import type { StopHookContext } from '../../../src/hooks/types.ts';
+import type { Message } from '../../../src/providers/message.ts';
 
 let capturedSkillEnhancePrompt: string | null = null;
 
@@ -24,12 +25,35 @@ mock.module('../../../src/sub-agents/sub-agent-manager.ts', () => ({
   },
 }));
 
+/**
+ * 创建包含 TodoWrite 调用的默认消息列表
+ *
+ * 用于测试需要通过 TodoWrite 检测的场景
+ */
+function createMessagesWithTodoWrite(): Message[] {
+  return [
+    { role: 'user', content: [{ type: 'text', text: 'Create tasks' }] },
+    {
+      role: 'assistant',
+      content: [{ type: 'text', text: 'Creating tasks...' }],
+      toolCalls: [
+        {
+          id: 'tool-1',
+          name: 'Bash',
+          arguments: JSON.stringify({ command: 'TodoWrite \'{"todos":[{"content":"Test"}]}\'' }),
+        },
+      ],
+    },
+  ];
+}
+
 // 创建测试用 context
 function createTestContext(overrides: Partial<StopHookContext> = {}): StopHookContext {
   return {
     sessionId: 'test-session-123',
     cwd: '/tmp/test',
-    messages: [],
+    // 默认包含 TodoWrite 调用，以通过检测
+    messages: createMessagesWithTodoWrite(),
     finalResponse: 'Test response',
     ...overrides,
   };
@@ -445,5 +469,204 @@ describe('SkillEnhanceHook - 模块加载时自动注册 (Feature 15)', () => {
 
     // 验证 hook 已注册
     expect(stopHookRegistry.has('skill-enhance')).toBe(true);
+  });
+});
+
+describe('SkillEnhanceHook - TodoWrite 调用检测', () => {
+  let tempDir: string;
+
+  beforeEach(() => {
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skill-enhance-test-'));
+    process.env.SYNAPSE_SESSIONS_DIR = tempDir;
+  });
+
+  afterEach(() => {
+    if (tempDir && fs.existsSync(tempDir)) {
+      fs.rmSync(tempDir, { recursive: true });
+    }
+    delete process.env.SYNAPSE_SESSIONS_DIR;
+  });
+
+  it('无 TodoWrite 调用时应跳过增强', async () => {
+    const { SettingsManager } = await import('../../../src/config/settings-manager.ts');
+    const { skillEnhanceHook } = await import('../../../src/hooks/skill-enhance-hook.ts');
+
+    // 创建会话文件
+    const sessionPath = path.join(tempDir, 'no-todo-write.jsonl');
+    fs.writeFileSync(
+      sessionPath,
+      '{"id":"msg-1","timestamp":"2025-01-01T00:00:00Z","role":"user","content":"Hello"}\n' +
+        '{"id":"msg-2","timestamp":"2025-01-01T00:00:01Z","role":"assistant","content":"Hi!"}\n'
+    );
+
+    // Mock settings
+    const settingsProto = SettingsManager.prototype;
+    const originalIsAutoEnhanceEnabled = settingsProto.isAutoEnhanceEnabled;
+    const originalGetMaxEnhanceContextChars = settingsProto.getMaxEnhanceContextChars;
+
+    settingsProto.isAutoEnhanceEnabled = () => true;
+    settingsProto.getMaxEnhanceContextChars = () => 50000;
+
+    try {
+      // 创建不包含 TodoWrite 调用的 context
+      const context = createTestContext({
+        sessionId: 'no-todo-write',
+        messages: [
+          { role: 'user', content: [{ type: 'text', text: 'Hello' }] },
+          { role: 'assistant', content: [{ type: 'text', text: 'Hi!' }] },
+        ],
+      });
+      const result = await skillEnhanceHook(context);
+
+      // 应该直接返回 undefined（跳过增强）
+      expect(result).toBeUndefined();
+    } finally {
+      settingsProto.isAutoEnhanceEnabled = originalIsAutoEnhanceEnabled;
+      settingsProto.getMaxEnhanceContextChars = originalGetMaxEnhanceContextChars;
+    }
+  });
+
+  it('有 TodoWrite 调用时应继续增强流程', async () => {
+    const { SettingsManager } = await import('../../../src/config/settings-manager.ts');
+    const { skillEnhanceHook } = await import('../../../src/hooks/skill-enhance-hook.ts');
+
+    // 创建会话文件
+    const sessionPath = path.join(tempDir, 'with-todo-write.jsonl');
+    fs.writeFileSync(
+      sessionPath,
+      '{"id":"msg-1","timestamp":"2025-01-01T00:00:00Z","role":"user","content":"Create a task list"}\n' +
+        '{"id":"msg-2","timestamp":"2025-01-01T00:00:01Z","role":"assistant","content":"Creating tasks..."}\n'
+    );
+
+    // Mock settings
+    const settingsProto = SettingsManager.prototype;
+    const originalIsAutoEnhanceEnabled = settingsProto.isAutoEnhanceEnabled;
+    const originalGetMaxEnhanceContextChars = settingsProto.getMaxEnhanceContextChars;
+
+    settingsProto.isAutoEnhanceEnabled = () => true;
+    settingsProto.getMaxEnhanceContextChars = () => 50000;
+
+    try {
+      // 创建包含 TodoWrite 调用的 context
+      const context = createTestContext({
+        sessionId: 'with-todo-write',
+        messages: [
+          { role: 'user', content: [{ type: 'text', text: 'Create a task list' }] },
+          {
+            role: 'assistant',
+            content: [{ type: 'text', text: 'Creating tasks...' }],
+            toolCalls: [
+              {
+                id: 'tool-1',
+                name: 'Bash',
+                arguments: JSON.stringify({ command: 'TodoWrite \'{"todos":[{"content":"Test task"}]}\'' }),
+              },
+            ],
+          },
+        ],
+      });
+      const result = await skillEnhanceHook(context);
+
+      // 应该继续执行并返回结果（不是 undefined）
+      expect(result).toBeDefined();
+      // 不应该因为缺少 TodoWrite 而跳过
+    } finally {
+      settingsProto.isAutoEnhanceEnabled = originalIsAutoEnhanceEnabled;
+      settingsProto.getMaxEnhanceContextChars = originalGetMaxEnhanceContextChars;
+    }
+  });
+
+  it('TodoWrite 命令前有空格时也应检测成功', async () => {
+    const { SettingsManager } = await import('../../../src/config/settings-manager.ts');
+    const { skillEnhanceHook } = await import('../../../src/hooks/skill-enhance-hook.ts');
+
+    // 创建会话文件
+    const sessionPath = path.join(tempDir, 'with-space-todo-write.jsonl');
+    fs.writeFileSync(
+      sessionPath,
+      '{"id":"msg-1","timestamp":"2025-01-01T00:00:00Z","role":"user","content":"Test"}\n'
+    );
+
+    // Mock settings
+    const settingsProto = SettingsManager.prototype;
+    const originalIsAutoEnhanceEnabled = settingsProto.isAutoEnhanceEnabled;
+    const originalGetMaxEnhanceContextChars = settingsProto.getMaxEnhanceContextChars;
+
+    settingsProto.isAutoEnhanceEnabled = () => true;
+    settingsProto.getMaxEnhanceContextChars = () => 50000;
+
+    try {
+      // 创建包含带前导空格的 TodoWrite 调用的 context
+      const context = createTestContext({
+        sessionId: 'with-space-todo-write',
+        messages: [
+          {
+            role: 'assistant',
+            content: [],
+            toolCalls: [
+              {
+                id: 'tool-1',
+                name: 'Bash',
+                arguments: JSON.stringify({ command: '  TodoWrite \'{"todos":[]}\'' }),
+              },
+            ],
+          },
+        ],
+      });
+      const result = await skillEnhanceHook(context);
+
+      // 应该继续执行并返回结果
+      expect(result).toBeDefined();
+    } finally {
+      settingsProto.isAutoEnhanceEnabled = originalIsAutoEnhanceEnabled;
+      settingsProto.getMaxEnhanceContextChars = originalGetMaxEnhanceContextChars;
+    }
+  });
+
+  it('非 Bash 工具调用时不应误判为 TodoWrite', async () => {
+    const { SettingsManager } = await import('../../../src/config/settings-manager.ts');
+    const { skillEnhanceHook } = await import('../../../src/hooks/skill-enhance-hook.ts');
+
+    // 创建会话文件
+    const sessionPath = path.join(tempDir, 'other-tool.jsonl');
+    fs.writeFileSync(
+      sessionPath,
+      '{"id":"msg-1","timestamp":"2025-01-01T00:00:00Z","role":"user","content":"Test"}\n'
+    );
+
+    // Mock settings
+    const settingsProto = SettingsManager.prototype;
+    const originalIsAutoEnhanceEnabled = settingsProto.isAutoEnhanceEnabled;
+    const originalGetMaxEnhanceContextChars = settingsProto.getMaxEnhanceContextChars;
+
+    settingsProto.isAutoEnhanceEnabled = () => true;
+    settingsProto.getMaxEnhanceContextChars = () => 50000;
+
+    try {
+      // 创建包含其他工具调用的 context
+      const context = createTestContext({
+        sessionId: 'other-tool',
+        messages: [
+          {
+            role: 'assistant',
+            content: [],
+            toolCalls: [
+              {
+                id: 'tool-1',
+                name: 'Read',
+                arguments: JSON.stringify({ path: '/some/file.txt' }),
+              },
+            ],
+          },
+        ],
+      });
+      const result = await skillEnhanceHook(context);
+
+      // 应该跳过增强（返回 undefined）
+      expect(result).toBeUndefined();
+    } finally {
+      settingsProto.isAutoEnhanceEnabled = originalIsAutoEnhanceEnabled;
+      settingsProto.getMaxEnhanceContextChars = originalGetMaxEnhanceContextChars;
+    }
   });
 });
