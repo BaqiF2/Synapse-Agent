@@ -46,7 +46,10 @@ export function buildSystemPrompt(options?: SystemPromptOptions): string {
   // 3. Skills
   sections.push(loadDesc(path.join(PROMPTS_DIR, 'skills.md')));
 
-  // 4. Ultimate Reminders
+  // 4. Skill Search Priority (reinforces search-first rule)
+  sections.push(loadDesc(path.join(PROMPTS_DIR, 'skill-search-priority.md')));
+
+  // 5. Ultimate Reminders
   sections.push(loadDesc(path.join(PROMPTS_DIR, 'ultimate-reminders.md')));
 
   // Current working directory (if provided)

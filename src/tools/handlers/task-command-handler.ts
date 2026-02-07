@@ -165,18 +165,21 @@ export class TaskCommandHandler {
       if (!parsed.type) {
         return {
           stdout: '',
-          stderr: 'Invalid task command. Use task:<type> where type is: skill, explore, general',
+          stderr: 'Invalid task command. Use task:<type> where type is: skill, explore, general\nUse --help to see command usage.',
           exitCode: 1,
         };
       }
 
       // 验证参数
-      const validation = TaskCommandParamsSchema.safeParse(parsed.params);
+      const validation = TaskCommandParamsSchema.safeParse({
+        ...parsed.params,
+        action: parsed.action,
+      });
       if (!validation.success) {
         const errors = validation.error.issues.map(i => i.message).join(', ');
         return {
           stdout: '',
-          stderr: `Invalid parameters: ${errors}\nRequired: --prompt, --description`,
+          stderr: `Invalid parameters: ${errors}\nRequired: --prompt, --description\nUse --help to see command usage.`,
           exitCode: 1,
         };
       }

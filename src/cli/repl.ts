@@ -531,9 +531,16 @@ function initializeAgent(session: Session): AgentRunner | null {
   try {
     const llmClient = new AnthropicClient();
 
+    // 先创建 TerminalRenderer，以便传递回调给 BashTool
+    const terminalRenderer = new TerminalRenderer();
+    terminalRenderer.attachTodoStore(todoStore);
+
     const bashTool = new BashTool({
       llmClient,
       getConversationPath: () => session?.historyPath ?? null,
+      onSubAgentToolStart: (event) => terminalRenderer.renderSubAgentToolStart(event),
+      onSubAgentToolEnd: (event) => terminalRenderer.renderSubAgentToolEnd(event),
+      onSubAgentComplete: (event) => terminalRenderer.renderSubAgentComplete(event),
     });
 
     // Delayed binding: pass BashTool to its own router for skill sub-agent
@@ -541,8 +548,6 @@ function initializeAgent(session: Session): AgentRunner | null {
 
     const toolset = new CallableToolset([bashTool]);
     const systemPrompt = buildSystemPrompt({ cwd: process.cwd() });
-
-    const terminalRenderer = new TerminalRenderer();
 
     return new AgentRunner({
       client: llmClient,
@@ -560,6 +565,12 @@ function initializeAgent(session: Session): AgentRunner | null {
           toolCall.name === 'Bash'
             ? JSON.parse(toolCall.arguments).command
             : toolCall.name;
+
+        // 跳过 task:* 命令的主层级渲染，由 SubAgent 渲染接管
+        if (command.startsWith('task:')) {
+          return;
+        }
+
         terminalRenderer.renderToolStart({
           id: toolCall.id,
           command,

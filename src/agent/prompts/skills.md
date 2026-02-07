@@ -1,40 +1,58 @@
 # Skill System
 
-Skills are reusable workflows and expert knowledge. Before improvising, **check if a skill exists first**.
+Skills are reusable workflows and expert knowledge.
+
+**CRITICAL: Never guess skill names. Always search first.**
 
 ---
 
-## Loading Skills
+## Workflow (MUST follow this order)
 
-Use `skill:load` to inject skill instructions into your context.
+```
+1. SEARCH:  task:skill:search --prompt "query" --description "..."
+2. LOAD:    skill:load <name>  (only use exact name from search results)
+3. FOLLOW:  Execute according to skill instructions
+4. ENHANCE: task:skill:enhance --prompt "reason" --description "..."
+```
+
+---
+
+## 1. Searching Skills (REQUIRED first step)
+
+**Always use `task:skill:search` before loading any skill.** Do not guess skill names.
 
 ```bash
-# Load a skill
-Bash(command="skill:load code-analyzer")
+Bash(command="task:skill:search --prompt 'code analysis' --description 'Find analysis skills'")
+```
 
-# Show help
-Bash(command="skill:load --help")
+**Parameters:**
+- `--prompt, -p` — Search query describing what you need (required)
+- `--description, -d` — Short description, 3-5 words (required)
+
+The search agent will return matching skills in JSON format:
+```json
+{"matched_skills": [{"name": "exact-skill-name", "description": "..."}]}
+```
+
+---
+
+## 2. Loading Skills (only after search)
+
+Use `skill:load` **only** with exact skill names from search results.
+
+```bash
+# Correct: use exact name from search results
+Bash(command="skill:load exact-skill-name")
+
+# Wrong: guessing skill names
+Bash(command="skill:load code-analyzer")  # Don't guess!
 ```
 
 Once loaded, follow the skill's instructions exactly.
 
 ---
 
-## Searching Skills (via Task Agent)
-
-Use `task:skill:search` for semantic skill discovery.
-
-```bash
-Bash(command="task:skill:search --prompt 'code review' --description 'Find review skills'")
-```
-
-**Parameters:**
-- `--prompt, -p` — Search query (required)
-- `--description, -d` — Short description, 3-5 words (required)
-
----
-
-## Executing Skill Tools (Extension)
+## 3. Executing Skill Tools (Extension)
 
 Some skills provide executable scripts. **Must run `--help` first.**
 
@@ -52,7 +70,7 @@ Bash(command="skill:analyzer:run ./src --format json")
 
 ---
 
-## Enhancing Skills (via Task Agent)
+## 4. Enhancing Skills
 
 Use `task:skill:enhance` to create or improve skills from the current session.
 
@@ -64,14 +82,3 @@ Bash(command="task:skill:enhance --prompt 'Fixed K8s issue' --description 'Enhan
 - Solved a difficult problem
 - Created a useful script
 - Noticed a reusable pattern
-
----
-
-## Workflow Summary
-
-```
-1. Search:  task:skill:search --prompt "query" --description "..."
-2. Load:    skill:load <name>
-3. Follow:  Execute according to skill instructions
-4. Enhance: task:skill:enhance --prompt "reason" --description "..."
-```

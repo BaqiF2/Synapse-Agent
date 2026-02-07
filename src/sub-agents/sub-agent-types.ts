@@ -23,6 +23,23 @@ export type SubAgentType = 'skill' | 'explore' | 'general';
 export const SUB_AGENT_TYPES = ['skill', 'explore', 'general'] as const;
 
 /**
+ * Skill Action 类型
+ */
+export type SkillAction = 'search' | 'enhance';
+
+/**
+ * Skill Action 常量
+ */
+export const SKILL_ACTIONS = ['search', 'enhance'] as const;
+
+/**
+ * 检查是否为有效的 Skill Action
+ */
+export function isSkillAction(value: string): value is SkillAction {
+  return (SKILL_ACTIONS as readonly string[]).includes(value);
+}
+
+/**
  * 工具权限配置
  */
 export interface ToolPermissions {
@@ -54,6 +71,8 @@ export const TaskCommandParamsSchema = z.object({
   description: z.string().min(1, 'description is required'),
   model: z.string().optional(),
   maxTurns: z.number().positive().optional(),
+  /** Skill action（仅 skill 类型使用） */
+  action: z.string().optional(),
 });
 
 /**

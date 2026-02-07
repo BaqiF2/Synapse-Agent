@@ -19,6 +19,11 @@ import { loadDesc } from '../utils/load-desc.js';
 import type { AnthropicClient } from '../providers/anthropic/anthropic-client.ts';
 import { extractBaseCommand } from './constants.ts';
 import { classifyToolFailure, shouldAttachToolSelfDescription } from '../utils/tool-failure.ts';
+import type {
+  ToolResultEvent,
+  SubAgentCompleteEvent,
+  SubAgentToolCallEvent,
+} from '../cli/terminal-renderer-types.ts';
 
 const COMMAND_TIMEOUT_MARKER = 'Command execution timeout';
 const HELP_HINT_TEMPLATE =
@@ -50,6 +55,12 @@ export interface BashToolOptions {
   llmClient?: AnthropicClient;
   /** Callback to get current conversation path */
   getConversationPath?: () => string | null;
+  /** SubAgent 工具调用开始回调 */
+  onSubAgentToolStart?: (event: SubAgentToolCallEvent) => void;
+  /** SubAgent 工具调用结束回调 */
+  onSubAgentToolEnd?: (event: ToolResultEvent) => void;
+  /** SubAgent 完成回调 */
+  onSubAgentComplete?: (event: SubAgentCompleteEvent) => void;
 }
 
 /**
@@ -73,6 +84,9 @@ export class BashTool extends CallableTool<BashToolParams> {
     this.router = new BashRouter(this.session, {
       llmClient: options.llmClient,
       getConversationPath: options.getConversationPath,
+      onSubAgentToolStart: options.onSubAgentToolStart,
+      onSubAgentToolEnd: options.onSubAgentToolEnd,
+      onSubAgentComplete: options.onSubAgentComplete,
     });
   }
 

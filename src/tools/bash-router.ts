@@ -20,6 +20,11 @@ import { SkillCommandHandler } from './handlers/skill-command-handler.ts';
 import { TaskCommandHandler } from './handlers/task-command-handler.ts';
 import type { AnthropicClient } from '../providers/anthropic/anthropic-client.ts';
 import type { BashTool } from './bash-tool.ts';
+import type {
+  ToolResultEvent,
+  SubAgentCompleteEvent,
+  SubAgentToolCallEvent,
+} from '../cli/terminal-renderer-types.ts';
 
 /**
  * Command types in the three-layer Bash architecture
@@ -69,6 +74,12 @@ export interface BashRouterOptions {
   toolExecutor?: BashTool;
   /** Callback to get current conversation path */
   getConversationPath?: () => string | null;
+  /** SubAgent 工具调用开始回调 */
+  onSubAgentToolStart?: (event: SubAgentToolCallEvent) => void;
+  /** SubAgent 工具调用结束回调 */
+  onSubAgentToolEnd?: (event: ToolResultEvent) => void;
+  /** SubAgent 完成回调 */
+  onSubAgentComplete?: (event: SubAgentCompleteEvent) => void;
 }
 
 /**
@@ -92,12 +103,18 @@ export class BashRouter {
   private llmClient: AnthropicClient | undefined;
   private toolExecutor: BashTool | undefined;
   private getConversationPath: (() => string | null) | undefined;
+  private onSubAgentToolStart: ((event: SubAgentToolCallEvent) => void) | undefined;
+  private onSubAgentToolEnd: ((event: ToolResultEvent) => void) | undefined;
+  private onSubAgentComplete: ((event: SubAgentCompleteEvent) => void) | undefined;
 
   constructor(private session: BashSession, options: BashRouterOptions = {}) {
     this.synapseDir = options.synapseDir ?? DEFAULT_SYNAPSE_DIR;
     this.llmClient = options.llmClient;
     this.toolExecutor = options.toolExecutor;
     this.getConversationPath = options.getConversationPath;
+    this.onSubAgentToolStart = options.onSubAgentToolStart;
+    this.onSubAgentToolEnd = options.onSubAgentToolEnd;
+    this.onSubAgentComplete = options.onSubAgentComplete;
 
     this.nativeShellCommandHandler = new NativeShellCommandHandler(session);
     this.readHandler = new ReadHandler();
@@ -649,6 +666,9 @@ export class BashRouter {
       this.taskCommandHandler = new TaskCommandHandler({
         client: this.llmClient,
         bashTool: this.toolExecutor,
+        onToolStart: this.onSubAgentToolStart,
+        onToolEnd: this.onSubAgentToolEnd,
+        onComplete: this.onSubAgentComplete,
       });
     }
 

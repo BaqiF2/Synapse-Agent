@@ -330,8 +330,8 @@ export class AgentRunner {
       }
     }
 
-    if (iteration >= this.maxIterations) {
-      const stopMessage = `Reached tool iteration limit (${this.maxIterations}); stopping.`;
+    if (!completedNormally && iteration >= this.maxIterations) {
+      const stopMessage = `Reached tool iteration limit (${this.maxIterations}); stopping.\nUse --help to see command usage.`;
       logger.error(stopMessage);
       finalResponse = stopMessage;
       this.history.push(createTextMessage('assistant', stopMessage));
