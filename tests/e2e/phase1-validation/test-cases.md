@@ -64,7 +64,7 @@ cat src/tools/bash-tool-schema.ts
 
 **测试步骤**:
 1. 识别 Native Shell Command 命令 (ls, pwd, echo)
-2. 识别 Agent Shell Command 命令 (read, write, edit, glob, search, skill search)
+2. 识别 Agent Shell Command 命令 (read, write, edit, bash, task:*)
 3. 识别 Extension Shell Command 命令 (mcp:*, skill:*, tools)
 
 **测试数据**:
@@ -76,9 +76,8 @@ cat src/tools/bash-tool-schema.ts
 | `read /path/file.txt` | AGENT_SHELL |
 | `write /path/file.txt "content"` | AGENT_SHELL |
 | `edit /path/file.txt "old" "new"` | AGENT_SHELL |
-| `glob "*.ts"` | AGENT_SHELL |
-| `search "pattern"` | AGENT_SHELL |
-| `skill search "query"` | AGENT_SHELL |
+| `bash echo "ok"` | AGENT_SHELL |
+| `task:general --prompt "x" --description "y"` | AGENT_SHELL |
 | `tools search "query"` | EXTENSION_SHELL |
 | `mcp:server:tool arg` | EXTENSION_SHELL |
 | `skill:name:tool arg` | EXTENSION_SHELL |
@@ -265,70 +264,7 @@ edit /tmp/test-edit.txt "Hello" "Hi" --all
 
 ---
 
-### TC-2.4: glob 工具 [AUTO]
-
-**验证目标**: 文件模式匹配功能
-
-**测试步骤**:
-1. 创建测试目录结构:
-   - /tmp/glob-test/file1.ts
-   - /tmp/glob-test/file2.ts
-   - /tmp/glob-test/file3.js
-   - /tmp/glob-test/sub/nested.ts
-2. `glob "*.ts" --path /tmp/glob-test` - 匹配当前目录 ts 文件
-3. `glob "**/*.ts" --path /tmp/glob-test` - 递归匹配 ts 文件
-4. `glob "*.js" --path /tmp/glob-test` - 匹配 js 文件
-
-**预期结果**:
-- 非递归匹配只返回当前目录文件
-- 递归匹配包含子目录文件
-
-**手动执行步骤**:
-```bash
-bun run chat
-
-!mkdir -p /tmp/glob-test/sub
-!touch /tmp/glob-test/file1.ts /tmp/glob-test/file2.ts /tmp/glob-test/file3.js /tmp/glob-test/sub/nested.ts
-
-glob "*.ts" --path /tmp/glob-test
-# 预期: file1.ts, file2.ts
-
-glob "**/*.ts" --path /tmp/glob-test
-# 预期: file1.ts, file2.ts, sub/nested.ts
-```
-
----
-
-### TC-2.5: search 工具 [AUTO]
-
-**验证目标**: 代码搜索功能
-
-**测试步骤**:
-1. 创建测试文件包含多个函数定义
-2. `search "function" --path <dir>` - 搜索关键词
-3. `search "console\\.log" --path <dir>` - 搜索正则表达式
-4. `search "pattern" --type ts` - 按文件类型过滤
-5. `search "pattern" -i` - 忽略大小写搜索
-
-**预期结果**:
-- 关键词搜索返回匹配行
-- 正则搜索正确工作
-- 文件类型过滤生效
-
-**手动执行步骤**:
-```bash
-bun run chat
-
-!mkdir -p /tmp/search-test
-!echo 'function hello() { console.log("hi"); }' > /tmp/search-test/test.js
-
-search "function" --path /tmp/search-test
-search "console\\.log" --path /tmp/search-test
-```
-
----
-
-### TC-2.6: 工具帮助信息 [AUTO]
+### TC-2.4: 工具帮助信息 [AUTO]
 
 **验证目标**: PRD 验证标准 - "所有命令支持 -h/--help 自描述"
 
@@ -337,10 +273,9 @@ search "console\\.log" --path /tmp/search-test
 1. `read -h` / `read --help`
 2. `write -h` / `write --help`
 3. `edit -h` / `edit --help`
-4. `glob -h` / `glob --help`
-5. `search -h` / `search --help`
-6. `skill search -h` / `skill search --help`
-7. `tools search -h` / `tools search --help`
+4. `bash -h` / `bash --help`
+5. `skill search -h` / `skill search --help`
+6. `tools search -h` / `tools search --help`
 
 **预期结果**:
 - 每个命令的 -h 输出简要用法
@@ -355,8 +290,7 @@ read -h
 read --help
 write -h
 edit --help
-glob -h
-search --help
+bash -h
 skill search --help
 tools search --help
 ```
@@ -729,7 +663,7 @@ skill search "text analyzer"
 # 通过 BashRouter 执行 Agent Shell Command 命令
 read /tmp/test.txt
 write /tmp/test.txt "content"
-glob "*.ts"
+bash find . -name "*.ts"
 ```
 
 **类型 2: MCP 工具 (如有配置)**

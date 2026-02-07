@@ -7,7 +7,7 @@ Execute bash commands in a persistent shell session.
    - Complex (run `--help` first): `git`, `docker`, `curl`, `npm`, etc.
 
 2. **Agent Shell Commands** (syntax in system prompt, use directly):
-   `read`, `write`, `edit`, `glob`, `search`, `bash`, `skill:load`, `command:search`, `task:*`
+   `read`, `write`, `edit`, `bash`, `skill:load`, `command:search`, `task:*`
 
 3. **Extension Commands** (run `--help` first):
    `mcp:*:*`, `skill:*:*`

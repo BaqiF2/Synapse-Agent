@@ -48,8 +48,8 @@ describe('isCommandBlocked', () => {
       const patterns = ['edit', 'write'];
 
       expect(isCommandBlocked('read ./file.txt', patterns)).toBe(false);
-      expect(isCommandBlocked('glob "**/*.ts"', patterns)).toBe(false);
-      expect(isCommandBlocked('search "pattern"', patterns)).toBe(false);
+      expect(isCommandBlocked('bash rg "pattern" ./src', patterns)).toBe(false);
+      expect(isCommandBlocked('find ./src -name "*.ts"', patterns)).toBe(false);
     });
   });
 
@@ -97,8 +97,8 @@ describe('isCommandBlocked', () => {
       const patterns = ['task:', 'edit', 'write'];
 
       expect(isCommandBlocked('read ./file.txt', patterns)).toBe(false);
-      expect(isCommandBlocked('glob "**/*.ts"', patterns)).toBe(false);
-      expect(isCommandBlocked('search "pattern"', patterns)).toBe(false);
+      expect(isCommandBlocked('find ./src -name "*.ts"', patterns)).toBe(false);
+      expect(isCommandBlocked('rg "pattern" ./src', patterns)).toBe(false);
       expect(isCommandBlocked('ls -la', patterns)).toBe(false);
       expect(isCommandBlocked('cat ./file.txt', patterns)).toBe(false);
     });

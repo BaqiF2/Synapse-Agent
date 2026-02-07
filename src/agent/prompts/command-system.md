@@ -10,7 +10,7 @@
 │                                                                 │
 │      Bash(command="<your command here>")                        │
 │                                                                 │
-│  DO NOT call read, write, edit, glob, search as separate tools. │
+│  DO NOT call read, write, edit, bash as separate tools.         │
 │  They are COMMANDS that you pass to the Bash tool.              │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -22,8 +22,7 @@ Do NOT call commands as separate tools:
 ```
 read(file="./README.md")
 write(file="./a.txt", content="hello")
-search(pattern="TODO", path="./src")
-glob(pattern="*.ts")
+rg(pattern="TODO", path="./src")
 TodoWrite(todos=[...])
 ```
 
@@ -34,8 +33,8 @@ Pass commands as strings to the Bash tool:
 ```bash
 Bash(command="read ./README.md")
 Bash(command="write ./a.txt 'hello'")
-Bash(command="search TODO ./src")
-Bash(command="glob '*.ts'")
+Bash(command="find ./src -name '*.ts'")
+Bash(command="rg 'TODO' ./src")
 Bash(command="TodoWrite '{\"todos\":[...]}'")
 ```
 
@@ -77,6 +76,7 @@ Complex command categories:
 - **Network:** curl, wget, ssh
 - **Languages:** python, node, bun
 - **Build Tools:** make, cmake, gradle, mvn
+- **Search & Discovery:** find, grep, rg
 
 ---
 
@@ -117,24 +117,17 @@ Bash(command="edit ./file.txt 'localhost' '0.0.0.0' --all")
 
 - The `<old>` string must be unique unless using `--all` for global replace.
 
-#### glob — Find files by pattern
+#### File Discovery & Content Search (Native Shell)
 
-Replaces `find`.
-
-```bash
-Bash(command="glob '**/*.ts'")
-Bash(command="glob '*.md' --path ./docs")
-Bash(command="glob 'src/**/*.test.ts' --max 20")
-```
-
-#### search — Search file contents
-
-Replaces `grep`, `rg`.
+Use native commands for pattern matching and content search.
 
 ```bash
-Bash(command="search 'pattern' ./src")
-Bash(command="search 'TODO' ./src --type ts")
-Bash(command="search 'function\\s+\\w+' ./src -A 3")
+# discover files
+Bash(command="find ./src -name '*.ts'")
+
+# search content
+Bash(command="rg 'TODO|FIXME' ./src")
+Bash(command="grep -R 'BashRouter' ./src")
 ```
 
 #### TodoWrite — Task List Management

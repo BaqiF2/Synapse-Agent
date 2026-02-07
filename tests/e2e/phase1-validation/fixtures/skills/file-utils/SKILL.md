@@ -9,11 +9,11 @@
 When you need to perform batch file operations or gather file statistics.
 
 ## Tool Dependencies
-- glob (Agent Shell Command)
+- find (Native Shell Command)
 - bash (Native Shell Command)
 
 ## Execution Steps
-1. Use glob to find matching files
+1. Use find to locate matching files
 2. Process files as needed
 3. Return results summary
 

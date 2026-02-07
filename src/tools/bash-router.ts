@@ -12,7 +12,7 @@ import * as path from 'node:path';
 import * as os from 'node:os';
 import type { BashSession } from './bash-session.ts';
 import { NativeShellCommandHandler, type CommandResult } from './handlers/base-bash-handler.ts';
-import { ReadHandler, WriteHandler, EditHandler, GlobHandler, GrepHandler, BashWrapperHandler, TodoWriteHandler } from './handlers/agent-bash/index.ts';
+import { ReadHandler, WriteHandler, EditHandler, BashWrapperHandler, TodoWriteHandler } from './handlers/agent-bash/index.ts';
 import { CommandSearchHandler } from './handlers/extend-bash/index.ts';
 import { McpConfigParser, McpClient, McpInstaller } from './converters/mcp/index.ts';
 import { SkillStructure, DocstringParser } from './converters/skill/index.ts';
@@ -90,8 +90,6 @@ export class BashRouter {
   private readHandler: ReadHandler;
   private writeHandler: WriteHandler;
   private editHandler: EditHandler;
-  private globHandler: GlobHandler;
-  private grepHandler: GrepHandler;
   private bashWrapperHandler: BashWrapperHandler;
   private todoWriteHandler: TodoWriteHandler;
   private commandSearchHandler: CommandSearchHandler;
@@ -120,8 +118,6 @@ export class BashRouter {
     this.readHandler = new ReadHandler();
     this.writeHandler = new WriteHandler();
     this.editHandler = new EditHandler();
-    this.globHandler = new GlobHandler();
-    this.grepHandler = new GrepHandler();
     this.bashWrapperHandler = new BashWrapperHandler(session);
     this.todoWriteHandler = new TodoWriteHandler();
     this.commandSearchHandler = new CommandSearchHandler();
@@ -130,8 +126,6 @@ export class BashRouter {
       { command: 'read', handler: this.readHandler },
       { command: 'write', handler: this.writeHandler },
       { command: 'edit', handler: this.editHandler },
-      { command: 'glob', handler: this.globHandler },
-      { command: 'search', handler: this.grepHandler },
       { command: 'bash', handler: this.bashWrapperHandler },
       { command: 'TodoWrite', handler: this.todoWriteHandler },
     ];

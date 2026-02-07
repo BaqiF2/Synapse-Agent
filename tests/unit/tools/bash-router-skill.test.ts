@@ -68,6 +68,11 @@ description: A test skill
       // 'tools' is no longer a recognized command, falls through to native
       expect(router.identifyCommandType('tools search')).toBe(CommandType.NATIVE_SHELL_COMMAND);
     });
+
+    it('should treat removed glob/search commands as NATIVE', () => {
+      expect(router.identifyCommandType('glob "*.ts"')).toBe(CommandType.NATIVE_SHELL_COMMAND);
+      expect(router.identifyCommandType('search "TODO"')).toBe(CommandType.NATIVE_SHELL_COMMAND);
+    });
   });
 
   describe('skill: command routing', () => {
