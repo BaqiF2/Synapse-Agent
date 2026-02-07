@@ -80,8 +80,9 @@ describe('ConversationReader.compact() - 消息类型处理', () => {
 
     const result = reader.compact(turns);
 
-    // 默认 SYNAPSE_TOOL_RESULT_SUMMARY_LIMIT=200
-    expect(result).toBe(`[Result] ${'a'.repeat(200)}...`);
+    // 默认 SYNAPSE_TOOL_RESULT_SUMMARY_LIMIT=200，预留 3 字符给省略号
+    // 所以实际内容是 200 - 3 = 197 个字符
+    expect(result).toBe(`[Result] ${'a'.repeat(197)}...`);
   });
 
   it('短的 Tool result 不截断', () => {
@@ -266,6 +267,7 @@ describe('ConversationReader.compact() - 环境变量配置', () => {
 
     const result = reader.compact(turns);
 
-    expect(result).toBe(`[Result] ${'y'.repeat(200)}...`);
+    // 201 字符超过限制，截断为 197 字符 + "..."（总长度 200）
+    expect(result).toBe(`[Result] ${'y'.repeat(197)}...`);
   });
 });
