@@ -233,6 +233,10 @@ export class AgentRunner {
     return this.session?.getUsage() ?? null;
   }
 
+  getModelName(): string {
+    return this.client.modelName;
+  }
+
   async recordUsage(usage: TokenUsage, model: string): Promise<void> {
     await this.handleUsage(usage, model);
   }

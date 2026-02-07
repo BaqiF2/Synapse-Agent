@@ -5,7 +5,7 @@
   "type": "module",
   "private": true,
   "bin": {
-    "synapse": "./src/cli/index.ts"
+    "synapse": "./bin/synapse"
   },
   "scripts": {
     "start": "bun run src/cli/index.ts",

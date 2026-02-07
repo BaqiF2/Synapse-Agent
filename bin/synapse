@@ -1,0 +1,4 @@
+#!/bin/bash
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "$0" || echo "$0")")" && pwd)"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+exec bun run "$PROJECT_DIR/src/cli/index.ts" "$@"

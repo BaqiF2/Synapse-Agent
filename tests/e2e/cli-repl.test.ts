@@ -106,6 +106,16 @@ describe('E2E: CLI/REPL Integration', () => {
       expect(handled).toBe(true);
     });
 
+    test('/model should be handled', () => {
+      const rl = createMockReadline();
+      const mockRunner = {
+        getModelName: () => 'claude-sonnet-4-20250514',
+      };
+
+      const handled = handleSpecialCommand('/model', rl, mockRunner as never, { skipExit: true });
+      expect(handled).toBe(true);
+    });
+
     test('/tools should be handled', () => {
       const rl = createMockReadline();
 

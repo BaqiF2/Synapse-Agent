@@ -171,6 +171,7 @@ function showHelp(): void {
   console.log(chalk.gray('  /exit, /quit, /q ') + chalk.white('Exit the REPL'));
   console.log(chalk.gray('  /clear           ') + chalk.white('Clear conversation history'));
   console.log(chalk.gray('  /cost            ') + chalk.white('Show current session token/cost stats'));
+  console.log(chalk.gray('  /model           ') + chalk.white('Show current model'));
   console.log(chalk.gray('  /tools           ') + chalk.white('List available tools'));
   console.log(chalk.gray('  /skills          ') + chalk.white('List all available skills'));
   console.log();
@@ -388,6 +389,16 @@ export function handleSpecialCommand(
       }
 
       console.log(chalk.cyan(`\n${formatCostOutput(usage)}\n`));
+      return true;
+    }
+
+    case '/model': {
+      if (!agentRunner) {
+        console.log(chalk.yellow('\nModel info unavailable in this context.\n'));
+        return true;
+      }
+
+      console.log(chalk.cyan(`\nCurrent model: ${agentRunner.getModelName()}\n`));
       return true;
     }
 

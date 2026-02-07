@@ -29,10 +29,35 @@
 
 ## 安装与配置
 
+### 本地安装
+
 ```bash
 bun install
 cp .env.example .env
 ```
+
+### 全局安装（可在任意路径使用 `synapse` 命令）
+
+```bash
+# 1. 安装依赖
+bun install
+
+# 2. 创建全局链接
+bun link
+
+# 3. 确保 ~/.bun/bin 在 PATH 中（添加到 ~/.zshrc 或 ~/.bashrc）
+export PATH="$HOME/.bun/bin:$PATH"
+
+# 4. 重新加载配置
+source ~/.zshrc  # 或 source ~/.bashrc
+```
+
+> 如果 `bun link` 报错 `package.json missing "name"`，先执行：
+> ```bash
+> echo '{"name": "bun-global"}' > ~/.bun/install/global/package.json
+> ```
+
+### LLM 配置
 
 LLM 配置位于 `~/.synapse/settings.json`：
 
@@ -57,11 +82,11 @@ LLM 配置位于 `~/.synapse/settings.json`：
 ## 快速开始
 
 ```bash
-# 启动交互式 REPL
-bun run chat
+# 全局安装后，任意路径启动
+synapse chat
 
-# 或直接运行 CLI
-bun run src/cli/index.ts chat
+# 或在项目目录内使用
+bun run chat
 ```
 
 ## REPL 命令

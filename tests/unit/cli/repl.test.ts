@@ -343,6 +343,24 @@ describe('REPL commands', () => {
     console.log = originalConsoleLog;
   });
 
+  it('handleSpecialCommand should show current model on /model', async () => {
+    console.log = mock(() => {}) as unknown as typeof console.log;
+    const rl = createMockRl();
+    const agentRunner = {
+      getModelName: mock(() => 'claude-sonnet-4-20250514'),
+    } as unknown as AgentRunner;
+    const { handleSpecialCommand } = await loadRepl();
+
+    const handled = handleSpecialCommand('/model', rl as unknown as readline.Interface, agentRunner, { skipExit: true });
+
+    expect(handled).toBe(true);
+    expect(agentRunner.getModelName).toHaveBeenCalled();
+    const output = getConsoleOutput();
+    expect(output).toContain('Current model: claude-sonnet-4-20250514');
+
+    console.log = originalConsoleLog;
+  });
+
   it('formatStreamText should highlight skill enhancement progress', async () => {
     const { formatStreamText } = await loadRepl();
     const raw = '\nAnalyzing skill enhancement...\n';
