@@ -318,14 +318,47 @@ export class ConversationReader {
   /**
    * Truncate tool result content to configured limit
    *
+   * 如果内容包含换行符，优先在换行处截断以保持可读性
+   *
    * @param content - Tool result content
    * @returns Truncated content with ellipsis if needed
    */
   private truncateToolResult(content: string): string {
-    if (content.length <= TOOL_RESULT_SUMMARY_LIMIT) {
+    const limit = TOOL_RESULT_SUMMARY_LIMIT;
+    const ellipsis = '...';
+    const ellipsisLen = ellipsis.length;
+
+    if (content.length <= limit) {
       return content;
     }
-    return content.slice(0, TOOL_RESULT_SUMMARY_LIMIT) + '...';
+
+    // 尝试在换行符处截断，保持行完整性
+    if (content.includes('\n')) {
+      const lines = content.split('\n');
+      const result: string[] = [];
+      let usedLength = 0;
+
+      for (const line of lines) {
+        const separatorLen = result.length > 0 ? 1 : 0; // '\n'
+        const neededLength = separatorLen + line.length;
+
+        // 预留省略号 + 换行符空间
+        if (usedLength + neededLength + ellipsisLen + 1 > limit) {
+          break;
+        }
+
+        result.push(line);
+        usedLength += neededLength;
+      }
+
+      // 至少收集到一行且有未显示的行
+      if (result.length > 0 && result.length < lines.length) {
+        return result.join('\n') + '\n' + ellipsis;
+      }
+    }
+
+    // fallback：直接字符截断，确保总长度不超限
+    return content.slice(0, limit - ellipsisLen) + ellipsis;
   }
 }
 
