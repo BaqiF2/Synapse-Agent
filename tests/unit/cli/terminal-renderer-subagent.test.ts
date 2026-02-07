@@ -304,6 +304,26 @@ describe('SubAgent 渲染 BDD 测试', () => {
       const output = consoleOutput.map(stripAnsi).join('\n');
       expect(output).toContain('Invalid regex pattern');
     });
+
+    it('should truncate long sub-agent tool command display to 40 characters', () => {
+      const renderer = new TerminalRenderer();
+      const longCommand = `Bash({"command":"task:general --prompt "${'a'.repeat(120)}""})`;
+
+      renderer.renderSubAgentToolStart({
+        id: 'tool-long',
+        command: longCommand,
+        depth: 1,
+        subAgentId: 'agent-1',
+        subAgentType: 'explore',
+        subAgentDescription: '查找代码',
+      });
+
+      const output = consoleOutput.map(stripAnsi).join('\n');
+      const expectedPrefix = longCommand.slice(0, 40);
+
+      expect(output).toContain(expectedPrefix + '...');
+      expect(output).not.toContain(longCommand);
+    });
   });
 
   // ============================================================

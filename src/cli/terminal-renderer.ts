@@ -26,6 +26,8 @@ import { SKILL_ENHANCE_PROGRESS_TEXT, isSkillEnhanceCommand } from '../hooks/ski
 const MAX_OUTPUT_LINES = parseInt(process.env.SYNAPSE_MAX_OUTPUT_LINES || '5', 10);
 /** SubAgent 渲染时最多显示的最近工具数 */
 const MAX_RECENT_TOOLS = parseInt(process.env.SYNAPSE_MAX_RECENT_TOOLS || '5', 10);
+/** Bash 命令显示最大字符数（超出后截断） */
+const MAX_COMMAND_DISPLAY_LENGTH = 40;
 /** spinner 动画间隔（毫秒） */
 const ANIMATION_INTERVAL = 350;
 
@@ -605,7 +607,8 @@ export class TerminalRenderer {
   ): string {
     const branch = isLast ? TREE_SYMBOLS.LAST : TREE_SYMBOLS.BRANCH;
     const dot = dotColor('•');
-    return `  ${branch}${dot} ${command}`;
+    const displayCommand = this.formatCommandDisplay(command);
+    return `  ${branch}${dot} ${displayCommand}`;
   }
 
   /**
@@ -729,7 +732,10 @@ export class TerminalRenderer {
     if (isSkillEnhanceCommand(command)) {
       return SKILL_ENHANCE_PROGRESS_TEXT;
     }
-    return command;
+    if (command.length <= MAX_COMMAND_DISPLAY_LENGTH) {
+      return command;
+    }
+    return `${command.slice(0, MAX_COMMAND_DISPLAY_LENGTH)}...`;
   }
 
   private getToolPrefix(
