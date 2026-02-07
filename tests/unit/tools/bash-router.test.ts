@@ -62,6 +62,75 @@ describe('BashRouter', () => {
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain('Task commands require LLM client and tool executor');
   });
+
+  it('should block echo redirection file writes', async () => {
+    const session = createSessionStub();
+    const router = new BashRouter(session);
+
+    const result = await router.route('echo "hello" > ./tmp.txt');
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain('Direct shell-based file writes are disabled');
+    expect(result.stderr).toContain('echo');
+    expect((session as unknown as { execute: ReturnType<typeof mock> }).execute).not.toHaveBeenCalled();
+  });
+
+  it('should block heredoc file writes', async () => {
+    const session = createSessionStub();
+    const router = new BashRouter(session);
+
+    const result = await router.route("cat <<'EOF' > ./tmp.txt\nhello\nEOF");
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain('Direct shell-based file writes are disabled');
+    expect(result.stderr).toContain('cat <<');
+    expect((session as unknown as { execute: ReturnType<typeof mock> }).execute).not.toHaveBeenCalled();
+  });
+
+  it('should block sed -i file edits', async () => {
+    const session = createSessionStub();
+    const router = new BashRouter(session);
+
+    const result = await router.route('sed -i "s/a/b/g" ./tmp.txt');
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain('Direct shell-based file writes are disabled');
+    expect(result.stderr).toContain('sed -i');
+    expect((session as unknown as { execute: ReturnType<typeof mock> }).execute).not.toHaveBeenCalled();
+  });
+
+  it('should block sed redirection file writes', async () => {
+    const session = createSessionStub();
+    const router = new BashRouter(session);
+
+    const result = await router.route("sed 's/a/b/g' ./tmp.txt > ./out.txt");
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain('Direct shell-based file writes are disabled');
+    expect(result.stderr).toContain('sed');
+    expect((session as unknown as { execute: ReturnType<typeof mock> }).execute).not.toHaveBeenCalled();
+  });
+
+  it('should block disallowed writes inside bash wrapper command', async () => {
+    const session = createSessionStub();
+    const router = new BashRouter(session);
+
+    const result = await router.route('bash echo "hello" > ./tmp.txt');
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain('Direct shell-based file writes are disabled');
+    expect((session as unknown as { execute: ReturnType<typeof mock> }).execute).not.toHaveBeenCalled();
+  });
+
+  it('should still allow write agent command', async () => {
+    const session = createSessionStub();
+    const router = new BashRouter(session);
+
+    const result = await router.route('write ./tmp.txt "hello"');
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain('Written');
+  });
 });
 
 describe('BashRouter MCP', () => {

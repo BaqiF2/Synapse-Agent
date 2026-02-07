@@ -9,6 +9,7 @@ import {
   SIMPLE_COMMAND_WHITELIST,
   extractBaseCommand,
   isSimpleCommand,
+  getDisallowedShellWriteReason,
 } from '../../../src/tools/constants.ts';
 
 describe('Shell Command Constants', () => {
@@ -64,6 +65,33 @@ describe('Shell Command Constants', () => {
       expect(isSimpleCommand('git status')).toBe(false);
       expect(isSimpleCommand('docker ps')).toBe(false);
       expect(isSimpleCommand('curl https://example.com')).toBe(false);
+    });
+  });
+
+  describe('getDisallowedShellWriteReason', () => {
+    test('should detect echo redirection write', () => {
+      const reason = getDisallowedShellWriteReason('echo "hi" > ./a.txt');
+      expect(reason).toContain('echo');
+    });
+
+    test('should detect cat heredoc write', () => {
+      const reason = getDisallowedShellWriteReason("cat <<'EOF' > ./a.txt\nhello\nEOF");
+      expect(reason).toContain('cat <<');
+    });
+
+    test('should detect sed in-place edit', () => {
+      const reason = getDisallowedShellWriteReason('sed -i "s/a/b/g" ./a.txt');
+      expect(reason).toContain('sed -i');
+    });
+
+    test('should detect sed redirection write', () => {
+      const reason = getDisallowedShellWriteReason("sed 's/a/b/g' ./a.txt > ./b.txt");
+      expect(reason).toContain('sed');
+    });
+
+    test('should allow non-write shell commands', () => {
+      expect(getDisallowedShellWriteReason('echo "hello"')).toBeNull();
+      expect(getDisallowedShellWriteReason("sed 's/a/b/g' ./a.txt")).toBeNull();
     });
   });
 });

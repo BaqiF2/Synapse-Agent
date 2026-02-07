@@ -255,4 +255,4 @@ Bash(command="skill:analyzer:run ./src --format json")
 
 1. **No Interactive Commands:** Don't run vim, nano, top, or Python REPL.
 2. **Error Recovery:** If a command fails, run `--help` and retry.
-3. **Prefer Agent Commands:** Use `read`, `write`, `edit` over `cat`, `echo >`, `sed`.
+3. **Enforced File-Edit Policy:** Never write files via `echo ... >`, `cat <<EOF > ...`, or `sed -i ...`. Always use `write`/`edit` and use `read` to verify.
