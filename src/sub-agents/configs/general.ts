@@ -12,20 +12,20 @@ import type { SubAgentConfig } from '../sub-agent-types.ts';
 /**
  * General Sub Agent 配置
  *
- * 工具权限：全部命令可用
+ * 工具权限：除 task:* 外全部命令可用（防止递归）
  */
 export const generalConfig: SubAgentConfig = {
   type: 'general',
   permissions: {
     include: 'all',
-    exclude: [],
+    exclude: ['task:'],
   },
   systemPrompt: `You are a General-Purpose Research Agent.
 
 Your role is to handle complex research tasks, multi-step operations, and comprehensive analysis.
 
 ## Capabilities
-- Full access to all tools and commands
+- Access to all tools except task:* sub-agent commands
 - Complex problem research
 - Multi-step task execution
 - Code reading, writing, and modification

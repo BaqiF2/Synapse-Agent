@@ -23,6 +23,13 @@ describe('Sub-agent configs index', () => {
     expect(getConfig('explore')).toBe(exploreConfig);
   });
 
+  it('should block task commands for general sub-agent to prevent recursion', () => {
+    const config = getConfig('general');
+
+    expect(config.permissions.include).toBe('all');
+    expect(config.permissions.exclude).toContain('task:');
+  });
+
   it('should build skill search config with empty permissions', () => {
     const config = getConfig('skill', 'search');
 
