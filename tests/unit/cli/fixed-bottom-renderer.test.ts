@@ -9,6 +9,21 @@ import { FixedBottomRenderer, type FixedBottomRendererOptions } from '../../../s
 import type { TodoStore, TodoState } from '../../../src/tools/handlers/agent-bash/todo/todo-store.ts';
 
 // ═══════════════════════════════════════════════════════════════════════
+// 测试常量：基于环境变量计算期望值
+// ═══════════════════════════════════════════════════════════════════════
+
+/** 从环境变量读取的最大输出行数（与源码保持一致） */
+const MAX_OUTPUT_LINES = parseInt(process.env.SYNAPSE_MAX_OUTPUT_LINES || '5', 10);
+/** 最大可见任务数 */
+const MAX_VISIBLE_TASKS = MAX_OUTPUT_LINES;
+/** 标题行数 */
+const HEADER_LINES = 1;
+/** 溢出提示行数 */
+const OVERFLOW_LINE = 1;
+/** 默认最大高度 = 标题行 + 最大任务数 + 溢出提示行 + 1 行缓冲 */
+const EXPECTED_DEFAULT_MAX_HEIGHT = HEADER_LINES + MAX_VISIBLE_TASKS + OVERFLOW_LINE + 1;
+
+// ═══════════════════════════════════════════════════════════════════════
 // 测试辅助函数
 // ═══════════════════════════════════════════════════════════════════════
 
@@ -118,7 +133,7 @@ describe('FixedBottomRenderer', () => {
     test('构造函数使用默认配置', () => {
       const renderer = createRenderer();
 
-      expect(renderer.getConfig().maxHeight).toBe(8);
+      expect(renderer.getConfig().maxHeight).toBe(EXPECTED_DEFAULT_MAX_HEIGHT);
       expect(renderer.getConfig().minTerminalHeight).toBe(12);
     });
 
@@ -359,23 +374,21 @@ describe('FixedBottomRenderer', () => {
       expect(output).not.toContain('...and');
     });
 
-    test('任务超过 5 个时显示溢出提示', () => {
+    test('任务数量超过最大可见数时显示溢出提示', () => {
       const renderer = createRenderer();
       const { store, triggerChange } = createMockTodoStore();
 
       renderer.attachTodoStore(store);
 
+      // 生成超过 MAX_VISIBLE_TASKS 的任务数量
+      const totalTasks = MAX_VISIBLE_TASKS + 3;
+      const items = [];
+      for (let i = 1; i <= totalTasks; i++) {
+        items.push({ content: `Task ${i}`, status: 'pending' as const, activeForm: `Doing ${i}` });
+      }
+
       triggerChange({
-        items: [
-          { content: 'Task 1', status: 'in_progress', activeForm: 'Doing 1' },
-          { content: 'Task 2', status: 'pending', activeForm: 'Doing 2' },
-          { content: 'Task 3', status: 'pending', activeForm: 'Doing 3' },
-          { content: 'Task 4', status: 'pending', activeForm: 'Doing 4' },
-          { content: 'Task 5', status: 'pending', activeForm: 'Doing 5' },
-          { content: 'Task 6', status: 'completed', activeForm: 'Done 6' },
-          { content: 'Task 7', status: 'completed', activeForm: 'Done 7' },
-          { content: 'Task 8', status: 'completed', activeForm: 'Done 8' },
-        ],
+        items,
         updatedAt: new Date(),
       });
 
@@ -389,17 +402,22 @@ describe('FixedBottomRenderer', () => {
 
       renderer.attachTodoStore(store);
 
+      // 生成超过 MAX_VISIBLE_TASKS 的任务，包含各种状态
+      const items: Array<{ content: string; status: 'pending' | 'in_progress' | 'completed'; activeForm: string }> = [
+        { content: 'Progress 1', status: 'in_progress', activeForm: 'P1' },
+        { content: 'Progress 2', status: 'in_progress', activeForm: 'P2' },
+      ];
+      // 添加足够的 pending 任务
+      for (let i = 1; i <= MAX_VISIBLE_TASKS - 2; i++) {
+        items.push({ content: `Pending ${i}`, status: 'pending', activeForm: `Pd${i}` });
+      }
+      // 添加 completed 任务（会被截断）
+      for (let i = 1; i <= 3; i++) {
+        items.push({ content: `Completed ${i}`, status: 'completed', activeForm: `C${i}` });
+      }
+
       triggerChange({
-        items: [
-          { content: 'Progress 1', status: 'in_progress', activeForm: 'P1' },
-          { content: 'Progress 2', status: 'in_progress', activeForm: 'P2' },
-          { content: 'Pending 1', status: 'pending', activeForm: 'Pd1' },
-          { content: 'Pending 2', status: 'pending', activeForm: 'Pd2' },
-          { content: 'Pending 3', status: 'pending', activeForm: 'Pd3' },
-          { content: 'Completed 1', status: 'completed', activeForm: 'C1' },
-          { content: 'Completed 2', status: 'completed', activeForm: 'C2' },
-          { content: 'Completed 3', status: 'completed', activeForm: 'C3' },
-        ],
+        items,
         updatedAt: new Date(),
       });
 
@@ -407,8 +425,6 @@ describe('FixedBottomRenderer', () => {
       expect(output).toContain('P1');
       expect(output).toContain('P2');
       expect(output).toContain('Pending 1');
-      expect(output).toContain('Pending 2');
-      expect(output).toContain('Pending 3');
       expect(output).toContain('...and 3 more');
     });
   });
@@ -553,15 +569,15 @@ describe('FixedBottomRenderer', () => {
 
       renderer.attachTodoStore(store);
 
+      // 生成超过 MAX_VISIBLE_TASKS 的任务
+      const totalTasks = MAX_VISIBLE_TASKS + 1;
+      const items = [];
+      for (let i = 1; i <= totalTasks; i++) {
+        items.push({ content: `Task ${i}`, status: 'pending' as const, activeForm: `Doing ${i}` });
+      }
+
       triggerChange({
-        items: [
-          { content: 'Task 1', status: 'in_progress', activeForm: 'Doing 1' },
-          { content: 'Task 2', status: 'pending', activeForm: 'Doing 2' },
-          { content: 'Task 3', status: 'pending', activeForm: 'Doing 3' },
-          { content: 'Task 4', status: 'pending', activeForm: 'Doing 4' },
-          { content: 'Task 5', status: 'pending', activeForm: 'Doing 5' },
-          { content: 'Task 6', status: 'completed', activeForm: 'Done 6' },
-        ],
+        items,
         updatedAt: new Date(),
       });
 

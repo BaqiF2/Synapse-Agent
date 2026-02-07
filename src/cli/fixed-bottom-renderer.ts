@@ -18,7 +18,8 @@ import type { TodoStore, TodoState, TodoItem, TodoStatus } from '../tools/handle
 // 配置常量
 // ═══════════════════════════════════════════════════════════════════════
 
-const DEFAULT_MAX_HEIGHT = parseInt(process.env.FIXED_BOTTOM_MAX_HEIGHT || '8', 10);
+/** 终端渲染输出的最大行数，与 TerminalRenderer 共用配置 */
+const MAX_OUTPUT_LINES = parseInt(process.env.SYNAPSE_MAX_OUTPUT_LINES || '5', 10);
 const DEFAULT_MIN_TERMINAL_HEIGHT = parseInt(process.env.FIXED_BOTTOM_MIN_TERMINAL_HEIGHT || '12', 10);
 
 /** 标题行占用行数（仅标题行，无边框设计） */
@@ -27,8 +28,11 @@ const HEADER_LINES = 1;
 /** 溢出提示占用行数 */
 const OVERFLOW_LINE = 1;
 
-/** 最大显示任务数 = maxHeight - 标题行 - 溢出提示预留 */
-const MAX_VISIBLE_TASKS = 5;
+/** 最大显示任务数，从 SYNAPSE_MAX_OUTPUT_LINES 环境变量读取 */
+const MAX_VISIBLE_TASKS = MAX_OUTPUT_LINES;
+
+/** 固定区最大高度 = 标题行 + 最大任务数 + 溢出提示行 + 1 行缓冲 */
+const DEFAULT_MAX_HEIGHT = HEADER_LINES + MAX_VISIBLE_TASKS + OVERFLOW_LINE + 1;
 
 /** 左侧着色块字符 (U+258C) */
 const MARKER_CHAR = '▌';

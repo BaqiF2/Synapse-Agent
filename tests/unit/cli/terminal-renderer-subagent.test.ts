@@ -15,6 +15,9 @@ import type {
   ToolResultEvent,
 } from '../../../src/cli/terminal-renderer-types.ts';
 
+// 从环境变量读取最大输出行数（与 terminal-renderer.ts 保持一致）
+const MAX_OUTPUT_LINES = parseInt(process.env.SYNAPSE_MAX_OUTPUT_LINES || '5', 10);
+
 const ansiEscape = String.fromCharCode(27);
 const ansiPattern = new RegExp(`${ansiEscape}\\[[0-9;]*m`, 'g');
 
@@ -378,7 +381,7 @@ describe('SubAgent 渲染 BDD 测试', () => {
       expect(output).toContain('error: Invalid regex pattern');
     });
 
-    it('should truncate error output exceeding 5 lines', () => {
+    it('should truncate error output exceeding max lines', () => {
       const renderer = new TerminalRenderer();
 
       renderer.renderSubAgentToolStart({
@@ -390,7 +393,10 @@ describe('SubAgent 渲染 BDD 测试', () => {
         subAgentDescription: '测试截断',
       });
 
-      const longError = Array.from({ length: 10 }, (_, i) => `Error line ${i + 1}`).join('\n');
+      // 生成超过 MAX_OUTPUT_LINES 的错误行
+      const extraLines = 5;
+      const totalLines = MAX_OUTPUT_LINES + extraLines;
+      const longError = Array.from({ length: totalLines }, (_, i) => `Error line ${i + 1}`).join('\n');
       renderer.renderSubAgentToolEnd({
         id: 'tool-1',
         success: false,
@@ -398,7 +404,7 @@ describe('SubAgent 渲染 BDD 测试', () => {
       });
 
       const output = consoleOutput.map(stripAnsi).join('\n');
-      expect(output).toContain('...[omit 5 lines]');
+      expect(output).toContain(`...[omit ${extraLines} lines]`);
     });
 
     it('should not show output when tool succeeds', () => {

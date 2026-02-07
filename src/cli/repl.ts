@@ -532,8 +532,8 @@ function initializeAgent(session: Session): AgentRunner | null {
     const llmClient = new AnthropicClient();
 
     // 先创建 TerminalRenderer，以便传递回调给 BashTool
+    // 注意：不再调用 terminalRenderer.attachTodoStore()，因为 FixedBottomRenderer 已经负责 Todo 渲染
     const terminalRenderer = new TerminalRenderer();
-    terminalRenderer.attachTodoStore(todoStore);
 
     const bashTool = new BashTool({
       llmClient,
