@@ -1,0 +1,313 @@
+[
+  {
+    "category": "functional",
+    "prd": "2026-02-07-session-token-usage-design.md#定价配置",
+    "description": "定价配置加载模块 - 从 ~/.synapse/pricing.json 加载多模型定价配置",
+    "bdd": [
+      {
+        "title": "成功加载有效的定价配置文件",
+        "description": "当 pricing.json 存在且格式正确时，应成功加载所有模型的定价信息",
+        "steps": [
+          "创建 ~/.synapse/pricing.json 文件，包含 claude-sonnet-4 模型配置",
+          "调用 loadPricing() 函数"
+        ],
+        "expected": "返回包含 claude-sonnet-4 定价信息的对象，包含 inputPerMillion、outputPerMillion、cacheReadPerMillion、cacheWritePerMillion 四个字段"
+      },
+      {
+        "title": "配置文件不存在时返回 null",
+        "description": "当 ~/.synapse/pricing.json 不存在时，应返回 null 而非报错",
+        "steps": [
+          "确保 ~/.synapse/pricing.json 文件不存在",
+          "调用 loadPricing() 函数"
+        ],
+        "expected": "返回 null，不抛出异常"
+      },
+      {
+        "title": "配置文件格式错误时返回 null 并记录警告",
+        "description": "当 pricing.json 内容不是有效 JSON 时，应记录警告并返回 null",
+        "steps": [
+          "创建 ~/.synapse/pricing.json 文件，内容为无效 JSON（如 '{invalid}'）",
+          "调用 loadPricing() 函数"
+        ],
+        "expected": "返回 null，日志中记录警告信息"
+      },
+      {
+        "title": "获取指定模型的定价配置",
+        "description": "能够根据模型 ID 获取对应的定价配置",
+        "steps": [
+          "加载包含多个模型的 pricing.json",
+          "调用 getPricing('claude-opus-4-20250514')"
+        ],
+        "expected": "返回 claude-opus-4 的定价配置对象"
+      },
+      {
+        "title": "获取未配置模型时返回 null",
+        "description": "当请求的模型不在配置中时，应返回 null",
+        "steps": [
+          "加载不包含 unknown-model 的 pricing.json",
+          "调用 getPricing('unknown-model')"
+        ],
+        "expected": "返回 null"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-07-session-token-usage-design.md#数据模型",
+    "description": "SessionUsage 数据模型 - 定义 Session 级别的 token 使用量累计结构",
+    "bdd": [
+      {
+        "title": "创建空的 SessionUsage 对象",
+        "description": "初始化时所有计数器应为 0，rounds 为空数组，totalCost 为 null",
+        "steps": [
+          "调用 createEmptySessionUsage('claude-sonnet-4')"
+        ],
+        "expected": "返回对象包含 totalInputOther=0, totalOutput=0, totalCacheRead=0, totalCacheCreation=0, model='claude-sonnet-4', rounds=[], totalCost=null"
+      },
+      {
+        "title": "累加单次 TokenUsage 到 SessionUsage",
+        "description": "将一次 API 调用的 token 使用量累加到 Session 总计",
+        "steps": [
+          "创建空的 SessionUsage",
+          "调用 accumulateUsage() 传入 TokenUsage{inputOther:100, output:50, inputCacheRead:200, inputCacheCreation:30}"
+        ],
+        "expected": "SessionUsage 的 totalInputOther=100, totalOutput=50, totalCacheRead=200, totalCacheCreation=30, rounds 数组包含一个元素"
+      },
+      {
+        "title": "多次累加正确求和",
+        "description": "连续累加多次 TokenUsage，总计应正确求和",
+        "steps": [
+          "创建空的 SessionUsage",
+          "累加 TokenUsage{inputOther:100, output:50, inputCacheRead:200, inputCacheCreation:30}",
+          "累加 TokenUsage{inputOther:150, output:80, inputCacheRead:300, inputCacheCreation:20}"
+        ],
+        "expected": "totalInputOther=250, totalOutput=130, totalCacheRead=500, totalCacheCreation=50, rounds 数组包含两个元素"
+      },
+      {
+        "title": "重置 SessionUsage 到初始状态",
+        "description": "清空所有累计值和 rounds 数组",
+        "steps": [
+          "创建已累加数据的 SessionUsage",
+          "调用 resetSessionUsage()"
+        ],
+        "expected": "所有计数器归零，rounds 为空数组，totalCost 为 null，model 保持不变"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-07-session-token-usage-design.md#数据流",
+    "description": "onUsage 回调链 - 从 generate() 到 Session 的 usage 数据传递",
+    "bdd": [
+      {
+        "title": "generate() 完成后触发 onUsage 回调",
+        "description": "stream 完全消费后应触发 onUsage 回调，传递 usage 和 model",
+        "steps": [
+          "创建 mock AnthropicClient，返回预设的 TokenUsage",
+          "调用 generate() 并传入 onUsage 回调",
+          "等待 generate() 完成"
+        ],
+        "expected": "onUsage 回调被调用一次，参数为 (TokenUsage, modelName)"
+      },
+      {
+        "title": "step() 将 onUsage 传递给 generate()",
+        "description": "step 函数应将 options 中的 onUsage 传递给 generate",
+        "steps": [
+          "调用 step() 并传入包含 onUsage 的 options",
+          "mock generate() 验证收到的参数"
+        ],
+        "expected": "generate() 收到的 options 包含相同的 onUsage 回调"
+      },
+      {
+        "title": "AgentRunner 在每轮对话后累加 usage",
+        "description": "AgentRunner 应在每次 step() 完成后累加 usage 到 SessionUsage",
+        "steps": [
+          "创建 AgentRunner 并设置 onUsage 回调",
+          "执行一轮对话（包含工具调用）",
+          "检查 SessionUsage"
+        ],
+        "expected": "SessionUsage 的累计值增加，rounds 数组新增一个元素"
+      },
+      {
+        "title": "主子智能体 usage 统一累加",
+        "description": "子智能体的 API 调用 usage 应与主智能体一起累加到同一个 SessionUsage",
+        "steps": [
+          "创建 AgentRunner 和 SubAgentManager，共享同一个 AnthropicClient",
+          "主智能体调用一次 API",
+          "子智能体调用一次 API",
+          "检查 SessionUsage"
+        ],
+        "expected": "SessionUsage.rounds 包含两个元素，累计值为两次调用之和"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-07-session-token-usage-design.md#费用计算公式",
+    "description": "费用计算 - 根据 TokenUsage 和模型定价计算费用",
+    "bdd": [
+      {
+        "title": "正确计算单次 API 调用费用",
+        "description": "根据公式计算费用：各类 token 数 * 对应单价 / 1,000,000",
+        "steps": [
+          "设置定价 inputPerMillion=3.0, outputPerMillion=15.0, cacheReadPerMillion=0.3, cacheWritePerMillion=3.75",
+          "调用 calculateCost() 传入 TokenUsage{inputOther:1000, output:500, inputCacheRead:2000, inputCacheCreation:100}"
+        ],
+        "expected": "返回 (1000*3.0 + 500*15.0 + 2000*0.3 + 100*3.75) / 1000000 = 0.011475"
+      },
+      {
+        "title": "零 token 时费用为零",
+        "description": "当所有 token 计数为 0 时，费用应为 0",
+        "steps": [
+          "调用 calculateCost() 传入全零的 TokenUsage"
+        ],
+        "expected": "返回 0"
+      },
+      {
+        "title": "累加费用到 SessionUsage.totalCost",
+        "description": "每次累加 usage 时应同时累加费用",
+        "steps": [
+          "创建空的 SessionUsage（totalCost=null）",
+          "累加一次 usage，定价配置存在"
+        ],
+        "expected": "totalCost 从 null 变为本次计算的费用值"
+      },
+      {
+        "title": "定价配置缺失时 totalCost 保持 null",
+        "description": "当模型定价未配置时，不计算费用",
+        "steps": [
+          "创建空的 SessionUsage",
+          "累加 usage，但模型定价不存在"
+        ],
+        "expected": "totalCost 保持为 null，token 累计正常进行"
+      },
+      {
+        "title": "多次累加费用正确求和",
+        "description": "连续多次累加，费用应正确求和",
+        "steps": [
+          "累加三次 usage，每次费用分别为 0.01, 0.02, 0.03"
+        ],
+        "expected": "totalCost = 0.06"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-07-session-token-usage-design.md#状态行为",
+    "description": "Session 持久化 - 将 SessionUsage 持久化到 sessions.json",
+    "bdd": [
+      {
+        "title": "Session 创建时初始化空的 usage",
+        "description": "新建 Session 时应自动创建空的 SessionUsage",
+        "steps": [
+          "调用 Session.create()"
+        ],
+        "expected": "Session 对象包含初始化的 SessionUsage，所有计数器为 0"
+      },
+      {
+        "title": "累加 usage 后自动持久化",
+        "description": "每次累加 usage 后应更新 sessions.json 文件",
+        "steps": [
+          "创建 Session 并累加一次 usage",
+          "读取 sessions.json 文件"
+        ],
+        "expected": "sessions.json 中对应 Session 的 usage 字段包含累加后的值"
+      },
+      {
+        "title": "Session clear 重置 usage",
+        "description": "清空 Session 时应重置 usage 到初始状态",
+        "steps": [
+          "创建 Session 并累加多次 usage",
+          "调用 session.clear()",
+          "读取 sessions.json"
+        ],
+        "expected": "usage 所有计数器归零，rounds 为空数组，totalCost 为 null"
+      },
+      {
+        "title": "Session 恢复时加载已保存的 usage",
+        "description": "从 sessions.json 恢复 Session 时应加载之前的 usage",
+        "steps": [
+          "创建 Session 并累加 usage，记录 sessionId",
+          "创建新的 Session.find(sessionId)"
+        ],
+        "expected": "恢复的 Session 包含之前累加的 usage 数据"
+      },
+      {
+        "title": "SessionInfo 包含 usage 字段",
+        "description": "sessions.json 索引中每个 Session 应包含 usage 字段",
+        "steps": [
+          "创建 Session 并累加 usage",
+          "调用 Session.list()"
+        ],
+        "expected": "返回的 SessionInfo 数组中，对应 Session 包含 usage 字段"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-07-session-token-usage-design.md#cost-命令",
+    "description": "/cost 命令 - 按需查询当前 Session 的 token 使用和费用统计",
+    "bdd": [
+      {
+        "title": "正常输出格式",
+        "description": "显示 token 统计、缓存命中率和费用",
+        "steps": [
+          "创建 Session 并累加 usage: totalInputOther=1545, totalOutput=3456, totalCacheRead=9600, totalCacheCreation=1200, totalCost=0.42",
+          "执行 /cost 命令"
+        ],
+        "expected": "输出 'Token: 12,345 in / 3,456 out | Cache: 78% hit | Cost: $0.42'"
+      },
+      {
+        "title": "空 Session 输出零值",
+        "description": "无使用记录时显示全零",
+        "steps": [
+          "创建新 Session，不进行任何对话",
+          "执行 /cost 命令"
+        ],
+        "expected": "输出 'Token: 0 in / 0 out | Cache: 0% hit | Cost: $0.00'"
+      },
+      {
+        "title": "费用 N/A 时的输出",
+        "description": "定价配置缺失时费用显示 N/A",
+        "steps": [
+          "创建 Session 并累加 usage，但 totalCost 为 null",
+          "执行 /cost 命令"
+        ],
+        "expected": "输出 'Token: X in / Y out | Cache: Z% hit | Cost: N/A'"
+      },
+      {
+        "title": "缓存命中率计算正确",
+        "description": "命中率 = cacheRead / (inputOther + cacheRead + cacheCreation) * 100，四舍五入到整数",
+        "steps": [
+          "累加 usage: inputOther=100, cacheRead=300, cacheCreation=100",
+          "执行 /cost 命令"
+        ],
+        "expected": "缓存命中率显示为 60% (300/500*100=60)"
+      },
+      {
+        "title": "大数字格式化显示",
+        "description": "token 数量使用千分位分隔符",
+        "steps": [
+          "累加 usage 使 totalInput 超过 1000",
+          "执行 /cost 命令"
+        ],
+        "expected": "token 数量显示带千分位分隔符，如 '12,345'"
+      },
+      {
+        "title": "/cost 命令注册为本地命令",
+        "description": "在 REPL 中可以识别并执行 /cost",
+        "steps": [
+          "启动 REPL",
+          "输入 /cost"
+        ],
+        "expected": "命令被识别并执行，不会发送到 LLM"
+      }
+    ],
+    "passes": false
+  }
+]
