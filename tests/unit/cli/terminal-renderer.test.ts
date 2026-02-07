@@ -74,4 +74,22 @@ describe('TerminalRenderer', () => {
     const output = writes.map((call) => String(call[0] ?? '')).join('');
     expect(stripAnsi(output)).toContain('Analyzing skill enhancement...');
   });
+
+  it('should truncate long bash command display to 40 characters', () => {
+    const renderer = new TerminalRenderer();
+    const longCommand = `write ./file.txt ${'a'.repeat(160)}`;
+
+    renderer.renderToolStart({
+      id: '4',
+      command: longCommand,
+      depth: 0,
+    });
+
+    const writes = (process.stdout.write as unknown as { mock: { calls: unknown[][] } }).mock.calls;
+    const output = stripAnsi(writes.map((call) => String(call[0] ?? '')).join(''));
+    const expectedPrefix = longCommand.slice(0, 40);
+
+    expect(output).toContain(`Bash(${expectedPrefix}...)`);
+    expect(output).not.toContain(`Bash(${longCommand})`);
+  });
 });
