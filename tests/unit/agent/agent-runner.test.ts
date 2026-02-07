@@ -12,7 +12,7 @@ import {
   AgentRunner,
   type AgentRunnerOptions,
 } from '../../../src/agent/agent-runner.ts';
-import { CallableToolset } from '../../../src/tools/toolset.ts';
+import { CallableToolset, type Toolset } from '../../../src/tools/toolset.ts';
 import { ToolOk, ToolError } from '../../../src/tools/callable-tool.ts';
 import type { CallableTool, ToolReturnValue } from '../../../src/tools/callable-tool.ts';
 import { createTextMessage, type Message } from '../../../src/providers/message.ts';
@@ -116,6 +116,63 @@ describe('AgentRunner', () => {
       await runner.run('Hello');
 
       expect(parts.length).toBeGreaterThan(0);
+    });
+
+    it('should forward AbortSignal to provider generate call', async () => {
+      const client = createMockClient([[{ type: 'text', text: 'Hi' }]]);
+      const toolset = new CallableToolset([createMockCallableTool(() =>
+        Promise.resolve(ToolOk({ output: '' }))
+      )]);
+      const controller = new AbortController();
+
+      const runner = new AgentRunner({
+        client,
+        systemPrompt: 'Test',
+        toolset,
+        enableStopHooks: false,
+      });
+
+      await runner.run('Hello', { signal: controller.signal });
+
+      const call = (client.generate as unknown as { mock: { calls: unknown[][] } }).mock.calls[0];
+      expect(call?.[3]).toEqual(expect.objectContaining({ signal: controller.signal }));
+    });
+
+    it('should not persist dangling tool-call message when aborted during tool results', async () => {
+      const client = createMockClient([
+        [{ type: 'tool_call', id: 'c1', name: 'Bash', input: { command: 'sleep 10' } }],
+        [{ type: 'text', text: 'Recovered' }],
+      ]);
+      const cancel = mock(() => {});
+      const pendingToolResult = new Promise(() => {}) as Promise<unknown> & { cancel?: () => void };
+      pendingToolResult.cancel = cancel;
+      const toolset: Toolset = {
+        tools: [BashToolSchema],
+        handle: mock(() => pendingToolResult as Promise<any>),
+      };
+
+      const runner = new AgentRunner({
+        client,
+        systemPrompt: 'Test',
+        toolset,
+        enableStopHooks: false,
+      });
+
+      const controller = new AbortController();
+      const runPromise = runner.run('Plan trip', { signal: controller.signal });
+      setTimeout(() => controller.abort(), 10);
+
+      await expect(runPromise).rejects.toMatchObject({ name: 'AbortError' });
+      expect(cancel).toHaveBeenCalled();
+      expect(runner.getHistory()).toHaveLength(1);
+      expect(runner.getHistory()[0]?.role).toBe('user');
+
+      const recovered = await runner.run('Plan trip again');
+      expect(recovered).toBe('Recovered');
+      const hasDanglingToolCall = runner.getHistory().some(
+        (message) => message.role === 'assistant' && (message.toolCalls?.length ?? 0) > 0
+      );
+      expect(hasDanglingToolCall).toBe(false);
     });
 
     it('should log tool failure details', async () => {
@@ -481,5 +538,48 @@ describe('AgentRunner with Session', () => {
 
     // 验证历史已合并
     expect(runner2.getHistory().length).toBe(4); // 2 from first + 2 from second
+  });
+
+  it('should sanitize dangling tool-call history when resuming session', async () => {
+    const session = await Session.create({ sessionsDir: testDir });
+    await session.appendMessage([
+      createTextMessage('user', 'Old request'),
+      {
+        role: 'assistant',
+        content: [{ type: 'text', text: 'Running tool' }],
+        toolCalls: [{ id: 'dangling-call', name: 'Bash', arguments: '{"command":"ls"}' }],
+      },
+      createTextMessage('user', 'Retry request'),
+    ]);
+
+    const client = createMockClient([[{ type: 'text', text: 'Recovered response' }]]);
+    const toolset = new CallableToolset([createMockCallableTool(() =>
+      Promise.resolve(ToolOk({ output: '' }))
+    )]);
+
+    const runner = new AgentRunner({
+      client,
+      systemPrompt: 'Test',
+      toolset,
+      sessionId: session.id,
+      sessionsDir: testDir,
+      enableStopHooks: false,
+    });
+
+    const response = await runner.run('New request');
+    expect(response).toBe('Recovered response');
+
+    const history = runner.getHistory();
+    const hasDanglingToolCall = history.some(
+      (message) => message.role === 'assistant' && (message.toolCalls?.length ?? 0) > 0
+    );
+    expect(hasDanglingToolCall).toBe(false);
+
+    const resumed = await Session.find(session.id, { sessionsDir: testDir });
+    const persisted = await resumed!.loadHistory();
+    const persistedDangling = persisted.some(
+      (message) => message.role === 'assistant' && (message.toolCalls?.length ?? 0) > 0
+    );
+    expect(persistedDangling).toBe(false);
   });
 });

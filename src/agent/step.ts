@@ -19,6 +19,7 @@ import type { Message, ToolCall, ToolResult } from '../providers/message.ts';
 import type { Toolset } from '../tools/toolset.ts';
 import { ToolError } from '../tools/callable-tool.ts';
 import { createLogger } from '../utils/logger.ts';
+import { createAbortError, isAbortError, throwIfAborted } from '../utils/abort.ts';
 
 const logger = createLogger('step');
 
@@ -57,6 +58,7 @@ export interface StepOptions {
   onMessagePart?: OnMessagePart;
   onToolCall?: OnToolCall;
   onToolResult?: OnToolResult;
+  signal?: AbortSignal;
 }
 
 /**
@@ -89,11 +91,19 @@ export async function step(
   history: readonly Message[],
   options?: StepOptions
 ): Promise<StepResult> {
-  const { onMessagePart, onToolCall, onToolResult } = options ?? {};
+  const { onMessagePart, onToolCall, onToolResult, signal } = options ?? {};
+  throwIfAborted(signal);
 
   const toolCalls: ToolCall[] = [];
   const toolResultTasks: Map<string, ToolResultTask> = new Map();
   let cancelled = false;
+
+  const cancelAllToolTasks = () => {
+    cancelled = true;
+    for (const task of toolResultTasks.values()) {
+      task.cancel();
+    }
+  };
 
   const notifyToolResult = (promise: Promise<ToolResult>) => {
     if (!onToolResult) {
@@ -154,13 +164,15 @@ export async function step(
     result = await generate(client, systemPrompt, toolset.tools, history, {
       onMessagePart,
       onToolCall: handleToolCall,
+      signal,
     });
   } catch (error) {
-    cancelled = true;
-    const tasks = [...toolResultTasks.values()];
-    for (const task of tasks) {
-      task.cancel();
+    cancelAllToolTasks();
+    if (isAbortError(error) || signal?.aborted) {
+      throw createAbortError();
     }
+
+    const tasks = [...toolResultTasks.values()];
     await Promise.allSettled(tasks.map((task) => task.promise));
     throw error;
   }
@@ -184,13 +196,39 @@ export async function step(
         return [];
       }
 
+      throwIfAborted(signal);
+
+      let aborted = false;
+      let onAbort: (() => void) | null = null;
+      const resultsPromise = Promise.all(tasks.map((task) => task.promise));
+      const guardedPromise = signal
+        ? Promise.race<ToolResult[]>([
+            resultsPromise,
+            new Promise<never>((_, reject) => {
+              onAbort = () => {
+                aborted = true;
+                for (const task of tasks) {
+                  task.cancel();
+                }
+                reject(createAbortError());
+              };
+              signal.addEventListener('abort', onAbort, { once: true });
+            }),
+          ])
+        : resultsPromise;
+
       try {
-        return await Promise.all(tasks.map((task) => task.promise));
+        return await guardedPromise;
       } finally {
+        if (signal && onAbort) {
+          signal.removeEventListener('abort', onAbort);
+        }
         for (const task of tasks) {
           task.cancel();
         }
-        await Promise.allSettled(tasks.map((task) => task.promise));
+        if (!aborted) {
+          await Promise.allSettled(tasks.map((task) => task.promise));
+        }
       }
     },
   };

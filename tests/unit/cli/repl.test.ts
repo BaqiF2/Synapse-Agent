@@ -193,6 +193,49 @@ describe('REPL commands', () => {
       (process.stdout as { isTTY?: boolean }).isTTY = originalIsTTY;
     }
   });
+
+  it('handleSigint should interrupt current turn without callback message', async () => {
+    console.log = mock(() => {}) as unknown as typeof console.log;
+    const promptUser = mock(() => {});
+    const interruptCurrentTurn = mock(() => {});
+    const { handleSigint } = await loadRepl();
+    const state = { isProcessing: true };
+
+    handleSigint({
+      state,
+      promptUser,
+      interruptCurrentTurn,
+    });
+
+    expect(state.isProcessing).toBe(false);
+    expect(interruptCurrentTurn).toHaveBeenCalledTimes(1);
+    expect(promptUser).toHaveBeenCalledTimes(1);
+    expect((console.log as unknown as { mock: { calls: unknown[][] } }).mock.calls.length).toBe(0);
+
+    console.log = originalConsoleLog;
+  });
+
+  it('handleSigint should clear current input and return prompt when idle', async () => {
+    console.log = mock(() => {}) as unknown as typeof console.log;
+    const promptUser = mock(() => {});
+    const interruptCurrentTurn = mock(() => {});
+    const clearCurrentInput = mock(() => {});
+    const { handleSigint } = await loadRepl();
+    const state = { isProcessing: false };
+
+    handleSigint({
+      state,
+      promptUser,
+      interruptCurrentTurn,
+      clearCurrentInput,
+    });
+
+    expect(interruptCurrentTurn).not.toHaveBeenCalled();
+    expect(clearCurrentInput).toHaveBeenCalledTimes(1);
+    expect(promptUser).toHaveBeenCalledTimes(1);
+
+    console.log = originalConsoleLog;
+  });
 });
 
 function getConsoleOutput(): string {

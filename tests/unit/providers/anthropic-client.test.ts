@@ -5,7 +5,8 @@
 import { describe, it, expect, mock, beforeEach, afterAll } from 'bun:test';
 
 let capturedCreateParams: unknown;
-let createImpl: ((params: unknown) => Promise<unknown>) | null = null;
+let capturedCreateOptions: unknown;
+let createImpl: ((params: unknown, requestOptions?: unknown) => Promise<unknown>) | null = null;
 
 class MockAPIConnectionError extends Error {}
 class MockAPIError extends Error {
@@ -21,10 +22,11 @@ class MockAnthropic {
   static APIError = MockAPIError;
 
   messages = {
-    create: mock(async (params: unknown) => {
+    create: mock(async (params: unknown, requestOptions?: unknown) => {
       capturedCreateParams = params;
+      capturedCreateOptions = requestOptions;
       if (createImpl) {
-        return await createImpl(params);
+        return await createImpl(params, requestOptions);
       }
       return { id: 'msg_1', content: [], usage: { input_tokens: 0, output_tokens: 0 }, type: 'message' };
     }),
@@ -39,6 +41,7 @@ mock.module('@anthropic-ai/sdk', () => ({
 
 beforeEach(() => {
   capturedCreateParams = null;
+  capturedCreateOptions = null;
   createImpl = null;
 });
 
@@ -152,5 +155,19 @@ describe('AnthropicClient', () => {
     };
 
     await expect(client.generate('system', [], [])).rejects.toBeInstanceOf(APIStatusError);
+  });
+
+  it('should pass request abort signal to SDK create options', async () => {
+    const { AnthropicClient } = await import('../../../src/providers/anthropic/anthropic-client.ts');
+    const controller = new AbortController();
+
+    const client = new AnthropicClient({
+      stream: false,
+      settings: { apiKey: 'test-key', baseURL: 'https://example.test', model: 'test-model' },
+    });
+
+    await client.generate('system', [], [], { signal: controller.signal });
+
+    expect(capturedCreateOptions).toEqual(expect.objectContaining({ signal: controller.signal }));
   });
 });
