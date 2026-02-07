@@ -1,210 +1,143 @@
-# Task Explore 并行优化设计
+# Task 并行执行设计
 
 ## 问题背景
 
-当前系统在使用 `task:explore` 工具时存在两个问题：
+当前系统在使用 `task:explore` 和 `task:general` 工具时存在问题：
 
-1. **渲染问题**：长命令导致终端输出混乱，进度动画无法正确原地更新
-2. **任务分发问题**：所有提示词都塞到一个 explore 任务里，无法并行执行
+1. 所有参数都塞到一个任务里，无法并行执行
+2. 主代理发起多个 `task:*` 调用时，系统串行执行
 
 ## 设计目标
 
-1. 截断长命令显示，避免多行渲染问题
-2. 自动按目录拆分 explore 任务，实现并行执行
-3. 每个并行任务在终端显示一行
+1. 支持主代理同时发起多个 `task:explore` / `task:general` 调用
+2. 系统识别同批次的 `task:*` 调用，并行执行
+3. 每个任务返回独立的 tool_result
+4. 每个并行任务在终端独立显示一行状态
 
-## 解决方案
+## 不在范围内
 
-### 1. 命令截断渲染
+- 代码层自动拆分任务（由主代理负责决策）
+- 命令截断渲染
 
-**修改位置**: `src/cli/terminal-renderer.ts`
+## 核心设计
 
-**核心逻辑**:
+### 并行执行机制
 
-```typescript
-// 新增常量
-const MAX_COMMAND_DISPLAY_LENGTH = parseInt(
-  process.env.SYNAPSE_MAX_COMMAND_DISPLAY_LENGTH || '80',
-  10
-);
+当主代理在一次响应中返回多个 `task:*` 工具调用时：
 
-// 新增截断函数
-function truncateCommand(command: string, maxLength: number): string {
-  if (command.length <= maxLength) {
-    return command;
-  }
-  return command.slice(0, maxLength - 3) + '...';
-}
-
-// 修改 buildToolLine()
-private buildToolLine(options: {
-  depth: number;
-  isLast: boolean;
-  dotColor: (text: string) => string;
-  command: string;
-}): string {
-  const prefix = this.getToolPrefix(options.depth, options.isLast, options.dotColor);
-  const displayCommand = truncateCommand(options.command, MAX_COMMAND_DISPLAY_LENGTH);
-  const toolName = chalk.yellow(`Bash(${displayCommand})`);
-  return `${prefix}${toolName}`;
-}
+```
+tool_use[0]: task:explore --prompt "分析 src/agent"
+tool_use[1]: task:explore --prompt "分析 src/tools"
+tool_use[2]: task:general --prompt "查询项目依赖"
 ```
 
-### 2. 目录自动拆分
+系统处理流程：
 
-**修改位置**: `src/tools/handlers/task-command-handler.ts`
+1. `AgentRunner` 收到多个 tool_use
+2. 识别出可并行的 `task:*` 类型调用
+3. 通过 `Promise.allSettled()` 并行执行
+4. 每个任务返回独立的 tool_result
+5. 主代理收到所有 tool_result 后继续执行
 
-**核心逻辑**:
+### 返回结构
 
-```typescript
-// 新增常量
-const MAX_PARALLEL_TASKS = parseInt(
-  process.env.SYNAPSE_MAX_PARALLEL_TASKS || '5',
-  10
-);
-
-// 新增目录检测函数
-async function detectSubDirectories(basePath: string): Promise<string[]> {
-  const entries = await fs.readdir(basePath, { withFileTypes: true });
-  return entries
-    .filter(entry => entry.isDirectory() && !entry.name.startsWith('.'))
-    .map(entry => path.join(basePath, entry.name))
-    .slice(0, MAX_PARALLEL_TASKS);
-}
-
-// 新增任务拆分函数
-async function splitExploreTask(
-  params: TaskCommandParams
-): Promise<TaskCommandParams[]> {
-  // 从 prompt 中提取目标路径，默认为 src/
-  const targetPath = extractTargetPath(params.prompt) || 'src';
-
-  const subDirs = await detectSubDirectories(targetPath);
-
-  // 如果子目录 <= 1，不拆分
-  if (subDirs.length <= 1) {
-    return [params];
-  }
-
-  // 为每个子目录生成独立任务
-  return subDirs.map(dir => ({
-    ...params,
-    prompt: `${params.prompt}\n\n重点分析目录: ${dir}`,
-    description: `${params.description || '探索'}: ${path.basename(dir)}`,
-  }));
-}
+```
+tool_result[0]: { content: "src/agent 分析结果..." }
+tool_result[1]: { content: "src/tools 分析结果..." }
+tool_result[2]: { content: "项目依赖查询结果..." }
 ```
 
-**路径提取逻辑**:
+失败的任务返回错误信息：
 
-```typescript
-function extractTargetPath(prompt: string): string | null {
-  // 匹配常见模式: "分析 src/", "查看 ./lib", "探索 packages/"
-  const patterns = [
-    /(?:分析|查看|探索|检查|扫描)\s+([^\s,，。]+)/,
-    /(?:in|under|at)\s+([^\s,]+)/i,
-  ];
-
-  for (const pattern of patterns) {
-    const match = prompt.match(pattern);
-    if (match && match[1]) {
-      const candidate = match[1].replace(/["""'']/g, '');
-      // 验证路径存在
-      if (existsSync(candidate)) {
-        return candidate;
-      }
-    }
-  }
-
-  // 默认返回 src（如果存在）
-  return existsSync('src') ? 'src' : null;
-}
+```
+tool_result[1]: { content: "Error: Connection timeout", is_error: true }
 ```
 
-**执行方式**:
+### 执行顺序
 
-```typescript
-// 在 execute() 方法中
-async execute(command: string): Promise<CommandResult> {
-  const parsed = parseTaskCommand(command);
+按 tool_use 数组顺序分组，连续的 `task:*` 调用并行执行：
 
-  if (parsed.type === 'explore') {
-    const tasks = await splitExploreTask(parsed.params);
-
-    // 并行执行所有任务
-    const results = await Promise.allSettled(
-      tasks.map(task => this.manager.execute('explore', task))
-    );
-
-    // 分离成功和失败的结果
-    const succeeded = results.filter(r => r.status === 'fulfilled');
-    const failed = results.filter(r => r.status === 'rejected');
-
-    const output = succeeded
-      .map(r => (r as PromiseFulfilledResult<string>).value)
-      .join('\n\n---\n\n');
-
-    const errors = failed
-      .map(r => (r as PromiseRejectedResult).reason?.message || 'Unknown error')
-      .join('\n');
-
-    return {
-      stdout: output,
-      stderr: errors,
-      exitCode: failed.length > 0 ? 1 : 0,
-    };
-  }
-
-  // 其他类型保持原有逻辑
-  // ...
-}
 ```
+tool_use[0]: read file.txt        → 单独执行
+tool_use[1]: task:explore A       ┐
+tool_use[2]: task:explore B       ├→ 并行执行
+tool_use[3]: task:general C       ┘
+tool_use[4]: write result.txt     → 等待上面完成后执行
+```
+
+### 并行限制
+
+- 最大并行数：5（`SYNAPSE_MAX_PARALLEL_TASKS`）
+- 超出限制时：前 5 个并行，其余排队等待
+
+## 终端渲染
+
+### 多任务并行显示
+
+每个并行任务在终端独立显示一行状态：
+
+```
+◐ task:explore "分析 src/agent"
+◐ task:explore "分析 src/tools"
+◐ task:general "查询项目依赖"
+```
+
+任务完成后更新状态：
+
+```
+✓ task:explore "分析 src/agent"
+◐ task:explore "分析 src/tools"
+✗ task:general "查询项目依赖"
+```
+
+### 状态图标
+
+| 状态 | 图标 |
+|------|------|
+| 执行中 | `◐` (带动画) |
+| 成功 | `✓` (绿色) |
+| 失败 | `✗` (红色) |
+
+### 显示内容截断
+
+复用现有 `TOOL_RESULT_SUMMARY_LIMIT` 环境变量配置。
 
 ## 边界情况处理
 
 | 场景 | 处理方式 |
-|------|---------|
-| 目标路径不存在 | 回退到单任务执行，不拆分 |
-| 目录下无子目录 | 直接执行原始任务，不拆分 |
-| 子目录数量超过限制 | 取前 N 个（按字母排序），N = `MAX_PARALLEL_TASKS` |
-| 隐藏目录（`.git`, `.cache`） | 自动过滤，不纳入拆分 |
-| 非 explore 类型任务 | 保持原有逻辑，不拆分 |
-| 命令 < 80 字符 | 完整显示 |
-| 命令 >= 80 字符 | 截断 + `...` |
-| 部分任务失败 | 返回成功结果 + 错误信息，exitCode = 1 |
+|------|----------|
+| 并行任务数超过 5 | 前 5 个并行执行，其余排队等待 |
+| 单个任务超时 | 该任务返回超时错误，不影响其他任务 |
+| 全部任务失败 | 每个任务独立返回错误信息 |
+| 混合 task 类型 | `task:explore` 和 `task:general` 可混合并行 |
+| 非 task 工具调用 | 不参与并行，按原有逻辑执行 |
+| 主代理只发起 1 个 task | 正常执行，无需特殊处理 |
 
 ## 环境变量
 
 | 变量 | 默认值 | 说明 |
-|------|-------|------|
-| `SYNAPSE_MAX_COMMAND_DISPLAY_LENGTH` | 80 | 命令显示最大长度 |
+|------|--------|------|
 | `SYNAPSE_MAX_PARALLEL_TASKS` | 5 | 最大并行任务数 |
-
-## 预期终端输出
-
-```
-• Bash(task:explore --prompt "分析 src/agent 目录...")
-• Bash(task:explore --prompt "分析 src/cli 目录...")
-• Bash(task:explore --prompt "分析 src/tools 目录...")
-```
-
-## 测试用例
-
-| 测试场景 | 输入 | 预期输出 |
-|---------|------|---------|
-| 长命令截断 | 100 字符命令 | 显示 77 字符 + `...` |
-| 短命令不截断 | 50 字符命令 | 完整显示 |
-| 目录拆分 - 正常 | `src/` 下有 3 个子目录 | 3 个并行 task |
-| 目录拆分 - 无子目录 | `src/` 下无子目录 | 单个 task，不拆分 |
-| 目录拆分 - 路径不存在 | 指定 `nonexistent/` | 回退单任务 |
-| 目录拆分 - 超过限制 | 10 个子目录，限制 5 | 只执行前 5 个 |
-| 部分任务失败 | 3 个任务，1 个失败 | 返回 2 个成功结果 + 错误信息 |
+| `TOOL_RESULT_SUMMARY_LIMIT` | (现有值) | 显示内容截断长度 |
 
 ## 实现文件清单
 
 | 文件 | 变更类型 | 说明 |
-|------|---------|------|
-| `src/cli/terminal-renderer.ts` | 修改 | 添加 `truncateCommand()` 和常量 |
-| `src/tools/handlers/task-command-handler.ts` | 修改 | 添加拆分逻辑 |
-| `tests/unit/cli/terminal-renderer.test.ts` | 新增/修改 | 截断测试 |
-| `tests/unit/tools/task-command-handler.test.ts` | 新增/修改 | 拆分逻辑测试 |
+|------|----------|------|
+| `src/agent/agent-runner.ts` | 修改 | 识别多个 task:* 调用，并行执行 |
+| `src/cli/terminal-renderer.ts` | 修改 | 支持多行并行任务状态显示 |
+| `src/tools/handlers/task-command-handler.ts` | 修改 | 支持 task:general |
+| `tests/unit/agent/agent-runner.test.ts` | 新增/修改 | 并行执行测试 |
+| `tests/unit/cli/terminal-renderer.test.ts` | 新增/修改 | 多任务渲染测试 |
+
+## 测试用例
+
+| 测试场景 | 输入 | 预期输出 |
+|----------|------|----------|
+| 单个 task 执行 | 1 个 task:explore | 正常执行，返回 1 个 tool_result |
+| 多个 task 并行 | 3 个 task:explore | 并行执行，返回 3 个独立 tool_result |
+| 混合类型并行 | 2 个 task:explore + 1 个 task:general | 全部并行执行 |
+| 超过限制 | 7 个 task:* | 前 5 个并行，后 2 个排队 |
+| 部分失败 | 3 个任务，1 个失败 | 2 个成功 + 1 个 is_error |
+| 混合工具调用 | read + 3 个 task:* + write | 按顺序分组执行 |
+| 渲染多行状态 | 3 个并行任务 | 终端显示 3 行独立状态 |

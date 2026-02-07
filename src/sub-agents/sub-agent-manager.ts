@@ -14,6 +14,7 @@ import { AgentRunner } from '../agent/agent-runner.ts';
 import { CallableToolset } from '../tools/toolset.ts';
 import { RestrictedBashTool } from '../tools/restricted-bash-tool.ts';
 import type { AnthropicClient } from '../providers/anthropic/anthropic-client.ts';
+import type { OnUsage } from '../providers/generate.ts';
 import type { BashTool } from '../tools/bash-tool.ts';
 import type { SubAgentType, TaskCommandParams, ToolPermissions } from './sub-agent-types.ts';
 import type { ToolResultEvent, SubAgentCompleteEvent, SubAgentToolCallEvent } from '../cli/terminal-renderer-types.ts';
@@ -58,6 +59,8 @@ export interface SubAgentManagerOptions {
   onToolEnd?: OnSubAgentToolResult;
   /** SubAgent 完成回调 */
   onComplete?: OnSubAgentComplete;
+  /** SubAgent usage 回调（用于主会话累计） */
+  onUsage?: OnUsage;
 }
 
 /**
@@ -85,6 +88,7 @@ export class SubAgentManager {
   private onToolStart?: OnSubAgentToolCall;
   private onToolEnd?: OnSubAgentToolResult;
   private onComplete?: OnSubAgentComplete;
+  private onUsage?: OnUsage;
   /** 全局计数器，用于生成唯一的 SubAgent ID */
   private subAgentCounter = 0;
 
@@ -95,6 +99,7 @@ export class SubAgentManager {
     this.onToolStart = options.onToolStart;
     this.onToolEnd = options.onToolEnd;
     this.onComplete = options.onComplete;
+    this.onUsage = options.onUsage;
   }
 
   /**
@@ -214,6 +219,7 @@ export class SubAgentManager {
       enableStopHooks: false,
       onToolCall,
       onToolResult,
+      onUsage: this.onUsage,
     });
   }
 

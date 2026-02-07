@@ -22,6 +22,7 @@ import { TaskCommandHandler } from './handlers/task-command-handler.ts';
 import { parseBashCommand } from './handlers/agent-bash/index.ts';
 import { getDisallowedShellWriteReason } from './constants.ts';
 import type { AnthropicClient } from '../providers/anthropic/anthropic-client.ts';
+import type { OnUsage } from '../providers/generate.ts';
 import type { BashTool } from './bash-tool.ts';
 import type {
   ToolResultEvent,
@@ -99,6 +100,8 @@ export interface BashRouterOptions {
   onSubAgentToolEnd?: (event: ToolResultEvent) => void;
   /** SubAgent 完成回调 */
   onSubAgentComplete?: (event: SubAgentCompleteEvent) => void;
+  /** SubAgent usage 回调 */
+  onSubAgentUsage?: OnUsage;
 }
 
 /**
@@ -123,6 +126,7 @@ export class BashRouter {
   private onSubAgentToolStart: ((event: SubAgentToolCallEvent) => void) | undefined;
   private onSubAgentToolEnd: ((event: ToolResultEvent) => void) | undefined;
   private onSubAgentComplete: ((event: SubAgentCompleteEvent) => void) | undefined;
+  private onSubAgentUsage: OnUsage | undefined;
 
   constructor(private session: BashSession, options: BashRouterOptions = {}) {
     this.synapseDir = options.synapseDir ?? DEFAULT_SYNAPSE_DIR;
@@ -132,6 +136,7 @@ export class BashRouter {
     this.onSubAgentToolStart = options.onSubAgentToolStart;
     this.onSubAgentToolEnd = options.onSubAgentToolEnd;
     this.onSubAgentComplete = options.onSubAgentComplete;
+    this.onSubAgentUsage = options.onSubAgentUsage;
 
     this.nativeShellCommandHandler = new NativeShellCommandHandler(session);
     this.readHandler = new ReadHandler();
@@ -585,6 +590,7 @@ export class BashRouter {
         onToolStart: this.onSubAgentToolStart,
         onToolEnd: this.onSubAgentToolEnd,
         onComplete: this.onSubAgentComplete,
+        onUsage: this.onSubAgentUsage,
       });
     }
 

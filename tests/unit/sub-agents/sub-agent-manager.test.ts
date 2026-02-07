@@ -8,6 +8,7 @@ import type { SubAgentCompleteEvent } from '../../../src/cli/terminal-renderer-t
 function createMockClient(responses: StreamedMessagePart[][]): AnthropicClient {
   let callIndex = 0;
   return {
+    modelName: 'claude-sonnet-4-20250514',
     generate: () => {
       const parts = responses[callIndex++] || [{ type: 'text', text: 'Default' }];
       return Promise.resolve({
@@ -71,6 +72,30 @@ describe('SubAgentManager', () => {
     expect(event.success).toBe(true);
     expect(event.toolCount).toBe(0);
     expect(typeof event.duration).toBe('number');
+  });
+
+  it('should forward usage through onUsage callback', async () => {
+    const client = createMockClient([[{ type: 'text', text: 'Done!' }]]);
+    const usageEvents: Array<{ model: string; usage: unknown }> = [];
+
+    const manager = new SubAgentManager({
+      client,
+      bashTool,
+      onUsage: (usage, model) => {
+        usageEvents.push({ usage, model });
+      },
+    });
+
+    await manager.execute('general', { prompt: 'Hi', description: 'Usage test' });
+
+    expect(usageEvents).toHaveLength(1);
+    expect(usageEvents[0]?.model).toBe('claude-sonnet-4-20250514');
+    expect(usageEvents[0]?.usage).toEqual({
+      inputOther: 1,
+      output: 1,
+      inputCacheRead: 0,
+      inputCacheCreation: 0,
+    });
   });
 
   it('should shutdown and cleanup', async () => {

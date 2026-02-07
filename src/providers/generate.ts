@@ -37,11 +37,17 @@ export type OnMessagePart = (part: StreamedMessagePart) => void | Promise<void>;
 export type OnToolCall = (toolCall: ToolCall) => void | Promise<void>;
 
 /**
+ * Callback for usage after one API call completes
+ */
+export type OnUsage = (usage: TokenUsage, model: string) => void | Promise<void>;
+
+/**
  * Generate options
  */
 export interface GenerateOptions {
   onMessagePart?: OnMessagePart;
   onToolCall?: OnToolCall;
+  onUsage?: OnUsage;
   signal?: AbortSignal;
 }
 
@@ -72,7 +78,7 @@ export async function generate(
   history: readonly Message[],
   options?: GenerateOptions
 ): Promise<GenerateResult> {
-  const { onMessagePart, onToolCall, signal } = options ?? {};
+  const { onMessagePart, onToolCall, onUsage, signal } = options ?? {};
   throwIfAborted(signal);
 
   // Call LLM
@@ -133,6 +139,10 @@ export async function generate(
   // Check for empty response
   if (!message.content.length && !message.toolCalls?.length) {
     throw new APIEmptyResponseError('API returned an empty response');
+  }
+
+  if (onUsage) {
+    await onUsage(structuredClone(stream.usage), client.modelName);
   }
 
   return {
