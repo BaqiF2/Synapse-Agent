@@ -109,17 +109,49 @@ describe('AnthropicClient', () => {
     expect(params.tools[0]).toMatchObject({ cache_control: { type: 'ephemeral' } });
   });
 
-  it('should convert tool calls and reject invalid JSON', async () => {
+  it('should convert tool calls and fallback invalid JSON to empty object', async () => {
     const { toAnthropicMessage } = await import('../../../src/providers/anthropic/anthropic-client.ts');
-    const { ChatProviderError } = await import('../../../src/providers/anthropic/anthropic-types.ts');
 
-    expect(() =>
-      toAnthropicMessage({
-        role: 'assistant',
-        content: [{ type: 'text', text: 'hi' }],
-        toolCalls: [{ id: 'tool-1', name: 'Demo', arguments: '{bad json' }],
-      })
-    ).toThrow(ChatProviderError);
+    const converted = toAnthropicMessage({
+      role: 'assistant',
+      content: [{ type: 'text', text: 'hi' }],
+      toolCalls: [{ id: 'tool-1', name: 'Demo', arguments: '{bad json' }],
+    });
+
+    expect(converted).toEqual({
+      role: 'assistant',
+      content: [
+        { type: 'text', text: 'hi' },
+        {
+          type: 'tool_use',
+          id: 'tool-1',
+          name: 'Demo',
+          input: {},
+        },
+      ],
+    });
+  });
+
+  it('should fallback non-object JSON tool arguments to empty object', async () => {
+    const { toAnthropicMessage } = await import('../../../src/providers/anthropic/anthropic-client.ts');
+
+    const converted = toAnthropicMessage({
+      role: 'assistant',
+      content: [],
+      toolCalls: [{ id: 'tool-1', name: 'Demo', arguments: '"abc"' }],
+    });
+
+    expect(converted).toEqual({
+      role: 'assistant',
+      content: [
+        {
+          type: 'tool_use',
+          id: 'tool-1',
+          name: 'Demo',
+          input: {},
+        },
+      ],
+    });
   });
 
   it('should reject tool result without toolCallId', async () => {

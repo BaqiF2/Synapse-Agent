@@ -372,6 +372,14 @@ function convertToolCall(call: ToolCall): Anthropic.ToolUseBlockParam {
   };
 }
 
+function fallbackToEmptyToolInput(
+  message: string,
+  context: Record<string, unknown>
+): Record<string, unknown> {
+  logger.warn(message, context);
+  return {};
+}
+
 function parseToolInput(argumentsJson: string): Record<string, unknown> {
   // 关键调试点：记录输入的参数 JSON
   logger.trace('Parsing tool input arguments', {
@@ -391,8 +399,8 @@ function parseToolInput(argumentsJson: string): Record<string, unknown> {
   try {
     parsed = JSON.parse(trimmed);
   } catch (error) {
-    // 关键调试点：记录 JSON 解析失败的详细信息
-    logger.error('Failed to parse tool call arguments as JSON', {
+    // 历史会话中可能存在被中断写入的 tool_call 参数，降级为空对象以继续会话。
+    return fallbackToEmptyToolInput('Failed to parse tool call arguments as JSON, fallback to empty object', {
       argumentsJson,
       trimmedJson: trimmed,
       trimmedLength: trimmed.length,
@@ -400,16 +408,14 @@ function parseToolInput(argumentsJson: string): Record<string, unknown> {
       last100Chars: trimmed.substring(Math.max(0, trimmed.length - 100)),
       error: error instanceof Error ? error.message : String(error),
     });
-    throw new ChatProviderError('Tool call arguments must be valid JSON.');
   }
 
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    logger.error('Parsed tool arguments is not an object', {
+    return fallbackToEmptyToolInput('Parsed tool arguments is not an object, fallback to empty object', {
       parsedType: typeof parsed,
       isArray: Array.isArray(parsed),
       parsed,
     });
-    throw new ChatProviderError('Tool call arguments must be a JSON object.');
   }
 
   logger.trace('Successfully parsed tool input', { parsedKeys: Object.keys(parsed) });
