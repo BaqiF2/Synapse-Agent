@@ -1,0 +1,195 @@
+[
+  {
+    "category": "functional",
+    "prd": "2026-02-06-task-explore-parallel-design.md#并行执行机制",
+    "description": "AgentRunner 识别同批次的 task:* 调用并通过 Promise.allSettled() 并行执行",
+    "bdd": [
+      {
+        "title": "识别单个 task:* 调用",
+        "description": "当主代理只发起 1 个 task:* 调用时，正常执行",
+        "steps": [
+          "主代理返回 1 个 task:explore tool_use",
+          "AgentRunner 接收 tool_use 数组"
+        ],
+        "expected": "正常执行该任务，返回 1 个 tool_result"
+      },
+      {
+        "title": "识别多个连续 task:* 调用并并行执行",
+        "description": "当主代理发起多个连续 task:* 调用时，并行执行",
+        "steps": [
+          "主代理返回 3 个连续的 task:explore tool_use",
+          "AgentRunner 接收 tool_use 数组"
+        ],
+        "expected": "3 个任务并行执行，返回 3 个独立的 tool_result"
+      },
+      {
+        "title": "混合类型 task:* 调用并行执行",
+        "description": "task:explore 和 task:general 可混合并行",
+        "steps": [
+          "主代理返回 2 个 task:explore 和 1 个 task:general tool_use",
+          "AgentRunner 接收 tool_use 数组"
+        ],
+        "expected": "3 个任务并行执行，返回 3 个独立的 tool_result"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-06-task-explore-parallel-design.md#执行顺序",
+    "description": "按 tool_use 数组顺序分组，连续的 task:* 调用并行执行，非 task:* 调用按原有逻辑执行",
+    "bdd": [
+      {
+        "title": "非 task 工具单独执行",
+        "description": "非 task:* 的工具调用不参与并行",
+        "steps": [
+          "主代理返回 1 个 read tool_use",
+          "AgentRunner 接收 tool_use 数组"
+        ],
+        "expected": "按原有逻辑执行，返回 1 个 tool_result"
+      },
+      {
+        "title": "混合工具调用按顺序分组执行",
+        "description": "read → task:* 批次 → write 的执行顺序",
+        "steps": [
+          "主代理返回 [read, task:explore, task:explore, task:general, write] 共 5 个 tool_use",
+          "AgentRunner 接收 tool_use 数组"
+        ],
+        "expected": "read 先执行完成 → 3 个 task:* 并行执行完成 → write 最后执行，返回 5 个 tool_result"
+      },
+      {
+        "title": "多个 task 批次分别并行",
+        "description": "被非 task 调用分隔的多个 task 批次各自并行",
+        "steps": [
+          "主代理返回 [task:explore, task:explore, read, task:general, task:general] 共 5 个 tool_use",
+          "AgentRunner 接收 tool_use 数组"
+        ],
+        "expected": "前 2 个 task 并行 → read 执行 → 后 2 个 task 并行，返回 5 个 tool_result"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-06-task-explore-parallel-design.md#并行限制",
+    "description": "最大并行数为 5，超出限制时前 5 个并行执行，其余排队等待",
+    "bdd": [
+      {
+        "title": "并行任务数未超过限制",
+        "description": "5 个及以下的 task:* 调用全部并行执行",
+        "steps": [
+          "主代理返回 5 个连续的 task:explore tool_use",
+          "AgentRunner 接收 tool_use 数组"
+        ],
+        "expected": "5 个任务同时并行执行，返回 5 个独立的 tool_result"
+      },
+      {
+        "title": "并行任务数超过限制",
+        "description": "超过 5 个的 task:* 调用需排队执行",
+        "steps": [
+          "主代理返回 7 个连续的 task:explore tool_use",
+          "AgentRunner 接收 tool_use 数组"
+        ],
+        "expected": "前 5 个任务并行执行，完成后再执行剩余 2 个，返回 7 个独立的 tool_result"
+      },
+      {
+        "title": "通过环境变量配置并行限制",
+        "description": "SYNAPSE_MAX_PARALLEL_TASKS 环境变量可调整并行限制",
+        "steps": [
+          "设置 SYNAPSE_MAX_PARALLEL_TASKS=3",
+          "主代理返回 5 个连续的 task:explore tool_use"
+        ],
+        "expected": "前 3 个任务并行执行，完成后再执行剩余 2 个"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-06-task-explore-parallel-design.md#边界情况处理",
+    "description": "单个任务失败返回错误信息，不影响其他任务执行",
+    "bdd": [
+      {
+        "title": "单个任务失败不影响其他任务",
+        "description": "部分任务失败时，成功的任务正常返回结果",
+        "steps": [
+          "主代理返回 3 个 task:explore tool_use",
+          "第 2 个任务执行失败（如超时）"
+        ],
+        "expected": "返回 3 个 tool_result：第 1、3 个成功，第 2 个包含 is_error: true 和错误信息"
+      },
+      {
+        "title": "全部任务失败",
+        "description": "所有任务都失败时，每个任务独立返回错误信息",
+        "steps": [
+          "主代理返回 3 个 task:explore tool_use",
+          "所有任务都执行失败"
+        ],
+        "expected": "返回 3 个 tool_result，每个都包含 is_error: true 和对应的错误信息"
+      },
+      {
+        "title": "任务超时处理",
+        "description": "单个任务超时不阻塞其他任务",
+        "steps": [
+          "主代理返回 3 个 task:explore tool_use",
+          "第 1 个任务超时"
+        ],
+        "expected": "第 1 个任务返回超时错误，第 2、3 个任务正常返回结果"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-06-task-explore-parallel-design.md#终端渲染",
+    "description": "每个并行任务在终端独立显示一行状态，支持执行中/成功/失败三种状态",
+    "bdd": [
+      {
+        "title": "多任务并行时显示多行状态",
+        "description": "每个并行任务独立显示一行",
+        "steps": [
+          "主代理发起 3 个并行的 task:explore 调用",
+          "任务开始执行"
+        ],
+        "expected": "终端显示 3 行，每行显示一个任务的执行状态"
+      },
+      {
+        "title": "执行中状态显示",
+        "description": "执行中的任务显示旋转动画图标",
+        "steps": [
+          "task:explore 任务开始执行",
+          "任务尚未完成"
+        ],
+        "expected": "显示 ◐ (带动画) + 任务描述"
+      },
+      {
+        "title": "成功状态显示",
+        "description": "成功完成的任务显示绿色勾号",
+        "steps": [
+          "task:explore 任务执行完成",
+          "任务执行成功"
+        ],
+        "expected": "显示 ✓ (绿色) + 任务描述"
+      },
+      {
+        "title": "失败状态显示",
+        "description": "失败的任务显示红色叉号",
+        "steps": [
+          "task:explore 任务执行完成",
+          "任务执行失败"
+        ],
+        "expected": "显示 ✗ (红色) + 任务描述"
+      },
+      {
+        "title": "任务描述截断显示",
+        "description": "过长的任务描述按 TOOL_RESULT_SUMMARY_LIMIT 配置截断",
+        "steps": [
+          "task:explore 任务的描述超过 TOOL_RESULT_SUMMARY_LIMIT 长度",
+          "渲染任务状态行"
+        ],
+        "expected": "任务描述被截断显示，不超过配置的最大长度"
+      }
+    ],
+    "passes": false
+  }
+]
