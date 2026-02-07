@@ -19,6 +19,7 @@ import { loadDesc } from '../utils/load-desc.js';
 import type { AnthropicClient } from '../providers/anthropic/anthropic-client.ts';
 import { extractBaseCommand } from './constants.ts';
 import { classifyToolFailure, shouldAttachToolSelfDescription } from '../utils/tool-failure.ts';
+import type { OnUsage } from '../providers/generate.ts';
 import type {
   ToolResultEvent,
   SubAgentCompleteEvent,
@@ -61,6 +62,8 @@ export interface BashToolOptions {
   onSubAgentToolEnd?: (event: ToolResultEvent) => void;
   /** SubAgent 完成回调 */
   onSubAgentComplete?: (event: SubAgentCompleteEvent) => void;
+  /** SubAgent usage 回调 */
+  onSubAgentUsage?: OnUsage;
 }
 
 /**
@@ -87,6 +90,7 @@ export class BashTool extends CallableTool<BashToolParams> {
       onSubAgentToolStart: options.onSubAgentToolStart,
       onSubAgentToolEnd: options.onSubAgentToolEnd,
       onSubAgentComplete: options.onSubAgentComplete,
+      onSubAgentUsage: options.onSubAgentUsage,
     });
   }
 

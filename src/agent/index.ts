@@ -53,6 +53,7 @@ export {
   type GenerateOptions,
   type OnMessagePart,
   type OnToolCall,
+  type OnUsage,
 } from '../providers/generate.ts';
 
 // Toolset interface
@@ -84,6 +85,14 @@ export {
   type SessionCreateOptions,
   TITLE_MAX_LENGTH,
 } from './session.ts';
+
+export {
+  createEmptySessionUsage,
+  accumulateUsage,
+  resetSessionUsage,
+  formatCostOutput,
+  type SessionUsage,
+} from './session-usage.ts';
 
 // System Prompt
 export {

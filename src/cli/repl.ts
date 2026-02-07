@@ -23,6 +23,7 @@ import { AnthropicClient } from '../providers/anthropic/anthropic-client.ts';
 import { buildSystemPrompt } from '../agent/system-prompt.ts';
 import { Session } from '../agent/session.ts';
 import { AgentRunner } from '../agent/agent-runner.ts';
+import { formatCostOutput } from '../agent/session-usage.ts';
 import { CallableToolset } from '../tools/toolset.ts';
 import { BashTool } from '../tools/bash-tool.ts';
 import { McpInstaller, initializeMcpTools } from '../tools/converters/mcp/index.ts';
@@ -154,6 +155,7 @@ function showHelp(): void {
   console.log(chalk.gray('  /help, /h, /?    ') + chalk.white('Show this help message'));
   console.log(chalk.gray('  /exit, /quit, /q ') + chalk.white('Exit the REPL'));
   console.log(chalk.gray('  /clear           ') + chalk.white('Clear conversation history'));
+  console.log(chalk.gray('  /cost            ') + chalk.white('Show current session token/cost stats'));
   console.log(chalk.gray('  /tools           ') + chalk.white('List available tools'));
   console.log(chalk.gray('  /skills          ') + chalk.white('List all available skills'));
   console.log();
@@ -358,6 +360,22 @@ export function handleSpecialCommand(
       console.log(chalk.green('\nConversation history cleared.\n'));
       return true;
 
+    case '/cost': {
+      if (!agentRunner) {
+        console.log(chalk.yellow('\nCost stats unavailable in this context.\n'));
+        return true;
+      }
+
+      const usage = agentRunner.getSessionUsage();
+      if (!usage) {
+        console.log(chalk.yellow('\nNo active session.\n'));
+        return true;
+      }
+
+      console.log(chalk.cyan(`\n${formatCostOutput(usage)}\n`));
+      return true;
+    }
+
     case '/tools':
       showToolsList();
       return true;
@@ -552,6 +570,7 @@ async function handleResumeCommand(
 function initializeAgent(session: Session): AgentRunner | null {
   try {
     const llmClient = new AnthropicClient();
+    let runnerRef: AgentRunner | null = null;
 
     // 先创建 TerminalRenderer，以便传递回调给 BashTool
     // 注意：不再调用 terminalRenderer.attachTodoStore()，因为 FixedBottomRenderer 已经负责 Todo 渲染
@@ -563,6 +582,12 @@ function initializeAgent(session: Session): AgentRunner | null {
       onSubAgentToolStart: (event) => terminalRenderer.renderSubAgentToolStart(event),
       onSubAgentToolEnd: (event) => terminalRenderer.renderSubAgentToolEnd(event),
       onSubAgentComplete: (event) => terminalRenderer.renderSubAgentComplete(event),
+      onSubAgentUsage: async (usage, model) => {
+        if (!runnerRef) {
+          return;
+        }
+        await runnerRef.recordUsage(usage, model);
+      },
     });
 
     // Delayed binding: pass BashTool to its own router for skill sub-agent
@@ -571,12 +596,12 @@ function initializeAgent(session: Session): AgentRunner | null {
     const toolset = new CallableToolset([bashTool]);
     const systemPrompt = buildSystemPrompt({ cwd: process.cwd() });
 
-    return new AgentRunner({
+    const runner = new AgentRunner({
       client: llmClient,
       systemPrompt,
       toolset,
       maxIterations: MAX_TOOL_ITERATIONS,
-      sessionId: session.id,
+      session,
       onMessagePart: (part) => {
         if (part.type === 'text' && part.text.trim()) {
           process.stdout.write(formatStreamText(part.text));
@@ -617,6 +642,8 @@ function initializeAgent(session: Session): AgentRunner | null {
         });
       },
     });
+    runnerRef = runner;
+    return runner;
   } catch (error) {
     const message = getErrorMessage(error);
     console.log(chalk.yellow(`\nAgent mode unavailable: ${message}`));

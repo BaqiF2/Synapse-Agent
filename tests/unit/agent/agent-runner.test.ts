@@ -36,6 +36,7 @@ function createMockCallableTool(handler: (args: unknown) => Promise<ToolReturnVa
 function createMockClient(responses: StreamedMessagePart[][]): AnthropicClient {
   let callIndex = 0;
   return {
+    modelName: 'claude-sonnet-4-20250514',
     generate: mock(() => {
       const parts = responses[callIndex++] || [{ type: 'text', text: 'Default' }];
       return Promise.resolve({
@@ -503,6 +504,88 @@ describe('AgentRunner with Session', () => {
     const history = await session!.loadHistory();
 
     expect(history.length).toBe(2); // user + assistant
+  });
+
+  it('should accumulate usage to session after each run', async () => {
+    const client = createMockClient([[{ type: 'text', text: 'Hello!' }]]);
+    const toolset = new CallableToolset([createMockCallableTool(() =>
+      Promise.resolve(ToolOk({ output: '' }))
+    )]);
+
+    const runner = new AgentRunner({
+      client,
+      systemPrompt: 'Test',
+      toolset,
+      sessionsDir: testDir,
+      enableStopHooks: false,
+    });
+
+    await runner.run('Hi');
+
+    const usage = runner.getSessionUsage();
+    expect(usage).not.toBeNull();
+    expect(usage?.totalInputOther).toBe(100);
+    expect(usage?.totalOutput).toBe(50);
+    expect(usage?.totalCacheRead).toBe(0);
+    expect(usage?.totalCacheCreation).toBe(0);
+    expect(usage?.rounds.length).toBe(1);
+    expect(usage?.model).toBe('claude-sonnet-4-20250514');
+  });
+
+  it('should aggregate externally recorded usage (sub-agent usage path)', async () => {
+    const client = createMockClient([[{ type: 'text', text: 'Main done' }]]);
+    const toolset = new CallableToolset([createMockCallableTool(() =>
+      Promise.resolve(ToolOk({ output: '' }))
+    )]);
+
+    const runner = new AgentRunner({
+      client,
+      systemPrompt: 'Test',
+      toolset,
+      sessionsDir: testDir,
+      enableStopHooks: false,
+    });
+
+    await runner.run('Main');
+    await runner.recordUsage(
+      { inputOther: 150, output: 80, inputCacheRead: 300, inputCacheCreation: 20 },
+      'claude-sonnet-4-20250514'
+    );
+
+    const usage = runner.getSessionUsage();
+    expect(usage).not.toBeNull();
+    expect(usage?.totalInputOther).toBe(250);
+    expect(usage?.totalOutput).toBe(130);
+    expect(usage?.totalCacheRead).toBe(300);
+    expect(usage?.totalCacheCreation).toBe(20);
+    expect(usage?.rounds.length).toBe(2);
+  });
+
+  it('clearSession should reset usage to initial state', async () => {
+    const client = createMockClient([[{ type: 'text', text: 'Hello!' }]]);
+    const toolset = new CallableToolset([createMockCallableTool(() =>
+      Promise.resolve(ToolOk({ output: '' }))
+    )]);
+
+    const runner = new AgentRunner({
+      client,
+      systemPrompt: 'Test',
+      toolset,
+      sessionsDir: testDir,
+      enableStopHooks: false,
+    });
+
+    await runner.run('Hi');
+    await runner.clearSession();
+
+    const usage = runner.getSessionUsage();
+    expect(usage).not.toBeNull();
+    expect(usage?.totalInputOther).toBe(0);
+    expect(usage?.totalOutput).toBe(0);
+    expect(usage?.totalCacheRead).toBe(0);
+    expect(usage?.totalCacheCreation).toBe(0);
+    expect(usage?.rounds).toEqual([]);
+    expect(usage?.totalCost).toBeNull();
   });
 
   it('should restore history when resuming session', async () => {

@@ -88,6 +88,24 @@ describe('E2E: CLI/REPL Integration', () => {
       expect(handled).toBe(true);
     });
 
+    test('/cost should be handled', () => {
+      const rl = createMockReadline();
+      const mockRunner = {
+        getSessionUsage: () => ({
+          totalInputOther: 0,
+          totalOutput: 0,
+          totalCacheRead: 0,
+          totalCacheCreation: 0,
+          model: 'claude-sonnet-4-20250514',
+          rounds: [],
+          totalCost: null,
+        }),
+      };
+
+      const handled = handleSpecialCommand('/cost', rl, mockRunner as never, { skipExit: true });
+      expect(handled).toBe(true);
+    });
+
     test('/tools should be handled', () => {
       const rl = createMockReadline();
 

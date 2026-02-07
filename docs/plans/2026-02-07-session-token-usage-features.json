@@ -50,7 +50,7 @@
         "expected": "返回 null"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -94,7 +94,7 @@
         "expected": "所有计数器归零，rounds 为空数组，totalCost 为 null，model 保持不变"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -142,7 +142,7 @@
         "expected": "SessionUsage.rounds 包含两个元素，累计值为两次调用之和"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -193,7 +193,7 @@
         "expected": "totalCost = 0.06"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -246,7 +246,7 @@
         "expected": "返回的 SessionInfo 数组中，对应 Session 包含 usage 字段"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -308,6 +308,6 @@
         "expected": "命令被识别并执行，不会发送到 LLM"
       }
     ],
-    "passes": false
+    "passes": true
   }
 ]
