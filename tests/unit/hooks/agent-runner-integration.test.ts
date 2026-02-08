@@ -170,8 +170,7 @@ describe('AgentRunner - StopHookRegistry 集成', () => {
         Promise.resolve(ToolOk({ output: '' }))
       )]);
 
-      // 不提供 sessionsDir，session 创建会使用默认目录
-      // 但这里我们无法避免 session 创建，所以只检查 sessionId 格式
+      // 不提供 session / sessionId / sessionsDir 时，不应创建持久化 session
       const runner = new AgentRunner({
         client,
         systemPrompt: 'Test',
@@ -181,9 +180,7 @@ describe('AgentRunner - StopHookRegistry 集成', () => {
       await runner.run('Hi');
 
       expect(capturedContext).not.toBeNull();
-      // session 会被创建（因为 initSession 总是创建），所以 sessionId 不为 null
-      // 但如果没有提供 sessionId，会自动创建新的
-      expect(typeof capturedContext!.sessionId).toBe('string');
+      expect(capturedContext!.sessionId).toBeNull();
 
       // 清理
       stopHookRegistry.register('test-context-no-session', async () => {});

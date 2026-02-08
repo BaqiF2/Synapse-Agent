@@ -876,6 +876,25 @@ describe('AgentRunner', () => {
       expect(runner.getHistory()).toHaveLength(4); // 2 user + 2 assistant
     });
 
+    it('should not create persistent session when session options are not provided', async () => {
+      const client = createMockClient([[{ type: 'text', text: 'Done' }]]);
+      const toolset = new CallableToolset([createMockCallableTool(() =>
+        Promise.resolve(ToolOk({ output: '' }))
+      )]);
+
+      const runner = new AgentRunner({
+        client,
+        systemPrompt: 'Test',
+        toolset,
+        enableStopHooks: false,
+      });
+
+      await runner.run('No persistent session');
+
+      expect(runner.getSessionId()).toBeNull();
+      expect(runner.getSessionUsage()).toBeNull();
+    });
+
     it('should prepend English skill-search instruction loaded from prompt file before execution', async () => {
       const client = createMockClient([[{ type: 'text', text: 'Done' }]]);
       const toolset = new CallableToolset([createMockCallableTool(() =>

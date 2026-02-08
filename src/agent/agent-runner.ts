@@ -276,6 +276,7 @@ export class AgentRunner extends EventEmitter {
   private session: Session | null = null;
   private sessionId?: string;
   private sessionsDir?: string;
+  private shouldPersistSession = false;
   private sessionInitialized = false;
 
   /** Conversation history */
@@ -303,6 +304,7 @@ export class AgentRunner extends EventEmitter {
     this.session = options.session ?? null;
     this.sessionId = options.sessionId ?? options.session?.id;
     this.sessionsDir = options.sessionsDir;
+    this.shouldPersistSession = Boolean(options.session || options.sessionId || options.sessionsDir);
     this.enableStopHooks = options.enableStopHooks ?? true;
 
     const context = options.context ?? {};
@@ -419,6 +421,11 @@ export class AgentRunner extends EventEmitter {
    */
   private async initSession(): Promise<void> {
     if (this.sessionInitialized) return;
+
+    if (!this.shouldPersistSession) {
+      this.sessionInitialized = true;
+      return;
+    }
 
     if (this.session) {
       this.history = await this.session.loadHistory();
