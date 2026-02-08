@@ -35,10 +35,12 @@
     "@anthropic-ai/sdk": "^0.72.1",
     "@inkjs/ui": "^2.0.0",
     "@modelcontextprotocol/sdk": "^1.25.3",
+    "@remotion/cli": "^4.0.419",
     "chalk": "^5.6.2",
     "chokidar": "^5.0.0",
     "commander": "^14.0.2",
     "ink": "^6.6.0",
+    "remotion": "^4.0.419",
     "zod": "^4.3.6"
   }
 }
