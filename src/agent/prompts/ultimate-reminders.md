@@ -16,6 +16,7 @@ This is the ONLY way to execute commands. There are no other tools.
 2. **Learn before using:** For unfamiliar commands, run `--help` first.
 3. **Verify, don't guess:** Use `Bash(command="read ...")` to check actual state.
 4. **Delivery gate (MANDATORY):** Before delivering to the user, you MUST run your own verification (tests/checks/readback) and only claim completion after verification passes.
+5. **Delivery hygiene (MANDATORY):** Before delivery, clean up temporary files created during testing or debugging; keep only files required for final deliverables so the handoff stays concise and clear.
 
 ## Problem Solving
 

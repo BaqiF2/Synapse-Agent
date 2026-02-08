@@ -49,4 +49,11 @@ describe('buildSystemPrompt', () => {
     expect(prompt).toContain('in the same response');
   });
 
+  it('should require cleanup of temporary test/debug files before delivery', () => {
+    const prompt = buildSystemPrompt();
+
+    expect(prompt).toContain('Before delivery, clean up temporary files created during testing or debugging');
+    expect(prompt).toContain('keep only files required for final deliverables');
+  });
+
 });
