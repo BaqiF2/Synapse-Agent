@@ -3,6 +3,9 @@
  */
 
 import { describe, expect, it, mock, afterEach } from 'bun:test';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import { BashRouter, CommandType } from '../../../src/tools/bash-router.ts';
 import type { BashSession } from '../../../src/tools/bash-session.ts';
 import type { CancelablePromise } from '../../../src/tools/callable-tool.ts';
@@ -166,11 +169,14 @@ describe('BashRouter', () => {
   it('should still allow write agent command', async () => {
     const session = createSessionStub();
     const router = new BashRouter(session);
+    const tempFilePath = path.join(os.tmpdir(), `synapse-bash-router-${Date.now()}.txt`);
 
-    const result = await router.route('write ./tmp.txt "hello"');
+    const result = await router.route(`write ${tempFilePath} "hello"`);
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain('Written');
+    expect(fs.existsSync(tempFilePath)).toBe(true);
+    fs.rmSync(tempFilePath, { force: true });
   });
 });
 
