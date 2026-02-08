@@ -13,13 +13,21 @@ import type { StopHookContext } from '../../../src/hooks/types.ts';
 import type { Message } from '../../../src/providers/message.ts';
 
 let capturedSkillEnhancePrompt: string | null = null;
+let mockSubAgentResponses: string[] = [];
+let capturedExecuteParams: Array<{ type: string; action?: string; prompt: string }> = [];
 
 // Mock SubAgentManager，避免真实 API 调用
 mock.module('../../../src/sub-agents/sub-agent-manager.ts', () => ({
   SubAgentManager: class MockSubAgentManager {
-    execute(_type: string, params: { prompt: string }) {
+    execute(type: string, params: { prompt: string; action?: string }) {
       capturedSkillEnhancePrompt = params.prompt;
-      return Promise.resolve('Mocked enhancement result');
+      capturedExecuteParams.push({ type, action: params.action, prompt: params.prompt });
+
+      const nextResponse = mockSubAgentResponses.shift();
+      if (nextResponse !== undefined) {
+        return Promise.resolve(nextResponse);
+      }
+      return Promise.resolve('[Skill] No enhancement needed');
     }
     shutdown() {}
   },
@@ -66,6 +74,8 @@ let homedirSpy: ReturnType<typeof spyOn> | null = null;
 
 beforeEach(() => {
   capturedSkillEnhancePrompt = null;
+  mockSubAgentResponses = ['[Skill] No enhancement needed'];
+  capturedExecuteParams = [];
   originalHomeDir = process.env.HOME;
   tempHomeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skill-enhance-home-'));
   process.env.HOME = tempHomeDir;
@@ -438,6 +448,85 @@ describe('SkillEnhanceHook - Meta-skill 加载 (Feature 12)', () => {
 });
 
 describe('SkillEnhanceHook - Sub-agent 超时处理 (Feature 14)', () => {
+  it('子代理返回无效中间话术时应重试并返回规范结果', async () => {
+    const { SettingsManager } = await import('../../../src/config/settings-manager.ts');
+    const { skillEnhanceHook } = await import('../../../src/hooks/skill-enhance-hook.ts');
+
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skill-enhance-retry-test-'));
+    process.env.SYNAPSE_SESSIONS_DIR = tempDir;
+
+    const sessionPath = path.join(tempDir, 'retry-output.jsonl');
+    fs.writeFileSync(
+      sessionPath,
+      '{"id":"msg-1","timestamp":"2025-01-01T00:00:00Z","role":"user","content":"Please help"}\n'
+    );
+
+    const settingsProto = SettingsManager.prototype;
+    const originalIsAutoEnhanceEnabled = settingsProto.isAutoEnhanceEnabled;
+    const originalGetMaxEnhanceContextChars = settingsProto.getMaxEnhanceContextChars;
+    settingsProto.isAutoEnhanceEnabled = () => true;
+    settingsProto.getMaxEnhanceContextChars = () => 50000;
+
+    mockSubAgentResponses = [
+      '我来分析这个对话历史，确定是否需要创建新技能或增强现有技能。',
+      '[Skill] No enhancement needed',
+    ];
+
+    try {
+      const result = await skillEnhanceHook(createTestContext({ sessionId: 'retry-output' }));
+
+      expect(result).toBeDefined();
+      expect(result?.message).toContain('[Skill] No enhancement needed');
+      expect(result?.message).not.toContain('我来分析');
+      expect(capturedExecuteParams).toHaveLength(2);
+      expect(capturedExecuteParams[0]?.action).toBe('enhance');
+      expect(capturedExecuteParams[1]?.action).toBe('enhance');
+    } finally {
+      settingsProto.isAutoEnhanceEnabled = originalIsAutoEnhanceEnabled;
+      settingsProto.getMaxEnhanceContextChars = originalGetMaxEnhanceContextChars;
+      fs.rmSync(tempDir, { recursive: true, force: true });
+      delete process.env.SYNAPSE_SESSIONS_DIR;
+    }
+  });
+
+  it('子代理连续两次无效输出时应返回兜底结果', async () => {
+    const { SettingsManager } = await import('../../../src/config/settings-manager.ts');
+    const { skillEnhanceHook } = await import('../../../src/hooks/skill-enhance-hook.ts');
+
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skill-enhance-fallback-test-'));
+    process.env.SYNAPSE_SESSIONS_DIR = tempDir;
+
+    const sessionPath = path.join(tempDir, 'fallback-output.jsonl');
+    fs.writeFileSync(
+      sessionPath,
+      '{"id":"msg-1","timestamp":"2025-01-01T00:00:00Z","role":"user","content":"Please help"}\n'
+    );
+
+    const settingsProto = SettingsManager.prototype;
+    const originalIsAutoEnhanceEnabled = settingsProto.isAutoEnhanceEnabled;
+    const originalGetMaxEnhanceContextChars = settingsProto.getMaxEnhanceContextChars;
+    settingsProto.isAutoEnhanceEnabled = () => true;
+    settingsProto.getMaxEnhanceContextChars = () => 50000;
+
+    mockSubAgentResponses = ['我来分析一下。', '继续分析中。'];
+
+    try {
+      const result = await skillEnhanceHook(createTestContext({ sessionId: 'fallback-output' }));
+
+      expect(result).toBeDefined();
+      expect(result?.message).toContain('[Skill] No enhancement needed');
+      expect(result?.message).toContain('invalid sub-agent output format');
+      expect(capturedExecuteParams).toHaveLength(2);
+      expect(capturedExecuteParams[0]?.action).toBe('enhance');
+      expect(capturedExecuteParams[1]?.action).toBe('enhance');
+    } finally {
+      settingsProto.isAutoEnhanceEnabled = originalIsAutoEnhanceEnabled;
+      settingsProto.getMaxEnhanceContextChars = originalGetMaxEnhanceContextChars;
+      fs.rmSync(tempDir, { recursive: true, force: true });
+      delete process.env.SYNAPSE_SESSIONS_DIR;
+    }
+  });
+
   it('默认超时 5 分钟', async () => {
     // 删除环境变量以确保使用默认值
     delete process.env.SYNAPSE_SKILL_SUBAGENT_TIMEOUT;

@@ -37,6 +37,19 @@ import type { Message } from '../providers/message.ts';
 
 const logger = createLogger('skill-enhance-hook');
 const PROMPT_TEMPLATE_PATH = path.join(import.meta.dirname, 'skill-enhance-hook-prompt.md');
+const SKILL_RESULT_FALLBACK = '[Skill] No enhancement needed\nReason: invalid sub-agent output format';
+const SKILL_MARKER_PATTERN = /\[Skill\][\s\S]*$/m;
+const SKILL_HEADER_PATTERN = /^\[Skill\]\s*(Created:|Enhanced:|No enhancement needed\b)/i;
+const JSON_FENCE_PATTERN = /```(?:json)?\s*([\s\S]*?)```/i;
+const RETRY_OUTPUT_CONTRACT = `
+[Output Contract]
+Return ONLY one final skill-enhancement result. Do not output preamble, analysis plan, or "I will analyze..." text.
+Allowed outputs:
+1) [Skill] Created: <skill-name>
+2) [Skill] Enhanced: <skill-name>
+3) [Skill] No enhancement needed
+You may add one short reason line after the result.
+`.trim();
 
 /**
  * Hook registration name
@@ -179,11 +192,114 @@ async function executeWithTimeout(
   });
 
   const executionPromise = subAgentManager.execute('skill', {
+    action: 'enhance',
     prompt,
     description: 'Skill Enhancement Analysis',
   });
 
   return Promise.race([executionPromise, timeoutPromise]);
+}
+
+interface ParsedSkillResult {
+  action: 'create' | 'enhance' | 'skip';
+  skillName?: string;
+  reason?: string;
+}
+
+interface SkillExecutionResult {
+  raw: string;
+  normalized: string | null;
+}
+
+function sanitizeReason(reason: string | undefined): string | undefined {
+  if (!reason) {
+    return;
+  }
+  const normalized = reason.trim().replace(/\s+/g, ' ');
+  return normalized || undefined;
+}
+
+function parseSkillResultJson(raw: string): ParsedSkillResult | null {
+  const text = raw.trim();
+  if (!text) {
+    return null;
+  }
+
+  const candidates = [text];
+  const fencedJson = text.match(JSON_FENCE_PATTERN)?.[1];
+  if (fencedJson) {
+    candidates.unshift(fencedJson.trim());
+  }
+
+  for (const candidate of candidates) {
+    try {
+      const parsed = JSON.parse(candidate) as Record<string, unknown>;
+      const action = typeof parsed.action === 'string' ? parsed.action.toLowerCase() : '';
+      if (action !== 'create' && action !== 'enhance' && action !== 'skip') {
+        continue;
+      }
+
+      const skillName = typeof parsed.skill_name === 'string' ? parsed.skill_name.trim() : undefined;
+      const reason = typeof parsed.reason === 'string' ? sanitizeReason(parsed.reason) : undefined;
+      return { action, skillName, reason };
+    } catch {
+      continue;
+    }
+  }
+
+  return null;
+}
+
+function formatParsedSkillResult(parsed: ParsedSkillResult): string {
+  const reasonSuffix = parsed.reason ? `\nReason: ${parsed.reason}` : '';
+  if (parsed.action === 'create') {
+    const skillName = parsed.skillName || 'unknown-skill';
+    return `[Skill] Created: ${skillName}${reasonSuffix}`;
+  }
+  if (parsed.action === 'enhance') {
+    const skillName = parsed.skillName || 'unknown-skill';
+    return `[Skill] Enhanced: ${skillName}${reasonSuffix}`;
+  }
+  return `[Skill] No enhancement needed${reasonSuffix}`;
+}
+
+function normalizeSkillEnhanceResult(rawResult: string): string | null {
+  const trimmed = rawResult.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const skillMarkerMatch = trimmed.match(SKILL_MARKER_PATTERN);
+  if (skillMarkerMatch?.[0]) {
+    const candidate = skillMarkerMatch[0].trimStart();
+    const firstLine = candidate.split('\n')[0] ?? '';
+    if (SKILL_HEADER_PATTERN.test(firstLine)) {
+      return candidate;
+    }
+  }
+
+  const parsed = parseSkillResultJson(trimmed);
+  if (parsed) {
+    return formatParsedSkillResult(parsed);
+  }
+
+  return null;
+}
+
+function buildRetryPrompt(prompt: string): string {
+  return `${prompt}\n\n${RETRY_OUTPUT_CONTRACT}`;
+}
+
+async function executeAndNormalize(
+  subAgentManager: SubAgentManager,
+  prompt: string,
+  timeoutMs: number
+): Promise<SkillExecutionResult> {
+  const raw = await executeWithTimeout(subAgentManager, prompt, timeoutMs);
+  return {
+    raw,
+    normalized: normalizeSkillEnhanceResult(raw),
+  };
 }
 
 /**
@@ -310,14 +426,38 @@ export async function skillEnhanceHook(context: StopHookContext): Promise<HookRe
     });
 
     // 执行 sub-agent（带超时）
-    const result = await executeWithTimeout(subAgentManager, prompt, timeoutMs);
+    const firstExecution = await executeAndNormalize(subAgentManager, prompt, timeoutMs);
+    if (firstExecution.normalized) {
+      logger.info('Skill enhancement completed', {
+        sessionId: context.sessionId,
+        resultLength: firstExecution.normalized.length,
+        retried: false,
+      });
+      return { message: firstExecution.normalized };
+    }
 
-    logger.info('Skill enhancement completed', {
+    logger.warn('Skill enhancement returned invalid output format, retrying once', {
       sessionId: context.sessionId,
-      resultLength: result.length,
+      resultLength: firstExecution.raw.length,
     });
 
-    return { message: result };
+    const retryPrompt = buildRetryPrompt(prompt);
+    const retryExecution = await executeAndNormalize(subAgentManager, retryPrompt, timeoutMs);
+    if (retryExecution.normalized) {
+      logger.info('Skill enhancement completed after retry', {
+        sessionId: context.sessionId,
+        resultLength: retryExecution.normalized.length,
+        retried: true,
+      });
+      return { message: retryExecution.normalized };
+    }
+
+    logger.warn('Skill enhancement output invalid after retry, using fallback message', {
+      sessionId: context.sessionId,
+      firstResultLength: firstExecution.raw.length,
+      retryResultLength: retryExecution.raw.length,
+    });
+    return { message: SKILL_RESULT_FALLBACK };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
 
