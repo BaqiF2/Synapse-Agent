@@ -430,24 +430,6 @@ export class AgentRunner extends EventEmitter {
     return shouldCountToolFailure(category, hintText);
   }
 
-  private isBashToolNameMisuse(result: MessageToolResult): boolean {
-    const extras = result.returnValue.extras ?? {};
-    const category = extras.failureCategory;
-    const baseCommand = extras.baseCommand;
-
-    if (
-      category === 'invalid_usage' &&
-      typeof baseCommand === 'string' &&
-      baseCommand.trim() === BASH_TOOL_NAME
-    ) {
-      return true;
-    }
-
-    const hintText = `${result.returnValue.brief}\n${result.returnValue.message}\n${result.returnValue.output}`
-      .toLowerCase();
-    return hintText.includes('tool name') && hintText.includes('bash');
-  }
-
   private async handleUsage(usage: TokenUsage, model: string): Promise<void> {
     if (this.session) {
       await this.session.updateUsage(usage, model);
@@ -733,7 +715,6 @@ export class AgentRunner extends EventEmitter {
     let consecutiveFailures = 0;
     let finalResponse = '';
     let completedNormally = false;
-    let bashMisuseReminderInjected = false;
 
     while (iteration < this.maxIterations) {
       await this.sanitizeHistoryForToolProtocol('before step');
@@ -811,13 +792,6 @@ export class AgentRunner extends EventEmitter {
       if (failedResults.length === 0) {
         consecutiveFailures = 0;
         continue;
-      }
-
-      if (!bashMisuseReminderInjected && failedResults.some((result) => this.isBashToolNameMisuse(result))) {
-        const reminderMsg = createTextMessage('user', BASH_TOOL_MISUSE_REMINDER);
-        await appendMessage(reminderMsg);
-        bashMisuseReminderInjected = true;
-        logger.info('Injected Bash tool misuse correction reminder');
       }
 
       const countableFailures = failedResults.filter((result) => this.shouldCountFailure(result));
