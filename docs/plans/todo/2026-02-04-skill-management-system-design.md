@@ -6,33 +6,60 @@
 
 ### 核心特性
 
-- **版本管理** - 每个技能保存历史版本，支持回滚
+- **版本管理** - 每个技能保存历史版本（完整快照），支持回滚
 - **批量导入** - 支持本地目录和远程 URL 导入
-- **冲突解决** - 导入冲突时中断提醒用户
-- **智能去重** - 通过 skill sub agent 语义分析判断重复
+- **冲突解决** - 同名冲突时中断，用户修改名称后重新导入
+- **智能去重** - 导入时通过 skill sub agent 语义分析检测相似技能
 - **自动融合** - 复用技能增强机制实现技能合并
 
 ---
 
-## 数据结构
+## 目录结构
 
-### SkillMeta
+### 技能存储结构
 
-```typescript
-/** 技能元信息 */
-interface SkillMeta {
-  /** 技能名称（目录名） */
-  name: string;
-  /** 技能描述（从 skill.md 提取） */
-  description: string;
-  /** 创建时间 */
-  createdAt: Date;
-  /** 最后更新时间 */
-  updatedAt: Date;
-  /** 版本历史 */
-  versions: VersionInfo[];
-}
 ```
+~/.synapse/skills/
+├── git-commit/
+│   ├── SKILL.md              # 最新版本（技能定义文件）
+│   ├── scripts/              # 技能脚本目录（现有）
+│   │   ├── commit.py
+│   │   └── validate.sh
+│   └── versions/             # 版本历史目录（新增）
+│       ├── 2026-02-03-001/   # 历史版本（完整快照）
+│       │   ├── SKILL.md
+│       │   └── scripts/
+│       │       ├── commit.py
+│       │       └── validate.sh
+│       └── 2026-02-02-001/
+│           ├── SKILL.md
+│           └── scripts/
+│               └── commit.py
+├── code-review/
+│   ├── SKILL.md
+│   ├── scripts/
+│   └── versions/
+└── index.json                # 技能索引（现有）
+```
+
+### 代码文件结构
+
+```
+src/skills/
+├── skill-loader.ts       # 现有：技能加载
+├── indexer.ts            # 现有：技能索引（复用 SkillIndexer）
+├── skill-search.ts       # 现有：技能搜索
+├── skill-manager.ts      # 新增：版本管理、导入、删除
+├── skill-merger.ts       # 新增：去重、融合
+└── types.ts              # 新增：类型定义
+
+src/tools/handlers/
+└── skill-command-handler.ts  # 扩展：添加新命令处理
+```
+
+---
+
+## 数据结构
 
 ### VersionInfo
 
@@ -43,10 +70,22 @@ interface VersionInfo {
   version: string;
   /** 创建时间 */
   createdAt: Date;
-  /** 文件路径 */
-  filePath: string;
+  /** 版本目录路径（包含完整技能快照） */
+  dirPath: string;
 }
 ```
+
+### SkillMeta
+
+```typescript
+/** 技能元信息（扩展 SkillIndexEntry） */
+interface SkillMeta extends SkillIndexEntry {
+  /** 版本历史 */
+  versions: VersionInfo[];
+}
+```
+
+注：`SkillIndexEntry` 来自现有的 `src/skills/indexer.ts`，包含 name、title、description、tags、tools 等字段。
 
 ### ImportResult
 
@@ -55,13 +94,15 @@ interface VersionInfo {
 interface ImportResult {
   /** 成功导入的技能 */
   imported: string[];
-  /** 跳过的技能（已存在） */
+  /** 跳过的技能（用户选择跳过） */
   skipped: string[];
-  /** 冲突的技能（需要用户处理） */
+  /** 同名冲突的技能（需要用户修改名称） */
   conflicts: ConflictInfo[];
+  /** 语义相似的技能（需要用户决定） */
+  similar: SimilarInfo[];
 }
 
-/** 冲突信息 */
+/** 同名冲突信息 */
 interface ConflictInfo {
   /** 技能名称 */
   name: string;
@@ -69,6 +110,16 @@ interface ConflictInfo {
   existingPath: string;
   /** 新技能路径 */
   newPath: string;
+}
+
+/** 相似技能信息 */
+interface SimilarInfo {
+  /** 新技能名称 */
+  name: string;
+  /** 相似的现有技能名称 */
+  similarTo: string;
+  /** 相似原因 */
+  reason: string;
 }
 ```
 
@@ -88,67 +139,103 @@ interface MergeCandidate {
 
 ---
 
-## 目录结构
-
-### 技能存储结构
-
-```
-skills/
-├── git-commit/
-│   ├── skill.md              # 最新版本
-│   └── versions/
-│       ├── 2026-02-03-001.md # 历史版本
-│       └── 2026-02-02-001.md
-├── code-review/
-│   ├── skill.md
-│   └── versions/
-│       └── 2026-02-01-001.md
-└── index.json                # 技能索引（现有）
-```
-
-### 代码文件结构
-
-```
-src/skills/
-├── skill-loader.ts       # 现有：技能加载
-├── skill-indexer.ts      # 现有：技能索引
-├── skill-search.ts       # 现有：技能搜索
-├── skill-manager.ts      # 新增：版本管理、导入、删除
-├── skill-merger.ts       # 新增：去重、融合
-└── types.ts              # 新增：类型定义
-```
-
----
-
 ## 组件架构
 
 ### 架构图
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                   Slash Commands                        │
-│  /skill:list  /skill:import  /skill:rollback  ...      │
-└────────────────────────┬────────────────────────────────┘
-                         ↓
-┌─────────────────────────────────────────────────────────┐
-│                   SkillManager                          │
-│  - 版本管理（创建、回滚、清理）                          │
-│  - 导入处理（本地、远程）                               │
-│  - 删除技能                                             │
-│  - 技能信息查询                                         │
-└────────────────────────┬────────────────────────────────┘
-                         ↓
-┌─────────────────────────────────────────────────────────┐
-│                   SkillMerger                           │
-│  - 调用 skill sub agent 分析相似度                      │
-│  - 调用技能增强机制实现融合                             │
-└────────────────────────┬────────────────────────────────┘
-                         ↓
-┌─────────────────────────────────────────────────────────┐
-│                   SkillIndexer                          │
-│  - 更新 index.json                                      │
-│  - 维护技能索引                                         │
-└─────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                      BashRouter                                  │
+│  identifyCommandType() → SKILL_MANAGEMENT_COMMAND_PREFIXES      │
+└────────────────────────────┬────────────────────────────────────┘
+                             ↓
+┌─────────────────────────────────────────────────────────────────┐
+│                   SkillCommandHandler                            │
+│  - 命令解析与参数验证                                            │
+│  - 输出格式化                                                    │
+│  - 持有 SkillManager 实例（组合模式）                            │
+└────────────────────────────┬────────────────────────────────────┘
+                             ↓
+┌─────────────────────────────────────────────────────────────────┐
+│                      SkillManager                                │
+│  - 版本管理（创建、回滚、清理）                                  │
+│  - 导入处理（本地、远程、冲突检测）                              │
+│  - 删除技能                                                      │
+│  - 持有 SkillMerger 实例                                        │
+└────────────────────────────┬────────────────────────────────────┘
+                             ↓
+┌─────────────────────────────────────────────────────────────────┐
+│                      SkillMerger                                 │
+│  - 调用 SubAgentManager 分析语义相似度                          │
+│  - 调用技能增强机制实现融合                                      │
+└────────────────────────────┬────────────────────────────────────┘
+                             ↓
+┌─────────────────────────────────────────────────────────────────┐
+│                      SkillIndexer                                │
+│  - 现有实现，复用 rebuild() / updateSkill() / removeSkill()     │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### SkillCommandHandler 扩展
+
+```typescript
+// src/tools/handlers/skill-command-handler.ts
+
+export class SkillCommandHandler {
+  private skillLoader: SkillLoader;
+  private skillManager: SkillManager;
+
+  constructor(options: SkillCommandHandlerOptions = {}) {
+    const homeDir = options.homeDir ?? os.homedir();
+    const skillsDir = path.join(homeDir, '.synapse', 'skills');
+
+    this.skillLoader = new SkillLoader(homeDir);
+
+    // 初始化 SkillManager 及其依赖
+    const indexer = new SkillIndexer(homeDir);
+    const merger = new SkillMerger(options.subAgentManager);
+    this.skillManager = new SkillManager(skillsDir, indexer, merger);
+  }
+
+  async execute(command: string): Promise<CommandResult> {
+    const trimmed = command.trim();
+
+    if (trimmed.startsWith('skill:load')) {
+      return this.handleLoad(trimmed);
+    }
+    if (trimmed.startsWith('skill:list')) {
+      return this.handleList();
+    }
+    if (trimmed.startsWith('skill:info')) {
+      return this.handleInfo(trimmed);
+    }
+    if (trimmed.startsWith('skill:import')) {
+      return this.handleImport(trimmed);
+    }
+    if (trimmed.startsWith('skill:rollback')) {
+      return this.handleRollback(trimmed);
+    }
+    if (trimmed.startsWith('skill:delete')) {
+      return this.handleDelete(trimmed);
+    }
+
+    return {
+      stdout: '',
+      stderr: `Unknown skill command: ${command}`,
+      exitCode: 1,
+    };
+  }
+
+  private async handleList(): Promise<CommandResult> {
+    const skills = await this.skillManager.list();
+    const lines = skills.map(s =>
+      `${s.name.padEnd(20)} - ${s.description || 'No description'} (${s.versions.length} versions)`
+    );
+    return { stdout: lines.join('\n'), stderr: '', exitCode: 0 };
+  }
+
+  // ... 其他 handle 方法
+}
 ```
 
 ---
@@ -160,8 +247,10 @@ src/skills/
 ```typescript
 // src/skills/skill-manager.ts
 
+import * as crypto from 'node:crypto';
+
 /** 版本号最大数量 */
-const MAX_VERSIONS = parseInt(process.env.SKILL_MAX_VERSIONS || '20', 10);
+const MAX_VERSIONS = parseInt(process.env.SYNAPSE_SKILL_MAX_VERSIONS || '20', 10);
 
 export class SkillManager {
   private skillsDir: string;
@@ -201,72 +290,121 @@ export class SkillManager {
   /**
    * 导入技能（本地目录或远程 URL）
    */
-  async import(source: string): Promise<ImportResult> {
+  async import(
+    source: string,
+    options: ImportOptions = {}
+  ): Promise<ImportResult> {
     const isUrl = source.startsWith('http://') || source.startsWith('https://');
 
     if (isUrl) {
-      return this.importFromUrl(source);
+      return this.importFromUrl(source, options);
     } else {
-      return this.importFromDirectory(source);
+      return this.importFromDirectory(source, options);
     }
+  }
+
+  /**
+   * 导入选项
+   */
+  interface ImportOptions {
+    /** 跳过相似检测，继续导入指定技能 */
+    continueSkills?: string[];
+    /** 合并到现有技能 */
+    mergeInto?: { source: string; target: string }[];
   }
 
   /**
    * 从本地目录导入
    */
-  private async importFromDirectory(dirPath: string): Promise<ImportResult> {
-    const result: ImportResult = { imported: [], skipped: [], conflicts: [] };
-    const files = await fs.readdir(dirPath);
+  private async importFromDirectory(
+    dirPath: string,
+    options: ImportOptions = {}
+  ): Promise<ImportResult> {
+    const result: ImportResult = {
+      imported: [],
+      skipped: [],
+      conflicts: [],
+      similar: [],
+    };
 
-    for (const file of files) {
-      if (!file.endsWith('.md')) continue;
+    const entries = await fs.readdir(dirPath, { withFileTypes: true });
 
-      const skillName = file.replace('.md', '');
+    for (const entry of entries) {
+      // 只处理目录（每个目录是一个技能）
+      if (!entry.isDirectory() || entry.name.startsWith('.')) continue;
+
+      const skillName = entry.name;
+      const sourcePath = path.join(dirPath, skillName);
       const targetDir = path.join(this.skillsDir, skillName);
 
-      // 检查是否存在冲突
+      // 1. 检查同名冲突
       if (await this.exists(targetDir)) {
         result.conflicts.push({
           name: skillName,
           existingPath: targetDir,
-          newPath: path.join(dirPath, file),
+          newPath: sourcePath,
         });
         continue;
       }
 
-      // 创建技能目录并导入
-      await fs.mkdir(targetDir, { recursive: true });
-      await fs.mkdir(path.join(targetDir, 'versions'), { recursive: true });
-      await fs.copyFile(
-        path.join(dirPath, file),
-        path.join(targetDir, 'skill.md')
-      );
+      // 2. 检查用户是否已选择跳过相似检测
+      if (options.continueSkills?.includes(skillName)) {
+        await this.copySkillSnapshot(sourcePath, targetDir);
+        result.imported.push(skillName);
+        continue;
+      }
 
+      // 3. 检查用户是否已选择合并
+      const mergeTarget = options.mergeInto?.find(m => m.source === skillName);
+      if (mergeTarget) {
+        await this.merger.merge(sourcePath, mergeTarget.target);
+        result.imported.push(`${skillName} → ${mergeTarget.target}`);
+        continue;
+      }
+
+      // 4. 语义相似检测
+      const skillContent = await this.readSkillContent(sourcePath);
+      const existingSkills = await this.list();
+      const similarSkills = await this.merger.findSimilar(skillContent, existingSkills);
+
+      if (similarSkills.length > 0) {
+        result.similar.push({
+          name: skillName,
+          similarTo: similarSkills[0].target,
+          reason: similarSkills[0].similarity,
+        });
+        continue; // 中断，等待用户决定
+      }
+
+      // 5. 无冲突，直接导入
+      await this.copySkillSnapshot(sourcePath, targetDir);
       result.imported.push(skillName);
     }
 
-    // 如果有冲突，中断并提醒用户
-    if (result.conflicts.length > 0) {
-      return result; // 调用方需要处理冲突提示
+    // 有冲突或相似时中断，否则更新索引
+    if (result.conflicts.length === 0 && result.similar.length === 0) {
+      await this.indexer.rebuild();
     }
-
-    // 更新索引
-    await this.indexer.rebuild();
 
     return result;
   }
 
   /**
    * 从远程 URL 导入（Git 仓库）
+   * 注意：URL 安全性由用户自行负责
    */
-  private async importFromUrl(url: string): Promise<ImportResult> {
+  private async importFromUrl(
+    url: string,
+    options: ImportOptions = {}
+  ): Promise<ImportResult> {
+    const IMPORT_TIMEOUT = parseInt(process.env.SYNAPSE_SKILL_IMPORT_TIMEOUT || '60000', 10);
+
     // 克隆到临时目录
     const tempDir = path.join(os.tmpdir(), `skill-import-${Date.now()}`);
-    await execAsync(`git clone --depth 1 ${url} ${tempDir}`);
+    await execAsync(`git clone --depth 1 ${url} ${tempDir}`, { timeout: IMPORT_TIMEOUT });
 
     try {
-      // 从临时目录导入
-      return await this.importFromDirectory(tempDir);
+      return await this.importFromDirectory(tempDir, options);
     } finally {
       // 清理临时目录
       await fs.rm(tempDir, { recursive: true, force: true });
@@ -274,31 +412,55 @@ export class SkillManager {
   }
 
   /**
-   * 回滚到指定版本
+   * 创建新版本（保存当前版本到历史）
+   * 复制整个技能目录（排除 versions/）
    */
-  async rollback(name: string, version: string): Promise<void> {
+  async createVersion(name: string): Promise<string> {
     const skillDir = path.join(this.skillsDir, name);
     const versionsDir = path.join(skillDir, 'versions');
-    const currentPath = path.join(skillDir, 'skill.md');
-    const versionPath = path.join(versionsDir, `${version}.md`);
 
-    // 验证版本存在
-    if (!await this.exists(versionPath)) {
-      throw new Error(`Version ${version} not found for skill ${name}`);
-    }
+    await fs.mkdir(versionsDir, { recursive: true });
 
-    // 将当前版本保存为新的历史版本
-    await this.createVersion(name);
+    const version = await this.generateVersionNumber(name);
+    const versionDir = path.join(versionsDir, version);
 
-    // 将目标版本复制为当前版本
-    await fs.copyFile(versionPath, currentPath);
+    // 复制技能目录（排除 versions/）
+    await this.copySkillSnapshot(skillDir, versionDir);
 
-    // 更新索引
-    await this.indexer.rebuild();
+    // 清理旧版本
+    await this.cleanOldVersions(name);
+
+    return version;
   }
 
   /**
-   * 获取版本列表（用于回滚选择）
+   * 回滚到指定版本（智能备份）
+   */
+  async rollback(name: string, version: string): Promise<void> {
+    const skillDir = path.join(this.skillsDir, name);
+    const versionDir = path.join(skillDir, 'versions', version);
+
+    if (!await this.exists(versionDir)) {
+      throw new Error(`Version ${version} not found for skill ${name}`);
+    }
+
+    // 智能判断：当前版本是否已在历史中存在
+    const currentHash = await this.hashDirectory(skillDir);
+    const existingVersions = await this.getVersions(name);
+    const alreadyExists = await this.anyVersionMatches(existingVersions, currentHash);
+
+    if (!alreadyExists) {
+      await this.createVersion(name);
+    }
+
+    // 清空当前目录（保留 versions/）并恢复目标版本
+    await this.restoreFromVersion(skillDir, versionDir);
+
+    await this.indexer.updateSkill(name);
+  }
+
+  /**
+   * 获取版本列表
    */
   async getVersions(name: string): Promise<VersionInfo[]> {
     const versionsDir = path.join(this.skillsDir, name, 'versions');
@@ -307,49 +469,25 @@ export class SkillManager {
       return [];
     }
 
-    const files = await fs.readdir(versionsDir);
+    const entries = await fs.readdir(versionsDir, { withFileTypes: true });
     const versions: VersionInfo[] = [];
 
-    for (const file of files) {
-      if (!file.endsWith('.md')) continue;
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
 
-      const version = file.replace('.md', '');
-      const filePath = path.join(versionsDir, file);
-      const stat = await fs.stat(filePath);
+      const version = entry.name;
+      const dirPath = path.join(versionsDir, version);
+      const stat = await fs.stat(dirPath);
 
       versions.push({
         version,
         createdAt: stat.birthtime,
-        filePath,
+        dirPath,
       });
     }
 
     // 按版本号降序排列（最新在前）
     return versions.sort((a, b) => b.version.localeCompare(a.version));
-  }
-
-  /**
-   * 创建新版本（保存当前版本到历史）
-   */
-  async createVersion(name: string): Promise<string> {
-    const skillDir = path.join(this.skillsDir, name);
-    const versionsDir = path.join(skillDir, 'versions');
-    const currentPath = path.join(skillDir, 'skill.md');
-
-    // 确保 versions 目录存在
-    await fs.mkdir(versionsDir, { recursive: true });
-
-    // 生成版本号
-    const version = await this.generateVersionNumber(name);
-    const versionPath = path.join(versionsDir, `${version}.md`);
-
-    // 复制当前版本
-    await fs.copyFile(currentPath, versionPath);
-
-    // 清理旧版本
-    await this.cleanOldVersions(name);
-
-    return version;
   }
 
   /**
@@ -377,7 +515,7 @@ export class SkillManager {
     // 删除最旧的版本（FIFO）
     const toDelete = versions.slice(MAX_VERSIONS);
     for (const v of toDelete) {
-      await fs.unlink(v.filePath);
+      await fs.rm(v.dirPath, { recursive: true, force: true });
     }
   }
 
@@ -392,46 +530,74 @@ export class SkillManager {
     }
 
     await fs.rm(skillDir, { recursive: true, force: true });
-    await this.indexer.rebuild();
+    await this.indexer.removeSkill(name);
   }
 
   /**
-   * 获取技能元信息
+   * 计算目录内容的 hash（排除 versions/）
    */
-  private async getSkillMeta(name: string): Promise<SkillMeta | null> {
-    const skillDir = path.join(this.skillsDir, name);
-    const skillPath = path.join(skillDir, 'skill.md');
+  private async hashDirectory(dirPath: string): Promise<string> {
+    const hash = crypto.createHash('sha256');
+    const files = await this.listFilesRecursive(dirPath, ['versions']);
 
-    if (!await this.exists(skillPath)) {
-      return null;
+    for (const file of files.sort()) {
+      const content = await fs.readFile(file);
+      hash.update(file.replace(dirPath, '')); // 相对路径
+      hash.update(content);
     }
 
-    const content = await fs.readFile(skillPath, 'utf-8');
-    const stat = await fs.stat(skillPath);
-    const versions = await this.getVersions(name);
-
-    // 从内容提取描述（第一行或 description 字段）
-    const description = this.extractDescription(content);
-
-    return {
-      name,
-      description,
-      createdAt: stat.birthtime,
-      updatedAt: stat.mtime,
-      versions,
-    };
+    return hash.digest('hex');
   }
 
-  private extractDescription(content: string): string {
-    const lines = content.split('\n');
-    // 尝试提取第一个非空行作为描述
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (trimmed && !trimmed.startsWith('#')) {
-        return trimmed.slice(0, 100);
+  /**
+   * 复制技能快照（排除 versions/）
+   */
+  private async copySkillSnapshot(src: string, dest: string): Promise<void> {
+    await fs.mkdir(dest, { recursive: true });
+    const entries = await fs.readdir(src, { withFileTypes: true });
+
+    for (const entry of entries) {
+      if (entry.name === 'versions') continue;
+
+      const srcPath = path.join(src, entry.name);
+      const destPath = path.join(dest, entry.name);
+
+      if (entry.isDirectory()) {
+        await this.copySkillSnapshot(srcPath, destPath);
+      } else {
+        await fs.copyFile(srcPath, destPath);
       }
     }
-    return '';
+  }
+
+  /**
+   * 检查是否有版本与给定 hash 匹配
+   */
+  private async anyVersionMatches(
+    versions: VersionInfo[],
+    targetHash: string
+  ): Promise<boolean> {
+    for (const v of versions) {
+      const hash = await this.hashDirectory(v.dirPath);
+      if (hash === targetHash) return true;
+    }
+    return false;
+  }
+
+  /**
+   * 从版本恢复（保留 versions/ 目录）
+   */
+  private async restoreFromVersion(skillDir: string, versionDir: string): Promise<void> {
+    const entries = await fs.readdir(skillDir, { withFileTypes: true });
+
+    // 删除当前内容（保留 versions/）
+    for (const entry of entries) {
+      if (entry.name === 'versions') continue;
+      await fs.rm(path.join(skillDir, entry.name), { recursive: true, force: true });
+    }
+
+    // 复制版本内容
+    await this.copySkillSnapshot(versionDir, skillDir);
   }
 
   private async exists(path: string): Promise<boolean> {
@@ -471,8 +637,8 @@ export class SkillMerger {
 
     // 调用 skill sub agent 分析
     const result = await this.subAgentManager.execute('skill', {
-      description: 'Analyze skill similarity',
       prompt,
+      description: 'Analyze skill similarity',
     });
 
     // 解析结果
@@ -483,14 +649,14 @@ export class SkillMerger {
    * 融合两个相似技能
    * 复用技能增强机制
    */
-  async merge(sourceName: string, targetName: string): Promise<void> {
+  async merge(sourcePath: string, targetName: string): Promise<void> {
     // 构建融合提示词
-    const prompt = this.buildMergePrompt(sourceName, targetName);
+    const prompt = this.buildMergePrompt(sourcePath, targetName);
 
     // 调用 skill sub agent 执行融合（使用技能增强机制）
     await this.subAgentManager.execute('skill', {
-      description: 'Merge similar skills',
       prompt,
+      description: 'Merge similar skills',
     });
   }
 
@@ -512,15 +678,15 @@ If no similar skills, respond with:
 {"similar": []}`;
   }
 
-  private buildMergePrompt(source: string, target: string): string {
-    return `Merge the skill "${source}" into "${target}".
+  private buildMergePrompt(sourcePath: string, targetName: string): string {
+    return `Merge the skill from "${sourcePath}" into "${targetName}".
 
 Analyze both skills and create an enhanced version that combines:
 1. All capabilities from both skills
 2. Best practices from each
 3. Remove redundant content
 
-Use the skill enhancement mechanism to update "${target}" with the merged content.`;
+Use the skill enhancement mechanism to update "${targetName}" with the merged content.`;
   }
 
   private parseSimilarityResult(result: string): MergeCandidate[] {
@@ -542,129 +708,130 @@ Use the skill enhancement mechanism to update "${target}" with the merged conten
 
 ## Slash Commands
 
-### 命令说明文档
+### 命令注册
+
+在 `src/tools/bash-router.ts` 中扩展命令前缀列表：
+
+```typescript
+const SKILL_MANAGEMENT_COMMAND_PREFIXES = [
+  'skill:load',
+  'skill:list',
+  'skill:info',
+  'skill:import',
+  'skill:rollback',
+  'skill:delete',
+] as const;
+```
+
+### 命令说明
 
 #### /skill:list
 
-```markdown
-skill:list - List all available skills
-
-USAGE:
-    /skill:list
-
-OUTPUT:
-    List of skills with name and description:
-        git-commit      - Commit changes with conventional format
-        code-review     - Review code changes
-        ...
-
-EXAMPLES:
-    /skill:list
 ```
+skill:list - 列出所有已安装的技能
 
-#### /skill:import
+用法：
+    skill:list
 
-```markdown
-skill:import - Import skills from directory or URL
-
-USAGE:
-    /skill:import <source>
-
-ARGUMENTS:
-    <source>    Local directory path or Git repository URL
-
-OUTPUT:
-    Import result summary:
-        Imported: skill1, skill2
-        Skipped: skill3 (already exists)
-        Conflicts: skill4 (manual resolution required)
-
-NOTES:
-    - Conflicts will interrupt import and require manual resolution
-    - Remote URLs are cloned temporarily and cleaned up after import
-
-EXAMPLES:
-    /skill:import /path/to/skills/
-    /skill:import https://github.com/user/skills-repo
-```
-
-#### /skill:rollback
-
-```markdown
-skill:rollback - Rollback skill to a previous version
-
-USAGE:
-    /skill:rollback <name>
-
-ARGUMENTS:
-    <name>    Skill name to rollback
-
-FLOW:
-    1. Display available versions
-    2. User selects version number
-    3. Current version saved to history
-    4. Selected version becomes current
-
-OUTPUT:
-    Available versions for git-commit:
-      1. 2026-02-03-001 (current backup)
-      2. 2026-02-02-001
-      3. 2026-02-01-002
-    Select version to restore: _
-
-EXAMPLES:
-    /skill:rollback git-commit
+输出：
+    git-commit      - Commit changes with conventional format (v1.0.0, 3 versions)
+    code-review     - Review code changes (v1.2.0, 5 versions)
+    ...
 ```
 
 #### /skill:info
 
-```markdown
-skill:info - Show skill details and version history
+```
+skill:info - 显示技能详情和版本历史
 
-USAGE:
-    /skill:info <name>
+用法：
+    skill:info <name>
 
-ARGUMENTS:
-    <name>    Skill name
-
-OUTPUT:
+输出：
     Skill: git-commit
     Description: Commit changes with conventional format
+    Version: 1.0.0
     Created: 2026-01-15
     Updated: 2026-02-03
+    Tools: skill:git-commit:commit, skill:git-commit:validate
 
-    Versions (5):
-      1. 2026-02-03-001
+    Version History (5):
+      1. 2026-02-03-001  (latest backup)
       2. 2026-02-02-001
       3. 2026-02-01-002
       4. 2026-01-20-001
       5. 2026-01-15-001
+```
 
-EXAMPLES:
-    /skill:info git-commit
+#### /skill:import
+
+```
+skill:import - 从目录或 URL 导入技能
+
+用法：
+    skill:import <source> [options]
+
+参数：
+    <source>              本地目录路径或 Git 仓库 URL
+
+选项：
+    --continue=<names>    跳过相似检测，继续导入指定技能（逗号分隔）
+    --merge=<src>:<dst>   将源技能合并到目标技能
+
+流程：
+    1. 检测同名冲突 → 中断，提示用户修改源目录中的技能名称
+    2. 检测语义相似 → 中断，提示用户选择操作
+    3. 无冲突 → 完成导入
+
+示例：
+    skill:import /path/to/skills/
+    skill:import https://github.com/user/skills-repo
+    skill:import /path/to/skills/ --continue=new-skill
+    skill:import /path/to/skills/ --merge=new-commit:git-commit
+
+注意：远程 URL 的安全性由用户自行负责。
+```
+
+#### /skill:rollback
+
+```
+skill:rollback - 回滚技能到历史版本
+
+用法：
+    skill:rollback <name> [version]
+
+参数：
+    <name>       技能名称
+    [version]    目标版本号（可选）
+
+流程：
+    1. 不指定版本 → 显示版本列表
+    2. 指定版本 → 执行回滚（智能备份当前版本）
+
+示例：
+    skill:rollback git-commit                    # 显示版本列表
+    skill:rollback git-commit 2026-02-02-001     # 回滚到指定版本
 ```
 
 #### /skill:delete
 
-```markdown
-skill:delete - Delete a skill and all its versions
+```
+skill:delete - 删除技能及所有版本历史
 
-USAGE:
-    /skill:delete <name>
+用法：
+    skill:delete <name> [--confirm]
 
-ARGUMENTS:
-    <name>    Skill name to delete
+参数：
+    <name>       技能名称
+    --confirm    确认删除（跳过确认提示）
 
-NOTES:
-    - Requires confirmation before deletion
-    - Deletes all version history
+流程：
+    1. 不带 --confirm → 显示确认提示
+    2. 带 --confirm → 直接删除
 
-OUTPUT:
-    Delete skill "git-commit" and all 5 versions? (y/N): _
-    Skill "git-commit" deleted.
-
-EXAMPLES:
-    /skill:delete git-commit
+示例：
+    skill:delete git-commit              # 显示确认提示
+    skill:delete git-commit --confirm    # 直接删除
 ```
 
 ---
@@ -674,100 +841,101 @@ EXAMPLES:
 ### 导入流程
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│ 用户执行 /skill:import <source>                         │
-└────────────────────────┬────────────────────────────────┘
-                         ↓
-              ┌──────────┴──────────┐
-              │ 判断 source 类型     │
-              └──────────┬──────────┘
-           ┌─────────────┼─────────────┐
-           ↓                           ↓
-       本地目录                      远程 URL
-           ↓                           ↓
-      直接读取文件              克隆到临时目录
-           └─────────────┬─────────────┘
-                         ↓
-┌─────────────────────────────────────────────────────────┐
-│ 遍历技能文件                                            │
-└────────────────────────┬────────────────────────────────┘
-                         ↓
-              ┌──────────┴──────────┐
-              │ 检查是否存在同名技能  │
-              └──────────┬──────────┘
-           ┌─────────────┼─────────────┐
-           ↓                           ↓
-         存在                        不存在
-           ↓                           ↓
-      记录到 conflicts              创建技能目录
-           ↓                        复制技能文件
-           ↓                           ↓
-           └─────────────┬─────────────┘
-                         ↓
-              ┌──────────┴──────────┐
-              │ 是否有 conflicts?    │
-              └──────────┬──────────┘
-           ┌─────────────┼─────────────┐
-           ↓                           ↓
-          是                          否
-           ↓                           ↓
-    中断并提示用户                 更新索引
-    手动处理冲突                  返回成功结果
+┌─────────────────────────────────────────────────────────────────┐
+│ 用户执行 skill:import <source> [options]                        │
+└────────────────────────────┬────────────────────────────────────┘
+                             ↓
+              ┌──────────────┴──────────────┐
+              │ 判断 source 类型             │
+              └──────────────┬──────────────┘
+           ┌─────────────────┼─────────────────┐
+           ↓                                   ↓
+       本地目录                             远程 URL
+           ↓                                   ↓
+      直接读取目录                    克隆到临时目录（用户负责安全）
+           └─────────────────┬─────────────────┘
+                             ↓
+┌─────────────────────────────────────────────────────────────────┐
+│ 遍历技能目录                                                    │
+└────────────────────────────┬────────────────────────────────────┘
+                             ↓
+              ┌──────────────┴──────────────┐
+              │ 检查是否存在同名技能          │
+              └──────────────┬──────────────┘
+           ┌─────────────────┼─────────────────┐
+           ↓                                   ↓
+         存在                               不存在
+           ↓                                   ↓
+      记录到 conflicts                 检查 --continue 选项
+           ↓                                   ↓
+           ↓                    ┌──────────────┴──────────────┐
+           ↓                    ↓                              ↓
+           ↓              已指定跳过                     调用 findSimilar()
+           ↓                    ↓                              ↓
+           ↓               直接导入              ┌─────────────┴─────────────┐
+           ↓                    ↓                ↓                           ↓
+           ↓                    ↓           发现相似                      无相似
+           ↓                    ↓                ↓                           ↓
+           ↓                    ↓        检查 --merge 选项              直接导入
+           ↓                    ↓                ↓                           ↓
+           ↓                    ↓    ┌──────────┴──────────┐                ↓
+           ↓                    ↓    ↓                      ↓                ↓
+           ↓                    ↓ 已指定合并          记录到 similar         ↓
+           ↓                    ↓    ↓                      ↓                ↓
+           ↓                    ↓ 执行合并                  ↓                ↓
+           └────────────────────┴────┴──────────────────────┴────────────────┘
+                                              ↓
+              ┌──────────────────────────────┴──────────────────────────────┐
+              │ 有 conflicts 或 similar？                                    │
+              └──────────────────────────────┬──────────────────────────────┘
+           ┌─────────────────────────────────┼─────────────────────────────────┐
+           ↓                                                                   ↓
+          是                                                                  否
+           ↓                                                                   ↓
+    返回结果，中断导入                                                   更新索引
+    提示用户处理后重新执行                                             返回成功结果
+    - conflicts: 修改源目录中的技能名称
+    - similar: 使用 --continue 或 --merge 选项
 ```
 
 ### 回滚流程
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│ 用户执行 /skill:rollback <name>                         │
-└────────────────────────┬────────────────────────────────┘
-                         ↓
-┌─────────────────────────────────────────────────────────┐
-│ 获取版本列表                                            │
-└────────────────────────┬────────────────────────────────┘
-                         ↓
-┌─────────────────────────────────────────────────────────┐
-│ 展示版本列表，等待用户选择                              │
-└────────────────────────┬────────────────────────────────┘
-                         ↓
-┌─────────────────────────────────────────────────────────┐
-│ 将当前版本保存到历史（创建新版本号）                    │
-└────────────────────────┬────────────────────────────────┘
-                         ↓
-┌─────────────────────────────────────────────────────────┐
-│ 将选中版本复制为当前版本                                │
-└────────────────────────┬────────────────────────────────┘
-                         ↓
-┌─────────────────────────────────────────────────────────┐
-│ 更新索引，返回成功                                      │
-└─────────────────────────────────────────────────────────┘
-```
-
-### 去重融合流程
-
-```
-┌─────────────────────────────────────────────────────────┐
-│ 技能增强或导入时触发                                    │
-└────────────────────────┬────────────────────────────────┘
-                         ↓
-┌─────────────────────────────────────────────────────────┐
-│ SkillMerger.findSimilar() - 调用 skill sub agent       │
-│ 分析新技能与现有技能的语义相似度                        │
-└────────────────────────┬────────────────────────────────┘
-                         ↓
-              ┌──────────┴──────────┐
-              │ 是否存在相似技能?    │
-              └──────────┬──────────┘
-           ┌─────────────┼─────────────┐
-           ↓                           ↓
-          是                          否
-           ↓                           ↓
-    SkillMerger.merge()           正常保存技能
-    调用技能增强机制融合
-           ↓
-    生成增强后的合并版本
-           ↓
-    更新索引
+┌─────────────────────────────────────────────────────────────────┐
+│ 用户执行 skill:rollback <name> [version]                        │
+└────────────────────────────┬────────────────────────────────────┘
+                             ↓
+              ┌──────────────┴──────────────┐
+              │ 是否指定 version？           │
+              └──────────────┬──────────────┘
+           ┌─────────────────┼─────────────────┐
+           ↓                                   ↓
+         未指定                              已指定
+           ↓                                   ↓
+    获取并显示版本列表                   验证版本存在
+    等待用户选择版本                          ↓
+                                    ┌─────────┴─────────┐
+                                    │ 计算当前版本 hash  │
+                                    └─────────┬─────────┘
+                                              ↓
+                                    ┌─────────┴─────────┐
+                                    │ 历史中已存在相同？  │
+                                    └─────────┬─────────┘
+                                 ┌────────────┼────────────┐
+                                 ↓                         ↓
+                               存在                      不存在
+                                 ↓                         ↓
+                            跳过备份                  创建版本备份
+                                 └────────────┬────────────┘
+                                              ↓
+                                    ┌─────────┴─────────┐
+                                    │ 恢复目标版本内容   │
+                                    │ （保留 versions/） │
+                                    └─────────┬─────────┘
+                                              ↓
+                                    ┌─────────┴─────────┐
+                                    │ 更新索引，返回成功 │
+                                    └───────────────────┘
 ```
 
 ---
@@ -776,37 +944,49 @@ EXAMPLES:
 
 ### 版本管理
 
-1. 创建版本 → 验证版本号格式正确（日期+序列号）
-2. 同一天多次创建 → 验证序列号递增
-3. 获取版本列表 → 验证按版本号降序排列
-4. 回滚版本 → 验证当前版本被保存，目标版本成为当前
-5. 超过 20 个版本 → 验证 FIFO 清理最旧版本
+1. **创建版本** → 验证版本目录结构正确（包含 SKILL.md 和 scripts/）
+2. **同一天多次创建** → 验证序列号递增（001, 002, 003...）
+3. **获取版本列表** → 验证按版本号降序排列
+4. **回滚版本** → 验证整个目录被恢复（SKILL.md + scripts/）
+5. **回滚时智能备份** → 当前版本内容已在历史中存在时，不创建重复备份
+6. **回滚时自动备份** → 当前版本是新内容时，先创建备份再回滚
+7. **超过 20 个版本** → 验证 FIFO 清理最旧的版本目录
 
 ### 导入功能
 
-6. 本地目录导入 → 验证技能正确创建
-7. 远程 URL 导入 → 验证克隆和清理
-8. 导入冲突 → 验证中断并提示用户
-9. 空目录导入 → 验证处理空结果
+8. **本地目录导入** → 验证技能目录正确复制
+9. **远程 URL 导入** → 验证克隆、导入、临时目录清理
+10. **同名冲突** → 验证返回 conflicts，不执行导入
+11. **语义相似检测** → 验证调用 SkillMerger.findSimilar()
+12. **相似技能中断** → 验证返回 similar，等待用户决定
+13. **--continue 选项** → 验证跳过相似检测，继续导入
+14. **--merge 选项** → 验证调用 merger.merge() 融合技能
+15. **空目录导入** → 验证返回空结果，无错误
 
 ### 去重融合
 
-10. 相似技能检测 → 验证 skill sub agent 调用
-11. 技能融合 → 验证增强机制被调用
-12. 无相似技能 → 验证正常保存
+16. **相似技能检测** → 验证 SubAgentManager 调用正确
+17. **技能融合** → 验证目标技能被更新，源技能不导入
+18. **无相似技能** → 验证返回空数组，正常导入
 
 ### Slash Commands
 
-13. /skill:list → 验证列表格式正确
-14. /skill:info → 验证详情和版本历史显示
-15. /skill:delete → 验证确认和删除
-16. /skill:rollback → 验证版本选择交互
+19. **skill:list** → 验证列表格式包含版本数量
+20. **skill:info** → 验证详情和版本历史显示
+21. **skill:import 冲突提示** → 验证提示用户修改名称
+22. **skill:import 相似提示** → 验证提示 --continue 或 --merge 选项
+23. **skill:rollback 无版本参数** → 验证显示版本列表
+24. **skill:rollback 有版本参数** → 验证执行回滚
+25. **skill:delete 无确认** → 验证显示确认提示
+26. **skill:delete --confirm** → 验证直接删除
 
 ### 边界情况
 
-17. 技能不存在 → 验证错误提示
-18. 版本不存在 → 验证错误提示
-19. 无版本历史的技能回滚 → 验证处理
+27. **技能不存在** → 验证返回友好错误提示
+28. **版本不存在** → 验证返回错误提示
+29. **无版本历史的技能回滚** → 验证提示无可用版本
+30. **导入时目标目录无写权限** → 验证返回权限错误
+31. **版本 hash 计算** → 验证排除 versions/ 目录
 
 ---
 
@@ -814,6 +994,7 @@ EXAMPLES:
 
 | 变量名 | 默认值 | 说明 |
 |--------|--------|------|
-| `SKILL_MAX_VERSIONS` | 20 | 每个技能最大版本数 |
-| `SKILLS_DIR` | `~/.synapse/skills/` | 技能存储目录 |
-| `SKILL_IMPORT_TIMEOUT` | 60000 | 远程导入超时时间（毫秒） |
+| `SYNAPSE_SKILL_MAX_VERSIONS` | 20 | 每个技能最大版本数 |
+| `SYNAPSE_SKILL_IMPORT_TIMEOUT` | 60000 | 远程导入超时时间（毫秒） |
+
+注：技能目录固定为 `~/.synapse/skills/`，与现有系统保持一致，不支持通过环境变量修改。
