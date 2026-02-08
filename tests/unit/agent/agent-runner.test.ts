@@ -22,6 +22,7 @@ import type { StreamedMessagePart } from '../../../src/providers/anthropic/anthr
 import { Logger } from '../../../src/utils/logger.ts';
 import { Session } from '../../../src/agent/session.ts';
 import { stopHookRegistry } from '../../../src/hooks/stop-hook-registry.ts';
+import { countMessageTokens } from '../../../src/utils/token-counter.ts';
 
 function createMockCallableTool(
   handler: (args: unknown) => Promise<ToolReturnValue> | CancelablePromise<ToolReturnValue>
@@ -1115,6 +1116,34 @@ describe('AgentRunner with Session', () => {
     expect(runner2.getHistory().length).toBe(4); // 2 from first + 2 from second
   });
 
+  it('getContextStats should include resumed history before first run', async () => {
+    const session = await Session.create({ sessionsDir: testDir });
+    const existingHistory = [
+      createTextMessage('user', 'existing user message'),
+      createTextMessage('assistant', 'existing assistant message'),
+    ];
+    await session.appendMessage(existingHistory);
+
+    const resumed = await Session.find(session.id, { sessionsDir: testDir });
+    const client = createMockClient([[{ type: 'text', text: 'Done!' }]]);
+    const toolset = new CallableToolset([createMockCallableTool(() =>
+      Promise.resolve(ToolOk({ output: '' }))
+    )]);
+    const runner = new AgentRunner({
+      client,
+      systemPrompt: 'Test',
+      toolset,
+      session: resumed!,
+      enableStopHooks: false,
+    });
+
+    const stats = runner.getContextStats();
+
+    expect(stats).not.toBeNull();
+    expect(stats?.messageCount).toBe(existingHistory.length);
+    expect(stats?.currentTokens).toBe(countMessageTokens(existingHistory));
+  });
+
   it('should sanitize dangling tool-call history when resuming session', async () => {
     const session = await Session.create({ sessionsDir: testDir });
     await session.appendMessage([
@@ -1189,5 +1218,116 @@ describe('AgentRunner with Session', () => {
 
     expect(hasAssistantToolCalls).toBe(false);
     expect(hasToolMessages).toBe(false);
+  });
+
+  it('should offload context before step, rewrite session history, and emit offload event', async () => {
+    const session = await Session.create({ sessionsDir: testDir });
+    await session.appendMessage([
+      createTextMessage('user', 'old request'),
+      {
+        role: 'assistant',
+        content: [{ type: 'text', text: 'running tool' }],
+        toolCalls: [{ id: 'tool-call-1', name: 'Bash', arguments: '{"command":"ls"}' }],
+      },
+      {
+        role: 'tool',
+        toolCallId: 'tool-call-1',
+        content: [{ type: 'text', text: 'x'.repeat(800) }],
+      },
+    ]);
+
+    const client = createMockClient([[{ type: 'text', text: 'Done!' }]]);
+    const toolset = new CallableToolset([createMockCallableTool(() =>
+      Promise.resolve(ToolOk({ output: '' }))
+    )]);
+    const runner = new AgentRunner({
+      client,
+      systemPrompt: 'Test',
+      toolset,
+      sessionId: session.id,
+      sessionsDir: testDir,
+      enableStopHooks: false,
+      context: {
+        maxContextWindow: 200000,
+        offloadThreshold: 1,
+        offloadScanRatio: 1,
+        offloadMinChars: 50,
+      },
+    });
+    const payloads: Array<{ count: number; freedTokens: number }> = [];
+    runner.on('offload', (payload) => {
+      payloads.push(payload as { count: number; freedTokens: number });
+    });
+
+    const response = await runner.run('new request');
+
+    expect(response).toBe('Done!');
+    expect(payloads).toHaveLength(1);
+    expect(payloads[0]?.count).toBeGreaterThan(0);
+    expect(payloads[0]?.freedTokens).toBeGreaterThan(0);
+
+    const generateCall = (client.generate as unknown as { mock: { calls: unknown[][] } }).mock.calls[0];
+    const generateHistory = generateCall?.[1] as Message[];
+    const offloadedToolMessage = generateHistory.find((message) => {
+      if (message.role !== 'tool') {
+        return false;
+      }
+      const part = message.content[0];
+      return part?.type === 'text' && part.text.startsWith('Tool result is at: ');
+    });
+    expect(offloadedToolMessage).toBeDefined();
+
+    const resumed = await Session.find(session.id, { sessionsDir: testDir });
+    const persistedHistory = await resumed!.loadHistory();
+    const persistedOffloadedMessage = persistedHistory.find((message) => {
+      if (message.role !== 'tool') {
+        return false;
+      }
+      const part = message.content[0];
+      return part?.type === 'text' && part.text.startsWith('Tool result is at: ');
+    });
+    expect(persistedOffloadedMessage).toBeDefined();
+  });
+
+  it('should log warning when context still exceeds threshold after offload attempt', async () => {
+    const originalWarn = Logger.prototype.warn;
+    const warnSpy = mock((_message: string, _data?: Record<string, unknown>) => {});
+    Logger.prototype.warn = warnSpy as unknown as Logger['warn'];
+
+    try {
+      const session = await Session.create({ sessionsDir: testDir });
+      await session.appendMessage([
+        createTextMessage('user', 'u'.repeat(500)),
+        createTextMessage('assistant', 'a'.repeat(500)),
+      ]);
+
+      const client = createMockClient([[{ type: 'text', text: 'Done!' }]]);
+      const toolset = new CallableToolset([createMockCallableTool(() =>
+        Promise.resolve(ToolOk({ output: '' }))
+      )]);
+      const runner = new AgentRunner({
+        client,
+        systemPrompt: 'Test',
+        toolset,
+        sessionId: session.id,
+        sessionsDir: testDir,
+        enableStopHooks: false,
+        context: {
+          maxContextWindow: 200000,
+          offloadThreshold: 1,
+          offloadScanRatio: 1,
+          offloadMinChars: 50,
+        },
+      });
+
+      await runner.run('new request');
+
+      const hasTodoWarn = warnSpy.mock.calls.some(([message]) => {
+        return typeof message === 'string' && message.includes('TODO: Context still exceeds threshold');
+      });
+      expect(hasTodoWarn).toBe(true);
+    } finally {
+      Logger.prototype.warn = originalWarn;
+    }
   });
 });

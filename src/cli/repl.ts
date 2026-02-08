@@ -22,7 +22,7 @@ import chalk from 'chalk';
 import { AnthropicClient } from '../providers/anthropic/anthropic-client.ts';
 import { buildSystemPrompt } from '../agent/system-prompt.ts';
 import { Session, type SessionInfo } from '../agent/session.ts';
-import { AgentRunner } from '../agent/agent-runner.ts';
+import { AgentRunner, type ContextStats } from '../agent/agent-runner.ts';
 import { formatCostOutput } from '../agent/session-usage.ts';
 import { CallableToolset } from '../tools/toolset.ts';
 import { BashTool } from '../tools/bash-tool.ts';
@@ -171,6 +171,7 @@ function showHelp(): void {
   console.log(chalk.gray('  /exit, /quit, /q ') + chalk.white('Exit the REPL'));
   console.log(chalk.gray('  /clear           ') + chalk.white('Clear conversation history'));
   console.log(chalk.gray('  /cost            ') + chalk.white('Show current session token/cost stats'));
+  console.log(chalk.gray('  /context         ') + chalk.white('Show context usage stats'));
   console.log(chalk.gray('  /model           ') + chalk.white('Show current model'));
   console.log(chalk.gray('  /tools           ') + chalk.white('List available tools'));
   console.log(chalk.gray('  /skills          ') + chalk.white('List all available skills'));
@@ -192,6 +193,46 @@ function showHelp(): void {
   console.log(chalk.white.bold('Keyboard Shortcuts:'));
   console.log(chalk.gray('  Ctrl+C           ') + chalk.white('Interrupt current turn immediately'));
   console.log(chalk.gray('  Ctrl+D           ') + chalk.white('Exit immediately'));
+  console.log();
+}
+
+function calculateContextPercentage(numerator: number, denominator: number): number {
+  if (denominator <= 0) {
+    return 0;
+  }
+  return (numerator / denominator) * 100;
+}
+
+function buildContextProgressBar(percentage: number): string {
+  const totalSlots = 20;
+  const safePercentage = Math.min(Math.max(percentage, 0), 100);
+  const filledSlots = Math.round((safePercentage / 100) * totalSlots);
+  const emptySlots = totalSlots - filledSlots;
+  return `[${'#'.repeat(filledSlots)}${'-'.repeat(emptySlots)}] ${safePercentage.toFixed(1)}%`;
+}
+
+function showContextStats(stats: ContextStats): void {
+  const usagePercentage = calculateContextPercentage(stats.currentTokens, stats.maxTokens);
+  const thresholdPercentage = calculateContextPercentage(stats.offloadThreshold, stats.maxTokens);
+  const progressBar = buildContextProgressBar(usagePercentage);
+
+  printSectionHeader('Context Usage');
+  console.log();
+  console.log(
+    chalk.white('  Current Tokens: ') +
+      chalk.cyan(
+        `${stats.currentTokens.toLocaleString()} / ${stats.maxTokens.toLocaleString()} (${usagePercentage.toFixed(1)}%)`
+      )
+  );
+  console.log(
+    chalk.white('  Offload Threshold: ') +
+      chalk.cyan(`${stats.offloadThreshold.toLocaleString()} (${thresholdPercentage.toFixed(1)}%)`)
+  );
+  console.log(chalk.white('  Messages: ') + chalk.cyan(stats.messageCount.toLocaleString()));
+  console.log(chalk.white('  Tool Calls: ') + chalk.cyan(stats.toolCallCount.toLocaleString()));
+  console.log(chalk.white('  Offloaded Files: ') + chalk.cyan(stats.offloadedFileCount.toLocaleString()));
+  console.log();
+  console.log(chalk.cyan(`  ${progressBar}`));
   console.log();
 }
 
@@ -389,6 +430,22 @@ export function handleSpecialCommand(
       }
 
       console.log(chalk.cyan(`\n${formatCostOutput(usage)}\n`));
+      return true;
+    }
+
+    case '/context': {
+      if (!agentRunner) {
+        console.log(chalk.yellow('\nContext stats unavailable in this context.\n'));
+        return true;
+      }
+
+      const stats = agentRunner.getContextStats();
+      if (!stats) {
+        console.log(chalk.yellow('\nNo active session.\n'));
+        return true;
+      }
+
+      showContextStats(stats);
       return true;
     }
 

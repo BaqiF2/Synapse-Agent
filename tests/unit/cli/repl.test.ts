@@ -64,6 +64,8 @@ describe('REPL commands', () => {
       .join('\n');
     expect(output).toContain('Synapse Agent - Help');
     expect(output).toContain('/cost');
+    expect(output).toContain('/context');
+    expect(output).toContain('Show context usage stats');
 
     console.log = originalConsoleLog;
   });
@@ -357,6 +359,52 @@ describe('REPL commands', () => {
     expect(agentRunner.getModelName).toHaveBeenCalled();
     const output = getConsoleOutput();
     expect(output).toContain('Current model: claude-sonnet-4-20250514');
+
+    console.log = originalConsoleLog;
+  });
+
+  it('handleSpecialCommand should show context stats on /context', async () => {
+    console.log = mock(() => {}) as unknown as typeof console.log;
+    const rl = createMockRl();
+    const agentRunner = {
+      getContextStats: mock(() => ({
+        currentTokens: 100000,
+        maxTokens: 200000,
+        offloadThreshold: 150000,
+        messageCount: 24,
+        toolCallCount: 9,
+        offloadedFileCount: 3,
+      })),
+    } as unknown as AgentRunner;
+    const { handleSpecialCommand } = await loadRepl();
+
+    const handled = handleSpecialCommand('/context', rl as unknown as readline.Interface, agentRunner, { skipExit: true });
+
+    expect(handled).toBe(true);
+    expect(agentRunner.getContextStats).toHaveBeenCalled();
+    const output = getConsoleOutput();
+    expect(output).toContain('Current Tokens');
+    expect(output).toContain('Offload Threshold');
+    expect(output).toContain('Messages');
+    expect(output).toContain('Tool Calls');
+    expect(output).toContain('Offloaded Files');
+    expect(output).toContain('50.0%');
+    expect(output).toContain('[');
+    expect(output).toContain(']');
+
+    console.log = originalConsoleLog;
+  });
+
+  it('handleSpecialCommand should report context unavailable without runner', async () => {
+    console.log = mock(() => {}) as unknown as typeof console.log;
+    const rl = createMockRl();
+    const { handleSpecialCommand } = await loadRepl();
+
+    const handled = handleSpecialCommand('/context', rl as unknown as readline.Interface, null, { skipExit: true });
+
+    expect(handled).toBe(true);
+    const output = getConsoleOutput();
+    expect(output).toContain('Context stats unavailable in this context.');
 
     console.log = originalConsoleLog;
   });

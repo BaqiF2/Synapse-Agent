@@ -13,6 +13,7 @@ import {type OnToolCall, type OnToolResult, step} from './step.ts';
 import {type OnMessagePart, type OnUsage} from '../providers/generate.ts';
 import {createTextMessage, extractText, type Message, type ToolResult as MessageToolResult, toolResultToMessage} from '../providers/message.ts';
 import type {Toolset} from '../tools/toolset.ts';
+import { EventEmitter } from 'node:events';
 import path from 'node:path';
 import {createLogger} from '../utils/logger.ts';
 import {loadDesc} from '../utils/load-desc.ts';
@@ -27,6 +28,9 @@ import {STOP_HOOK_MARKER} from '../hooks/stop-hook-constants.ts';
 import {todoStore} from '../tools/handlers/agent-bash/todo/todo-store.ts';
 import {shouldCountToolFailure} from '../utils/tool-failure.ts';
 import {throwIfAborted} from '../utils/abort.ts';
+import { countMessageTokens } from '../utils/token-counter.ts';
+import { ContextManager, type OffloadResult } from './context-manager.ts';
+import { OffloadStorage } from './offload-storage.ts';
 
 const logger = createLogger('agent-runner');
 
@@ -47,9 +51,21 @@ const DEFAULT_MAX_CONSECUTIVE_TOOL_FAILURES = parseEnvPositiveInt(
   process.env.SYNAPSE_MAX_CONSECUTIVE_TOOL_FAILURES,
   3
 );
+const DEFAULT_MAX_CONTEXT_WINDOW = parseEnvPositiveInt(process.env.SYNAPSE_MAX_CONTEXT_WINDOW, 200000);
+const DEFAULT_OFFLOAD_THRESHOLD = parseEnvPositiveInt(process.env.SYNAPSE_OFFLOAD_THRESHOLD, 150000);
+const DEFAULT_OFFLOAD_MIN_CHARS = parseEnvPositiveInt(process.env.SYNAPSE_OFFLOAD_MIN_CHARS, 50);
+const DEFAULT_OFFLOAD_SCAN_RATIO = parseEnvScanRatio(process.env.SYNAPSE_OFFLOAD_SCAN_RATIO, 0.5);
 const SKILL_SEARCH_INSTRUCTION_PREFIX = loadDesc(
   path.join(import.meta.dirname, 'prompts', 'skill-search-priority.md')
 );
+
+function parseEnvScanRatio(value: string | undefined, fallback: number): number {
+  const parsed = Number.parseFloat(value ?? '');
+  if (!Number.isFinite(parsed) || parsed <= 0 || parsed > 1) {
+    return fallback;
+  }
+  return parsed;
+}
 
 function prependSkillSearchInstruction(userMessage: string): string {
   return `${SKILL_SEARCH_INSTRUCTION_PREFIX}\n\nOriginal user request:\n${userMessage}`;
@@ -162,6 +178,27 @@ function sanitizeToolProtocolHistory(messages: readonly Message[]): { sanitized:
   return { sanitized, changed };
 }
 
+export interface AgentRunnerContextOptions {
+  maxContextWindow?: number;
+  offloadThreshold?: number;
+  offloadScanRatio?: number;
+  offloadMinChars?: number;
+}
+
+export interface ContextStats {
+  currentTokens: number;
+  maxTokens: number;
+  offloadThreshold: number;
+  messageCount: number;
+  toolCallCount: number;
+  offloadedFileCount: number;
+}
+
+export interface OffloadEventPayload {
+  count: number;
+  freedTokens: number;
+}
+
 /**
  * Options for AgentRunner
  */
@@ -192,6 +229,8 @@ export interface AgentRunnerOptions {
   sessionsDir?: string;
   /** Enable Stop Hooks execution (default: true) */
   enableStopHooks?: boolean;
+  /** Context offload configuration */
+  context?: AgentRunnerContextOptions;
   /**
    * Whether to prepend skill-search priority instruction to user messages.
    * Main agent should keep this enabled; sub-agents should disable it.
@@ -220,7 +259,7 @@ export interface AgentRunOptions {
  * const response = await runner.run('Hello');
  * ```
  */
-export class AgentRunner {
+export class AgentRunner extends EventEmitter {
   private client: AnthropicClient;
   private systemPrompt: string;
   private toolset: Toolset;
@@ -242,7 +281,15 @@ export class AgentRunner {
   /** Conversation history */
   private history: Message[] = [];
 
+  /** Context offload management */
+  private contextManager: ContextManager | null = null;
+  private maxContextWindow: number;
+  private offloadThreshold: number;
+  private offloadScanRatio: number;
+  private offloadMinChars: number;
+
   constructor(options: AgentRunnerOptions) {
+    super();
     this.client = options.client;
     this.systemPrompt = options.systemPrompt;
     this.toolset = options.toolset;
@@ -257,6 +304,12 @@ export class AgentRunner {
     this.sessionId = options.sessionId ?? options.session?.id;
     this.sessionsDir = options.sessionsDir;
     this.enableStopHooks = options.enableStopHooks ?? true;
+
+    const context = options.context ?? {};
+    this.maxContextWindow = context.maxContextWindow ?? DEFAULT_MAX_CONTEXT_WINDOW;
+    this.offloadThreshold = context.offloadThreshold ?? DEFAULT_OFFLOAD_THRESHOLD;
+    this.offloadScanRatio = context.offloadScanRatio ?? DEFAULT_OFFLOAD_SCAN_RATIO;
+    this.offloadMinChars = context.offloadMinChars ?? DEFAULT_OFFLOAD_MIN_CHARS;
     this.enableSkillSearchInstruction = options.enableSkillSearchInstruction ?? true;
   }
 
@@ -276,6 +329,30 @@ export class AgentRunner {
 
   getSessionUsage(): SessionUsage | null {
     return this.session?.getUsage() ?? null;
+  }
+
+  getContextStats(): ContextStats | null {
+    if (!this.session) {
+      return null;
+    }
+
+    if (this.history.length === 0 && this.session.messageCount > 0) {
+      this.history = this.session.loadHistorySync();
+    }
+
+    const currentTokens = countMessageTokens(this.history);
+    const toolCallCount = this.history.reduce((total, message) => {
+      return total + (message.toolCalls?.length ?? 0);
+    }, 0);
+
+    return {
+      currentTokens,
+      maxTokens: this.maxContextWindow,
+      offloadThreshold: this.offloadThreshold,
+      messageCount: this.history.length,
+      toolCallCount,
+      offloadedFileCount: this.session.countOffloadedFiles(),
+    };
   }
 
   getModelName(): string {
@@ -396,6 +473,59 @@ export class AgentRunner {
     });
   }
 
+  private ensureContextManager(): ContextManager | null {
+    if (!this.session) {
+      return null;
+    }
+
+    if (!this.contextManager) {
+      const storage = new OffloadStorage(this.session.offloadSessionDir);
+      this.contextManager = new ContextManager(storage, {
+        offloadThreshold: this.offloadThreshold,
+        scanRatio: this.offloadScanRatio,
+        minChars: this.offloadMinChars,
+      });
+    }
+
+    return this.contextManager;
+  }
+
+  private async offloadHistoryIfNeeded(): Promise<void> {
+    const contextManager = this.ensureContextManager();
+    if (!contextManager) {
+      return;
+    }
+
+    const result = contextManager.offloadIfNeeded(this.history);
+    if (result.offloadedCount > 0) {
+      this.history = result.messages;
+      if (this.session) {
+        await this.session.rewriteHistory(this.history);
+      }
+      this.emitOffloadNotification(result);
+    }
+
+    if (result.stillExceedsThreshold) {
+      logger.warn(
+        'TODO: Context still exceeds threshold after offload, consider increasing scan ratio or reducing min chars',
+        {
+          currentTokens: result.currentTokens,
+          offloadThreshold: this.offloadThreshold,
+          offloadedCount: result.offloadedCount,
+        }
+      );
+    }
+
+  }
+
+  private emitOffloadNotification(result: OffloadResult): void {
+    const payload: OffloadEventPayload = {
+      count: result.offloadedCount,
+      freedTokens: result.freedTokens,
+    };
+    this.emit('offload', payload);
+  }
+
   /**
    * Run the Agent Loop for a user message
    *
@@ -437,6 +567,8 @@ export class AgentRunner {
     while (iteration < this.maxIterations) {
       await this.sanitizeHistoryForToolProtocol('before step');
       throwIfAborted(signal);
+      await this.offloadHistoryIfNeeded();
+      throwIfAborted(signal);
 
       // 循环的次数
       iteration++;
@@ -452,9 +584,7 @@ export class AgentRunner {
           onMessagePart: this.onMessagePart,
           onToolCall: this.onToolCall,
           onToolResult: this.onToolResult,
-          onUsage: async (usage, model) => {
-            await this.handleUsage(usage, model);
-          },
+          onUsage: (usage, model) => this.handleUsage(usage, model),
           signal,
         }
       );
