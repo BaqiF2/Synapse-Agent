@@ -29,6 +29,8 @@ const MAX_OUTPUT_LINES = parseEnvInt(process.env.SYNAPSE_MAX_OUTPUT_LINES, 5);
 const MAX_RECENT_TOOLS = parseEnvInt(process.env.SYNAPSE_MAX_RECENT_TOOLS, 5);
 /** Bash 命令显示最大字符数（超出后截断） */
 const MAX_COMMAND_DISPLAY_LENGTH = 40;
+/** 当模型把 Bash 工具名当作命令时的统一展示文案 */
+const INVALID_BASH_TOOL_MISUSE_DISPLAY = '[invalid command: tool name Bash]';
 /** Task 描述摘要最大长度（超出后截断） */
 const TASK_DESCRIPTION_SUMMARY_LIMIT = parseEnvInt(
   process.env.TOOL_RESULT_SUMMARY_LIMIT ?? process.env.SYNAPSE_TOOL_RESULT_SUMMARY_LIMIT,
@@ -823,6 +825,9 @@ export class TerminalRenderer {
   }
 
   private formatCommandDisplay(command: string): string {
+    if (this.isBashToolMisuseCommand(command)) {
+      return INVALID_BASH_TOOL_MISUSE_DISPLAY;
+    }
     if (isSkillEnhanceCommand(command)) {
       return SKILL_ENHANCE_PROGRESS_TEXT;
     }
@@ -830,6 +835,11 @@ export class TerminalRenderer {
       return command;
     }
     return `${command.slice(0, MAX_COMMAND_DISPLAY_LENGTH)}...`;
+  }
+
+  private isBashToolMisuseCommand(command: string): boolean {
+    const trimmed = command.trim();
+    return /^Bash(?:\s|\(|$)/.test(trimmed);
   }
 
   private getToolPrefix(

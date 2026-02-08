@@ -93,6 +93,22 @@ describe('TerminalRenderer', () => {
     expect(output).not.toContain(`Bash(${longCommand})`);
   });
 
+  it('should normalize Bash tool misuse display instead of rendering Bash(Bash)', () => {
+    const renderer = new TerminalRenderer();
+
+    renderer.renderToolStart({
+      id: 'misuse-1',
+      command: 'Bash',
+      depth: 0,
+    });
+
+    const writes = (process.stdout.write as unknown as { mock: { calls: unknown[][] } }).mock.calls;
+    const output = stripAnsi(writes.map((call) => String(call[0] ?? '')).join(''));
+
+    expect(output).toContain('Bash([invalid command: tool name Bash])');
+    expect(output).not.toContain('Bash(Bash)');
+  });
+
   it('should not render tool start/end when shouldRender is false', () => {
     const renderer = new TerminalRenderer();
 
