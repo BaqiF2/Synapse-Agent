@@ -231,6 +231,11 @@ export interface AgentRunnerOptions {
   enableStopHooks?: boolean;
   /** Context offload configuration */
   context?: AgentRunnerContextOptions;
+  /**
+   * Whether to prepend skill-search priority instruction to user messages.
+   * Main agent should keep this enabled; sub-agents should disable it.
+   */
+  enableSkillSearchInstruction?: boolean;
 }
 
 export interface AgentRunOptions {
@@ -265,6 +270,7 @@ export class AgentRunner extends EventEmitter {
   private onToolResult?: OnToolResult;
   private onUsage?: OnUsage;
   private enableStopHooks: boolean;
+  private enableSkillSearchInstruction: boolean;
 
   /** Session management */
   private session: Session | null = null;
@@ -304,6 +310,7 @@ export class AgentRunner extends EventEmitter {
     this.offloadThreshold = context.offloadThreshold ?? DEFAULT_OFFLOAD_THRESHOLD;
     this.offloadScanRatio = context.offloadScanRatio ?? DEFAULT_OFFLOAD_SCAN_RATIO;
     this.offloadMinChars = context.offloadMinChars ?? DEFAULT_OFFLOAD_MIN_CHARS;
+    this.enableSkillSearchInstruction = options.enableSkillSearchInstruction ?? true;
   }
 
   /**
@@ -540,7 +547,9 @@ export class AgentRunner extends EventEmitter {
     throwIfAborted(signal);
 
     // 添加用户消息到聊天历史中
-    const enhancedUserMessage = prependSkillSearchInstruction(userMessage);
+    const enhancedUserMessage = this.enableSkillSearchInstruction
+      ? prependSkillSearchInstruction(userMessage)
+      : userMessage;
     const userMsg = createTextMessage('user', enhancedUserMessage);
     const appendMessage = async (message: Message): Promise<void> => {
       this.history.push(message);

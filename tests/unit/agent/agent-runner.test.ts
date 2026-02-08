@@ -906,6 +906,32 @@ describe('AgentRunner', () => {
       expect(instructionBlock).not.toContain('请');
       expect(userText).toContain(input);
     });
+
+    it('should skip prepending skill-search instruction when disabled', async () => {
+      const client = createMockClient([[{ type: 'text', text: 'Done' }]]);
+      const toolset = new CallableToolset([createMockCallableTool(() =>
+        Promise.resolve(ToolOk({ output: '' }))
+      )]);
+
+      const runner = new AgentRunner({
+        client,
+        systemPrompt: 'Test',
+        toolset,
+        enableStopHooks: false,
+        enableSkillSearchInstruction: false,
+      });
+
+      const input = '保持原始用户输入';
+      await runner.run(input);
+
+      const firstMessage = runner.getHistory()[0];
+      expect(firstMessage?.role).toBe('user');
+      expect(firstMessage?.content[0]?.type).toBe('text');
+      const userText = (firstMessage?.content[0] as { text: string }).text;
+      expect(userText).toBe(input);
+      expect(userText).not.toContain('Skill Search Priority');
+      expect(userText).not.toContain('task:skill:search');
+    });
   });
 });
 
