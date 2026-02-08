@@ -256,6 +256,7 @@ export class SubAgentManager {
       toolset,
       maxIterations: config.maxIterations ?? this.maxIterations,
       enableStopHooks: false,
+      enableSkillSearchInstruction: false,
       onToolCall,
       onToolResult,
       onUsage: this.onUsage,

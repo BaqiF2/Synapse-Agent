@@ -65,6 +65,23 @@ function createParallelToolClient(): AnthropicClient {
   } as unknown as AnthropicClient;
 }
 
+function createPromptCaptureClient(capture: { userText?: string }): AnthropicClient {
+  return {
+    generate: (_systemPrompt: string, messages: readonly Message[]) => {
+      const userPrompt = extractTextContent(messages.find((message) => message.role === 'user'));
+      capture.userText = userPrompt;
+
+      return Promise.resolve({
+        id: 'msg-capture',
+        usage: { inputOther: 1, output: 1, inputCacheRead: 0, inputCacheCreation: 0 },
+        async *[Symbol.asyncIterator]() {
+          yield { type: 'text', text: 'captured' } satisfies StreamedMessagePart;
+        },
+      });
+    },
+  } as unknown as AnthropicClient;
+}
+
 describe('SubAgentManager', () => {
   let bashTool: BashTool;
 
@@ -187,5 +204,23 @@ describe('SubAgentManager', () => {
     expect(completedEvents).toHaveLength(1);
     expect(completedEvents[0]?.success).toBe(false);
     expect(completedEvents[0]?.error).toBeString();
+  });
+
+  it('should not prepend skill-search instruction for skill enhance sub-agent', async () => {
+    const capture: { userText?: string } = {};
+    const client = createPromptCaptureClient(capture);
+    const manager = new SubAgentManager({ client, bashTool });
+
+    const prompt = 'Only analyze this enhancement context';
+    const result = await manager.execute('skill', {
+      action: 'enhance',
+      prompt,
+      description: 'Skill Enhancement Analysis',
+    });
+
+    expect(result).toBe('captured');
+    expect(capture.userText).toBe(prompt);
+    expect(capture.userText).not.toContain('Skill Search Priority');
+    expect(capture.userText).not.toContain('task:skill:search');
   });
 });

@@ -192,6 +192,11 @@ export interface AgentRunnerOptions {
   sessionsDir?: string;
   /** Enable Stop Hooks execution (default: true) */
   enableStopHooks?: boolean;
+  /**
+   * Whether to prepend skill-search priority instruction to user messages.
+   * Main agent should keep this enabled; sub-agents should disable it.
+   */
+  enableSkillSearchInstruction?: boolean;
 }
 
 export interface AgentRunOptions {
@@ -226,6 +231,7 @@ export class AgentRunner {
   private onToolResult?: OnToolResult;
   private onUsage?: OnUsage;
   private enableStopHooks: boolean;
+  private enableSkillSearchInstruction: boolean;
 
   /** Session management */
   private session: Session | null = null;
@@ -251,6 +257,7 @@ export class AgentRunner {
     this.sessionId = options.sessionId ?? options.session?.id;
     this.sessionsDir = options.sessionsDir;
     this.enableStopHooks = options.enableStopHooks ?? true;
+    this.enableSkillSearchInstruction = options.enableSkillSearchInstruction ?? true;
   }
 
   /**
@@ -410,7 +417,9 @@ export class AgentRunner {
     throwIfAborted(signal);
 
     // 添加用户消息到聊天历史中
-    const enhancedUserMessage = prependSkillSearchInstruction(userMessage);
+    const enhancedUserMessage = this.enableSkillSearchInstruction
+      ? prependSkillSearchInstruction(userMessage)
+      : userMessage;
     const userMsg = createTextMessage('user', enhancedUserMessage);
     const appendMessage = async (message: Message): Promise<void> => {
       this.history.push(message);
