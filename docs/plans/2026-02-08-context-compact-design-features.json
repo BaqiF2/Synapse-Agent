@@ -1,0 +1,321 @@
+[
+  {
+    "category": "functional",
+    "prd": "2026-02-08-context-compact-design.md#2-contextcompactor-类",
+    "description": "消息分割 - 将历史消息分割为待压缩部分和保留部分",
+    "bdd": [
+      {
+        "title": "正常分割 - 保留最后 5 条消息",
+        "description": "验证消息数量大于 5 时，正确分割为前 N-5 条和后 5 条",
+        "steps": [
+          "创建包含 10 条消息的历史数组",
+          "调用 splitMessages(messages)",
+          "检查 toCompress 和 toPreserve 的长度"
+        ],
+        "expected": "toCompress 包含前 5 条消息，toPreserve 包含后 5 条消息"
+      },
+      {
+        "title": "边界情况 - 消息数量等于 5",
+        "description": "验证消息数量刚好等于保留数时的处理",
+        "steps": [
+          "创建包含 5 条消息的历史数组",
+          "调用 splitMessages(messages)"
+        ],
+        "expected": "toCompress 为空数组，toPreserve 包含全部 5 条消息"
+      },
+      {
+        "title": "边界情况 - 消息数量小于 5",
+        "description": "验证消息数量少于保留数时的处理",
+        "steps": [
+          "创建包含 3 条消息的历史数组",
+          "调用 splitMessages(messages)"
+        ],
+        "expected": "toCompress 为空数组，toPreserve 包含全部 3 条消息"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-08-context-compact-design.md#2-contextcompactor-类",
+    "description": "历史重建 - 构建压缩后的消息历史",
+    "bdd": [
+      {
+        "title": "正确构建压缩历史 - 摘要消息在前",
+        "description": "验证压缩摘要作为 user 消息放在历史开头",
+        "steps": [
+          "准备总结文本 'Summary content'",
+          "准备保留的 3 条消息",
+          "调用 buildCompressedHistory(summary, preserved)"
+        ],
+        "expected": "返回数组长度为 4，第一条消息 role 为 'user'，content 以 '[Compressed History]\\n\\n' 开头，后续为原保留消息"
+      },
+      {
+        "title": "压缩历史消息格式正确",
+        "description": "验证压缩摘要消息的格式符合规范",
+        "steps": [
+          "准备总结文本 '## Technical Context\\nTest content'",
+          "调用 buildCompressedHistory(summary, [])"
+        ],
+        "expected": "返回数组长度为 1，消息 content 为 '[Compressed History]\\n\\n## Technical Context\\nTest content'"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-08-context-compact-design.md#2-contextcompactor-类",
+    "description": "卸载内容还原 - 读取卸载文件并替换回消息内容",
+    "bdd": [
+      {
+        "title": "正常还原 - 检测并替换卸载引用",
+        "description": "验证能够检测 'Tool result is at:' 格式并读取文件内容替换",
+        "steps": [
+          "创建卸载文件 /tmp/offloaded/abc.txt 内容为 'Original content'",
+          "创建消息 content 为 'Tool result is at: /tmp/offloaded/abc.txt'",
+          "调用 restoreOffloadedContent([message])"
+        ],
+        "expected": "返回的消息 content 为 'Original content'"
+      },
+      {
+        "title": "无卸载引用 - 保持原内容",
+        "description": "验证没有卸载引用的消息保持不变",
+        "steps": [
+          "创建消息 content 为 'Normal tool result content'",
+          "调用 restoreOffloadedContent([message])"
+        ],
+        "expected": "返回的消息 content 仍为 'Normal tool result content'"
+      },
+      {
+        "title": "文件读取失败 - 使用占位符",
+        "description": "验证卸载文件不存在时使用占位符替代",
+        "steps": [
+          "创建消息 content 为 'Tool result is at: /nonexistent/file.txt'",
+          "调用 restoreOffloadedContent([message])"
+        ],
+        "expected": "返回的消息 content 为 '[Content unavailable: /nonexistent/file.txt]'"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-08-context-compact-design.md#2-contextcompactor-类",
+    "description": "LLM 总结生成 - 调用 LLM 生成结构化总结",
+    "bdd": [
+      {
+        "title": "正常生成总结",
+        "description": "验证调用 LLM 并返回总结文本",
+        "steps": [
+          "Mock LLM client 返回 '## Technical Context\\nTest summary'",
+          "准备 10 条历史消息",
+          "调用 generateSummary(messages)"
+        ],
+        "expected": "返回字符串 '## Technical Context\\nTest summary'"
+      },
+      {
+        "title": "重试机制 - 首次失败后重试成功",
+        "description": "验证 LLM 调用失败后自动重试",
+        "steps": [
+          "Mock LLM client 第一次调用抛出错误，第二次返回 'Summary'",
+          "设置 retryCount 为 3",
+          "调用 generateSummary(messages)"
+        ],
+        "expected": "返回字符串 'Summary'，共调用 LLM 2 次"
+      },
+      {
+        "title": "重试耗尽 - 抛出异常",
+        "description": "验证所有重试都失败后抛出异常",
+        "steps": [
+          "Mock LLM client 始终抛出错误",
+          "设置 retryCount 为 3",
+          "调用 generateSummary(messages)"
+        ],
+        "expected": "抛出异常，共调用 LLM 3 次"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-08-context-compact-design.md#清理机制",
+    "description": "文件清理 - 压缩成功后删除卸载文件",
+    "bdd": [
+      {
+        "title": "正常清理 - 删除所有卸载文件",
+        "description": "验证压缩成功后删除 offloaded 目录下所有文件",
+        "steps": [
+          "创建 offloaded/ 目录包含 3 个文件",
+          "调用 cleanupOffloadedFiles()"
+        ],
+        "expected": "返回已删除文件列表长度为 3，offloaded/ 目录为空"
+      },
+      {
+        "title": "删除失败 - 记录警告但不影响结果",
+        "description": "验证单个文件删除失败时继续处理其他文件",
+        "steps": [
+          "创建 offloaded/ 目录包含 3 个文件",
+          "Mock 第二个文件删除失败",
+          "调用 cleanupOffloadedFiles()"
+        ],
+        "expected": "返回已删除文件列表长度为 2，记录 warn 日志，不抛出异常"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-08-context-compact-design.md#4-agentrunner-集成",
+    "description": "自动触发 - 卸载效率不足时触发压缩",
+    "bdd": [
+      {
+        "title": "触发条件 - 卸载效率低于阈值",
+        "description": "验证当 stillExceedsThreshold=true 且 freedTokens<15K 时触发压缩",
+        "steps": [
+          "Mock contextManager.offloadIfNeeded 返回 { stillExceedsThreshold: true, freedTokens: 10000 }",
+          "Mock contextCompactor.compact 返回 success: true",
+          "执行 AgentRunner.run()"
+        ],
+        "expected": "contextCompactor.compact 被调用一次"
+      },
+      {
+        "title": "不触发 - 卸载效率足够",
+        "description": "验证当 freedTokens>=15K 时不触发压缩",
+        "steps": [
+          "Mock contextManager.offloadIfNeeded 返回 { stillExceedsThreshold: true, freedTokens: 20000 }",
+          "执行 AgentRunner.run()"
+        ],
+        "expected": "contextCompactor.compact 不被调用"
+      },
+      {
+        "title": "不触发 - 未超阈值",
+        "description": "验证当 stillExceedsThreshold=false 时不触发压缩",
+        "steps": [
+          "Mock contextManager.offloadIfNeeded 返回 { stillExceedsThreshold: false, freedTokens: 5000 }",
+          "执行 AgentRunner.run()"
+        ],
+        "expected": "contextCompactor.compact 不被调用"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-08-context-compact-design.md#5-compact-命令",
+    "description": "/compact 命令 - 用户手动触发压缩",
+    "bdd": [
+      {
+        "title": "成功压缩 - 显示统计信息",
+        "description": "验证压缩成功时显示 token 变化和删除文件数",
+        "steps": [
+          "Mock runner.forceCompact 返回 { success: true, previousTokens: 100000, currentTokens: 20000, freedTokens: 80000, deletedFiles: ['a.txt', 'b.txt'] }",
+          "执行 /compact 命令"
+        ],
+        "expected": "输出包含 '✅ 压缩完成：100,000 → 20,000 tokens' 和 '释放 80,000 tokens，删除 2 个卸载文件'"
+      },
+      {
+        "title": "压缩失败 - 显示错误信息",
+        "description": "验证压缩失败时显示错误提示",
+        "steps": [
+          "Mock runner.forceCompact 返回 { success: false }",
+          "执行 /compact 命令"
+        ],
+        "expected": "输出包含 '❌ 压缩失败，保持原历史不变'"
+      },
+      {
+        "title": "历史为空 - 无需压缩",
+        "description": "验证历史消息为空时的处理",
+        "steps": [
+          "清空历史消息",
+          "执行 /compact 命令"
+        ],
+        "expected": "返回 success: true，freedTokens: 0，提示无需压缩"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-08-context-compact-design.md#1-核心类型定义",
+    "description": "CompactResult 完整性 - 压缩结果包含所有必要字段",
+    "bdd": [
+      {
+        "title": "完整压缩流程返回正确结果",
+        "description": "验证 compact() 返回的 CompactResult 包含所有字段且值正确",
+        "steps": [
+          "准备 20 条历史消息，估算 50000 tokens",
+          "其中 5 条包含卸载引用，对应文件存在",
+          "Mock LLM 返回 8000 tokens 的总结",
+          "调用 contextCompactor.compact(messages)"
+        ],
+        "expected": "返回 CompactResult 包含: messages 长度为 6 (1 摘要 + 5 保留), previousTokens 约 50000, currentTokens 约 10000, freedTokens 约 40000, preservedCount 为 5, deletedFiles 长度为 5, success 为 true"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-08-context-compact-design.md#边界情况",
+    "description": "边界情况处理 - 各种特殊场景的正确处理",
+    "bdd": [
+      {
+        "title": "历史消息 ≤ 5 条时跳过压缩",
+        "description": "验证消息数量不足时跳过压缩逻辑",
+        "steps": [
+          "准备 3 条历史消息",
+          "调用 contextCompactor.compact(messages)"
+        ],
+        "expected": "返回 success: true, freedTokens: 0, messages 与输入相同"
+      },
+      {
+        "title": "无卸载文件时正常压缩",
+        "description": "验证没有卸载文件需要还原时仍能正常执行压缩",
+        "steps": [
+          "准备 10 条历史消息，均不含卸载引用",
+          "offloaded/ 目录为空",
+          "调用 contextCompactor.compact(messages)"
+        ],
+        "expected": "返回 success: true, deletedFiles 为空数组，压缩正常完成"
+      },
+      {
+        "title": "保留消息中的卸载引用不还原",
+        "description": "验证后 5 条保留消息中的卸载引用保持原样",
+        "steps": [
+          "准备 10 条历史消息",
+          "第 8 条 (在保留范围内) 包含卸载引用",
+          "调用 contextCompactor.compact(messages)"
+        ],
+        "expected": "返回的 messages 中第 8 条消息 content 仍为 'Tool result is at: ...' 格式"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-08-context-compact-design.md#错误处理",
+    "description": "错误处理 - 各种异常场景的正确处理",
+    "bdd": [
+      {
+        "title": "LLM 调用失败后回退",
+        "description": "验证 LLM 重试耗尽后返回失败结果并保持原历史",
+        "steps": [
+          "准备 10 条历史消息",
+          "Mock LLM client 始终抛出错误",
+          "调用 contextCompactor.compact(messages)"
+        ],
+        "expected": "返回 success: false, messages 与输入相同，记录 error 日志"
+      },
+      {
+        "title": "压缩模型未配置时使用当前模型",
+        "description": "验证 SYNAPSE_COMPACT_MODEL 未设置时的 fallback 行为",
+        "steps": [
+          "不设置 SYNAPSE_COMPACT_MODEL 环境变量",
+          "当前对话模型为 claude-sonnet-4-20250514",
+          "调用 contextCompactor.compact(messages)"
+        ],
+        "expected": "使用 claude-sonnet-4-20250514 进行压缩总结"
+      }
+    ],
+    "passes": false
+  }
+]
