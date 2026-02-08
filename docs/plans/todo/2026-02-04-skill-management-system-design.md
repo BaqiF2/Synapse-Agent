@@ -362,10 +362,16 @@ export class SkillManager {
         continue;
       }
 
-      // 4. 语义相似检测
+      // 4. 语义相似检测（异常时跳过，视为无相似）
       const skillContent = await this.readSkillContent(sourcePath);
       const existingSkills = await this.list();
-      const similarSkills = await this.merger.findSimilar(skillContent, existingSkills);
+      let similarSkills: MergeCandidate[] = [];
+      try {
+        similarSkills = await this.merger.findSimilar(skillContent, existingSkills);
+      } catch {
+        // SubAgent 调用失败时跳过相似检测，继续导入
+        logger.warn('Similarity detection failed, skipping', { skillName });
+      }
 
       if (similarSkills.length > 0) {
         result.similar.push({
@@ -376,9 +382,14 @@ export class SkillManager {
         continue; // 中断，等待用户决定
       }
 
-      // 5. 无冲突，直接导入
-      await this.copySkillSnapshot(sourcePath, targetDir);
-      result.imported.push(skillName);
+      // 5. 无冲突，直接导入（单个失败不影响其他技能）
+      try {
+        await this.copySkillSnapshot(sourcePath, targetDir);
+        result.imported.push(skillName);
+      } catch (err) {
+        result.skipped.push(skillName);
+        logger.error('Failed to import skill', { skillName, error: err });
+      }
     }
 
     // 有冲突或相似时中断，否则更新索引
@@ -392,6 +403,7 @@ export class SkillManager {
   /**
    * 从远程 URL 导入（Git 仓库）
    * 注意：URL 安全性由用户自行负责
+   * 克隆失败时直接抛出错误，由 SkillCommandHandler 捕获并返回错误信息
    */
   private async importFromUrl(
     url: string,
@@ -399,7 +411,7 @@ export class SkillManager {
   ): Promise<ImportResult> {
     const IMPORT_TIMEOUT = parseInt(process.env.SYNAPSE_SKILL_IMPORT_TIMEOUT || '60000', 10);
 
-    // 克隆到临时目录
+    // 克隆到临时目录（失败时抛出错误）
     const tempDir = path.join(os.tmpdir(), `skill-import-${Date.now()}`);
     await execAsync(`git clone --depth 1 ${url} ${tempDir}`, { timeout: IMPORT_TIMEOUT });
 
@@ -987,6 +999,15 @@ skill:delete - 删除技能及所有版本历史
 29. **无版本历史的技能回滚** → 验证提示无可用版本
 30. **导入时目标目录无写权限** → 验证返回权限错误
 31. **版本 hash 计算** → 验证排除 versions/ 目录
+
+### 错误处理
+
+32. **远程克隆失败（网络超时）** → 验证抛出错误，返回超时错误信息
+33. **远程克隆失败（仓库不存在）** → 验证抛出错误，返回 git 错误信息
+34. **SubAgent 调用超时** → 验证跳过相似检测，继续导入
+35. **SubAgent 返回格式异常** → 验证 parseSimilarityResult 返回空数组，继续导入
+36. **导入中途单个技能失败** → 验证已成功的技能保留，失败的记录到 skipped
+37. **批量导入部分成功** → 验证 imported 和 skipped 各自正确记录
 
 ---
 
