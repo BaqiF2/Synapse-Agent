@@ -75,6 +75,9 @@ export {
 export {
   AgentRunner,
   type AgentRunnerOptions,
+  type AgentRunnerContextOptions,
+  type ContextStats,
+  type OffloadEventPayload,
 } from './agent-runner.ts';
 
 // Session Management

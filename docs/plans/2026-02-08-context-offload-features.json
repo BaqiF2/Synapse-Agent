@@ -40,7 +40,7 @@
         "expected": "返回字符数除以 4 的估算值（向上取整），不抛出异常"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -92,7 +92,7 @@
         "expected": "offloaded 目录及其所有文件被删除"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -167,7 +167,7 @@
         "expected": "返回 stillExceedsThreshold=true"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -194,7 +194,7 @@
         "expected": "抛出异常，原历史文件保持不变"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -238,7 +238,7 @@
         "expected": "记录包含 'TODO: Context still exceeds threshold' 的警告日志"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -272,6 +272,6 @@
         "expected": "输出包含 '/context' 及其说明 'Show context usage stats'"
       }
     ],
-    "passes": false
+    "passes": true
   }
 ]

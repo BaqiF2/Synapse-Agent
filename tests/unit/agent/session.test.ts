@@ -4,7 +4,7 @@
  * 测试目标：Session 的创建、查找、消息持久化功能
  */
 
-import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
+import { describe, test, expect, beforeEach, afterEach, spyOn } from 'bun:test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
@@ -60,6 +60,24 @@ describe('Session', () => {
         rounds: [],
         totalCost: null,
       });
+    });
+
+    test('should clean offloaded directory when old session is evicted by max limit', async () => {
+      const firstSession = await Session.create({ sessionsDir: testDir });
+      await firstSession.appendMessage(createTextMessage('user', 'evict me'));
+
+      const offloadedDir = path.join(testDir, firstSession.id, 'offloaded');
+      fs.mkdirSync(offloadedDir, { recursive: true });
+      fs.writeFileSync(path.join(offloadedDir, 'result.txt'), 'offloaded content', 'utf-8');
+
+      const parsed = Number.parseInt(process.env.SYNAPSE_MAX_SESSIONS ?? '', 10);
+      const maxSessions = Number.isFinite(parsed) && parsed > 0 ? parsed : 100;
+      for (let i = 0; i < maxSessions; i++) {
+        await Session.create({ sessionsDir: testDir });
+      }
+
+      expect(fs.existsSync(path.join(testDir, `${firstSession.id}.jsonl`))).toBe(false);
+      expect(fs.existsSync(offloadedDir)).toBe(false);
     });
   });
 
@@ -209,6 +227,60 @@ describe('Session', () => {
     });
   });
 
+  describe('rewriteHistory', () => {
+    test('should rewrite full session history jsonl file', async () => {
+      const session = await Session.create({ sessionsDir: testDir });
+      const originalMessages: Message[] = [
+        createTextMessage('user', 'message 1'),
+        createTextMessage('assistant', 'message 2'),
+        createTextMessage('user', 'message 3'),
+        createTextMessage('assistant', 'message 4'),
+        createTextMessage('user', 'message 5'),
+      ];
+      await session.appendMessage(originalMessages);
+
+      const modifiedMessages: Message[] = [
+        originalMessages[0]!,
+        createTextMessage('assistant', 'modified message 2'),
+        originalMessages[2]!,
+        originalMessages[3]!,
+        originalMessages[4]!,
+      ];
+
+      await session.rewriteHistory(modifiedMessages);
+
+      const content = fs.readFileSync(session.historyPath, 'utf-8').trim();
+      const lines = content.split('\n');
+      expect(lines).toHaveLength(5);
+      expect(lines.map((line) => JSON.parse(line))).toEqual(modifiedMessages);
+    });
+
+    test('rewriteHistory should throw when write fails and keep original history', async () => {
+      const session = await Session.create({ sessionsDir: testDir });
+      const originalMessages: Message[] = [
+        createTextMessage('user', 'before rewrite'),
+        createTextMessage('assistant', 'still before rewrite'),
+      ];
+      await session.appendMessage(originalMessages);
+      const beforeContent = fs.readFileSync(session.historyPath, 'utf-8');
+
+      const writeSpy = spyOn(fs, 'writeFileSync').mockImplementation(() => {
+        throw new Error('mock write failure');
+      });
+
+      try {
+        await expect(
+          session.rewriteHistory([createTextMessage('user', 'after rewrite')])
+        ).rejects.toThrow('mock write failure');
+      } finally {
+        writeSpy.mockRestore();
+      }
+
+      const afterContent = fs.readFileSync(session.historyPath, 'utf-8');
+      expect(afterContent).toBe(beforeContent);
+    });
+  });
+
   describe('delete', () => {
     test('should delete session file and remove from index', async () => {
       const session = await Session.create({ sessionsDir: testDir });
@@ -219,6 +291,18 @@ describe('Session', () => {
       expect(fs.existsSync(session.historyPath)).toBe(false);
       const sessions = await Session.list({ sessionsDir: testDir });
       expect(sessions.length).toBe(0);
+    });
+
+    test('should delete offloaded files directory with session', async () => {
+      const session = await Session.create({ sessionsDir: testDir });
+      const offloadedDir = path.join(testDir, session.id, 'offloaded');
+      const offloadedFile = path.join(offloadedDir, 'result.txt');
+      fs.mkdirSync(offloadedDir, { recursive: true });
+      fs.writeFileSync(offloadedFile, 'offloaded content', 'utf-8');
+
+      await session.delete();
+
+      expect(fs.existsSync(offloadedDir)).toBe(false);
     });
   });
 
@@ -275,6 +359,20 @@ describe('Session', () => {
       expect(usage.totalCacheCreation).toBe(0);
       expect(usage.rounds).toEqual([]);
       expect(usage.totalCost).toBeNull();
+    });
+
+    test('clear should remove offloaded files', async () => {
+      const session = await Session.create({ sessionsDir: testDir, model: 'claude-sonnet-4-20250514' });
+      const offloadedDir = path.join(testDir, session.id, 'offloaded');
+      fs.mkdirSync(offloadedDir, { recursive: true });
+      fs.writeFileSync(path.join(offloadedDir, 'result.txt'), 'offloaded content', 'utf-8');
+
+      expect(session.countOffloadedFiles()).toBe(1);
+
+      await session.clear();
+
+      expect(session.countOffloadedFiles()).toBe(0);
+      expect(fs.existsSync(offloadedDir)).toBe(false);
     });
 
     test('find should restore saved usage', async () => {

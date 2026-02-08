@@ -123,6 +123,19 @@ function createEmptyIndex(): SessionsIndex {
   };
 }
 
+function toJsonl(messages: readonly Message[]): string {
+  if (messages.length === 0) {
+    return '';
+  }
+
+  return `${messages.map((message) => JSON.stringify(message)).join('\n')}\n`;
+}
+
+function parseJsonl(content: string): Message[] {
+  const lines = content.trim().split('\n').filter((line) => line.length > 0);
+  return lines.map((line) => JSON.parse(line) as Message);
+}
+
 // ════════════════════════════════════════════════════════════════════
 // Session 类
 // ════════════════════════════════════════════════════════════════════
@@ -164,6 +177,14 @@ export class Session {
 
   get historyPath(): string {
     return this._historyPath;
+  }
+
+  get offloadSessionDir(): string {
+    return path.join(this._sessionsDir, this._id);
+  }
+
+  get offloadDirPath(): string {
+    return path.join(this.offloadSessionDir, 'offloaded');
   }
 
   get messageCount(): number {
@@ -281,8 +302,7 @@ export class Session {
     const messages = Array.isArray(message) ? message : [message];
 
     // 写入 JSONL 文件
-    const lines = messages.map((m) => JSON.stringify(m)).join('\n') + '\n';
-    fs.appendFileSync(this._historyPath, lines, 'utf-8');
+    fs.appendFileSync(this._historyPath, toJsonl(messages), 'utf-8');
 
     // 更新消息计数
     this._messageCount += messages.length;
@@ -305,14 +325,54 @@ export class Session {
    * 从历史文件加载消息
    */
   async loadHistory(): Promise<Message[]> {
+    return this.loadHistorySync();
+  }
+
+  loadHistorySync(): Message[] {
     if (!fs.existsSync(this._historyPath)) {
       return [];
     }
 
     const content = fs.readFileSync(this._historyPath, 'utf-8');
-    const lines = content.trim().split('\n').filter((line) => line.length > 0);
+    return parseJsonl(content);
+  }
 
-    return lines.map((line) => JSON.parse(line) as Message);
+  /**
+   * 重写会话历史（完整替换 JSONL 文件）
+   */
+  async rewriteHistory(messages: Message[]): Promise<void> {
+    const content = toJsonl(messages);
+    const tempPath = `${this._historyPath}.tmp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+    try {
+      fs.writeFileSync(tempPath, content, 'utf-8');
+      fs.renameSync(tempPath, this._historyPath);
+    } catch (error) {
+      if (fs.existsSync(tempPath)) {
+        fs.rmSync(tempPath, { force: true });
+      }
+
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`Failed to rewrite session history: ${message}`);
+    }
+
+    this._messageCount = messages.length;
+    const firstUserMessage = messages.find((message) => message.role === 'user');
+    this._title = firstUserMessage ? this.extractTitle(firstUserMessage) : undefined;
+    await this.updateIndex();
+  }
+
+  countOffloadedFiles(): number {
+    if (!fs.existsSync(this.offloadDirPath)) {
+      return 0;
+    }
+
+    try {
+      const entries = fs.readdirSync(this.offloadDirPath, { withFileTypes: true });
+      return entries.filter((entry) => entry.isFile()).length;
+    } catch {
+      return 0;
+    }
   }
 
   async updateUsage(usage: TokenUsage, model?: string): Promise<void> {
@@ -337,6 +397,11 @@ export class Session {
       fs.unlinkSync(this._historyPath);
     }
 
+    // 删除卸载目录
+    if (fs.existsSync(this.offloadSessionDir)) {
+      fs.rmSync(this.offloadSessionDir, { recursive: true, force: true });
+    }
+
     // 从索引中移除
     const index = this.loadIndex();
     index.sessions = index.sessions.filter((s) => s.id !== this._id);
@@ -353,6 +418,11 @@ export class Session {
 
     // 清空文件内容
     fs.writeFileSync(this._historyPath, '', 'utf-8');
+
+    // 清空卸载目录
+    if (fs.existsSync(this.offloadSessionDir)) {
+      fs.rmSync(this.offloadSessionDir, { recursive: true, force: true });
+    }
 
     // 重置消息计数和标题
     this._messageCount = 0;
@@ -444,10 +514,16 @@ export class Session {
    */
   private deleteSessionFile(sessionId: string): void {
     const filePath = path.join(this._sessionsDir, `${sessionId}.jsonl`);
+    const offloadSessionDir = path.join(this._sessionsDir, sessionId);
     try {
       if (fs.existsSync(filePath)) {
         fs.unlinkSync(filePath);
         logger.debug(`Deleted old session file: ${filePath}`);
+      }
+
+      if (fs.existsSync(offloadSessionDir)) {
+        fs.rmSync(offloadSessionDir, { recursive: true, force: true });
+        logger.debug(`Deleted old session offload directory: ${offloadSessionDir}`);
       }
     } catch {
       // Ignore deletion errors
