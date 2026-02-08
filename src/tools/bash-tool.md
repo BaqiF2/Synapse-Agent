@@ -18,3 +18,4 @@ Execute bash commands in a persistent shell session.
 - On Error: Follow the `--help` hint in the error message
 - Persistent Session: Environment variables and CWD maintained
 - Non-Interactive Only: No `vim`, `nano`, `top`, interactive `python`
+- `Bash` is the tool name, not a runnable command; never pass `Bash` or `Bash(...)` as `command`
