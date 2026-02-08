@@ -1,0 +1,277 @@
+[
+  {
+    "category": "functional",
+    "prd": "2026-02-08-context-offload-design.md#1-token-计数器",
+    "description": "Token 计数器 - 使用 js-tiktoken 进行本地 Token 估算",
+    "bdd": [
+      {
+        "title": "countTokens 计算单个字符串的 token 数",
+        "description": "验证 countTokens 函数能正确计算字符串的 token 数量",
+        "steps": [
+          "调用 countTokens('Hello, world!')",
+          "获取返回的 token 数量"
+        ],
+        "expected": "返回值为正整数，与 tiktoken cl100k_base 编码结果一致"
+      },
+      {
+        "title": "countMessageTokens 计算消息数组的总 token 数",
+        "description": "验证 countMessageTokens 函数能正确计算多条消息的 token 总数",
+        "steps": [
+          "创建包含 3 条消息的数组（user、assistant、tool）",
+          "调用 countMessageTokens(messages)"
+        ],
+        "expected": "返回值为所有消息 token 数之和"
+      },
+      {
+        "title": "countMessageTokens 处理空数组",
+        "description": "验证空消息数组返回 0",
+        "steps": [
+          "调用 countMessageTokens([])"
+        ],
+        "expected": "返回值为 0"
+      },
+      {
+        "title": "Token 计算异常时降级为字符估算",
+        "description": "当 tiktoken 编码失败时，降级使用字符数估算",
+        "steps": [
+          "模拟 tiktoken 编码抛出异常",
+          "调用 countTokens('test string')"
+        ],
+        "expected": "返回字符数除以 4 的估算值（向上取整），不抛出异常"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-08-context-offload-design.md#2-卸载文件存储",
+    "description": "卸载文件存储 - 将工具结果内容保存到文件系统",
+    "bdd": [
+      {
+        "title": "save 保存纯文本内容并返回路径",
+        "description": "验证 save 函数能保存纯文本内容到 .txt 文件",
+        "steps": [
+          "创建 OffloadStorage 实例，指定会话目录",
+          "调用 save('plain text content')"
+        ],
+        "expected": "返回格式为 {sessionDir}/offloaded/{uuid}.txt 的文件路径，文件内容与输入一致"
+      },
+      {
+        "title": "save 自动检测 JSON 内容并使用 .json 扩展名",
+        "description": "验证 save 函数能识别 JSON 内容并使用正确的扩展名",
+        "steps": [
+          "调用 save('{\"key\": \"value\"}')"
+        ],
+        "expected": "返回路径扩展名为 .json"
+      },
+      {
+        "title": "save 自动创建 offloaded 目录",
+        "description": "验证首次保存时自动创建目录",
+        "steps": [
+          "使用不存在 offloaded 子目录的会话目录",
+          "调用 save('content')"
+        ],
+        "expected": "自动创建 offloaded 目录，文件保存成功"
+      },
+      {
+        "title": "save 文件写入失败时抛出异常",
+        "description": "验证无权限写入时的错误处理",
+        "steps": [
+          "使用只读目录作为会话目录",
+          "调用 save('content')"
+        ],
+        "expected": "抛出包含错误信息的异常"
+      },
+      {
+        "title": "会话删除时清理 offloaded 目录",
+        "description": "验证 Session.delete() 时连同卸载文件一起删除",
+        "steps": [
+          "创建会话并保存多个卸载文件",
+          "调用 Session.delete()"
+        ],
+        "expected": "offloaded 目录及其所有文件被删除"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-08-context-offload-design.md#3-上下文管理器",
+    "description": "上下文管理器 - 核心卸载逻辑控制",
+    "bdd": [
+      {
+        "title": "offloadIfNeeded 在 token 数低于阈值时不执行卸载",
+        "description": "验证未达到阈值时不触发卸载",
+        "steps": [
+          "创建 token 总数为 100,000 的消息数组",
+          "设置卸载阈值为 150,000",
+          "调用 offloadIfNeeded(messages)"
+        ],
+        "expected": "返回 offloadedCount=0，messages 保持不变"
+      },
+      {
+        "title": "offloadIfNeeded 在 token 数达到阈值时执行卸载",
+        "description": "验证达到阈值时触发卸载",
+        "steps": [
+          "创建 token 总数为 160,000 的消息数组，包含多条 tool 消息",
+          "设置卸载阈值为 150,000",
+          "调用 offloadIfNeeded(messages)"
+        ],
+        "expected": "返回 offloadedCount > 0，符合条件的 tool 消息被替换为路径引用"
+      },
+      {
+        "title": "performOffload 只扫描前 50% 的消息",
+        "description": "验证扫描范围限制",
+        "steps": [
+          "创建 10 条消息，其中第 3、7 条是 tool 消息（内容 > 50 字符）",
+          "设置 scanRatio 为 0.5",
+          "触发卸载"
+        ],
+        "expected": "只有第 3 条（索引 < 5）被卸载，第 7 条保持不变"
+      },
+      {
+        "title": "performOffload 跳过内容 <= 50 字符的 tool 消息",
+        "description": "验证最小字符数过滤",
+        "steps": [
+          "创建 tool 消息，内容为 'short'（5 字符）",
+          "触发卸载"
+        ],
+        "expected": "该消息不被卸载，保持原内容"
+      },
+      {
+        "title": "performOffload 跳过已卸载的消息",
+        "description": "验证重复卸载检测",
+        "steps": [
+          "创建 tool 消息，内容为 'Tool result is at: /path/to/file.txt'",
+          "触发卸载"
+        ],
+        "expected": "该消息被跳过，不重复卸载"
+      },
+      {
+        "title": "performOffload 替换消息内容为路径引用",
+        "description": "验证卸载后的消息格式",
+        "steps": [
+          "创建 tool 消息，内容超过 50 字符",
+          "触发卸载"
+        ],
+        "expected": "消息内容被替换为 'Tool result is at: {filepath}' 格式"
+      },
+      {
+        "title": "offloadIfNeeded 卸载后仍超阈值时设置标记",
+        "description": "验证卸载后仍超限的状态标记",
+        "steps": [
+          "创建大量无法卸载的消息（user/assistant 消息为主）",
+          "使 token 数达到 200,000",
+          "触发卸载"
+        ],
+        "expected": "返回 stillExceedsThreshold=true"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-08-context-offload-design.md#5-session-扩展",
+    "description": "Session 扩展 - 支持重写历史消息文件",
+    "bdd": [
+      {
+        "title": "rewriteHistory 重写会话 JSONL 文件",
+        "description": "验证 rewriteHistory 能完整重写消息历史",
+        "steps": [
+          "创建包含 5 条消息的会话",
+          "修改第 2 条消息的内容",
+          "调用 rewriteHistory(modifiedMessages)"
+        ],
+        "expected": "JSONL 文件内容被完全替换为新消息数组，每行一条 JSON"
+      },
+      {
+        "title": "rewriteHistory 写入失败时抛出异常",
+        "description": "验证文件写入失败的错误处理",
+        "steps": [
+          "模拟文件系统写入失败",
+          "调用 rewriteHistory(messages)"
+        ],
+        "expected": "抛出异常，原历史文件保持不变"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-08-context-offload-design.md#4-agentrunner-集成",
+    "description": "AgentRunner 集成 - 在 Agent Loop 中集成卸载检查",
+    "bdd": [
+      {
+        "title": "每轮循环前检查并执行卸载",
+        "description": "验证卸载检查在 step() 执行前进行",
+        "steps": [
+          "设置历史消息使 token 数超过阈值",
+          "执行 run() 进入下一轮循环"
+        ],
+        "expected": "在 step() 执行前调用 offloadIfNeeded()，历史消息被更新"
+      },
+      {
+        "title": "卸载后同步更新会话文件",
+        "description": "验证卸载后调用 rewriteHistory",
+        "steps": [
+          "触发卸载",
+          "检查会话文件"
+        ],
+        "expected": "会话 JSONL 文件内容与内存中的 history 一致"
+      },
+      {
+        "title": "卸载后发出用户通知事件",
+        "description": "验证 offload 事件被触发",
+        "steps": [
+          "监听 'offload' 事件",
+          "触发卸载"
+        ],
+        "expected": "事件被触发，payload 包含 count 和 freedTokens"
+      },
+      {
+        "title": "卸载后仍超阈值时记录警告日志",
+        "description": "验证超限警告日志",
+        "steps": [
+          "创建无法通过卸载降低到阈值以下的场景",
+          "触发卸载"
+        ],
+        "expected": "记录包含 'TODO: Context still exceeds threshold' 的警告日志"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-08-context-offload-design.md#6-context-命令",
+    "description": "/context 命令 - 显示当前上下文使用情况",
+    "bdd": [
+      {
+        "title": "/context 显示上下文统计信息",
+        "description": "验证命令输出包含所有必要信息",
+        "steps": [
+          "在 REPL 中输入 /context"
+        ],
+        "expected": "输出包含：当前 Token 数、卸载阈值、消息数量、工具调用次数、已卸载文件数、进度条"
+      },
+      {
+        "title": "/context 显示正确的 token 使用百分比",
+        "description": "验证百分比计算正确",
+        "steps": [
+          "设置历史消息使 token 数为 100,000",
+          "最大上下文窗口为 200,000",
+          "执行 /context"
+        ],
+        "expected": "显示 50.0%"
+      },
+      {
+        "title": "/help 包含 /context 命令说明",
+        "description": "验证帮助信息中包含新命令",
+        "steps": [
+          "在 REPL 中输入 /help"
+        ],
+        "expected": "输出包含 '/context' 及其说明 'Show context usage stats'"
+      }
+    ],
+    "passes": false
+  }
+]
