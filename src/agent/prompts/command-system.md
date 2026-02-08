@@ -146,10 +146,21 @@ Bash(command="TodoWrite '{\"todos\":[{\"content\":\"Fix bug\",\"activeForm\":\"F
 **Constraints:**
 - Maximum 1 task in `in_progress` at any time
 
-**When to use:**
-- Task has ≥3 steps or is complex → Use TodoWrite
-- Task has <3 steps and is simple → Execute directly
-- User explicitly requests → Use TodoWrite
+##### 使用决策
+
+**MUST use（满足任一条件）：**
+- 任务包含 ≥3 个明确步骤
+- 用户使用信号词：分步、逐步、计划、step by step、checklist、按顺序
+- 预判任务将修改 ≥3 个文件
+
+**Consider using：**
+- 任务描述模糊，需要先拆解再执行
+- 涉及多个系统或模块的协调修改
+- 需要先调研/探索才能确定具体步骤
+
+**Skip：**
+- 单一明确操作（如"读取某文件"、"修复这个 typo"）
+- 步骤少于 3 且目标清晰
 
 **Workflow (MUST follow strictly):**
 
@@ -210,6 +221,39 @@ Bash(command="task:explore --prompt 'Find auth code' --description 'Explore auth
 
 # General research
 Bash(command="task:general --prompt 'Analyze logs' --description 'Research task'")
+```
+
+##### 使用决策
+
+**建议使用 Task：**
+- 有 ≥2 个相互独立的子任务，可并行执行
+- 子任务需要专业能力（代码探索用 `task:explore`，技能搜索用 `task:skill:search`）
+- 子任务会产生大量输出，需隔离以避免污染主对话上下文
+
+**与 TodoWrite 协作模式：**
+1. 先用 TodoWrite 拆解整体任务
+2. 某些 todo 项通过 Task 并行/专业执行
+3. Task 完成后更新 TodoWrite 状态
+
+**协作示例：**
+```bash
+# Step 1: 规划任务
+Bash(command="TodoWrite '{\"todos\":[
+  {\"content\":\"探索 auth 模块\",\"activeForm\":\"Exploring auth\",\"status\":\"in_progress\"},
+  {\"content\":\"探索 api 模块\",\"activeForm\":\"Exploring api\",\"status\":\"pending\"},
+  {\"content\":\"整合分析结果\",\"activeForm\":\"Integrating\",\"status\":\"pending\"}
+]}'")
+
+# Step 2: 并行执行探索（同一响应中发起）
+Bash(command="task:explore --prompt '分析 auth 模块结构' --description 'Explore auth'")
+Bash(command="task:explore --prompt '分析 api 模块结构' --description 'Explore api'")
+
+# Step 3: 完成后更新状态
+Bash(command="TodoWrite '{\"todos\":[
+  {\"content\":\"探索 auth 模块\",\"activeForm\":\"Exploring auth\",\"status\":\"completed\"},
+  {\"content\":\"探索 api 模块\",\"activeForm\":\"Exploring api\",\"status\":\"completed\"},
+  {\"content\":\"整合分析结果\",\"activeForm\":\"Integrating\",\"status\":\"in_progress\"}
+]}'")
 ```
 
 #### Parallel Path Routing for task:explore
