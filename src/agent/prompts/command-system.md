@@ -26,6 +26,13 @@ rg(pattern="TODO", path="./src")
 TodoWrite(todos=[...])
 ```
 
+Do NOT pass the tool call syntax itself into `command`:
+
+```bash
+Bash(command="Bash")
+Bash(command="Bash(command=\"ls -la\")")
+```
+
 ### ✅ CORRECT
 
 Pass commands as strings to the Bash tool:

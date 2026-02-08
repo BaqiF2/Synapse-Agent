@@ -13,6 +13,7 @@ Bash(command="your shell command here")
 ```
 
 There are NO other tools. `read`, `write`, `edit`, `bash` are **shell commands**, not tools.
+`Bash` itself is also **not** a shell command. Never set `command` to `Bash` or `Bash(...)`.
 
 ## Your Capabilities
 

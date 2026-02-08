@@ -307,7 +307,7 @@ describe('SubAgent 渲染 BDD 测试', () => {
 
     it('should truncate long sub-agent tool command display to 40 characters', () => {
       const renderer = new TerminalRenderer();
-      const longCommand = `Bash({"command":"task:general --prompt "${'a'.repeat(120)}""})`;
+      const longCommand = `task:general --prompt "${'a'.repeat(120)}" --description "long task prompt"`;
 
       renderer.renderSubAgentToolStart({
         id: 'tool-long',

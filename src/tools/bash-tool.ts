@@ -25,7 +25,11 @@ import { BashSession } from './bash-session.ts';
 import { loadDesc } from '../utils/load-desc.js';
 import type { AnthropicClient } from '../providers/anthropic/anthropic-client.ts';
 import { extractBaseCommand } from './constants.ts';
-import { classifyToolFailure, shouldAttachToolSelfDescription } from '../utils/tool-failure.ts';
+import {
+  classifyToolFailure,
+  shouldAttachToolSelfDescription,
+  TOOL_FAILURE_CATEGORIES,
+} from '../utils/tool-failure.ts';
 import type { OnUsage } from '../providers/generate.ts';
 import type {
   ToolResultEvent,
@@ -34,11 +38,27 @@ import type {
 } from '../cli/terminal-renderer-types.ts';
 
 const COMMAND_TIMEOUT_MARKER = 'Command execution timeout';
+const BASH_TOOL_MISUSE_REGEX = /^Bash(?:\s|\(|$)/;
 const HELP_HINT_TEMPLATE =
   '\n\nSelf-description: The command failed. Next step: run `Bash(command="{command} --help")` to learn usage, then retry with valid arguments.';
+const BASH_TOOL_MISUSE_OUTPUT = [
+  'Invalid command: `Bash` is a tool name, not a runnable shell command.',
+  'Do not wrap with `Bash(...)` inside the command string.',
+  'Use the inner command text only. Examples:',
+  '- Bash(command="read ./README.md")',
+  '- Bash(command="ls -la")',
+].join('\n');
+const BASH_TOOL_MISUSE_MESSAGE =
+  'Tool misuse detected: you attempted to execute the Bash tool itself as a command. ' +
+  'CORRECTION: pass only the actual command string in `command`, then retry. ' +
+  'Examples: Bash(command="read ./README.md"), Bash(command="ls -la").';
 
 function appendSelfDescription(output: string, helpHint: string): string {
   return `${output}\n\n${helpHint.trim()}`;
+}
+
+function isBashToolMisuse(command: string): boolean {
+  return BASH_TOOL_MISUSE_REGEX.test(command.trim());
 }
 
 /**
@@ -112,6 +132,18 @@ export class BashTool extends CallableTool<BashToolParams> {
       return asCancelablePromise(Promise.resolve(ToolError({
         message: 'Error: command parameter is required and must be a non-empty string',
         brief: 'Empty command',
+      })));
+    }
+
+    if (isBashToolMisuse(command)) {
+      return asCancelablePromise(Promise.resolve(ToolError({
+        output: BASH_TOOL_MISUSE_OUTPUT,
+        message: BASH_TOOL_MISUSE_MESSAGE,
+        brief: 'Invalid Bash command',
+        extras: {
+          failureCategory: TOOL_FAILURE_CATEGORIES.invalidUsage,
+          baseCommand: extractBaseCommand(command),
+        },
       })));
     }
 

@@ -729,6 +729,42 @@ describe('AgentRunner', () => {
       expect(history.at(-1)?.role).toBe('tool');
     });
 
+    it('should inject correction reminder after Bash tool-name misuse', async () => {
+      const client = createMockClient([
+        [{ type: 'tool_call', id: 'c1', name: 'Bash', input: { command: 'Bash' } }],
+        [{ type: 'text', text: 'Acknowledged. I will use a real command next.' }],
+      ]);
+
+      const toolset = new CallableToolset([createMockCallableTool(() =>
+        Promise.resolve(ToolError({
+          message: 'Tool misuse detected: you attempted to execute the Bash tool itself as a command.',
+          output: 'Invalid command: `Bash` is a tool name, not a runnable shell command.',
+          brief: 'Invalid Bash command',
+          extras: {
+            failureCategory: 'invalid_usage',
+            baseCommand: 'Bash',
+          },
+        }))
+      )]);
+
+      const runner = new AgentRunner({
+        client,
+        systemPrompt: 'Test',
+        toolset,
+        enableStopHooks: false,
+      });
+
+      const response = await runner.run('继续完成实时数据仪表板脚本');
+
+      expect(response).toBe('Acknowledged. I will use a real command next.');
+      const reminderMessage = runner.getHistory().find((message) =>
+        message.role === 'user' &&
+        message.content[0]?.type === 'text' &&
+        (message.content[0] as { text: string }).text.includes('Bash is the ONLY tool name')
+      );
+      expect(reminderMessage).toBeDefined();
+    });
+
     it('should skip stop hooks when stopping due to consecutive tool failures', async () => {
       const originalExecuteAll = stopHookRegistry.executeAll.bind(stopHookRegistry);
       const executeAllMock = mock(async () => [{ message: 'should-not-run' }]);

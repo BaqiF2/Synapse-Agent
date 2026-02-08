@@ -34,6 +34,32 @@ describe('BashTool', () => {
     expect(result.message).toContain('command parameter is required');
   });
 
+  it('should reject calling the Bash tool name as a command and provide correction', async () => {
+    const bashTool = new BashTool();
+    instances.push(bashTool);
+
+    const result = await bashTool.call({ command: 'Bash' });
+
+    expect(result.isError).toBe(true);
+    expect(result.brief).toBe('Invalid Bash command');
+    expect(result.output).toContain('`Bash` is a tool name, not a runnable shell command');
+    expect(result.message).toContain('Bash(command="read ./README.md")');
+    expect(result.extras?.failureCategory).toBe('invalid_usage');
+  });
+
+  it('should reject nested Bash(...) command text and provide correction', async () => {
+    const bashTool = new BashTool();
+    instances.push(bashTool);
+
+    const result = await bashTool.call({ command: 'Bash(command="ls -la")' });
+
+    expect(result.isError).toBe(true);
+    expect(result.brief).toBe('Invalid Bash command');
+    expect(result.output).toContain('Do not wrap with `Bash(...)` inside the command string');
+    expect(result.message).toContain('Bash(command="ls -la")');
+    expect(result.extras?.failureCategory).toBe('invalid_usage');
+  });
+
   it('should format stdout/stderr and include help hint on failure', async () => {
     const bashTool = new BashTool();
     instances.push(bashTool);
