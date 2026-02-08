@@ -122,6 +122,22 @@ export class AnthropicClient {
     return AnthropicClient.fromConfig(this.client, newConfig);
   }
 
+  /**
+   * Create a new client with updated model
+   */
+  withModel(model: string): AnthropicClient {
+    const normalizedModel = model.trim();
+    if (!normalizedModel || normalizedModel === this.config.model) {
+      return this;
+    }
+
+    const newConfig: ClientConfig = {
+      ...this.config,
+      model: normalizedModel,
+    };
+    return AnthropicClient.fromConfig(this.client, newConfig);
+  }
+
   private mapThinkingEffort(effort: ThinkingEffort): Anthropic.ThinkingConfigParam {
     switch (effort) {
       case 'off':

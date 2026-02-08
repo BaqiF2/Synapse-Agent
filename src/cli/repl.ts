@@ -172,6 +172,7 @@ function showHelp(): void {
   console.log(chalk.gray('  /clear           ') + chalk.white('Clear conversation history'));
   console.log(chalk.gray('  /cost            ') + chalk.white('Show current session token/cost stats'));
   console.log(chalk.gray('  /context         ') + chalk.white('Show context usage stats'));
+  console.log(chalk.gray('  /compact         ') + chalk.white('Compress conversation history'));
   console.log(chalk.gray('  /model           ') + chalk.white('Show current model'));
   console.log(chalk.gray('  /tools           ') + chalk.white('List available tools'));
   console.log(chalk.gray('  /skills          ') + chalk.white('List all available skills'));
@@ -382,12 +383,12 @@ export async function executeShellCommand(command: string): Promise<number> {
  * @param options - Optional settings for testing
  * @returns true if command was handled, false otherwise
  */
-export function handleSpecialCommand(
+export async function handleSpecialCommand(
   command: string,
   rl: readline.Interface,
   agentRunner?: AgentRunner | null,
   options?: SpecialCommandOptions
-): boolean {
+): Promise<boolean> {
   const cmd = command.toLowerCase().trim();
   const parts = command.trim().split(/\s+/);
 
@@ -449,6 +450,41 @@ export function handleSpecialCommand(
       return true;
     }
 
+    case '/compact': {
+      if (!agentRunner || typeof agentRunner.forceCompact !== 'function') {
+        console.log(chalk.yellow('\nCompact unavailable in this context.\n'));
+        return true;
+      }
+
+      try {
+        const compactResult = await agentRunner.forceCompact();
+        if (!compactResult.success) {
+          console.log(chalk.red('\n❌ 压缩失败，保持原历史不变\n'));
+          return true;
+        }
+
+        if (compactResult.freedTokens <= 0) {
+          console.log(chalk.yellow('\n✅ 无需压缩：历史消息较短或已足够精简\n'));
+          return true;
+        }
+
+        console.log(
+          chalk.green(
+            `\n✅ 压缩完成：${compactResult.previousTokens.toLocaleString()} → ${compactResult.currentTokens.toLocaleString()} tokens`
+          )
+        );
+        console.log(
+          chalk.green(
+            `释放 ${compactResult.freedTokens.toLocaleString()} tokens，删除 ${compactResult.deletedFiles.length} 个卸载文件\n`
+          )
+        );
+      } catch (error: unknown) {
+        console.log(chalk.red(`\n❌ 压缩失败：${getErrorMessage(error)}\n`));
+      }
+
+      return true;
+    }
+
     case '/model': {
       if (!agentRunner) {
         console.log(chalk.yellow('\nModel info unavailable in this context.\n'));
@@ -473,7 +509,7 @@ export function handleSpecialCommand(
         const args = parts.slice(1);
         if (options?.onResumeSession) {
           const currentSessionId = options.getCurrentSessionId?.() ?? null;
-          handleResumeCommand(args, rl, options.onResumeSession, currentSessionId);
+          await handleResumeCommand(args, rl, options.onResumeSession, currentSessionId);
         } else {
           console.log(chalk.yellow('\nResume not available in this context.\n'));
         }
@@ -931,7 +967,7 @@ export async function startRepl(): Promise<void> {
       const isExitCommand = trimmedInput === '/exit' || trimmedInput === '/quit';
       if (isExitCommand) {
         interruptCurrentTurn();
-        handleSpecialCommand(trimmedInput, rl, agentRunner, createSpecialCommandOptions());
+        await handleSpecialCommand(trimmedInput, rl, agentRunner, createSpecialCommandOptions());
         return;
       }
       clearPromptLine(rl);
@@ -960,7 +996,7 @@ export async function startRepl(): Promise<void> {
 
     // Special commands (/ prefix)
     if (trimmedInput.startsWith('/')) {
-      handleSpecialCommand(trimmedInput, rl, agentRunner, createSpecialCommandOptions());
+      await handleSpecialCommand(trimmedInput, rl, agentRunner, createSpecialCommandOptions());
       promptUser();
       return;
     }

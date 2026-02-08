@@ -31,6 +31,7 @@ import {throwIfAborted} from '../utils/abort.ts';
 import { countMessageTokens } from '../utils/token-counter.ts';
 import { ContextManager, type OffloadResult } from './context-manager.ts';
 import { OffloadStorage } from './offload-storage.ts';
+import { ContextCompactor, type CompactResult } from './context-compactor.ts';
 
 const logger = createLogger('agent-runner');
 
@@ -55,6 +56,17 @@ const DEFAULT_MAX_CONTEXT_WINDOW = parseEnvPositiveInt(process.env.SYNAPSE_MAX_C
 const DEFAULT_OFFLOAD_THRESHOLD = parseEnvPositiveInt(process.env.SYNAPSE_OFFLOAD_THRESHOLD, 150000);
 const DEFAULT_OFFLOAD_MIN_CHARS = parseEnvPositiveInt(process.env.SYNAPSE_OFFLOAD_MIN_CHARS, 50);
 const DEFAULT_OFFLOAD_SCAN_RATIO = parseEnvScanRatio(process.env.SYNAPSE_OFFLOAD_SCAN_RATIO, 0.5);
+const DEFAULT_COMPACT_TRIGGER_THRESHOLD = parseEnvPositiveInt(
+  process.env.SYNAPSE_COMPACT_TRIGGER_THRESHOLD,
+  15000
+);
+const DEFAULT_COMPACT_TARGET_TOKENS = parseEnvPositiveInt(process.env.SYNAPSE_COMPACT_TARGET_TOKENS, 8000);
+const DEFAULT_COMPACT_PRESERVE_COUNT = parseEnvPositiveInt(
+  process.env.SYNAPSE_COMPACT_PRESERVE_COUNT,
+  5
+);
+const DEFAULT_COMPACT_RETRY_COUNT = parseEnvPositiveInt(process.env.SYNAPSE_COMPACT_RETRY_COUNT, 3);
+const DEFAULT_COMPACT_MODEL = parseEnvOptionalString(process.env.SYNAPSE_COMPACT_MODEL);
 const BASH_TOOL_NAME = 'Bash';
 const BASH_TOOL_MISUSE_REMINDER =
   '[System Reminder] You just tried to run the tool name "Bash" as a shell command. ' +
@@ -74,6 +86,11 @@ function parseEnvScanRatio(value: string | undefined, fallback: number): number 
     return fallback;
   }
   return parsed;
+}
+
+function parseEnvOptionalString(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed && trimmed.length > 0 ? trimmed : undefined;
 }
 
 function prependSkillSearchInstruction(userMessage: string): string {
@@ -192,6 +209,11 @@ export interface AgentRunnerContextOptions {
   offloadThreshold?: number;
   offloadScanRatio?: number;
   offloadMinChars?: number;
+  compactTriggerThreshold?: number;
+  compactTargetTokens?: number;
+  compactPreserveCount?: number;
+  compactRetryCount?: number;
+  compactModel?: string;
 }
 
 export interface ContextStats {
@@ -206,6 +228,13 @@ export interface ContextStats {
 export interface OffloadEventPayload {
   count: number;
   freedTokens: number;
+}
+
+export interface CompactEventPayload {
+  previousTokens: number;
+  currentTokens: number;
+  freedTokens: number;
+  deletedFileCount: number;
 }
 
 /**
@@ -293,10 +322,16 @@ export class AgentRunner extends EventEmitter {
 
   /** Context offload management */
   private contextManager: ContextManager | null = null;
+  private contextCompactor: ContextCompactor | null = null;
   private maxContextWindow: number;
   private offloadThreshold: number;
   private offloadScanRatio: number;
   private offloadMinChars: number;
+  private compactTriggerThreshold: number;
+  private compactTargetTokens: number;
+  private compactPreserveCount: number;
+  private compactRetryCount: number;
+  private compactModel?: string;
 
   constructor(options: AgentRunnerOptions) {
     super();
@@ -321,6 +356,12 @@ export class AgentRunner extends EventEmitter {
     this.offloadThreshold = context.offloadThreshold ?? DEFAULT_OFFLOAD_THRESHOLD;
     this.offloadScanRatio = context.offloadScanRatio ?? DEFAULT_OFFLOAD_SCAN_RATIO;
     this.offloadMinChars = context.offloadMinChars ?? DEFAULT_OFFLOAD_MIN_CHARS;
+    this.compactTriggerThreshold =
+      context.compactTriggerThreshold ?? DEFAULT_COMPACT_TRIGGER_THRESHOLD;
+    this.compactTargetTokens = context.compactTargetTokens ?? DEFAULT_COMPACT_TARGET_TOKENS;
+    this.compactPreserveCount = context.compactPreserveCount ?? DEFAULT_COMPACT_PRESERVE_COUNT;
+    this.compactRetryCount = context.compactRetryCount ?? DEFAULT_COMPACT_RETRY_COUNT;
+    this.compactModel = context.compactModel ?? DEFAULT_COMPACT_MODEL;
     this.enableSkillSearchInstruction = options.enableSkillSearchInstruction ?? true;
   }
 
@@ -524,19 +565,104 @@ export class AgentRunner extends EventEmitter {
     return this.contextManager;
   }
 
+  private ensureContextCompactor(): ContextCompactor | null {
+    if (!this.session) {
+      return null;
+    }
+
+    if (!this.contextCompactor) {
+      const storage = new OffloadStorage(this.session.offloadSessionDir);
+      this.contextCompactor = new ContextCompactor(storage, this.client, {
+        targetTokens: this.compactTargetTokens,
+        preserveCount: this.compactPreserveCount,
+        model: this.compactModel,
+        retryCount: this.compactRetryCount,
+      });
+    }
+
+    return this.contextCompactor;
+  }
+
+  async forceCompact(): Promise<CompactResult> {
+    await this.initSession();
+
+    const compactor = this.ensureContextCompactor();
+    if (!compactor) {
+      const previousTokens = countMessageTokens(this.history);
+      return {
+        messages: [...this.history],
+        previousTokens,
+        currentTokens: previousTokens,
+        freedTokens: 0,
+        preservedCount: Math.min(this.history.length, this.compactPreserveCount),
+        deletedFiles: [],
+        success: true,
+      };
+    }
+
+    const result = await compactor.compact(this.history);
+    if (result.success) {
+      await this.applyCompactResult(result);
+      this.emitCompactNotification(result);
+    }
+
+    return result;
+  }
+
+  private shouldTriggerCompact(result: OffloadResult): boolean {
+    return result.stillExceedsThreshold && result.freedTokens < this.compactTriggerThreshold;
+  }
+
+  private async compactHistoryIfNeeded(result: OffloadResult): Promise<CompactResult | null> {
+    if (!this.shouldTriggerCompact(result)) {
+      return null;
+    }
+
+    const compactor = this.ensureContextCompactor();
+    if (!compactor) {
+      return null;
+    }
+
+    const compactResult = await compactor.compact(this.history);
+    if (compactResult.success) {
+      await this.applyCompactResult(compactResult);
+      this.emitCompactNotification(compactResult);
+    }
+
+    return compactResult;
+  }
+
+  private async applyCompactResult(result: CompactResult): Promise<void> {
+    this.history = result.messages;
+    if (this.session) {
+      await this.session.rewriteHistory(this.history);
+    }
+  }
+
   private async offloadHistoryIfNeeded(): Promise<void> {
     const contextManager = this.ensureContextManager();
     if (!contextManager) {
       return;
     }
 
-    const result = contextManager.offloadIfNeeded(this.history);
+    let result = contextManager.offloadIfNeeded(this.history);
     if (result.offloadedCount > 0) {
       this.history = result.messages;
       if (this.session) {
         await this.session.rewriteHistory(this.history);
       }
       this.emitOffloadNotification(result);
+    }
+
+    const compactResult = await this.compactHistoryIfNeeded(result);
+    if (compactResult?.success) {
+      result = {
+        ...result,
+        messages: compactResult.messages,
+        currentTokens: compactResult.currentTokens,
+        freedTokens: result.freedTokens + compactResult.freedTokens,
+        stillExceedsThreshold: compactResult.currentTokens >= this.offloadThreshold,
+      };
     }
 
     if (result.stillExceedsThreshold) {
@@ -558,6 +684,16 @@ export class AgentRunner extends EventEmitter {
       freedTokens: result.freedTokens,
     };
     this.emit('offload', payload);
+  }
+
+  private emitCompactNotification(result: CompactResult): void {
+    const payload: CompactEventPayload = {
+      previousTokens: result.previousTokens,
+      currentTokens: result.currentTokens,
+      freedTokens: result.freedTokens,
+      deletedFileCount: result.deletedFiles.length,
+    };
+    this.emit('compact', payload);
   }
 
   /**

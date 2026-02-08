@@ -56,7 +56,7 @@ describe('REPL commands', () => {
     const rl = createMockRl();
     const { handleSpecialCommand } = await loadRepl();
 
-    const handled = handleSpecialCommand('/help', rl as unknown as readline.Interface, null, { skipExit: true });
+    const handled = await handleSpecialCommand('/help', rl as unknown as readline.Interface, null, { skipExit: true });
 
     expect(handled).toBe(true);
     const output = (console.log as unknown as { mock: { calls: unknown[][] } }).mock.calls
@@ -76,7 +76,7 @@ describe('REPL commands', () => {
     const agentRunner = { clearSession: mock(() => Promise.resolve()) } as unknown as AgentRunner;
     const { handleSpecialCommand } = await loadRepl();
 
-    const handled = handleSpecialCommand('/clear', rl as unknown as readline.Interface, agentRunner, { skipExit: true });
+    const handled = await handleSpecialCommand('/clear', rl as unknown as readline.Interface, agentRunner, { skipExit: true });
 
     expect(handled).toBe(true);
     expect(agentRunner.clearSession).toHaveBeenCalled();
@@ -89,7 +89,7 @@ describe('REPL commands', () => {
     const rl = createMockRl();
     const { handleSpecialCommand } = await loadRepl();
 
-    const handled = handleSpecialCommand('/exit', rl as unknown as readline.Interface, null, { skipExit: true });
+    const handled = await handleSpecialCommand('/exit', rl as unknown as readline.Interface, null, { skipExit: true });
 
     expect(handled).toBe(true);
     expect(rl.close).toHaveBeenCalled();
@@ -103,7 +103,7 @@ describe('REPL commands', () => {
     const rl = createMockRl();
     const { handleSpecialCommand } = await loadRepl();
 
-    const handled = handleSpecialCommand('/unknown', rl as unknown as readline.Interface, null, { skipExit: true });
+    const handled = await handleSpecialCommand('/unknown', rl as unknown as readline.Interface, null, { skipExit: true });
 
     expect(handled).toBe(true);
     const output = (console.log as unknown as { mock: { calls: unknown[][] } }).mock.calls
@@ -120,7 +120,7 @@ describe('REPL commands', () => {
     console.log = mock(() => {}) as unknown as typeof console.log;
     const rl = createMockRl();
 
-    const handled = handleSpecialCommand('/tools', rl as unknown as readline.Interface, null, { skipExit: true });
+    const handled = await handleSpecialCommand('/tools', rl as unknown as readline.Interface, null, { skipExit: true });
 
     expect(handled).toBe(true);
     const output = getConsoleOutput();
@@ -137,7 +137,7 @@ describe('REPL commands', () => {
     console.log = mock(() => {}) as unknown as typeof console.log;
     const rl = createMockRl();
 
-    const handled = handleSpecialCommand('/skills', rl as unknown as readline.Interface, null, { skipExit: true });
+    const handled = await handleSpecialCommand('/skills', rl as unknown as readline.Interface, null, { skipExit: true });
 
     expect(handled).toBe(true);
     const output = getConsoleOutput();
@@ -153,7 +153,7 @@ describe('REPL commands', () => {
     console.log = mock(() => {}) as unknown as typeof console.log;
     const rl = createMockRl();
 
-    const handled = handleSpecialCommand('/skill enhance --on', rl as unknown as readline.Interface, null, {
+    const handled = await handleSpecialCommand('/skill enhance --on', rl as unknown as readline.Interface, null, {
       skipExit: true,
     });
 
@@ -171,7 +171,7 @@ describe('REPL commands', () => {
     const rl = createMockRl();
     const { handleSpecialCommand } = await loadRepl();
 
-    const handled = handleSpecialCommand('/resume', rl as unknown as readline.Interface, null, { skipExit: true });
+    const handled = await handleSpecialCommand('/resume', rl as unknown as readline.Interface, null, { skipExit: true });
 
     expect(handled).toBe(true);
     const output = getConsoleOutput();
@@ -208,7 +208,7 @@ describe('REPL commands', () => {
       },
     ]);
 
-    const handled = handleSpecialCommand('/resume --latest', rl as unknown as readline.Interface, null, {
+    const handled = await handleSpecialCommand('/resume --latest', rl as unknown as readline.Interface, null, {
       skipExit: true,
       onResumeSession,
       getCurrentSessionId: () => 'session-current',
@@ -229,7 +229,7 @@ describe('REPL commands', () => {
     const onResumeSession = mock((_sessionId: string) => {});
     const { handleSpecialCommand } = await loadRepl();
 
-    const handled = handleSpecialCommand('/resume --last', rl as unknown as readline.Interface, null, {
+    const handled = await handleSpecialCommand('/resume --last', rl as unknown as readline.Interface, null, {
       skipExit: true,
       onResumeSession,
       getCurrentSessionId: () => 'session-current',
@@ -274,7 +274,7 @@ describe('REPL commands', () => {
       },
     ]);
 
-    const handled = handleSpecialCommand('/resume', rl as unknown as readline.Interface, null, {
+    const handled = await handleSpecialCommand('/resume', rl as unknown as readline.Interface, null, {
       skipExit: true,
       onResumeSession,
       getCurrentSessionId: () => 'session-current-abcdef',
@@ -300,7 +300,7 @@ describe('REPL commands', () => {
     const { Session } = await import('../../../src/agent/session.ts');
     const findSpy = spyOn(Session, 'find').mockResolvedValue(null);
 
-    const handled = handleSpecialCommand('/resume session-current', rl as unknown as readline.Interface, null, {
+    const handled = await handleSpecialCommand('/resume session-current', rl as unknown as readline.Interface, null, {
       skipExit: true,
       onResumeSession,
       getCurrentSessionId: () => 'session-current',
@@ -333,7 +333,7 @@ describe('REPL commands', () => {
     } as unknown as AgentRunner;
     const { handleSpecialCommand } = await loadRepl();
 
-    const handled = handleSpecialCommand('/cost', rl as unknown as readline.Interface, agentRunner, { skipExit: true });
+    const handled = await handleSpecialCommand('/cost', rl as unknown as readline.Interface, agentRunner, { skipExit: true });
 
     expect(handled).toBe(true);
     expect(agentRunner.getSessionUsage).toHaveBeenCalled();
@@ -353,7 +353,7 @@ describe('REPL commands', () => {
     } as unknown as AgentRunner;
     const { handleSpecialCommand } = await loadRepl();
 
-    const handled = handleSpecialCommand('/model', rl as unknown as readline.Interface, agentRunner, { skipExit: true });
+    const handled = await handleSpecialCommand('/model', rl as unknown as readline.Interface, agentRunner, { skipExit: true });
 
     expect(handled).toBe(true);
     expect(agentRunner.getModelName).toHaveBeenCalled();
@@ -378,7 +378,7 @@ describe('REPL commands', () => {
     } as unknown as AgentRunner;
     const { handleSpecialCommand } = await loadRepl();
 
-    const handled = handleSpecialCommand('/context', rl as unknown as readline.Interface, agentRunner, { skipExit: true });
+    const handled = await handleSpecialCommand('/context', rl as unknown as readline.Interface, agentRunner, { skipExit: true });
 
     expect(handled).toBe(true);
     expect(agentRunner.getContextStats).toHaveBeenCalled();
@@ -400,11 +400,156 @@ describe('REPL commands', () => {
     const rl = createMockRl();
     const { handleSpecialCommand } = await loadRepl();
 
-    const handled = handleSpecialCommand('/context', rl as unknown as readline.Interface, null, { skipExit: true });
+    const handled = await handleSpecialCommand('/context', rl as unknown as readline.Interface, null, { skipExit: true });
 
     expect(handled).toBe(true);
     const output = getConsoleOutput();
     expect(output).toContain('Context stats unavailable in this context.');
+
+    console.log = originalConsoleLog;
+  });
+
+  it('handleSpecialCommand should show compact success stats', async () => {
+    console.log = mock(() => {}) as unknown as typeof console.log;
+    const rl = createMockRl();
+    const agentRunner = {
+      forceCompact: mock(() =>
+        Promise.resolve({
+          success: true,
+          previousTokens: 100000,
+          currentTokens: 20000,
+          freedTokens: 80000,
+          deletedFiles: ['a.txt', 'b.txt'],
+          preservedCount: 5,
+          messages: [],
+        })
+      ),
+    } as unknown as AgentRunner;
+    const { handleSpecialCommand } = await loadRepl();
+
+    const handled = await handleSpecialCommand('/compact', rl as unknown as readline.Interface, agentRunner, {
+      skipExit: true,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(handled).toBe(true);
+    expect(agentRunner.forceCompact).toHaveBeenCalledTimes(1);
+    const output = getConsoleOutput();
+    expect(output).toContain('✅ 压缩完成：100,000 → 20,000 tokens');
+    expect(output).toContain('释放 80,000 tokens，删除 2 个卸载文件');
+
+    console.log = originalConsoleLog;
+  });
+
+  it('handleSpecialCommand should show compact failure message', async () => {
+    console.log = mock(() => {}) as unknown as typeof console.log;
+    const rl = createMockRl();
+    const agentRunner = {
+      forceCompact: mock(() =>
+        Promise.resolve({
+          success: false,
+          previousTokens: 0,
+          currentTokens: 0,
+          freedTokens: 0,
+          deletedFiles: [],
+          preservedCount: 0,
+          messages: [],
+        })
+      ),
+    } as unknown as AgentRunner;
+    const { handleSpecialCommand } = await loadRepl();
+
+    const handled = await handleSpecialCommand('/compact', rl as unknown as readline.Interface, agentRunner, {
+      skipExit: true,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(handled).toBe(true);
+    expect(agentRunner.forceCompact).toHaveBeenCalledTimes(1);
+    const output = getConsoleOutput();
+    expect(output).toContain('❌ 压缩失败，保持原历史不变');
+
+    console.log = originalConsoleLog;
+  });
+
+  it('handleSpecialCommand should wait for compact completion before resolving', async () => {
+    console.log = mock(() => {}) as unknown as typeof console.log;
+    const rl = createMockRl();
+    type CompactResultPayload = {
+      success: boolean;
+      previousTokens: number;
+      currentTokens: number;
+      freedTokens: number;
+      deletedFiles: string[];
+      preservedCount: number;
+      messages: [];
+    };
+    let resolveCompact!: (value: CompactResultPayload) => void;
+
+    const compactPromise = new Promise<CompactResultPayload>((resolve) => {
+      resolveCompact = resolve;
+    });
+
+    const agentRunner = {
+      forceCompact: mock(() => compactPromise),
+    } as unknown as AgentRunner;
+    const { handleSpecialCommand } = await loadRepl();
+
+    const handledPromise = handleSpecialCommand('/compact', rl as unknown as readline.Interface, agentRunner, {
+      skipExit: true,
+    });
+
+    let resolved = false;
+    void handledPromise.then(() => {
+      resolved = true;
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(resolved).toBe(false);
+
+    resolveCompact({
+      success: true,
+      previousTokens: 80000,
+      currentTokens: 20000,
+      freedTokens: 60000,
+      deletedFiles: [],
+      preservedCount: 5,
+      messages: [],
+    });
+
+    const handled = await handledPromise;
+    expect(handled).toBe(true);
+    expect(agentRunner.forceCompact).toHaveBeenCalledTimes(1);
+
+    console.log = originalConsoleLog;
+  });
+
+  it('handleSpecialCommand should show no-op compact message when history is already small', async () => {
+    console.log = mock(() => {}) as unknown as typeof console.log;
+    const rl = createMockRl();
+    const agentRunner = {
+      forceCompact: mock(() =>
+        Promise.resolve({
+          success: true,
+          previousTokens: 3000,
+          currentTokens: 3000,
+          freedTokens: 0,
+          deletedFiles: [],
+          preservedCount: 3,
+          messages: [],
+        })
+      ),
+    } as unknown as AgentRunner;
+    const { handleSpecialCommand } = await loadRepl();
+
+    const handled = await handleSpecialCommand('/compact', rl as unknown as readline.Interface, agentRunner, {
+      skipExit: true,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(handled).toBe(true);
+    const output = getConsoleOutput();
+    expect(output).toContain('无需压缩');
 
     console.log = originalConsoleLog;
   });

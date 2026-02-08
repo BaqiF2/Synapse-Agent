@@ -20,21 +20,21 @@ describe('IT: CLI REPL Flow', () => {
     console.log = originalLog;
   });
 
-  it('should handle /help and /exit flow', () => {
+  it('should handle /help and /exit flow', async () => {
     const rl = createMockRl();
 
-    const handledHelp = handleSpecialCommand('/help', rl, null, { skipExit: true });
-    const handledExit = handleSpecialCommand('/exit', rl, null, { skipExit: true });
+    const handledHelp = await handleSpecialCommand('/help', rl, null, { skipExit: true });
+    const handledExit = await handleSpecialCommand('/exit', rl, null, { skipExit: true });
 
     expect(handledHelp).toBe(true);
     expect(handledExit).toBe(true);
     expect((rl as unknown as { close: ReturnType<typeof mock> }).close).toHaveBeenCalled();
   });
 
-  it('should handle unknown command', () => {
+  it('should handle unknown command', async () => {
     const rl = createMockRl();
 
-    const handled = handleSpecialCommand('/unknown', rl, null, { skipExit: true });
+    const handled = await handleSpecialCommand('/unknown', rl, null, { skipExit: true });
 
     expect(handled).toBe(true);
   });

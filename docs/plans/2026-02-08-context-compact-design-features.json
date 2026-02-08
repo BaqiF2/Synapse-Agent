@@ -33,7 +33,7 @@
         "expected": "toCompress 为空数组，toPreserve 包含全部 3 条消息"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -60,7 +60,7 @@
         "expected": "返回数组长度为 1，消息 content 为 '[Compressed History]\\n\\n## Technical Context\\nTest content'"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -96,7 +96,7 @@
         "expected": "返回的消息 content 为 '[Content unavailable: /nonexistent/file.txt]'"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -134,7 +134,7 @@
         "expected": "抛出异常，共调用 LLM 3 次"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -161,7 +161,7 @@
         "expected": "返回已删除文件列表长度为 2，记录 warn 日志，不抛出异常"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -197,7 +197,7 @@
         "expected": "contextCompactor.compact 不被调用"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -232,7 +232,7 @@
         "expected": "返回 success: true，freedTokens: 0，提示无需压缩"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -251,7 +251,7 @@
         "expected": "返回 CompactResult 包含: messages 长度为 6 (1 摘要 + 5 保留), previousTokens 约 50000, currentTokens 约 10000, freedTokens 约 40000, preservedCount 为 5, deletedFiles 长度为 5, success 为 true"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -288,7 +288,7 @@
         "expected": "返回的 messages 中第 8 条消息 content 仍为 'Tool result is at: ...' 格式"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -316,6 +316,6 @@
         "expected": "使用 claude-sonnet-4-20250514 进行压缩总结"
       }
     ],
-    "passes": false
+    "passes": true
   }
 ]

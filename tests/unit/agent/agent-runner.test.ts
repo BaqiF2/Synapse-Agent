@@ -23,6 +23,8 @@ import { Logger } from '../../../src/utils/logger.ts';
 import { Session } from '../../../src/agent/session.ts';
 import { stopHookRegistry } from '../../../src/hooks/stop-hook-registry.ts';
 import { countMessageTokens } from '../../../src/utils/token-counter.ts';
+import { ContextManager } from '../../../src/agent/context-manager.ts';
+import { ContextCompactor } from '../../../src/agent/context-compactor.ts';
 
 function createMockCallableTool(
   handler: (args: unknown) => Promise<ToolReturnValue> | CancelablePromise<ToolReturnValue>
@@ -1383,6 +1385,171 @@ describe('AgentRunner with Session', () => {
       expect(hasTodoWarn).toBe(true);
     } finally {
       Logger.prototype.warn = originalWarn;
+    }
+  });
+
+  it('should trigger compaction when offload still exceeds threshold and freed tokens below trigger threshold', async () => {
+    const originalOffloadIfNeeded = ContextManager.prototype.offloadIfNeeded;
+    const originalCompact = ContextCompactor.prototype.compact;
+
+    const offloadSpy = mock((messages: readonly Message[]) => {
+      const cloned = [...messages];
+      return {
+        messages: cloned,
+        offloadedCount: 0,
+        previousTokens: 100000,
+        currentTokens: 90000,
+        freedTokens: 10000,
+        stillExceedsThreshold: true,
+      };
+    });
+    const compactSpy = mock(async (messages: Message[]) => {
+      const previousTokens = 100000;
+      const currentTokens = 20000;
+      return {
+        messages,
+        previousTokens,
+        currentTokens,
+        freedTokens: previousTokens - currentTokens,
+        preservedCount: 5,
+        deletedFiles: [],
+        success: true,
+      };
+    });
+
+    ContextManager.prototype.offloadIfNeeded = offloadSpy as unknown as ContextManager['offloadIfNeeded'];
+    ContextCompactor.prototype.compact =
+      compactSpy as unknown as ContextCompactor['compact'];
+
+    try {
+      const session = await Session.create({ sessionsDir: testDir });
+      const client = createMockClient([[{ type: 'text', text: 'Done!' }]]);
+      const toolset = new CallableToolset([createMockCallableTool(() =>
+        Promise.resolve(ToolOk({ output: '' }))
+      )]);
+      const runner = new AgentRunner({
+        client,
+        systemPrompt: 'Test',
+        toolset,
+        sessionId: session.id,
+        sessionsDir: testDir,
+        enableStopHooks: false,
+      });
+
+      await runner.run('new request');
+
+      expect(compactSpy).toHaveBeenCalledTimes(1);
+    } finally {
+      ContextManager.prototype.offloadIfNeeded = originalOffloadIfNeeded;
+      ContextCompactor.prototype.compact = originalCompact;
+    }
+  });
+
+  it('should not trigger compaction when offload freed tokens are enough', async () => {
+    const originalOffloadIfNeeded = ContextManager.prototype.offloadIfNeeded;
+    const originalCompact = ContextCompactor.prototype.compact;
+
+    const offloadSpy = mock((messages: readonly Message[]) => {
+      return {
+        messages: [...messages],
+        offloadedCount: 0,
+        previousTokens: 100000,
+        currentTokens: 80000,
+        freedTokens: 20000,
+        stillExceedsThreshold: true,
+      };
+    });
+    const compactSpy = mock(async (messages: Message[]) => {
+      return {
+        messages,
+        previousTokens: 100000,
+        currentTokens: 20000,
+        freedTokens: 80000,
+        preservedCount: 5,
+        deletedFiles: [],
+        success: true,
+      };
+    });
+
+    ContextManager.prototype.offloadIfNeeded = offloadSpy as unknown as ContextManager['offloadIfNeeded'];
+    ContextCompactor.prototype.compact =
+      compactSpy as unknown as ContextCompactor['compact'];
+
+    try {
+      const session = await Session.create({ sessionsDir: testDir });
+      const client = createMockClient([[{ type: 'text', text: 'Done!' }]]);
+      const toolset = new CallableToolset([createMockCallableTool(() =>
+        Promise.resolve(ToolOk({ output: '' }))
+      )]);
+      const runner = new AgentRunner({
+        client,
+        systemPrompt: 'Test',
+        toolset,
+        sessionId: session.id,
+        sessionsDir: testDir,
+        enableStopHooks: false,
+      });
+
+      await runner.run('new request');
+
+      expect(compactSpy).not.toHaveBeenCalled();
+    } finally {
+      ContextManager.prototype.offloadIfNeeded = originalOffloadIfNeeded;
+      ContextCompactor.prototype.compact = originalCompact;
+    }
+  });
+
+  it('should not trigger compaction when context no longer exceeds threshold', async () => {
+    const originalOffloadIfNeeded = ContextManager.prototype.offloadIfNeeded;
+    const originalCompact = ContextCompactor.prototype.compact;
+
+    const offloadSpy = mock((messages: readonly Message[]) => {
+      return {
+        messages: [...messages],
+        offloadedCount: 0,
+        previousTokens: 100000,
+        currentTokens: 85000,
+        freedTokens: 5000,
+        stillExceedsThreshold: false,
+      };
+    });
+    const compactSpy = mock(async (messages: Message[]) => {
+      return {
+        messages,
+        previousTokens: 100000,
+        currentTokens: 20000,
+        freedTokens: 80000,
+        preservedCount: 5,
+        deletedFiles: [],
+        success: true,
+      };
+    });
+
+    ContextManager.prototype.offloadIfNeeded = offloadSpy as unknown as ContextManager['offloadIfNeeded'];
+    ContextCompactor.prototype.compact =
+      compactSpy as unknown as ContextCompactor['compact'];
+
+    try {
+      const session = await Session.create({ sessionsDir: testDir });
+      const client = createMockClient([[{ type: 'text', text: 'Done!' }]]);
+      const toolset = new CallableToolset([createMockCallableTool(() =>
+        Promise.resolve(ToolOk({ output: '' }))
+      )]);
+      const runner = new AgentRunner({
+        client,
+        systemPrompt: 'Test',
+        toolset,
+        sessionId: session.id,
+        sessionsDir: testDir,
+        enableStopHooks: false,
+      });
+
+      await runner.run('new request');
+
+      expect(compactSpy).not.toHaveBeenCalled();
+    } finally {
+      ContextManager.prototype.offloadIfNeeded = originalOffloadIfNeeded;
+      ContextCompactor.prototype.compact = originalCompact;
     }
   });
 });

@@ -271,23 +271,23 @@ describe('Phase 1 E2E: TC-1 Three-Layer Bash Architecture', () => {
   });
 
   describe('TC-1.1: LLM Only Sees Single Bash Tool', () => {
-    test('should have exactly one tool named "Bash"', () => {
+    test('should have exactly one tool named "Bash"', async () => {
       expect(BashToolSchema.name).toBe('Bash');
     });
 
-    test('should have command parameter in input schema', () => {
+    test('should have command parameter in input schema', async () => {
       const properties = BashToolSchema.input_schema.properties as Record<string, any>;
       expect(properties.command).toBeDefined();
       expect(properties.command.type).toBe('string');
     });
 
-    test('should have optional restart parameter', () => {
+    test('should have optional restart parameter', async () => {
       const properties = BashToolSchema.input_schema.properties as Record<string, any>;
       expect(properties.restart).toBeDefined();
       expect(properties.restart.type).toBe('boolean');
     });
 
-    test('should only require command parameter', () => {
+    test('should only require command parameter', async () => {
       expect(BashToolSchema.input_schema.required).toContain('command');
       expect(BashToolSchema.input_schema.required).not.toContain('restart');
     });
@@ -563,7 +563,7 @@ describe('Phase 1 E2E: TC-3 Tool Conversion System', () => {
   });
 
   describe('TC-3.1: MCP Configuration Parsing', () => {
-    test('should parse valid MCP config file', () => {
+    test('should parse valid MCP config file', async () => {
       const parser = new McpConfigParser(TEST_HOME_DIR, TEST_HOME_DIR);
       const result = parser.parse();
 
@@ -571,7 +571,7 @@ describe('Phase 1 E2E: TC-3 Tool Conversion System', () => {
       expect(result.servers.length).toBe(2);
     });
 
-    test('should identify command type servers', () => {
+    test('should identify command type servers', async () => {
       const parser = new McpConfigParser(TEST_HOME_DIR, TEST_HOME_DIR);
       const result = parser.parse();
 
@@ -581,7 +581,7 @@ describe('Phase 1 E2E: TC-3 Tool Conversion System', () => {
       expect(localServer?.isUrl).toBe(false);
     });
 
-    test('should identify URL type servers', () => {
+    test('should identify URL type servers', async () => {
       const parser = new McpConfigParser(TEST_HOME_DIR, TEST_HOME_DIR);
       const result = parser.parse();
 
@@ -591,7 +591,7 @@ describe('Phase 1 E2E: TC-3 Tool Conversion System', () => {
       expect(remoteServer?.isCommand).toBe(false);
     });
 
-    test('should handle missing config gracefully', () => {
+    test('should handle missing config gracefully', async () => {
       const emptyHome = path.join(TEST_BASE_DIR, 'empty-home');
       fs.mkdirSync(emptyHome, { recursive: true });
 
@@ -641,7 +641,7 @@ describe('Phase 1 E2E: TC-3 Tool Conversion System', () => {
   });
 
   describe('TC-3.4: Tool Installer Search', () => {
-    test('should search for all installed tools', () => {
+    test('should search for all installed tools', async () => {
       const installer = new McpInstaller(TEST_HOME_DIR);
       const result = installer.search({ pattern: '*' });
 
@@ -649,21 +649,21 @@ describe('Phase 1 E2E: TC-3 Tool Conversion System', () => {
       expect(typeof result.tools).toBe('object');
     });
 
-    test('should filter by mcp type', () => {
+    test('should filter by mcp type', async () => {
       const installer = new McpInstaller(TEST_HOME_DIR);
       const result = installer.search({ pattern: '*', type: 'mcp' });
 
       expect(result).toBeDefined();
     });
 
-    test('should filter by skill type', () => {
+    test('should filter by skill type', async () => {
       const installer = new McpInstaller(TEST_HOME_DIR);
       const result = installer.search({ pattern: '*', type: 'skill' });
 
       expect(result).toBeDefined();
     });
 
-    test('should format search results', () => {
+    test('should format search results', async () => {
       const installer = new McpInstaller(TEST_HOME_DIR);
       const result = installer.search({ pattern: '*' });
       const formatted = installer.formatSearchResult(result);
@@ -679,63 +679,63 @@ describe('Phase 1 E2E: TC-3 Tool Conversion System', () => {
 
 describe('Phase 1 E2E: TC-4 CLI and REPL', () => {
   describe('TC-4.2: Special Commands', () => {
-    test('/help should show help information', () => {
+    test('/help should show help information', async () => {
       const rl = createMockReadline();
 
-      const handled = handleSpecialCommand('/help', rl, null, { skipExit: true });
+      const handled = await handleSpecialCommand('/help', rl, null, { skipExit: true });
       expect(handled).toBe(true);
     });
 
-    test('/clear should be handled', () => {
+    test('/clear should be handled', async () => {
       const rl = createMockReadline();
 
-      const handled = handleSpecialCommand('/clear', rl, null, { skipExit: true });
+      const handled = await handleSpecialCommand('/clear', rl, null, { skipExit: true });
       expect(handled).toBe(true);
     });
 
-    test('/tools should be handled', () => {
+    test('/tools should be handled', async () => {
       const rl = createMockReadline();
 
-      const handled = handleSpecialCommand('/tools', rl, null, { skipExit: true });
+      const handled = await handleSpecialCommand('/tools', rl, null, { skipExit: true });
       expect(handled).toBe(true);
     });
 
-    test('/skills should be handled', () => {
+    test('/skills should be handled', async () => {
       const rl = createMockReadline();
 
-      const handled = handleSpecialCommand('/skills', rl, null, { skipExit: true });
+      const handled = await handleSpecialCommand('/skills', rl, null, { skipExit: true });
       expect(handled).toBe(true);
     });
 
-    test('/resume should be handled', () => {
+    test('/resume should be handled', async () => {
       const rl = createMockReadline();
 
-      const handled = handleSpecialCommand('/resume', rl, null, { skipExit: true });
+      const handled = await handleSpecialCommand('/resume', rl, null, { skipExit: true });
       expect(handled).toBe(true);
     });
 
-    test('/exit should be handled', () => {
+    test('/exit should be handled', async () => {
       const rl = createMockReadline();
 
-      const handled = handleSpecialCommand('/exit', rl, null, { skipExit: true });
+      const handled = await handleSpecialCommand('/exit', rl, null, { skipExit: true });
       expect(handled).toBe(true);
     });
 
-    test('commands should be case insensitive', () => {
+    test('commands should be case insensitive', async () => {
       const rl = createMockReadline();
 
       const testCases = ['/HELP', '/Help', '/hElP', '/EXIT', '/Quit', '/Q'];
 
       for (const cmd of testCases) {
-        const handled = handleSpecialCommand(cmd, rl, null, { skipExit: true });
+        const handled = await handleSpecialCommand(cmd, rl, null, { skipExit: true });
         expect(handled).toBe(true);
       }
     });
 
-    test('regular input should not be treated as command', () => {
+    test('regular input should not be treated as command', async () => {
       const rl = createMockReadline();
 
-      const handled = handleSpecialCommand('hello world', rl, null, { skipExit: true });
+      const handled = await handleSpecialCommand('hello world', rl, null, { skipExit: true });
       expect(handled).toBe(false);
     });
   });
@@ -777,7 +777,7 @@ describe('Phase 1 E2E: TC-5 Skill System', () => {
   });
 
   describe('TC-5.1: Skill Search (via SkillIndexer)', () => {
-    test('should index skills for search', () => {
+    test('should index skills for search', async () => {
       const indexer = new SkillIndexer(TEST_HOME_DIR);
       indexer.rebuild();
       const index = indexer.getIndex();
@@ -785,7 +785,7 @@ describe('Phase 1 E2E: TC-5 Skill System', () => {
       expect(index.skills.length).toBeGreaterThanOrEqual(2);
     });
 
-    test('should find skill by name', () => {
+    test('should find skill by name', async () => {
       const indexer = new SkillIndexer(TEST_HOME_DIR);
       const index = indexer.getIndex();
 
@@ -794,7 +794,7 @@ describe('Phase 1 E2E: TC-5 Skill System', () => {
       expect(textAnalyzer?.description).toContain('Analyzes text files');
     });
 
-    test('should find skills by domain', () => {
+    test('should find skills by domain', async () => {
       const indexer = new SkillIndexer(TEST_HOME_DIR);
       const index = indexer.getIndex();
 
@@ -802,7 +802,7 @@ describe('Phase 1 E2E: TC-5 Skill System', () => {
       expect(programmingSkills.length).toBeGreaterThanOrEqual(2);
     });
 
-    test('should find skills by tag', () => {
+    test('should find skills by tag', async () => {
       const indexer = new SkillIndexer(TEST_HOME_DIR);
       const index = indexer.getIndex();
 
@@ -810,7 +810,7 @@ describe('Phase 1 E2E: TC-5 Skill System', () => {
       expect(fileSkills.length).toBeGreaterThanOrEqual(1);
     });
 
-    test('should rebuild index successfully', () => {
+    test('should rebuild index successfully', async () => {
       const indexer = new SkillIndexer(TEST_HOME_DIR);
       const index = indexer.rebuild();
 
@@ -820,7 +820,7 @@ describe('Phase 1 E2E: TC-5 Skill System', () => {
   });
 
   describe('TC-5.2: Skill Loading - Level 1', () => {
-    test('should load all skills at Level 1', () => {
+    test('should load all skills at Level 1', async () => {
       const loader = new SkillLoader(TEST_HOME_DIR);
       loader.rebuildIndex();
 
@@ -828,7 +828,7 @@ describe('Phase 1 E2E: TC-5 Skill System', () => {
       expect(skills.length).toBeGreaterThanOrEqual(2);
     });
 
-    test('should return skill metadata at Level 1', () => {
+    test('should return skill metadata at Level 1', async () => {
       const loader = new SkillLoader(TEST_HOME_DIR);
       loader.rebuildIndex();
 
@@ -840,7 +840,7 @@ describe('Phase 1 E2E: TC-5 Skill System', () => {
       expect(textAnalyzer?.description).toContain('Analyzes text files');
     });
 
-    test('should include tags in Level 1 metadata', () => {
+    test('should include tags in Level 1 metadata', async () => {
       const loader = new SkillLoader(TEST_HOME_DIR);
       loader.rebuildIndex();
 
@@ -853,7 +853,7 @@ describe('Phase 1 E2E: TC-5 Skill System', () => {
   });
 
   describe('TC-5.3: Skill Loading - Level 2', () => {
-    test('should load skill at Level 2', () => {
+    test('should load skill at Level 2', async () => {
       const loader = new SkillLoader(TEST_HOME_DIR);
       loader.rebuildIndex();
 
@@ -864,7 +864,7 @@ describe('Phase 1 E2E: TC-5 Skill System', () => {
       expect(skill?.version).toBe('1.0.0');
     });
 
-    test('should include execution steps at Level 2', () => {
+    test('should include execution steps at Level 2', async () => {
       const loader = new SkillLoader(TEST_HOME_DIR);
       loader.rebuildIndex();
 
@@ -874,7 +874,7 @@ describe('Phase 1 E2E: TC-5 Skill System', () => {
       expect(skill?.executionSteps.length).toBeGreaterThan(0);
     });
 
-    test('should include tool dependencies at Level 2', () => {
+    test('should include tool dependencies at Level 2', async () => {
       const loader = new SkillLoader(TEST_HOME_DIR);
       loader.rebuildIndex();
 
@@ -886,7 +886,7 @@ describe('Phase 1 E2E: TC-5 Skill System', () => {
       expect(hasReadDep).toBe(true);
     });
 
-    test('should cache Level 2 loads', () => {
+    test('should cache Level 2 loads', async () => {
       const loader = new SkillLoader(TEST_HOME_DIR);
       loader.rebuildIndex();
 
@@ -896,7 +896,7 @@ describe('Phase 1 E2E: TC-5 Skill System', () => {
       expect(skill1).toEqual(skill2);
     });
 
-    test('should search skills at Level 1', () => {
+    test('should search skills at Level 1', async () => {
       const loader = new SkillLoader(TEST_HOME_DIR);
       loader.rebuildIndex();
 
@@ -907,7 +907,7 @@ describe('Phase 1 E2E: TC-5 Skill System', () => {
   });
 
   describe('TC-5.5: Skill Index', () => {
-    test('should create skill index', () => {
+    test('should create skill index', async () => {
       const indexer = new SkillIndexer(TEST_HOME_DIR);
       indexer.rebuild();
 
@@ -916,7 +916,7 @@ describe('Phase 1 E2E: TC-5 Skill System', () => {
       expect(index.updatedAt).toBeTruthy();
     });
 
-    test('should index skill metadata correctly', () => {
+    test('should index skill metadata correctly', async () => {
       const indexer = new SkillIndexer(TEST_HOME_DIR);
       indexer.rebuild();
 
@@ -928,7 +928,7 @@ describe('Phase 1 E2E: TC-5 Skill System', () => {
       expect(textAnalyzer?.tags).toContain('text');
     });
 
-    test('should rebuild index', () => {
+    test('should rebuild index', async () => {
       const indexer = new SkillIndexer(TEST_HOME_DIR);
 
       const oldIndex = indexer.getIndex();
@@ -983,7 +983,7 @@ describe('Phase 1 E2E: TC-6 Tool Type Conversion', () => {
       expect(type).toBe(CommandType.EXTEND_SHELL_COMMAND);
     });
 
-    test('All tool types use consistent command format', () => {
+    test('All tool types use consistent command format', async () => {
       // All tools follow: <command> [args] pattern
       const commands = [
         'read /path/to/file',
@@ -1032,7 +1032,7 @@ describe('Phase 1 E2E: TC-8 Error Handling', () => {
       expect(searchResult.exitCode).not.toBe(0);
     });
 
-    test('should handle skill index with no matching results', () => {
+    test('should handle skill index with no matching results', async () => {
       const indexer = new SkillIndexer(TEST_HOME_DIR);
       const index = indexer.getIndex();
 
@@ -1054,7 +1054,7 @@ describe('Phase 1 E2E: TC-8 Error Handling', () => {
 // =============================================================================
 
 describe('Phase 1 E2E: PRD Validation Summary', () => {
-  test('Summary: All PRD Phase 1 validation criteria are testable', () => {
+  test('Summary: All PRD Phase 1 validation criteria are testable', async () => {
     const validationCriteria = [
       'User can interact with Agent via CLI',
       'Agent can use Agent Shell Command tools for file operations',

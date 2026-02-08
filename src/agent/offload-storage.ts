@@ -26,10 +26,28 @@ function toErrorMessage(error: unknown): string {
 export class OffloadStorage {
   constructor(private readonly sessionDir: string) {}
 
+  getOffloadedDirPath(): string {
+    return path.join(this.sessionDir, OFFLOADED_DIR_NAME);
+  }
+
+  listFiles(): string[] {
+    const offloadDir = this.getOffloadedDirPath();
+    if (!fs.existsSync(offloadDir)) {
+      return [];
+    }
+
+    const entries = fs.readdirSync(offloadDir, { withFileTypes: true });
+    return entries.filter((entry) => entry.isFile()).map((entry) => path.join(offloadDir, entry.name));
+  }
+
+  remove(filepath: string): void {
+    fs.unlinkSync(filepath);
+  }
+
   save(content: string, extension?: string): string {
     const extensionName = extension ? normalizeExtension(extension) : this.detectExtension(content);
     const filename = `${randomUUID()}.${extensionName}`;
-    const filepath = path.join(this.sessionDir, OFFLOADED_DIR_NAME, filename);
+    const filepath = path.join(this.getOffloadedDirPath(), filename);
 
     try {
       fs.mkdirSync(path.dirname(filepath), { recursive: true });
