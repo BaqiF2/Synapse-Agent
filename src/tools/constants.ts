@@ -80,37 +80,3 @@ export function isSimpleCommand(command: string): boolean {
   const baseCommand = extractBaseCommand(command);
   return SIMPLE_COMMAND_WHITELIST.includes(baseCommand as SimpleCommand);
 }
-
-/**
- * 识别被禁用的“通过原生 shell 写文件”命令模式。
- * 这些模式应由 Agent Shell Command 的 write/edit 替代。
- */
-export function getDisallowedShellWriteReason(command: string): string | null {
-  const trimmed = command.trim();
-  if (!trimmed) {
-    return null;
-  }
-
-  // 1) echo ... > file 或 echo ... >> file
-  // 允许普通 echo 输出，不允许通过重定向写文件。
-  if (/\becho\b[\s\S]*>>?\s*\S/.test(trimmed)) {
-    return 'Detected `echo` with output redirection.';
-  }
-
-  // 2) cat <<EOF ... > file (heredoc + 重定向写文件)
-  if (/\bcat\b\s*<<[\s\S]*>>?\s*\S/.test(trimmed)) {
-    return 'Detected heredoc file write via `cat <<... > file`.';
-  }
-
-  // 3) sed -i ...（原地修改文件）
-  if (/\bsed\b[\s\S]*(?:^|\s)-i(?:\s|$|['"])/.test(trimmed)) {
-    return 'Detected in-place file edit via `sed -i`.';
-  }
-
-  // 4) sed ... > file 或 sed ... >> file（重定向写文件）
-  if (/\bsed\b[\s\S]*>>?\s*\S/.test(trimmed)) {
-    return 'Detected file write via `sed` output redirection.';
-  }
-
-  return null;
-}

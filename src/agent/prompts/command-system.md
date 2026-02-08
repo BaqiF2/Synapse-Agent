@@ -86,7 +86,7 @@ Built-in commands with documented syntax. Use directly.
 
 #### read — Read file contents
 
-Replaces `cat`, `head`, `tail`.
+Preferred over `cat`, `head`, `tail` for agent-driven workflows.
 
 ```bash
 Bash(command="read ./path/to/file")
@@ -98,7 +98,7 @@ Bash(command="read ./file.txt --offset 10 --limit 20")
 
 #### write — Write content to a file
 
-Replaces `echo >`, heredoc.
+Preferred over `echo >` and heredoc when the task is file writing.
 
 ```bash
 Bash(command="write ./path/to/file 'content here'")
@@ -108,7 +108,7 @@ Bash(command="write ./path/to/file 'content here'")
 
 #### edit — Replace strings in a file
 
-Replaces `sed`.
+Preferred over `sed` when the task is file modification.
 
 ```bash
 Bash(command="edit ./file.txt 'old text' 'new text'")
@@ -272,4 +272,4 @@ Bash(command="skill:analyzer:run ./src --format json")
 
 1. **No Interactive Commands:** Don't run vim, nano, top, or Python REPL.
 2. **Error Recovery:** If a command fails, run `--help` and retry.
-3. **Enforced File-Edit Policy:** Never write files via `echo ... >`, `cat <<EOF > ...`, or `sed -i ...`. Always use `write`/`edit` and use `read` to verify.
+3. **File-Edit Guidance:** Prefer `write`/`edit` for file changes and `read` for verification. Native shell approaches (such as redirection, heredoc, or `sed`) are allowed when needed.

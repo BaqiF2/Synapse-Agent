@@ -19,8 +19,6 @@ import { McpConfigParser, McpClient, McpInstaller } from './converters/mcp/index
 import { SkillStructure, DocstringParser } from './converters/skill/index.ts';
 import { SkillCommandHandler } from './handlers/skill-command-handler.ts';
 import { TaskCommandHandler } from './handlers/task-command-handler.ts';
-import { parseBashCommand } from './handlers/agent-bash/index.ts';
-import { getDisallowedShellWriteReason } from './constants.ts';
 import type { AnthropicClient } from '../providers/anthropic/anthropic-client.ts';
 import type { OnUsage } from '../providers/generate.ts';
 import type { BashTool } from './bash-tool.ts';
@@ -44,7 +42,6 @@ const SKILL_MANAGEMENT_COMMAND_PREFIXES = ['skill:load'] as const;
 const COMMAND_SEARCH_PREFIX = 'command:search';
 const TASK_COMMAND_PREFIX = 'task:';
 const TODO_WRITE_COMMAND = 'TodoWrite';
-const WRITE_POLICY_ERROR_PREFIX = 'Direct shell-based file writes are disabled.';
 
 /**
  * Default Synapse directory
@@ -73,14 +70,6 @@ function isSkillToolCommand(value: string): boolean {
  */
 function errorResult(message: string): CommandResult {
   return { stdout: '', stderr: message, exitCode: 1 };
-}
-
-function buildWritePolicyError(reason: string): CommandResult {
-  return errorResult(
-    `${WRITE_POLICY_ERROR_PREFIX} ${reason} Use Agent Shell Commands instead: ` +
-    '`write <path> <content>` for file writes, `edit <path> <old> <new> [--all]` for modifications, ' +
-    'and `read <path>` for verification.'
-  );
 }
 
 /**
@@ -187,11 +176,6 @@ export class BashRouter {
       );
     }
 
-    const disallowedWriteReason = this.detectDisallowedWritePattern(command);
-    if (disallowedWriteReason) {
-      return asCancelablePromise(Promise.resolve(buildWritePolicyError(disallowedWriteReason)));
-    }
-
     const commandType = this.identifyCommandType(command);
 
     switch (commandType) {
@@ -207,33 +191,6 @@ export class BashRouter {
       default:
         return asCancelablePromise(Promise.resolve(errorResult(`Unknown command type: ${command}`)));
     }
-  }
-
-  /**
-   * Detect legacy shell write patterns that must be replaced by write/edit commands.
-   */
-  private detectDisallowedWritePattern(command: string): string | null {
-    const trimmed = command.trim();
-    if (!trimmed) {
-      return null;
-    }
-
-    // Layer 2 file commands are always allowed.
-    if (this.matchesCommand(trimmed, 'read') || this.matchesCommand(trimmed, 'write') || this.matchesCommand(trimmed, 'edit')) {
-      return null;
-    }
-
-    // For `bash <command>`, validate the wrapped native command as well.
-    if (this.matchesCommand(trimmed, 'bash')) {
-      try {
-        const wrapped = parseBashCommand(trimmed);
-        return getDisallowedShellWriteReason(wrapped);
-      } catch {
-        return null;
-      }
-    }
-
-    return getDisallowedShellWriteReason(trimmed);
   }
 
   /**

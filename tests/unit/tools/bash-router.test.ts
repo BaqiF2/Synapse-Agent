@@ -8,6 +8,11 @@ import type { BashSession } from '../../../src/tools/bash-session.ts';
 import type { CancelablePromise } from '../../../src/tools/callable-tool.ts';
 import { McpClient, McpConfigParser } from '../../../src/tools/converters/mcp/index.ts';
 
+type SessionMock = {
+  execute: ReturnType<typeof mock>;
+  restart: ReturnType<typeof mock>;
+};
+
 function createSessionStub() {
   const execute = mock(async (command: string) => ({
     stdout: `executed:${command}`,
@@ -16,6 +21,10 @@ function createSessionStub() {
   }));
   const restart = mock(async () => {});
   return { execute, restart } as unknown as BashSession;
+}
+
+function asSessionMock(session: BashSession): SessionMock {
+  return session as unknown as SessionMock;
 }
 
 describe('BashRouter', () => {
@@ -42,7 +51,7 @@ describe('BashRouter', () => {
     const result = await router.route('echo hello');
 
     expect(result.stdout).toBe('executed:echo hello');
-    expect((session as unknown as { execute: ReturnType<typeof mock> }).execute).toHaveBeenCalledWith('echo hello');
+    expect(asSessionMock(session).execute).toHaveBeenCalledWith('echo hello');
   });
 
   it('should restart session when requested', async () => {
@@ -51,7 +60,7 @@ describe('BashRouter', () => {
 
     await router.route('echo hello', true);
 
-    expect((session as unknown as { restart: ReturnType<typeof mock> }).restart).toHaveBeenCalled();
+    expect(asSessionMock(session).restart).toHaveBeenCalled();
   });
 
   it('should keep cancel propagation when restart is enabled', async () => {
@@ -104,63 +113,54 @@ describe('BashRouter', () => {
     expect(result.stderr).toContain('Task commands require LLM client and tool executor');
   });
 
-  it('should block echo redirection file writes', async () => {
+  it('should allow echo redirection file writes', async () => {
     const session = createSessionStub();
     const router = new BashRouter(session);
 
     const result = await router.route('echo "hello" > ./tmp.txt');
 
-    expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain('Direct shell-based file writes are disabled');
-    expect(result.stderr).toContain('echo');
-    expect((session as unknown as { execute: ReturnType<typeof mock> }).execute).not.toHaveBeenCalled();
+    expect(result.exitCode).toBe(0);
+    expect(asSessionMock(session).execute).toHaveBeenCalledWith('echo "hello" > ./tmp.txt');
   });
 
-  it('should block heredoc file writes', async () => {
+  it('should allow heredoc file writes', async () => {
     const session = createSessionStub();
     const router = new BashRouter(session);
 
     const result = await router.route("cat <<'EOF' > ./tmp.txt\nhello\nEOF");
 
-    expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain('Direct shell-based file writes are disabled');
-    expect(result.stderr).toContain('cat <<');
-    expect((session as unknown as { execute: ReturnType<typeof mock> }).execute).not.toHaveBeenCalled();
+    expect(result.exitCode).toBe(0);
+    expect(asSessionMock(session).execute).toHaveBeenCalledWith("cat <<'EOF' > ./tmp.txt\nhello\nEOF");
   });
 
-  it('should block sed -i file edits', async () => {
+  it('should allow sed -i file edits', async () => {
     const session = createSessionStub();
     const router = new BashRouter(session);
 
     const result = await router.route('sed -i "s/a/b/g" ./tmp.txt');
 
-    expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain('Direct shell-based file writes are disabled');
-    expect(result.stderr).toContain('sed -i');
-    expect((session as unknown as { execute: ReturnType<typeof mock> }).execute).not.toHaveBeenCalled();
+    expect(result.exitCode).toBe(0);
+    expect(asSessionMock(session).execute).toHaveBeenCalledWith('sed -i "s/a/b/g" ./tmp.txt');
   });
 
-  it('should block sed redirection file writes', async () => {
+  it('should allow sed redirection file writes', async () => {
     const session = createSessionStub();
     const router = new BashRouter(session);
 
     const result = await router.route("sed 's/a/b/g' ./tmp.txt > ./out.txt");
 
-    expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain('Direct shell-based file writes are disabled');
-    expect(result.stderr).toContain('sed');
-    expect((session as unknown as { execute: ReturnType<typeof mock> }).execute).not.toHaveBeenCalled();
+    expect(result.exitCode).toBe(0);
+    expect(asSessionMock(session).execute).toHaveBeenCalledWith("sed 's/a/b/g' ./tmp.txt > ./out.txt");
   });
 
-  it('should block disallowed writes inside bash wrapper command', async () => {
+  it('should allow writes inside bash wrapper command', async () => {
     const session = createSessionStub();
     const router = new BashRouter(session);
 
     const result = await router.route('bash echo "hello" > ./tmp.txt');
 
-    expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain('Direct shell-based file writes are disabled');
-    expect((session as unknown as { execute: ReturnType<typeof mock> }).execute).not.toHaveBeenCalled();
+    expect(result.exitCode).toBe(0);
+    expect(asSessionMock(session).execute).toHaveBeenCalledWith('echo "hello" > ./tmp.txt');
   });
 
   it('should still allow write agent command', async () => {
