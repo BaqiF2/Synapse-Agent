@@ -1131,4 +1131,37 @@ describe('AgentRunner with Session', () => {
     );
     expect(persistedDangling).toBe(false);
   });
+
+  it('should sanitize malformed tool-call arguments before next iteration', async () => {
+    const client = createMockClient([
+      [
+        { type: 'tool_call', id: 'bad-call-1', name: 'Bash', input: {} },
+        { type: 'tool_call_delta', argumentsDelta: '{"command":"echo "oops""}' },
+      ],
+      [{ type: 'text', text: 'Recovered response' }],
+    ]);
+    const toolset = new CallableToolset([createMockCallableTool(() =>
+      Promise.resolve(ToolOk({ output: '' }))
+    )]);
+
+    const runner = new AgentRunner({
+      client,
+      systemPrompt: 'Test',
+      toolset,
+      sessionsDir: testDir,
+      enableStopHooks: false,
+    });
+
+    const response = await runner.run('Recover from malformed tool args');
+    expect(response).toBe('Recovered response');
+
+    const history = runner.getHistory();
+    const hasAssistantToolCalls = history.some(
+      (message) => message.role === 'assistant' && (message.toolCalls?.length ?? 0) > 0
+    );
+    const hasToolMessages = history.some((message) => message.role === 'tool');
+
+    expect(hasAssistantToolCalls).toBe(false);
+    expect(hasToolMessages).toBe(false);
+  });
 });

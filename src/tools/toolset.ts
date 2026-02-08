@@ -68,7 +68,25 @@ export class CallableToolset implements Toolset {
       }));
     }
 
-    const args = JSON.parse(toolCall.arguments);
+    let args: unknown;
+    try {
+      args = JSON.parse(toolCall.arguments);
+    } catch (error) {
+      const parseError = error instanceof Error ? error.message : String(error);
+      return asCancelablePromise(Promise.resolve({
+        toolCallId: toolCall.id,
+        returnValue: ToolError({
+          message: `Invalid parameters: tool arguments must be valid JSON. Parse error: ${parseError}`,
+          brief: 'Invalid parameters',
+          extras: {
+            failureCategory: TOOL_FAILURE_CATEGORIES.invalidUsage,
+            toolName: toolCall.name,
+            parseError,
+          },
+        }),
+      }));
+    }
+
     const toolPromise = tool.call(args);
     const resultPromise: CancelablePromise<ToolResult> = asCancelablePromise(toolPromise.then((returnValue) => ({
       toolCallId: toolCall.id,

@@ -55,6 +55,33 @@ function prependSkillSearchInstruction(userMessage: string): string {
   return `${SKILL_SEARCH_INSTRUCTION_PREFIX}\n\nOriginal user request:\n${userMessage}`;
 }
 
+function isObjectJsonString(value: string): boolean {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return false;
+  }
+
+  try {
+    const parsed = JSON.parse(trimmed);
+    return Boolean(parsed) && typeof parsed === 'object' && !Array.isArray(parsed);
+  } catch {
+    return false;
+  }
+}
+
+function hasMalformedToolArguments(message: Message): boolean {
+  if (message.role !== 'assistant') {
+    return false;
+  }
+
+  const toolCalls = message.toolCalls ?? [];
+  if (toolCalls.length === 0) {
+    return false;
+  }
+
+  return toolCalls.some((toolCall) => !isObjectJsonString(toolCall.arguments));
+}
+
 function sanitizeToolProtocolHistory(messages: readonly Message[]): { sanitized: Message[]; changed: boolean } {
   const sanitized: Message[] = [];
   let changed = false;
@@ -67,6 +94,17 @@ function sanitizeToolProtocolHistory(messages: readonly Message[]): { sanitized:
     }
 
     if (message.role === 'assistant' && (message.toolCalls?.length ?? 0) > 0) {
+      // Malformed tool arguments cannot be replayed back to Anthropic safely.
+      if (hasMalformedToolArguments(message)) {
+        changed = true;
+        index += 1;
+        while (index < messages.length && messages[index]?.role === 'tool') {
+          changed = true;
+          index += 1;
+        }
+        continue;
+      }
+
       const expectedToolCallIds = new Set((message.toolCalls ?? []).map((call) => call.id));
       const matchedToolCallIds = new Set<string>();
       const toolMessages: Message[] = [];
@@ -326,6 +364,31 @@ export class AgentRunner {
     this.sessionInitialized = true;
   }
 
+  private async sanitizeHistoryForToolProtocol(
+    stage: 'before run' | 'before step'
+  ): Promise<void> {
+    const { sanitized, changed } = sanitizeToolProtocolHistory(this.history);
+    if (!changed) {
+      return;
+    }
+
+    const beforeCount = this.history.length;
+    this.history = sanitized;
+
+    if (this.session) {
+      await this.session.clear({ resetUsage: false });
+      if (this.history.length > 0) {
+        await this.session.appendMessage(this.history);
+      }
+    }
+
+    logger.warn('Sanitized dangling or malformed tool-call history', {
+      stage,
+      beforeCount,
+      afterCount: this.history.length,
+    });
+  }
+
   /**
    * Run the Agent Loop for a user message
    *
@@ -342,24 +405,8 @@ export class AgentRunner {
     await this.initHooks();
     throwIfAborted(signal);
 
-    // Recover from interrupted runs that may have left dangling tool_call history.
-    const { sanitized, changed } = sanitizeToolProtocolHistory(this.history);
-    if (changed) {
-      const beforeCount = this.history.length;
-      this.history = sanitized;
-
-      if (this.session) {
-        await this.session.clear({ resetUsage: false });
-        if (this.history.length > 0) {
-          await this.session.appendMessage(this.history);
-        }
-      }
-
-      logger.warn('Sanitized dangling tool-call history before run', {
-        beforeCount,
-        afterCount: this.history.length,
-      });
-    }
+    // Recover from interrupted runs that may have left dangling/malformed tool_call history.
+    await this.sanitizeHistoryForToolProtocol('before run');
     throwIfAborted(signal);
 
     // 添加用户消息到聊天历史中
@@ -379,6 +426,7 @@ export class AgentRunner {
     let completedNormally = false;
 
     while (iteration < this.maxIterations) {
+      await this.sanitizeHistoryForToolProtocol('before step');
       throwIfAborted(signal);
 
       // 循环的次数

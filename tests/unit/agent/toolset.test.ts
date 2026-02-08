@@ -58,6 +58,28 @@ describe('SimpleToolset', () => {
     expect(result.returnValue.message).toContain('CORRECTION');
   });
 
+  it('should classify malformed JSON arguments as invalid usage', async () => {
+    const handler = mock(() =>
+      Promise.resolve(ToolOk({ output: 'success' }))
+    );
+    const toolset = new CallableToolset([createMockCallableTool(handler)]);
+
+    const toolCall: ToolCall = {
+      id: 'call-bad-json',
+      name: 'Bash',
+      arguments: '{"command": "echo "oops""}',
+    };
+    const result = await toolset.handle(toolCall);
+
+    expect(result.toolCallId).toBe('call-bad-json');
+    expect(result.returnValue.isError).toBe(true);
+    expect(result.returnValue.message).toContain('Invalid parameters');
+    expect(result.returnValue.extras).toEqual(
+      expect.objectContaining({ failureCategory: 'invalid_usage' })
+    );
+    expect(handler).not.toHaveBeenCalled();
+  });
+
   it('should preserve cancel method from tool promise', async () => {
     const cancel = mock(() => {});
     const handler = mock(() => {
