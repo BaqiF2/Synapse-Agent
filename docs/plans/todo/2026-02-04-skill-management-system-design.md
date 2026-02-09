@@ -46,15 +46,21 @@
 
 ```
 src/skills/
-├── skill-loader.ts       # 现有：技能加载
-├── indexer.ts            # 现有：技能索引（复用 SkillIndexer）
-├── skill-search.ts       # 现有：技能搜索
-├── skill-manager.ts      # 新增：版本管理、导入、删除
-├── skill-merger.ts       # 新增：去重、融合
-└── types.ts              # 新增：类型定义
+├── skill-loader.ts           # 现有：渐进式技能加载（Level1/Level2），含搜索 searchLevel1()
+├── indexer.ts                # 现有：技能索引扫描与管理（SkillIndexer）
+├── skill-schema.ts           # 现有：SKILL.md 解析（SkillDocParser, parseSkillMd, SKILL_DOMAINS）
+├── skill-generator.ts        # 现有：技能生成与更新（SkillGenerator, SkillSpec）
+├── skill-enhancer.ts         # 现有：对话分析与技能增强（SkillEnhancer, EnhanceDecision）
+├── conversation-reader.ts    # 现有：对话历史读取（ConversationReader）
+├── index-updater.ts          # 现有：SkillIndexer 的向后兼容别名
+├── meta-skill-installer.ts   # 现有：元技能安装器（MetaSkillInstaller）
+├── index.ts                  # 现有：模块统一导出
+├── skill-manager.ts          # 新增：版本管理、导入、删除
+├── skill-merger.ts           # 新增：去重、融合
+└── types.ts                  # 新增：类型定义
 
 src/tools/handlers/
-└── skill-command-handler.ts  # 扩展：添加新命令处理
+└── skill-command-handler.ts  # 扩展：添加新命令处理（当前仅支持 skill:load）
 ```
 
 ---
@@ -85,7 +91,8 @@ interface SkillMeta extends SkillIndexEntry {
 }
 ```
 
-注：`SkillIndexEntry` 来自现有的 `src/skills/indexer.ts`，包含 name、title、description、tags、tools 等字段。
+注：`SkillIndexEntry` 来自现有的 `src/skills/indexer.ts`，包含以下字段：
+`name`, `title`, `domain`, `description`, `version`, `tags`, `author`, `tools`, `scriptCount`, `path`, `hasSkillMd`, `lastModified`。
 
 ### ImportResult
 
@@ -146,7 +153,8 @@ interface MergeCandidate {
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                      BashRouter                                  │
-│  identifyCommandType() → SKILL_MANAGEMENT_COMMAND_PREFIXES      │
+│  handlerRegistry.registerHandler('skill:', ...)                  │
+│  findHandler() 匹配 → SkillCommandHandler.execute() 内部路由    │
 └────────────────────────────┬────────────────────────────────────┘
                              ↓
 ┌─────────────────────────────────────────────────────────────────┐
@@ -181,6 +189,25 @@ interface MergeCandidate {
 ```typescript
 // src/tools/handlers/skill-command-handler.ts
 
+/**
+ * SkillCommandHandler 配置选项（扩展现有 SkillCommandHandlerOptions）
+ *
+ * 现有：homeDir?: string
+ * 新增：subAgentManager 相关依赖（参考 TaskCommandHandler 的模式）
+ */
+export interface SkillCommandHandlerOptions {
+  homeDir?: string;
+  /** LLM 客户端（用于 SkillMerger 创建 SubAgentManager） */
+  llmClient?: LLMClient;
+  /** BashTool 实例（用于 SubAgentManager 创建受限 Toolset） */
+  toolExecutor?: BashTool;
+  /** SubAgent 回调 */
+  onSubAgentToolStart?: (event: SubAgentToolCallEvent) => void;
+  onSubAgentToolEnd?: (event: ToolResultEvent) => void;
+  onSubAgentComplete?: (event: SubAgentCompleteEvent) => void;
+  onSubAgentUsage?: OnUsage;
+}
+
 export class SkillCommandHandler {
   private skillLoader: SkillLoader;
   private skillManager: SkillManager;
@@ -192,9 +219,33 @@ export class SkillCommandHandler {
     this.skillLoader = new SkillLoader(homeDir);
 
     // 初始化 SkillManager 及其依赖
+    // 注意：SkillMerger 需要 SubAgentManager，参考 BashRouter.createTaskHandler() 模式
+    // 从 BashRouterOptions 中传递 llmClient 和 toolExecutor
     const indexer = new SkillIndexer(homeDir);
-    const merger = new SkillMerger(options.subAgentManager);
+    const merger = this.createMerger(options);
     this.skillManager = new SkillManager(skillsDir, indexer, merger);
+  }
+
+  /**
+   * 创建 SkillMerger（参考 BashRouter.createTaskHandler() 的依赖传递模式）
+   * 当缺少 llmClient 或 toolExecutor 时，merger 将以降级模式运行（跳过相似检测）
+   */
+  private createMerger(options: SkillCommandHandlerOptions): SkillMerger {
+    if (!options.llmClient || !options.toolExecutor) {
+      // 降级模式：无法执行 SubAgent 调用
+      return new SkillMerger(null);
+    }
+
+    const subAgentManager = new SubAgentManager({
+      client: options.llmClient,
+      bashTool: options.toolExecutor,
+      onToolStart: options.onSubAgentToolStart,
+      onToolEnd: options.onSubAgentToolEnd,
+      onComplete: options.onSubAgentComplete,
+      onUsage: options.onSubAgentUsage,
+    });
+
+    return new SkillMerger(subAgentManager);
   }
 
   async execute(command: string): Promise<CommandResult> {
@@ -629,9 +680,9 @@ export class SkillManager {
 // src/skills/skill-merger.ts
 
 export class SkillMerger {
-  private subAgentManager: SubAgentManager;
+  private subAgentManager: SubAgentManager | null;
 
-  constructor(subAgentManager: SubAgentManager) {
+  constructor(subAgentManager: SubAgentManager | null) {
     this.subAgentManager = subAgentManager;
   }
 
@@ -640,17 +691,18 @@ export class SkillMerger {
    * 通过 skill sub agent 进行语义分析
    */
   async findSimilar(skillContent: string, existingSkills: SkillMeta[]): Promise<MergeCandidate[]> {
-    if (existingSkills.length === 0) {
+    if (!this.subAgentManager || existingSkills.length === 0) {
       return [];
     }
 
     // 构建提示词
     const prompt = this.buildSimilarityPrompt(skillContent, existingSkills);
 
-    // 调用 skill sub agent 分析
+    // 调用 skill sub agent 分析（使用 search action：纯文本推理，无工具权限）
     const result = await this.subAgentManager.execute('skill', {
       prompt,
       description: 'Analyze skill similarity',
+      action: 'search',
     });
 
     // 解析结果
@@ -662,13 +714,18 @@ export class SkillMerger {
    * 复用技能增强机制
    */
   async merge(sourcePath: string, targetName: string): Promise<void> {
+    if (!this.subAgentManager) {
+      throw new Error('SubAgentManager is required for skill merging');
+    }
+
     // 构建融合提示词
     const prompt = this.buildMergePrompt(sourcePath, targetName);
 
-    // 调用 skill sub agent 执行融合（使用技能增强机制）
+    // 调用 skill sub agent 执行融合（使用 enhance action：允许文件操作）
     await this.subAgentManager.execute('skill', {
       prompt,
       description: 'Merge similar skills',
+      action: 'enhance',
     });
   }
 
@@ -722,17 +779,63 @@ Use the skill enhancement mechanism to update "${targetName}" with the merged co
 
 ### 命令注册
 
-在 `src/tools/bash-router.ts` 中扩展命令前缀列表：
+在 `src/tools/bash-router.ts` 中扩展命令注册，将现有的 `skill:load` 注册改为统一的 `skill:` 前缀：
 
 ```typescript
-const SKILL_MANAGEMENT_COMMAND_PREFIXES = [
-  'skill:load',
-  'skill:list',
-  'skill:info',
-  'skill:import',
-  'skill:rollback',
-  'skill:delete',
-] as const;
+// BashRouter.registerBuiltinHandlers() 中修改注册方式
+// 现有：registerHandler('skill:load', ..., 'prefix', () => this.createSkillHandler())
+// 改为：注册更通用的前缀，所有 skill:* 管理命令由 SkillCommandHandler 内部路由
+
+// 方案 B（推荐）：统一 skill: 前缀，SkillCommandHandler 内部路由
+// 需要同时修改 findHandler() 中对 skill: 的特殊处理逻辑：
+// - skill:name:tool（三段式）→ SkillToolHandler（Extend Shell）
+// - skill:load/list/info/import/rollback/delete → SkillCommandHandler（Agent Shell）
+// - 其他 skill:xxx → 兜底到 SkillCommandHandler 返回错误
+
+private registerBuiltinHandlers(): void {
+  // ... 其他注册不变 ...
+
+  // Agent Shell — skill 管理命令
+  // 注意：注册 'skill:' 前缀但在 findHandler() 中需要特殊处理
+  // 以避免与 SkillToolHandler（三段式 skill:name:tool）冲突
+  this.registerHandler('skill:', CommandType.AGENT_SHELL_COMMAND, null, 'prefix',
+    () => this.createSkillHandler());
+
+  // Extend Shell — skill tool（三段式 skill:name:tool）
+  // findHandler() 会优先匹配三段式到此 handler
+  this.registerHandler('skill:', CommandType.EXTEND_SHELL_COMMAND,
+    new SkillToolHandler(), 'prefix');
+}
+
+// findHandler() 中的匹配逻辑修改：
+private findHandler(trimmed: string): HandlerEntry | null {
+  // 对 skill: 命令的判断顺序：
+  // 1. skill:name:tool（三段式）→ SkillToolHandler（Extend Shell）
+  // 2. skill:load|list|info|import|rollback|delete → SkillCommandHandler（Agent Shell）
+  // 实现方式：维持当前 isSkillToolCommand() 检查，三段式走 Extend Shell，
+  // 非三段式的 skill:* 走 Agent Shell（SkillCommandHandler 内部路由子命令）
+}
+```
+
+注意：`BashRouter.createSkillHandler()` 需要同步修改，传递 `llmClient` 和 `toolExecutor` 等依赖，
+参考现有的 `createTaskHandler()` 方法。具体见上方 SkillCommandHandler 构造函数的修改说明。
+
+```typescript
+/** 创建 SkillCommandHandler（惰性，参考 createTaskHandler 的依赖传递模式） */
+private createSkillHandler(): SkillCommandHandler {
+  const { llmClient, toolExecutor, onSubAgentToolStart, onSubAgentToolEnd,
+          onSubAgentComplete, onSubAgentUsage } = this.options;
+
+  return new SkillCommandHandler({
+    homeDir: path.dirname(this.options.synapseDir ?? DEFAULT_SYNAPSE_DIR),
+    llmClient,
+    toolExecutor,
+    onSubAgentToolStart,
+    onSubAgentToolEnd,
+    onSubAgentComplete,
+    onSubAgentUsage,
+  });
+}
 ```
 
 ### 命令说明
@@ -1008,6 +1111,44 @@ skill:delete - 删除技能及所有版本历史
 35. **SubAgent 返回格式异常** → 验证 parseSimilarityResult 返回空数组，继续导入
 36. **导入中途单个技能失败** → 验证已成功的技能保留，失败的记录到 skipped
 37. **批量导入部分成功** → 验证 imported 和 skipped 各自正确记录
+
+---
+
+## 与现有模块的关系
+
+### 组件职责划分
+
+| 组件 | 职责 | 触发方式 |
+|------|------|----------|
+| **SkillManager** (新增) | 版本管理、导入、删除 | 用户通过 skill:* 命令主动操作 |
+| **SkillMerger** (新增) | 语义相似检测、技能融合 | SkillManager 导入时调用 |
+| **SkillLoader** (现有) | 渐进式技能加载（Level1/Level2）、搜索 | SkillCommandHandler 的 skill:load 命令 |
+| **SkillIndexer** (现有) | 索引扫描、增量更新、删除 | SkillManager 导入/删除/回滚后更新索引 |
+| **SkillEnhancer** (现有) | 对话分析、自动技能增强 | Agent 退出循环时的 hook 自动触发 |
+| **SkillGenerator** (现有) | 生成/更新 SKILL.md 文件 | SkillEnhancer 增强时调用 |
+| **ConversationReader** (现有) | 读取对话历史 | SkillEnhancer 分析时调用 |
+| **MetaSkillInstaller** (现有) | 安装内置元技能 | Agent 初始化时检查并安装 |
+
+### SkillMerger vs SkillEnhancer
+
+- **SkillEnhancer**：自动模式。在 Agent 退出循环时由 hook 触发，分析对话历史决定是否创建/增强技能。内部使用 `SkillGenerator` 生成 SKILL.md。
+- **SkillMerger**：用户主动模式。在 `skill:import` 导入时检测相似技能，通过 SubAgent 执行语义分析和融合。不直接调用 SkillEnhancer。
+
+### SkillManager vs SkillLoader
+
+- **SkillLoader**：读取层。加载技能内容（Level1 元数据 / Level2 完整文档），提供缓存和搜索。
+- **SkillManager**：管理层。处理技能的生命周期操作（版本创建、回滚、导入、删除），操作完成后通过 SkillIndexer 更新索引。
+
+### 依赖关系图
+
+```
+SkillCommandHandler
+├── SkillLoader          # 处理 skill:load 命令
+└── SkillManager         # 处理 skill:list/info/import/rollback/delete 命令
+    ├── SkillIndexer     # 索引管理（rebuild/updateSkill/removeSkill）
+    └── SkillMerger      # 导入时的相似检测与融合
+        └── SubAgentManager (可选)  # 调用 skill SubAgent 分析
+```
 
 ---
 
