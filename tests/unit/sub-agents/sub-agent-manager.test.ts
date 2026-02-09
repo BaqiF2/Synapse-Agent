@@ -1,4 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import { SubAgentManager } from '../../../src/sub-agents/sub-agent-manager.ts';
 import { BashTool } from '../../../src/tools/bash-tool.ts';
 import type { AnthropicClient } from '../../../src/providers/anthropic/anthropic-client.ts';
@@ -84,13 +87,41 @@ function createPromptCaptureClient(capture: { userText?: string }): AnthropicCli
 
 describe('SubAgentManager', () => {
   let bashTool: BashTool;
+  let tempSynapseHome: string;
+  const previousSynapseHome = process.env.SYNAPSE_HOME;
 
   beforeEach(() => {
+    tempSynapseHome = fs.mkdtempSync(path.join(os.tmpdir(), 'synapse-sub-agent-test-'));
+    process.env.SYNAPSE_HOME = tempSynapseHome;
+    fs.writeFileSync(
+      path.join(tempSynapseHome, 'sandbox.json'),
+      JSON.stringify({
+        enabled: false,
+        provider: 'local',
+        policy: {
+          filesystem: {
+            whitelist: [],
+            blacklist: [],
+          },
+          network: {
+            allowNetwork: false,
+          },
+        },
+        providerOptions: {},
+      }),
+      'utf-8'
+    );
     bashTool = new BashTool();
   });
 
   afterEach(() => {
     bashTool.cleanup();
+    if (previousSynapseHome === undefined) {
+      delete process.env.SYNAPSE_HOME;
+    } else {
+      process.env.SYNAPSE_HOME = previousSynapseHome;
+    }
+    fs.rmSync(tempSynapseHome, { recursive: true, force: true });
   });
 
   it('should execute task successfully', async () => {

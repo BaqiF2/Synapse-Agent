@@ -37,6 +37,9 @@ import type {
   SubAgentCompleteEvent,
   SubAgentToolCallEvent,
 } from '../cli/terminal-renderer-types.ts';
+import { addPermanentWhitelist, loadSandboxConfig } from '../sandbox/sandbox-config.ts';
+import { SandboxManager } from '../sandbox/sandbox-manager.ts';
+import type { ExecuteResult } from '../sandbox/types.ts';
 
 const COMMAND_TIMEOUT_MARKER = 'Command execution timeout';
 const BASH_TOOL_MISUSE_REGEX = /^Bash(?:\s|\(|$)/;
@@ -78,6 +81,8 @@ export interface BashToolOptions {
   onSubAgentComplete?: (event: SubAgentCompleteEvent) => void;
   /** SubAgent usage 回调 */
   onSubAgentUsage?: OnUsage;
+  /** 测试或外部注入的 SandboxManager */
+  sandboxManager?: SandboxManager;
 }
 
 /**
@@ -93,6 +98,7 @@ export class BashTool extends CallableTool<BashToolParams> {
   private readonly optionsSnapshot: BashToolOptions;
   private session: BashSession;
   private router: BashRouter;
+  private readonly sandboxManager: SandboxManager;
 
   constructor(options: BashToolOptions = {}) {
     super();
@@ -100,8 +106,10 @@ export class BashTool extends CallableTool<BashToolParams> {
     this.description = loadDesc(path.join(import.meta.dirname, 'bash-tool.md'));
 
     this.session = new BashSession();
+    this.sandboxManager = options.sandboxManager ?? new SandboxManager(loadSandboxConfig());
     this.router = new BashRouter(this.session, {
       llmClient: options.llmClient,
+      sandboxManager: this.sandboxManager,
       getConversationPath: options.getConversationPath,
       onSubAgentToolStart: options.onSubAgentToolStart,
       onSubAgentToolEnd: options.onSubAgentToolEnd,
@@ -137,6 +145,19 @@ export class BashTool extends CallableTool<BashToolParams> {
     const routePromise = this.router.route(command, restart);
     const resultPromise: CancelablePromise<ToolReturnValue> = asCancelablePromise(routePromise
       .then(async (result) => {
+        if (result.blocked) {
+          return ToolOk({
+            output: '',
+            message: result.blockedReason ?? 'Sandbox blocked command execution',
+            brief: 'Sandbox blocked',
+            extras: {
+              type: 'sandbox_blocked',
+              resource: result.blockedResource,
+              blockedReason: result.blockedReason,
+            },
+          });
+        }
+
         const timeoutDetected = result.stderr.includes(COMMAND_TIMEOUT_MARKER);
 
         if (timeoutDetected) {
@@ -220,6 +241,10 @@ export class BashTool extends CallableTool<BashToolParams> {
     return this.session;
   }
 
+  getSandboxManager(): SandboxManager {
+    return this.sandboxManager;
+  }
+
   /**
    * Restart the Bash session
    */
@@ -227,19 +252,41 @@ export class BashTool extends CallableTool<BashToolParams> {
     await this.session.restart();
   }
 
+  async executeUnsandboxed(command: string, cwd: string = process.cwd()): Promise<ExecuteResult> {
+    return this.sandboxManager.executeUnsandboxed(command, cwd);
+  }
+
+  async allowSession(resourcePath: string, cwd: string = process.cwd()): Promise<void> {
+    await this.sandboxManager.addRuntimeWhitelist(resourcePath, cwd);
+  }
+
+  async allowPermanent(resourcePath: string, cwd: string = process.cwd()): Promise<void> {
+    addPermanentWhitelist(resourcePath);
+    await this.allowSession(resourcePath, cwd);
+  }
+
+  async dispose(): Promise<void> {
+    await this.sandboxManager.shutdown();
+    this.router.shutdown();
+    this.session.cleanup();
+  }
+
   /**
    * Cleanup resources
    */
   cleanup(): void {
-    this.session.cleanup();
+    void this.dispose();
   }
 
   /**
    * Create a new BashTool instance with an isolated BashSession.
    */
   createIsolatedCopy(overrides: Partial<BashToolOptions> = {}): BashTool {
+    const baseOptions: BashToolOptions = { ...this.optionsSnapshot };
+    delete baseOptions.sandboxManager;
+
     return new BashTool({
-      ...this.optionsSnapshot,
+      ...baseOptions,
       ...overrides,
     });
   }

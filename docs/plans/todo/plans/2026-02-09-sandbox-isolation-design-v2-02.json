@@ -1,0 +1,344 @@
+[
+  {
+    "category": "functional",
+    "prd": "2026-02-09-sandbox-isolation-design-v2.md#bashtool-改造",
+    "description": "BashTool 集成 — 创建 SandboxManager、检测 blocked 标记、资源清理",
+    "bdd": [
+      {
+        "title": "BashTool 构造时加载沙盒配置并创建 SandboxManager",
+        "description": "BashTool 初始化时完成沙盒基础设施准备",
+        "steps": [
+          "创建 BashTool()",
+          "检查内部 sandboxManager 是否存在",
+          "检查 BashRouter 是否接收了 sandboxManager"
+        ],
+        "expected": "sandboxManager 已创建，BashRouter 持有 sandboxManager 引用"
+      },
+      {
+        "title": "工具调用返回 blocked 时返回 sandbox_blocked 标记",
+        "description": "沙盒拦截的命令返回特殊结果类型",
+        "steps": [
+          "Mock SandboxBackend.execute 返回 { blocked: true, blockedReason: 'deny file-read', blockedResource: '~/.ssh/id_rsa' }",
+          "调用 BashTool.execute({ command: 'cat ~/.ssh/id_rsa' })"
+        ],
+        "expected": "返回 ToolResult 包含 type='sandbox_blocked'、message='deny file-read'、resource='~/.ssh/id_rsa'"
+      },
+      {
+        "title": "正常命令返回标准结果",
+        "description": "无 blocked 时按原有格式返回",
+        "steps": [
+          "Mock SandboxBackend.execute 返回 { blocked: false, stdout: 'hello', exitCode: 0 }",
+          "调用 BashTool.execute({ command: 'echo hello' })"
+        ],
+        "expected": "返回标准 ToolResult，包含 stdout 和 exitCode"
+      },
+      {
+        "title": "dispose 调用 SandboxManager.shutdown",
+        "description": "BashTool 销毁时清理沙盒资源",
+        "steps": [
+          "创建 BashTool",
+          "调用 dispose()",
+          "检查 SandboxManager.shutdown() 是否被调用"
+        ],
+        "expected": "SandboxManager.shutdown() 被调用一次"
+      }
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-09-sandbox-isolation-design-v2.md#bashrouter-改造",
+    "description": "BashRouter 集成 — 仅原生命令路由走沙盒，Agent/Extension 命令不受影响",
+    "bdd": [
+      {
+        "title": "Agent Shell Command 不走沙盒",
+        "description": "read/write/edit 等 Agent 命令继续走原有 Handler",
+        "steps": [
+          "调用 BashRouter.route('read /path/to/file')",
+          "检查是否走 Agent Shell Command Handler"
+        ],
+        "expected": "命令被路由到 Agent Shell Command Handler，不经过 SandboxManager"
+      },
+      {
+        "title": "Extension Command 不走沙盒",
+        "description": "mcp/skill 等扩展命令继续走原有 Handler",
+        "steps": [
+          "调用 BashRouter.route('mcp:tool-name args')",
+          "检查是否走 Extension Handler"
+        ],
+        "expected": "命令被路由到 Extension Handler，不经过 SandboxManager"
+      },
+      {
+        "title": "原生命令路由到 SandboxManager",
+        "description": "ls、git、npm 等原生命令走沙盒执行",
+        "steps": [
+          "调用 BashRouter.route('npm test')",
+          "检查 SandboxManager.getSandbox() 是否被调用"
+        ],
+        "expected": "SandboxManager.getSandbox() 被调用，命令通过 Backend.execute() 执行"
+      }
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-09-sandbox-isolation-design-v2.md#agentrunner-拦截处理",
+    "description": "AgentRunner 拦截处理 — sandbox_blocked 中断循环并向用户申请授权",
+    "bdd": [
+      {
+        "title": "sandbox_blocked 中断 Agent 循环返回 requires_permission",
+        "description": "沙盒拦截触发权限申请流程",
+        "steps": [
+          "Mock BashTool.execute 返回 { type: 'sandbox_blocked', message: 'deny file-read', resource: '~/.ssh/id_rsa' }",
+          "调用 AgentRunner.step()"
+        ],
+        "expected": "step() 返回 { status: 'requires_permission', permission: { type: 'sandbox_access', resource: '~/.ssh/id_rsa', options: ['allow_once', 'allow_session', 'allow_permanent', 'deny'] } }"
+      },
+      {
+        "title": "用户选择 allow_once 时临时在沙盒外执行",
+        "description": "单次绕过沙盒执行被拦截的命令",
+        "steps": [
+          "触发 sandbox_blocked",
+          "用户选择 allow_once",
+          "检查命令执行路径"
+        ],
+        "expected": "命令通过 SandboxManager 的无沙盒路径执行，不修改白名单 (Default assumption: SandboxManager 提供 executeUnsandboxed() 方法)"
+      },
+      {
+        "title": "用户选择 allow_session 时添加运行时白名单",
+        "description": "会话级授权并重建沙盒",
+        "steps": [
+          "触发 sandbox_blocked（resource='~/.ssh'）",
+          "用户选择 allow_session",
+          "检查 SandboxManager.addRuntimeWhitelist 是否被调用",
+          "命令重试"
+        ],
+        "expected": "addRuntimeWhitelist('~/.ssh') 被调用，沙盒重建后命令重试成功"
+      },
+      {
+        "title": "用户选择 allow_permanent 时写入 sandbox.json",
+        "description": "永久授权并重建沙盒",
+        "steps": [
+          "触发 sandbox_blocked（resource='~/.ssh'）",
+          "用户选择 allow_permanent",
+          "检查 sandbox.json 是否被更新",
+          "沙盒重建后命令重试"
+        ],
+        "expected": "sandbox.json 的 whitelist 中新增 '~/.ssh'，沙盒重建后命令重试成功"
+      },
+      {
+        "title": "用户选择 deny 时将拒绝信息返回给 Agent",
+        "description": "拒绝后 Agent 继续循环但收到拒绝反馈",
+        "steps": [
+          "触发 sandbox_blocked",
+          "用户选择 deny",
+          "检查 Agent 收到的消息"
+        ],
+        "expected": "Agent 收到拒绝信息（如 'User denied access to ~/.ssh/id_rsa'），循环继续"
+      }
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-09-sandbox-isolation-design-v2.md#安全层关系",
+    "description": "安全层串联 — RestrictedBashTool 字符串检查 + SandboxBackend OS 级检查",
+    "bdd": [
+      {
+        "title": "RestrictedBashTool 黑名单先于沙盒检查执行",
+        "description": "命令字符串级检查在 OS 级检查之前",
+        "steps": [
+          "SubAgent 场景下调用 RestrictedBashTool.execute('rm -rf /')",
+          "检查是否到达 SandboxBackend.execute()"
+        ],
+        "expected": "RestrictedBashTool 直接返回 ToolError，不到达 SandboxBackend"
+      },
+      {
+        "title": "RestrictedBashTool 通过后交由沙盒检查",
+        "description": "字符串检查通过后命令进入沙盒执行",
+        "steps": [
+          "SubAgent 场景下调用 RestrictedBashTool.execute('cat /etc/passwd')",
+          "RestrictedBashTool 字符串检查通过",
+          "检查命令是否到达 SandboxBackend"
+        ],
+        "expected": "命令到达 SandboxBackend.execute()，由 OS 级沙盒做实际访问控制"
+      }
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-09-sandbox-isolation-design-v2.md#错误处理",
+    "description": "错误处理策略 — 创建失败、命令超时、沙盒崩溃等场景的行为定义",
+    "bdd": [
+      {
+        "title": "沙盒创建失败（如 sandbox-exec 不可用）抛异常终止启动",
+        "description": "不降级运行",
+        "steps": [
+          "Mock Provider.create() 抛出 Error('sandbox-exec not found')",
+          "调用 SandboxManager.getSandbox()"
+        ],
+        "expected": "异常向上传播，程序终止，不降级为无沙盒模式"
+      },
+      {
+        "title": "命令超时透传 BashSession 现有机制",
+        "description": "沙盒层不改变超时行为",
+        "steps": [
+          "设置命令超时为 5 秒",
+          "在沙盒内执行 sleep 10",
+          "等待超时"
+        ],
+        "expected": "BashSession 超时机制正常触发，结果透传到 SandboxManager"
+      },
+      {
+        "title": "沙盒进程意外退出时自动重建",
+        "description": "崩溃恢复",
+        "steps": [
+          "初始化沙盒 Backend",
+          "模拟沙盒进程崩溃（BashSession 进程退出）",
+          "下一次 execute() 调用"
+        ],
+        "expected": "SandboxManager 检测到崩溃，调用 rebuildSandbox() 创建新实例，保留运行时白名单"
+      },
+      {
+        "title": "不支持的平台抛异常终止启动",
+        "description": "Windows 等平台不静默降级",
+        "steps": [
+          "Mock process.platform 为 'win32'",
+          "调用 getPlatformAdapter()"
+        ],
+        "expected": "抛出 Error('Sandbox not supported on platform: win32')"
+      }
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-09-sandbox-isolation-design-v2.md#状态行为",
+    "description": "状态生命周期 — cwd/环境变量持久性、重建后状态重置、白名单持久性",
+    "bdd": [
+      {
+        "title": "持久进程内 cd 在后续命令中生效",
+        "description": "沙盒内的工作目录状态持久",
+        "steps": [
+          "在沙盒中执行 'cd /tmp'",
+          "执行 'pwd'"
+        ],
+        "expected": "pwd 输出 '/tmp'"
+      },
+      {
+        "title": "持久进程内 export 在后续命令中生效",
+        "description": "沙盒内的环境变量状态持久",
+        "steps": [
+          "在沙盒中执行 'export FOO=bar'",
+          "执行 'echo $FOO'"
+        ],
+        "expected": "echo 输出 'bar'"
+      },
+      {
+        "title": "沙盒重建后 cd/export 状态重置",
+        "description": "重建创建新进程，状态不延续",
+        "steps": [
+          "在沙盒中执行 'cd /tmp && export FOO=bar'",
+          "触发沙盒重建（如 addRuntimeWhitelist）",
+          "执行 'pwd' 和 'echo $FOO'"
+        ],
+        "expected": "pwd 输出初始 cwd（非 /tmp），$FOO 为空"
+      },
+      {
+        "title": "会话级白名单进程退出后丢失",
+        "description": "运行时白名单仅存在于内存",
+        "steps": [
+          "添加运行时白名单 '/extra'",
+          "创建新的 SandboxManager 实例",
+          "检查新实例的策略"
+        ],
+        "expected": "新实例的 policy 不包含 '/extra'"
+      },
+      {
+        "title": "永久白名单写入 sandbox.json 跨会话持久",
+        "description": "永久授权持久化到配置文件",
+        "steps": [
+          "通过 allow_permanent 添加 '/extra' 到 sandbox.json",
+          "创建新的 SandboxManager 实例",
+          "检查新实例的策略"
+        ],
+        "expected": "新实例的 policy.filesystem.whitelist 包含 '/extra'"
+      }
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-09-sandbox-isolation-design-v2.md#边界情况",
+    "description": "边界情况处理 — 路径展开、黑名单优先级、子进程继承、隔离副本",
+    "bdd": [
+      {
+        "title": "白名单路径不存在时静默忽略",
+        "description": "不因路径不存在而报错",
+        "steps": [
+          "配置 whitelist 包含 '/nonexistent/path'",
+          "创建沙盒"
+        ],
+        "expected": "沙盒正常创建，不报错"
+      },
+      {
+        "title": "白名单内包含黑名单路径时黑名单优先",
+        "description": "黑名单始终禁止",
+        "steps": [
+          "配置 whitelist=['/home']、blacklist=['/home/.ssh']",
+          "创建沙盒",
+          "执行 'cat /home/.ssh/id_rsa'"
+        ],
+        "expected": "命令被拦截，blocked=true"
+      },
+      {
+        "title": "沙盒内命令 spawn 的子进程继承沙盒约束",
+        "description": "子进程不能逃逸沙盒",
+        "steps": [
+          "在沙盒中执行 'bash -c \"cat ~/.ssh/id_rsa\"'",
+          "检查结果"
+        ],
+        "expected": "子进程同样被沙盒拦截，blocked=true"
+      },
+      {
+        "title": "BashTool.createIsolatedCopy 创建独立沙盒",
+        "description": "隔离副本使用独立的 SandboxManager",
+        "steps": [
+          "调用 BashTool.createIsolatedCopy()",
+          "检查新 BashTool 的 SandboxManager"
+        ],
+        "expected": "返回新 BashTool，拥有独立的 SandboxManager 和独立的沙盒实例"
+      }
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-09-sandbox-isolation-design-v2.md#扩展指南",
+    "description": "Provider 扩展机制 — 第三方 Provider 接入注册表",
+    "bdd": [
+      {
+        "title": "第三方 Provider 通过 register 接入",
+        "description": "新 Provider 注册后可通过配置选择",
+        "steps": [
+          "实现 DaytonaSandboxProvider（SandboxProvider 接口）",
+          "调用 SandboxProviderRegistry.register('daytona', () => new DaytonaSandboxProvider())",
+          "配置 sandbox.json 中 provider='daytona'",
+          "创建 SandboxManager"
+        ],
+        "expected": "SandboxManager 使用 DaytonaSandboxProvider 创建沙盒"
+      },
+      {
+        "title": "云端沙盒 Backend 的 blocked 始终为 false",
+        "description": "云端沙盒天然隔离",
+        "steps": [
+          "实现 DaytonaSandboxBackend",
+          "执行任意命令"
+        ],
+        "expected": "execute() 返回的 blocked 始终为 false，云端沙盒不存在本地拦截场景"
+      }
+    ],
+    "passes": true
+  }
+]

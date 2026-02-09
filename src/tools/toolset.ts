@@ -27,6 +27,9 @@ export interface Toolset {
 
   /** Handle a tool call, returns result promise */
   handle(toolCall: ToolCall): CancelablePromise<ToolResult>;
+
+  /** 可选：按名称获取工具实例 */
+  getTool?(name: string): CallableTool<unknown> | undefined;
 }
 
 /**
@@ -94,5 +97,9 @@ export class CallableToolset implements Toolset {
     })), () => toolPromise.cancel?.());
 
     return resultPromise;
+  }
+
+  getTool(name: string): CallableTool<unknown> | undefined {
+    return this.toolMap.get(name);
   }
 }

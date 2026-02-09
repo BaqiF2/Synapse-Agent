@@ -8,7 +8,7 @@
  * - BashSession: Bash 会话管理类
  */
 
-import { spawn, type ChildProcess } from 'node:child_process';
+import { spawn, type ChildProcess, type SpawnOptionsWithoutStdio } from 'node:child_process';
 import type { CommandResult } from './handlers/native-command-handler.ts';
 import { parseEnvInt } from '../utils/env.ts';
 
@@ -22,6 +22,15 @@ interface PendingExecution {
   resolve: (value: { stdout: string; stderr: string; exitCode: number }) => void;
   reject: (reason: Error) => void;
   timeoutId: ReturnType<typeof setTimeout>;
+}
+
+export interface BashSessionOptions {
+  shellCommand?: string;
+  spawnProcess?: (
+    command: string,
+    args: readonly string[],
+    options: SpawnOptionsWithoutStdio & { stdio: ['pipe', 'pipe', 'pipe'] }
+  ) => ChildProcess;
 }
 
 /**
@@ -40,8 +49,18 @@ export class BashSession {
   private pendingExecution: PendingExecution | null = null;
   /** 执行锁，防止并发命令 */
   private isExecuting: boolean = false;
+  readonly shellCommand: string;
+  private readonly spawnProcess: (
+    command: string,
+    args: readonly string[],
+    options: SpawnOptionsWithoutStdio & { stdio: ['pipe', 'pipe', 'pipe'] }
+  ) => ChildProcess;
 
-  constructor() {
+  constructor(options: BashSessionOptions = {}) {
+    this.shellCommand = options.shellCommand ?? '/bin/bash';
+    this.spawnProcess = options.spawnProcess ?? ((command, args, spawnOptions) => {
+      return spawn(command, args, spawnOptions);
+    });
     this.start();
   }
 
@@ -49,10 +68,7 @@ export class BashSession {
    * 启动 Bash 进程并绑定事件监听
    */
   private start(): void {
-    this.process = spawn('/bin/bash', ['--norc', '--noprofile'], {
-      stdio: ['pipe', 'pipe', 'pipe'],
-      env: { ...process.env },
-    });
+    this.process = this.spawnShellProcess();
 
     if (!this.process.stdout || !this.process.stderr || !this.process.stdin) {
       throw new Error('Failed to create Bash process streams');
@@ -89,6 +105,22 @@ export class BashSession {
     });
 
     this.isReady = true;
+  }
+
+  private spawnShellProcess(): ChildProcess {
+    const tokens = tokenizeShellCommand(this.shellCommand);
+    const command = tokens[0];
+    if (!command) {
+      throw new Error('shellCommand must be a non-empty command');
+    }
+
+    const shellArgs = [...tokens.slice(1), '--norc', '--noprofile'];
+    const baseOptions = {
+      stdio: ['pipe', 'pipe', 'pipe'] as ['pipe', 'pipe', 'pipe'],
+      env: { ...process.env },
+    };
+
+    return this.spawnProcess(command, shellArgs, baseOptions);
   }
 
   /**
@@ -211,6 +243,13 @@ export class BashSession {
   }
 
   /**
+   * 终止会话（异步别名，便于外部统一 await）
+   */
+  async kill(): Promise<void> {
+    this.cleanupProcess();
+  }
+
+  /**
    * 终止进程并重置状态
    */
   private cleanupProcess(): void {
@@ -228,4 +267,26 @@ export class BashSession {
     this.isReady = false;
     this.isExecuting = false;
   }
+}
+
+function tokenizeShellCommand(command: string): string[] {
+  const trimmed = command.trim();
+  if (!trimmed) {
+    return [];
+  }
+
+  const matches = trimmed.match(/"([^"\\]|\\.)*"|'([^'\\]|\\.)*'|\S+/g);
+  if (!matches) {
+    return [];
+  }
+
+  return matches.map((token) => {
+    if (
+      (token.startsWith('"') && token.endsWith('"'))
+      || (token.startsWith('\'') && token.endsWith('\''))
+    ) {
+      return token.slice(1, -1);
+    }
+    return token;
+  });
 }

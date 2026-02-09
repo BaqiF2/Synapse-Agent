@@ -9,15 +9,16 @@
  */
 
 import type { LLMClient } from '../providers/llm-client.ts';
-import { type OnToolCall, type OnToolResult, step } from './step.ts';
+import { type OnToolCall, type OnToolResult, step as runAgentStep } from './step.ts';
 import { type OnMessagePart, type OnUsage } from '../providers/generate.ts';
 import {
   createTextMessage, extractText,
-  type Message, type ToolResult as MessageToolResult,
+  type Message, type ToolCall, type ToolResult as MessageToolResult,
   toolResultToMessage,
 } from '../providers/message.ts';
 import type { Toolset } from '../tools/toolset.ts';
 import { EventEmitter } from 'node:events';
+import * as path from 'node:path';
 import { createLogger } from '../utils/logger.ts';
 import { parseEnvInt, parseEnvPositiveInt } from '../utils/env.ts';
 import { Session } from './session.ts';
@@ -71,6 +72,32 @@ export interface AgentRunOptions {
   signal?: AbortSignal;
 }
 
+export type SandboxPermissionOption = 'allow_once' | 'allow_session' | 'allow_permanent' | 'deny';
+
+export interface SandboxPermissionRequest {
+  type: 'sandbox_access';
+  resource: string;
+  reason: string;
+  command: string;
+  options: SandboxPermissionOption[];
+}
+
+export type AgentRunnerStepResult =
+  | { status: 'completed'; response: string }
+  | { status: 'requires_permission'; permission: SandboxPermissionRequest };
+
+interface SandboxAwareBashTool {
+  call(args: unknown): Promise<{ output: string; message: string; extras?: Record<string, unknown> }>;
+  executeUnsandboxed(command: string, cwd?: string): Promise<{
+    stdout: string;
+    stderr: string;
+    exitCode: number;
+    blocked: boolean;
+  }>;
+  allowSession(resourcePath: string, cwd?: string): Promise<void>;
+  allowPermanent(resourcePath: string, cwd?: string): Promise<void>;
+}
+
 /**
  * AgentRunner - Agent Loop implementation using step()
  */
@@ -94,6 +121,7 @@ export class AgentRunner extends EventEmitter {
   private history: Message[] = [];
   private contextOrchestrator: ContextOrchestrator;
   private stopHookExecutor: StopHookExecutor;
+  private pendingSandboxPermission: SandboxPermissionRequest | null = null;
 
   constructor(options: AgentRunnerOptions) {
     super();
@@ -173,6 +201,75 @@ export class AgentRunner extends EventEmitter {
 
   /** Run the Agent Loop for a user message */
   async run(userMessage: string, options?: AgentRunOptions): Promise<string> {
+    const runResult = await this.runWithPotentialPermission(userMessage, options);
+    if (runResult.permissionRequest) {
+      return runResult.finalResponse;
+    }
+
+    if (runResult.completedNormally && this.stopHookExecutor.shouldExecute()) {
+      return this.stopHookExecutor.executeAndAppend(runResult.finalResponse, {
+        sessionId: this.getSessionId(), history: this.history,
+      });
+    }
+    return runResult.finalResponse;
+  }
+
+  async step(userMessage: string, options?: AgentRunOptions): Promise<AgentRunnerStepResult> {
+    const runResult = await this.runWithPotentialPermission(userMessage, options);
+    if (runResult.permissionRequest) {
+      return {
+        status: 'requires_permission',
+        permission: runResult.permissionRequest,
+      };
+    }
+
+    return {
+      status: 'completed',
+      response: runResult.finalResponse,
+    };
+  }
+
+  getPendingSandboxPermission(): SandboxPermissionRequest | null {
+    return this.pendingSandboxPermission;
+  }
+
+  async resolveSandboxPermission(option: SandboxPermissionOption): Promise<string> {
+    const pending = this.pendingSandboxPermission;
+    if (!pending) {
+      throw new Error('No pending sandbox permission request');
+    }
+
+    const bashTool = this.toolset.getTool?.('Bash') as unknown as SandboxAwareBashTool | undefined;
+    if (!bashTool) {
+      throw new Error('Bash tool is unavailable for sandbox permission handling');
+    }
+
+    const cwd = process.cwd();
+    const resourceForWhitelist = this.toWhitelistPath(pending.resource);
+    this.pendingSandboxPermission = null;
+
+    if (option === 'deny') {
+      return `User denied access to ${pending.resource}`;
+    }
+
+    if (option === 'allow_once') {
+      const result = await bashTool.executeUnsandboxed(pending.command, cwd);
+      return this.formatExecuteResult(result.stdout, result.stderr, result.exitCode);
+    }
+
+    if (option === 'allow_session') {
+      await bashTool.allowSession(resourceForWhitelist, cwd);
+      return this.retryBlockedCommand(bashTool, pending.command);
+    }
+
+    await bashTool.allowPermanent(resourceForWhitelist, cwd);
+    return this.retryBlockedCommand(bashTool, pending.command);
+  }
+
+  private async runWithPotentialPermission(
+    userMessage: string,
+    options?: AgentRunOptions
+  ): Promise<{ finalResponse: string; completedNormally: boolean; permissionRequest?: SandboxPermissionRequest }> {
     const signal = options?.signal;
     throwIfAborted(signal);
 
@@ -188,20 +285,13 @@ export class AgentRunner extends EventEmitter {
       ? prependSkillSearchInstruction(userMessage) : userMessage;
     await this.appendToHistory(createTextMessage('user', enhanced));
 
-    const { finalResponse, completedNormally } = await this.executeLoop(signal);
-
-    if (completedNormally && this.stopHookExecutor.shouldExecute()) {
-      return this.stopHookExecutor.executeAndAppend(finalResponse, {
-        sessionId: this.getSessionId(), history: this.history,
-      });
-    }
-    return finalResponse;
+    return this.executeLoop(signal);
   }
 
   // --- Private: Agent loop ---
 
   private async executeLoop(signal?: AbortSignal): Promise<{
-    finalResponse: string; completedNormally: boolean;
+    finalResponse: string; completedNormally: boolean; permissionRequest?: SandboxPermissionRequest;
   }> {
     let iteration = 0;
     let consecutiveFailures = 0;
@@ -215,7 +305,7 @@ export class AgentRunner extends EventEmitter {
       iteration++;
       logger.info('Agent loop iteration', { iteration });
 
-      const result = await step(this.client, this.systemPrompt, this.toolset, this.history, {
+      const result = await runAgentStep(this.client, this.systemPrompt, this.toolset, this.history, {
         onMessagePart: this.onMessagePart,
         onToolCall: this.onToolCall,
         onToolResult: this.onToolResult,
@@ -241,6 +331,16 @@ export class AgentRunner extends EventEmitter {
         await this.appendToHistory(toolResultToMessage(tr));
       }
 
+      const permissionRequest = this.buildSandboxPermissionRequest(result.toolCalls, toolResults);
+      if (permissionRequest) {
+        this.pendingSandboxPermission = permissionRequest;
+        return {
+          finalResponse: permissionRequest.reason,
+          completedNormally: false,
+          permissionRequest,
+        };
+      }
+
       consecutiveFailures = this.updateConsecutiveFailures(toolResults, consecutiveFailures);
       if (consecutiveFailures >= this.maxConsecutiveToolFailures) {
         return { finalResponse: 'Consecutive tool execution failures; stopping.', completedNormally: false };
@@ -251,6 +351,81 @@ export class AgentRunner extends EventEmitter {
     logger.error(stopMessage);
     await this.appendToHistory(createTextMessage('assistant', stopMessage));
     return { finalResponse: stopMessage, completedNormally: false };
+  }
+
+  private buildSandboxPermissionRequest(
+    toolCalls: ToolCall[],
+    toolResults: MessageToolResult[]
+  ): SandboxPermissionRequest | null {
+    for (const tr of toolResults) {
+      const extras = tr.returnValue.extras as Record<string, unknown> | undefined;
+      if (extras?.type !== 'sandbox_blocked') {
+        continue;
+      }
+
+      const resource = typeof extras.resource === 'string' ? extras.resource : 'unknown-resource';
+      const reason = typeof tr.returnValue.message === 'string' && tr.returnValue.message.length > 0
+        ? tr.returnValue.message
+        : 'Sandbox blocked command execution';
+      const command = this.extractCommandFromToolCall(toolCalls, tr.toolCallId);
+
+      return {
+        type: 'sandbox_access',
+        resource,
+        reason,
+        command,
+        options: ['allow_once', 'allow_session', 'allow_permanent', 'deny'],
+      };
+    }
+
+    return null;
+  }
+
+  private extractCommandFromToolCall(toolCalls: ToolCall[], toolCallId: string): string {
+    const call = toolCalls.find((item) => item.id === toolCallId);
+    if (!call || call.name !== 'Bash') {
+      return '';
+    }
+
+    try {
+      const parsed = JSON.parse(call.arguments) as { command?: unknown };
+      return typeof parsed.command === 'string' ? parsed.command : '';
+    } catch {
+      return '';
+    }
+  }
+
+  private toWhitelistPath(resource: string): string {
+    if (!resource || resource === '/' || resource.endsWith('/')) {
+      return resource;
+    }
+    return path.dirname(resource);
+  }
+
+  private async retryBlockedCommand(
+    bashTool: SandboxAwareBashTool,
+    command: string
+  ): Promise<string> {
+    const result = await bashTool.call({ command });
+    const output = [result.output, result.message].filter((item) => item && item.length > 0).join('\n\n');
+    return output || '(Command executed successfully with no output)';
+  }
+
+  private formatExecuteResult(stdout: string, stderr: string, exitCode: number): string {
+    let output = '';
+    if (stdout) {
+      output += stdout;
+    }
+    if (stderr) {
+      if (output) {
+        output += '\n\n';
+      }
+      output += `[stderr]\n${stderr}`;
+    }
+    if (!output) {
+      output = `(Command exited with code ${exitCode})`;
+    }
+    return output;
   }
 
   /** 检查是否有未完成的 todo 任务，如果有则追加提醒消息 */
