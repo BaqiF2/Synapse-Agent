@@ -6,12 +6,33 @@
 
 import { describe, test, expect, beforeAll, afterAll } from 'bun:test';
 import { BashTool } from '../../../src/tools/bash-tool.ts';
+import type { SandboxManager } from '../../../src/sandbox/sandbox-manager.ts';
 
 describe('BashTool Error Hint', () => {
   let bashTool: BashTool;
 
   beforeAll(() => {
-    bashTool = new BashTool();
+    const sandboxManager = {
+      execute: async (command: string) => {
+        if (command.startsWith('echo ')) {
+          return {
+            stdout: 'success',
+            stderr: '',
+            exitCode: 0,
+            blocked: false,
+          };
+        }
+
+        return {
+          stdout: '',
+          stderr: `/bin/sh: ${command.split(' ')[1] ?? command}: command not found`,
+          exitCode: 127,
+          blocked: false,
+        };
+      },
+      shutdown: async () => {},
+    } as unknown as SandboxManager;
+    bashTool = new BashTool({ sandboxManager });
   });
 
   afterAll(() => {

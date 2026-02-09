@@ -10,6 +10,7 @@ import { BashRouter, CommandType } from '../../../src/tools/bash-router.ts';
 import type { BashSession } from '../../../src/tools/bash-session.ts';
 import type { CancelablePromise } from '../../../src/tools/callable-tool.ts';
 import { McpClient, McpConfigParser } from '../../../src/tools/converters/mcp/index.ts';
+import type { SandboxManager } from '../../../src/sandbox/sandbox-manager.ts';
 
 type SessionMock = {
   execute: ReturnType<typeof mock>;
@@ -178,6 +179,48 @@ describe('BashRouter', () => {
     expect(result.stdout).toContain('Written');
     expect(fs.existsSync(tempFilePath)).toBe(true);
     fs.rmSync(tempFilePath, { force: true });
+  });
+
+  it('should not use sandbox manager for agent shell commands', async () => {
+    const session = createSessionStub();
+    const execute = mock(async () => ({ stdout: '', stderr: '', exitCode: 0, blocked: false }));
+    const sandboxManager = { execute } as unknown as SandboxManager;
+    const router = new BashRouter(session, { sandboxManager });
+
+    await router.route('read ./README.md');
+
+    expect(execute).toHaveBeenCalledTimes(0);
+  });
+
+  it('should not use sandbox manager for extension commands', async () => {
+    const session = createSessionStub();
+    const execute = mock(async () => ({ stdout: '', stderr: '', exitCode: 0, blocked: false }));
+    const sandboxManager = { execute } as unknown as SandboxManager;
+    const router = new BashRouter(session, { sandboxManager });
+
+    await router.route('mcp:unknown:tool');
+
+    expect(execute).toHaveBeenCalledTimes(0);
+  });
+
+  it('should route native commands through sandbox manager when provided', async () => {
+    const session = createSessionStub();
+    const execute = mock(async (command: string) => ({
+      stdout: `sandboxed:${command}`,
+      stderr: '',
+      exitCode: 0,
+      blocked: false,
+    }));
+    const sandboxManager = { execute } as unknown as SandboxManager;
+    const router = new BashRouter(session, {
+      sandboxManager,
+      getCwd: () => '/workspace',
+    });
+
+    const result = await router.route('npm test');
+
+    expect(execute).toHaveBeenCalledWith('npm test', '/workspace');
+    expect(result.stdout).toBe('sandboxed:npm test');
   });
 });
 

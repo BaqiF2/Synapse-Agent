@@ -22,6 +22,8 @@ import type { LLMClient } from '../providers/llm-client.ts';
 import type { OnUsage } from '../providers/generate.ts';
 import type { BashTool } from './bash-tool.ts';
 import { asCancelablePromise, type CancelablePromise } from './callable-tool.ts';
+import type { SandboxManager } from '../sandbox/sandbox-manager.ts';
+import type { ExecuteResult } from '../sandbox/types.ts';
 import type {
   ToolResultEvent,
   SubAgentCompleteEvent,
@@ -42,6 +44,8 @@ export interface BashRouterOptions {
   synapseDir?: string;
   llmClient?: LLMClient;
   toolExecutor?: BashTool;
+  sandboxManager?: SandboxManager;
+  getCwd?: () => string;
   getConversationPath?: () => string | null;
   onSubAgentToolStart?: (event: SubAgentToolCallEvent) => void;
   onSubAgentToolEnd?: (event: ToolResultEvent) => void;
@@ -49,9 +53,11 @@ export interface BashRouterOptions {
   onSubAgentUsage?: OnUsage;
 }
 
+export type BashRouterCommandResult = CommandResult & Partial<Pick<ExecuteResult, 'blocked' | 'blockedReason' | 'blockedResource'>>;
+
 /** 注册表中的命令处理器接口 */
 interface CommandHandler {
-  execute(command: string): Promise<CommandResult> | CancelablePromise<CommandResult>;
+  execute(command: string): Promise<BashRouterCommandResult> | CancelablePromise<BashRouterCommandResult>;
   shutdown?(): void;
 }
 
@@ -97,7 +103,7 @@ export class BashRouter {
   }
 
   /** 路由并执行命令 */
-  route(command: string, restart: boolean = false): CancelablePromise<CommandResult> {
+  route(command: string, restart: boolean = false): CancelablePromise<BashRouterCommandResult> {
     if (restart) {
       return this.routeWithRestart(command);
     }
@@ -106,8 +112,8 @@ export class BashRouter {
     const entry = this.findHandler(trimmed);
 
     if (!entry) {
-      // 默认 Native Shell
-      return asCancelablePromise(this.nativeHandler.execute(command));
+      // 默认 Native Shell（可选走 SandboxManager）
+      return asCancelablePromise(this.executeNativeCommand(command));
     }
 
     const handler = this.resolveHandler(entry);
@@ -175,6 +181,10 @@ export class BashRouter {
     }
   }
 
+  getSandboxManager(): SandboxManager | undefined {
+    return this.options.sandboxManager;
+  }
+
   /** 注册所有内置命令处理器 */
   private registerBuiltinHandlers(): void {
     // Agent Shell — 文件操作命令（exact 匹配）
@@ -235,9 +245,9 @@ export class BashRouter {
   }
 
   /** 带 session 重启的路由 */
-  private routeWithRestart(command: string): CancelablePromise<CommandResult> {
+  private routeWithRestart(command: string): CancelablePromise<BashRouterCommandResult> {
     let cancelled = false;
-    let routedPromise: CancelablePromise<CommandResult> | null = null;
+    let routedPromise: CancelablePromise<BashRouterCommandResult> | null = null;
 
     return asCancelablePromise(
       this.session.restart().then(() => {
@@ -253,6 +263,21 @@ export class BashRouter {
         routedPromise?.cancel?.();
       },
     );
+  }
+
+  private async executeNativeCommand(command: string): Promise<BashRouterCommandResult> {
+    const sandboxManager = this.options.sandboxManager;
+    if (!sandboxManager) {
+      return this.nativeHandler.execute(command);
+    }
+
+    try {
+      const cwd = this.options.getCwd ? this.options.getCwd() : process.cwd();
+      return await sandboxManager.execute(command, cwd);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return errorResult(`Command execution failed: ${message}`);
+    }
   }
 
   /** 创建 TaskCommandHandler（惰性） */

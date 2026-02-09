@@ -43,7 +43,7 @@
         "expected": "SandboxManager.shutdown() 被调用一次"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -78,7 +78,7 @@
         "expected": "SandboxManager.getSandbox() 被调用，命令通过 Backend.execute() 执行"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -137,7 +137,7 @@
         "expected": "Agent 收到拒绝信息（如 'User denied access to ~/.ssh/id_rsa'），循环继续"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -164,7 +164,7 @@
         "expected": "命令到达 SandboxBackend.execute()，由 OS 级沙盒做实际访问控制"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -210,7 +210,7 @@
         "expected": "抛出 Error('Sandbox not supported on platform: win32')"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -266,7 +266,7 @@
         "expected": "新实例的 policy.filesystem.whitelist 包含 '/extra'"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -311,7 +311,7 @@
         "expected": "返回新 BashTool，拥有独立的 SandboxManager 和独立的沙盒实例"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -339,6 +339,6 @@
         "expected": "execute() 返回的 blocked 始终为 false，云端沙盒不存在本地拦截场景"
       }
     ],
-    "passes": false
+    "passes": true
   }
 ]

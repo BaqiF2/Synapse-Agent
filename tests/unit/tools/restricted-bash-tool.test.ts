@@ -9,6 +9,7 @@ import { RestrictedBashTool, isCommandBlocked } from '../../../src/tools/restric
 import { BashTool } from '../../../src/tools/bash-tool.ts';
 import type { ToolPermissions } from '../../../src/sub-agents/sub-agent-types.ts';
 import type { CancelablePromise, ToolReturnValue } from '../../../src/tools/callable-tool.ts';
+import { ToolError, ToolOk, asCancelablePromise } from '../../../src/tools/callable-tool.ts';
 
 describe('isCommandBlocked', () => {
   describe('prefix matching (patterns ending with ":")', () => {
@@ -186,6 +187,25 @@ describe('RestrictedBashTool', () => {
       expect(result.isError).toBe(true);
       expect(result.message).toContain('skill agent');
     });
+
+    test('should block before delegate call (string check first)', async () => {
+      const delegateCall = mock(() => asCancelablePromise(Promise.resolve(ToolOk({ output: 'should-not-run' }))));
+      const delegate = {
+        description: 'mock bash tool',
+        call: delegateCall,
+      } as unknown as BashTool;
+
+      const permissions: ToolPermissions = {
+        include: 'all',
+        exclude: ['rm'],
+      };
+      const restrictedTool = new RestrictedBashTool(delegate, permissions, 'skill');
+      const result = await restrictedTool.call({ command: 'rm -rf /' });
+
+      expect(result.isError).toBe(true);
+      expect(result.brief).toBe('Command blocked');
+      expect(delegateCall).toHaveBeenCalledTimes(0);
+    });
   });
 
   describe('command execution', () => {
@@ -195,11 +215,17 @@ describe('RestrictedBashTool', () => {
         exclude: ['task:'],
       };
 
-      const restrictedTool = new RestrictedBashTool(bashTool, permissions);
+      const delegateCall = mock(() => asCancelablePromise(Promise.resolve(ToolOk({ output: 'hello' }))));
+      const delegate = {
+        description: 'mock bash tool',
+        call: delegateCall,
+      } as unknown as BashTool;
+      const restrictedTool = new RestrictedBashTool(delegate, permissions);
       const result = await restrictedTool.call({ command: 'echo "hello"' });
 
       expect(result.isError).toBe(false);
-      expect(result.output).toContain('hello');
+      expect(result.output).toBe('hello');
+      expect(delegateCall).toHaveBeenCalledTimes(1);
     });
 
     test('should delegate to original BashTool for allowed commands', async () => {
@@ -208,11 +234,17 @@ describe('RestrictedBashTool', () => {
         exclude: ['edit'],
       };
 
-      const restrictedTool = new RestrictedBashTool(bashTool, permissions);
+      const delegateCall = mock(() => asCancelablePromise(Promise.resolve(ToolOk({ output: '/workspace' }))));
+      const delegate = {
+        description: 'mock bash tool',
+        call: delegateCall,
+      } as unknown as BashTool;
+      const restrictedTool = new RestrictedBashTool(delegate, permissions);
       const result = await restrictedTool.call({ command: 'pwd' });
 
       expect(result.isError).toBe(false);
-      expect(result.output.length).toBeGreaterThan(0);
+      expect(result.output).toBe('/workspace');
+      expect(delegateCall).toHaveBeenCalledTimes(1);
     });
 
     test('should allow all commands when exclude is empty', async () => {
@@ -221,11 +253,17 @@ describe('RestrictedBashTool', () => {
         exclude: [],
       };
 
-      const restrictedTool = new RestrictedBashTool(bashTool, permissions);
+      const delegateCall = mock(() => asCancelablePromise(Promise.resolve(ToolOk({ output: 'test' }))));
+      const delegate = {
+        description: 'mock bash tool',
+        call: delegateCall,
+      } as unknown as BashTool;
+      const restrictedTool = new RestrictedBashTool(delegate, permissions);
 
       // 即使是 edit 命令也应该被允许（虽然执行可能失败，但不应该被权限阻止）
       const result = await restrictedTool.call({ command: 'echo "test"' });
       expect(result.isError).toBe(false);
+      expect(delegateCall).toHaveBeenCalledTimes(1);
     });
 
     test('should preserve cancel method from delegate promise', () => {
@@ -247,6 +285,32 @@ describe('RestrictedBashTool', () => {
 
       expect(typeof resultPromise.cancel).toBe('function');
       expect(cancel).toHaveBeenCalledTimes(1);
+    });
+
+    test('should delegate allowed command to bash tool (sandbox layer can continue)', async () => {
+      const delegateCall = mock(() => asCancelablePromise(Promise.resolve(ToolError({
+        message: 'deny file-read',
+        brief: 'Sandbox blocked',
+        extras: {
+          type: 'sandbox_blocked',
+          resource: '/etc/passwd',
+        },
+      }))));
+      const delegate = {
+        description: 'mock bash tool',
+        call: delegateCall,
+      } as unknown as BashTool;
+
+      const permissions: ToolPermissions = {
+        include: 'all',
+        exclude: ['rm'],
+      };
+      const restrictedTool = new RestrictedBashTool(delegate, permissions, 'skill');
+      const result = await restrictedTool.call({ command: 'cat /etc/passwd' });
+
+      expect(delegateCall).toHaveBeenCalledTimes(1);
+      expect(result.extras?.type).toBe('sandbox_blocked');
+      expect(result.extras?.resource).toBe('/etc/passwd');
     });
   });
 

@@ -78,7 +78,7 @@
         "expected": "status 字段仅接受 'running' 或 'stopped'，其他值类型错误"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -167,7 +167,7 @@
         "expected": "Zod 验证失败，返回结构化错误信息"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -212,7 +212,7 @@
         "expected": "返回 LocalSandboxProvider 实例，type 为 'local'"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -301,7 +301,7 @@
         "expected": "返回的 whitelist 包含 '/workspace'、'/data'、'/extra'、'/custom/tmp'"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -346,7 +346,7 @@
         "expected": "返回两个 SandboxInfo 对象，status 均为 'running'"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -408,7 +408,7 @@
         "expected": "id 匹配正则 /^local-\\d+-[a-z0-9]{6}$/"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -443,7 +443,7 @@
         "expected": "抛出 Error，消息包含 'Sandbox not supported on platform: win32'"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -571,7 +571,7 @@
         "expected": "不抛异常"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -650,7 +650,7 @@
         "expected": "正常返回，无副作用"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -687,6 +687,6 @@
         "expected": "execute 正常返回结果，标记检测和超时机制与原行为一致"
       }
     ],
-    "passes": false
+    "passes": true
   }
 ]
