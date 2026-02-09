@@ -9,7 +9,7 @@
 
 import type { OnMessagePart } from '../providers/generate.ts';
 import type { Message } from '../providers/message.ts';
-import type { StopHookContext, HookResult } from '../hooks/index.ts';
+import type { HookResult } from '../hooks/index.ts';
 import { stopHookRegistry } from '../hooks/stop-hook-registry.ts';
 import { loadStopHooks } from '../hooks/load-stop-hooks.ts';
 import { STOP_HOOK_MARKER } from '../hooks/stop-hook-constants.ts';

@@ -13,7 +13,7 @@
  * - SigintHandlerOptions: SIGINT 处理选项接口
  */
 
-import * as readline from 'node:readline';
+import type * as readline from 'node:readline';
 import { spawn } from 'node:child_process';
 import chalk from 'chalk';
 
