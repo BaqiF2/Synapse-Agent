@@ -1,278 +1,69 @@
 /**
  * Agent Runner
  *
- * Maintains conversation history internally and runs until no tool calls.
+ * 功能：Agent 主循环实现，维护对话历史并驱动 LLM 生成与工具执行。
  *
- * Core Exports:
- * - AgentRunner: Main Agent Loop class
- * - AgentRunnerOptions: Configuration options
+ * 核心导出：
+ * - AgentRunner: Agent 循环实现类
+ * - AgentRunnerOptions: 配置选项接口
  */
 
-import type {AnthropicClient} from '../providers/anthropic/anthropic-client.ts';
-import {type OnToolCall, type OnToolResult, step} from './step.ts';
-import {type OnMessagePart, type OnUsage} from '../providers/generate.ts';
-import {createTextMessage, extractText, type Message, type ToolResult as MessageToolResult, toolResultToMessage} from '../providers/message.ts';
-import type {Toolset} from '../tools/toolset.ts';
+import type { LLMClient } from '../providers/llm-client.ts';
+import { type OnToolCall, type OnToolResult, step } from './step.ts';
+import { type OnMessagePart, type OnUsage } from '../providers/generate.ts';
+import {
+  createTextMessage, extractText,
+  type Message, type ToolResult as MessageToolResult,
+  toolResultToMessage,
+} from '../providers/message.ts';
+import type { Toolset } from '../tools/toolset.ts';
 import { EventEmitter } from 'node:events';
-import path from 'node:path';
-import {createLogger} from '../utils/logger.ts';
-import {loadDesc} from '../utils/load-desc.ts';
-import {parseEnvInt, parseEnvPositiveInt} from '../utils/env.ts';
-import {Session} from './session.ts';
+import { createLogger } from '../utils/logger.ts';
+import { parseEnvInt, parseEnvPositiveInt } from '../utils/env.ts';
+import { Session } from './session.ts';
 import type { SessionUsage } from './session-usage.ts';
 import type { TokenUsage } from '../providers/anthropic/anthropic-types.ts';
-import type {StopHookContext, HookResult} from '../hooks/index.ts';
-import {stopHookRegistry} from '../hooks/stop-hook-registry.ts';
-import {loadStopHooks} from '../hooks/load-stop-hooks.ts';
-import {STOP_HOOK_MARKER} from '../hooks/stop-hook-constants.ts';
-import {todoStore} from '../tools/handlers/agent-bash/todo/todo-store.ts';
-import {shouldCountToolFailure} from '../utils/tool-failure.ts';
-import {throwIfAborted} from '../utils/abort.ts';
+import { todoStore } from '../tools/handlers/agent-bash/todo/todo-store.ts';
+import { shouldCountToolFailure } from '../tools/tool-failure.ts';
+import { throwIfAborted } from '../utils/abort.ts';
 import { countMessageTokens } from '../utils/token-counter.ts';
-import { ContextManager, type OffloadResult } from './context-manager.ts';
-import { OffloadStorage } from './offload-storage.ts';
-import { ContextCompactor, type CompactResult } from './context-compactor.ts';
+import { sanitizeToolProtocolHistory } from './history-sanitizer.ts';
+import { prependSkillSearchInstruction } from './system-prompt.ts';
+import {
+  ContextOrchestrator,
+  type AgentRunnerContextOptions, type ContextStats,
+  type OffloadEventPayload, type CompactEventPayload,
+} from './context-orchestrator.ts';
+import type { CompactResult } from './context-compactor.ts';
+import { StopHookExecutor } from './stop-hook-executor.ts';
+
+// 重新导出上下文相关类型（保持外部 API 兼容）
+export type { AgentRunnerContextOptions, ContextStats, OffloadEventPayload, CompactEventPayload };
 
 const logger = createLogger('agent-runner');
 
-let stopHooksLoadPromise: Promise<void> | null = null;
-
-async function ensureStopHooksLoaded(): Promise<void> {
-  if (!stopHooksLoadPromise) {
-    stopHooksLoadPromise = loadStopHooks();
-  }
-  await stopHooksLoadPromise;
-}
-
-/**
- * Default max iterations for Agent Loop
- */
 const DEFAULT_MAX_ITERATIONS = parseEnvInt(process.env.SYNAPSE_MAX_TOOL_ITERATIONS, 50);
 const DEFAULT_MAX_CONSECUTIVE_TOOL_FAILURES = parseEnvPositiveInt(
-  process.env.SYNAPSE_MAX_CONSECUTIVE_TOOL_FAILURES,
-  3
-);
-const DEFAULT_MAX_CONTEXT_WINDOW = parseEnvPositiveInt(process.env.SYNAPSE_MAX_CONTEXT_WINDOW, 200000);
-const DEFAULT_OFFLOAD_THRESHOLD = parseEnvPositiveInt(process.env.SYNAPSE_OFFLOAD_THRESHOLD, 150000);
-const DEFAULT_OFFLOAD_MIN_CHARS = parseEnvPositiveInt(process.env.SYNAPSE_OFFLOAD_MIN_CHARS, 50);
-const DEFAULT_OFFLOAD_SCAN_RATIO = parseEnvScanRatio(process.env.SYNAPSE_OFFLOAD_SCAN_RATIO, 0.5);
-const DEFAULT_COMPACT_TRIGGER_THRESHOLD = parseEnvPositiveInt(
-  process.env.SYNAPSE_COMPACT_TRIGGER_THRESHOLD,
-  15000
-);
-const DEFAULT_COMPACT_TARGET_TOKENS = parseEnvPositiveInt(process.env.SYNAPSE_COMPACT_TARGET_TOKENS, 8000);
-const DEFAULT_COMPACT_PRESERVE_COUNT = parseEnvPositiveInt(
-  process.env.SYNAPSE_COMPACT_PRESERVE_COUNT,
-  5
-);
-const DEFAULT_COMPACT_RETRY_COUNT = parseEnvPositiveInt(process.env.SYNAPSE_COMPACT_RETRY_COUNT, 3);
-const DEFAULT_COMPACT_MODEL = parseEnvOptionalString(process.env.SYNAPSE_COMPACT_MODEL);
-const BASH_TOOL_NAME = 'Bash';
-const BASH_TOOL_MISUSE_REMINDER =
-  '[System Reminder] You just tried to run the tool name "Bash" as a shell command. ' +
-  'Bash is the ONLY tool name, not an executable command.\n' +
-  'Correction rules:\n' +
-  '- NEVER use command="Bash" or command="Bash(...)"\n' +
-  '- ALWAYS put only the real command text in command, e.g. Bash(command="read ./README.md")\n' +
-  '- If unsure, run Bash(command="command:search <keyword>") first.\n\n' +
-  'Now retry with a valid command string only.';
-const SKILL_SEARCH_INSTRUCTION_PREFIX = loadDesc(
-  path.join(import.meta.dirname, 'prompts', 'skill-search-priority.md')
+  process.env.SYNAPSE_MAX_CONSECUTIVE_TOOL_FAILURES, 3
 );
 
-function parseEnvScanRatio(value: string | undefined, fallback: number): number {
-  const parsed = Number.parseFloat(value ?? '');
-  if (!Number.isFinite(parsed) || parsed <= 0 || parsed > 1) {
-    return fallback;
-  }
-  return parsed;
-}
-
-function parseEnvOptionalString(value: string | undefined): string | undefined {
-  const trimmed = value?.trim();
-  return trimmed && trimmed.length > 0 ? trimmed : undefined;
-}
-
-function prependSkillSearchInstruction(userMessage: string): string {
-  return `${SKILL_SEARCH_INSTRUCTION_PREFIX}\n\nOriginal user request:\n${userMessage}`;
-}
-
-function isObjectJsonString(value: string): boolean {
-  const trimmed = value.trim();
-  if (!trimmed) {
-    return false;
-  }
-
-  try {
-    const parsed = JSON.parse(trimmed);
-    return Boolean(parsed) && typeof parsed === 'object' && !Array.isArray(parsed);
-  } catch {
-    return false;
-  }
-}
-
-function hasMalformedToolArguments(message: Message): boolean {
-  if (message.role !== 'assistant') {
-    return false;
-  }
-
-  const toolCalls = message.toolCalls ?? [];
-  if (toolCalls.length === 0) {
-    return false;
-  }
-
-  return toolCalls.some((toolCall) => !isObjectJsonString(toolCall.arguments));
-}
-
-function sanitizeToolProtocolHistory(messages: readonly Message[]): { sanitized: Message[]; changed: boolean } {
-  const sanitized: Message[] = [];
-  let changed = false;
-  let index = 0;
-
-  while (index < messages.length) {
-    const message = messages[index];
-    if (!message) {
-      break;
-    }
-
-    if (message.role === 'assistant' && (message.toolCalls?.length ?? 0) > 0) {
-      // Malformed tool arguments cannot be replayed back to Anthropic safely.
-      if (hasMalformedToolArguments(message)) {
-        changed = true;
-        index += 1;
-        while (index < messages.length && messages[index]?.role === 'tool') {
-          changed = true;
-          index += 1;
-        }
-        continue;
-      }
-
-      const expectedToolCallIds = new Set((message.toolCalls ?? []).map((call) => call.id));
-      const matchedToolCallIds = new Set<string>();
-      const toolMessages: Message[] = [];
-
-      let cursor = index + 1;
-      let invalidSequence = false;
-      while (cursor < messages.length) {
-        const next = messages[cursor];
-        if (!next || next.role !== 'tool') {
-          break;
-        }
-
-        const toolCallId = next.toolCallId;
-        if (!toolCallId || !expectedToolCallIds.has(toolCallId) || matchedToolCallIds.has(toolCallId)) {
-          invalidSequence = true;
-          break;
-        }
-
-        matchedToolCallIds.add(toolCallId);
-        toolMessages.push(next);
-        cursor += 1;
-
-        if (matchedToolCallIds.size === expectedToolCallIds.size) {
-          break;
-        }
-      }
-
-      if (!invalidSequence && matchedToolCallIds.size === expectedToolCallIds.size) {
-        sanitized.push(message, ...toolMessages);
-        index += 1 + toolMessages.length;
-        continue;
-      }
-
-      changed = true;
-      index += 1;
-
-      // Drop contiguous orphan tool messages attached to this dangling assistant tool call block.
-      while (index < messages.length && messages[index]?.role === 'tool') {
-        changed = true;
-        index += 1;
-      }
-      continue;
-    }
-
-    if (message.role === 'tool') {
-      changed = true;
-      index += 1;
-      continue;
-    }
-
-    sanitized.push(message);
-    index += 1;
-  }
-
-  return { sanitized, changed };
-}
-
-export interface AgentRunnerContextOptions {
-  maxContextWindow?: number;
-  offloadThreshold?: number;
-  offloadScanRatio?: number;
-  offloadMinChars?: number;
-  compactTriggerThreshold?: number;
-  compactTargetTokens?: number;
-  compactPreserveCount?: number;
-  compactRetryCount?: number;
-  compactModel?: string;
-}
-
-export interface ContextStats {
-  currentTokens: number;
-  maxTokens: number;
-  offloadThreshold: number;
-  messageCount: number;
-  toolCallCount: number;
-  offloadedFileCount: number;
-}
-
-export interface OffloadEventPayload {
-  count: number;
-  freedTokens: number;
-}
-
-export interface CompactEventPayload {
-  previousTokens: number;
-  currentTokens: number;
-  freedTokens: number;
-  deletedFileCount: number;
-}
-
-/**
- * Options for AgentRunner
- */
+/** AgentRunner 配置选项 */
 export interface AgentRunnerOptions {
-  /** Anthropic client */
-  client: AnthropicClient;
-  /** System prompt */
+  client: LLMClient;
   systemPrompt: string;
-  /** Toolset for tool execution */
   toolset: Toolset;
-  /** Maximum iterations for Agent Loop */
   maxIterations?: number;
-  /** Maximum consecutive tool failures before stopping */
   maxConsecutiveToolFailures?: number;
-  /** Callback for streamed message parts */
   onMessagePart?: OnMessagePart;
-  /** Callback for tool calls (before execution) */
   onToolCall?: OnToolCall;
-  /** Callback for tool results */
   onToolResult?: OnToolResult;
-  /** Callback for usage after each API call */
   onUsage?: OnUsage;
-  /** Session ID for resuming (optional) */
   sessionId?: string;
-  /** Existing session instance (optional) */
   session?: Session;
-  /** Sessions directory (optional, for testing) */
   sessionsDir?: string;
-  /** Enable Stop Hooks execution (default: true) */
   enableStopHooks?: boolean;
-  /** Context offload configuration */
   context?: AgentRunnerContextOptions;
-  /**
-   * Whether to prepend skill-search priority instruction to user messages.
-   * Main agent should keep this enabled; sub-agents should disable it.
-   */
+  /** 主 Agent 启用技能搜索指令；子 Agent 应禁用 */
   enableSkillSearchInstruction?: boolean;
 }
 
@@ -282,23 +73,9 @@ export interface AgentRunOptions {
 
 /**
  * AgentRunner - Agent Loop implementation using step()
- *
- * Usage:
- * ```typescript
- * const runner = new AgentRunner({
- *   client,
- *   systemPrompt: 'You are a helpful assistant',
- *   toolset,
- *   onMessagePart: (part) => {
- *     if (part.type === 'text') process.stdout.write(part.text);
- *   },
- * });
- *
- * const response = await runner.run('Hello');
- * ```
  */
 export class AgentRunner extends EventEmitter {
-  private client: AnthropicClient;
+  private client: LLMClient;
   private systemPrompt: string;
   private toolset: Toolset;
   private maxIterations: number;
@@ -307,31 +84,16 @@ export class AgentRunner extends EventEmitter {
   private onToolCall?: OnToolCall;
   private onToolResult?: OnToolResult;
   private onUsage?: OnUsage;
-  private enableStopHooks: boolean;
   private enableSkillSearchInstruction: boolean;
 
-  /** Session management */
   private session: Session | null = null;
   private sessionId?: string;
   private sessionsDir?: string;
   private shouldPersistSession = false;
   private sessionInitialized = false;
-
-  /** Conversation history */
   private history: Message[] = [];
-
-  /** Context offload management */
-  private contextManager: ContextManager | null = null;
-  private contextCompactor: ContextCompactor | null = null;
-  private maxContextWindow: number;
-  private offloadThreshold: number;
-  private offloadScanRatio: number;
-  private offloadMinChars: number;
-  private compactTriggerThreshold: number;
-  private compactTargetTokens: number;
-  private compactPreserveCount: number;
-  private compactRetryCount: number;
-  private compactModel?: string;
+  private contextOrchestrator: ContextOrchestrator;
+  private stopHookExecutor: StopHookExecutor;
 
   constructor(options: AgentRunnerOptions) {
     super();
@@ -349,372 +111,100 @@ export class AgentRunner extends EventEmitter {
     this.sessionId = options.sessionId ?? options.session?.id;
     this.sessionsDir = options.sessionsDir;
     this.shouldPersistSession = Boolean(options.session || options.sessionId || options.sessionsDir);
-    this.enableStopHooks = options.enableStopHooks ?? true;
-
-    const context = options.context ?? {};
-    this.maxContextWindow = context.maxContextWindow ?? DEFAULT_MAX_CONTEXT_WINDOW;
-    this.offloadThreshold = context.offloadThreshold ?? DEFAULT_OFFLOAD_THRESHOLD;
-    this.offloadScanRatio = context.offloadScanRatio ?? DEFAULT_OFFLOAD_SCAN_RATIO;
-    this.offloadMinChars = context.offloadMinChars ?? DEFAULT_OFFLOAD_MIN_CHARS;
-    this.compactTriggerThreshold =
-      context.compactTriggerThreshold ?? DEFAULT_COMPACT_TRIGGER_THRESHOLD;
-    this.compactTargetTokens = context.compactTargetTokens ?? DEFAULT_COMPACT_TARGET_TOKENS;
-    this.compactPreserveCount = context.compactPreserveCount ?? DEFAULT_COMPACT_PRESERVE_COUNT;
-    this.compactRetryCount = context.compactRetryCount ?? DEFAULT_COMPACT_RETRY_COUNT;
-    this.compactModel = context.compactModel ?? DEFAULT_COMPACT_MODEL;
     this.enableSkillSearchInstruction = options.enableSkillSearchInstruction ?? true;
+    this.contextOrchestrator = new ContextOrchestrator({
+      client: options.client,
+      context: options.context,
+    });
+    this.stopHookExecutor = new StopHookExecutor({
+      enabled: options.enableStopHooks ?? true,
+      onMessagePart: options.onMessagePart,
+    });
   }
 
-  /**
-   * Get current session ID
-   */
-  getSessionId(): string | null {
-    return this.session?.id ?? null;
-  }
-
-  /**
-   * Get conversation history
-   */
-  getHistory(): readonly Message[] {
-    return this.history;
-  }
-
-  getSessionUsage(): SessionUsage | null {
-    return this.session?.getUsage() ?? null;
-  }
-
-  getContextStats(): ContextStats | null {
-    if (!this.session) {
-      return null;
-    }
-
-    if (this.history.length === 0 && this.session.messageCount > 0) {
-      this.history = this.session.loadHistorySync();
-    }
-
-    const currentTokens = countMessageTokens(this.history);
-    const toolCallCount = this.history.reduce((total, message) => {
-      return total + (message.toolCalls?.length ?? 0);
-    }, 0);
-
-    return {
-      currentTokens,
-      maxTokens: this.maxContextWindow,
-      offloadThreshold: this.offloadThreshold,
-      messageCount: this.history.length,
-      toolCallCount,
-      offloadedFileCount: this.session.countOffloadedFiles(),
-    };
-  }
-
-  getModelName(): string {
-    return this.client.modelName;
-  }
+  getSessionId(): string | null { return this.session?.id ?? null; }
+  getHistory(): readonly Message[] { return this.history; }
+  getSessionUsage(): SessionUsage | null { return this.session?.getUsage() ?? null; }
+  getModelName(): string { return this.client.modelName; }
+  clearHistory(): void { this.history = []; }
 
   async recordUsage(usage: TokenUsage, model: string): Promise<void> {
     await this.handleUsage(usage, model);
   }
 
-  /**
-   * Determine whether a tool failure should count toward consecutive-failure stop logic.
-   *
-   * Count only:
-   * - command_not_found
-   * - invalid_usage
-   *
-   * Do not count execution/environment failures (e.g. file not found, permission denied, runtime issues).
-   */
-  private shouldCountFailure(result: MessageToolResult): boolean {
-    const category = result.returnValue.extras?.failureCategory;
-    const hintText = `${result.returnValue.brief}\n${result.returnValue.output}`;
-    return shouldCountToolFailure(category, hintText);
-  }
-
-  private async handleUsage(usage: TokenUsage, model: string): Promise<void> {
-    if (this.session) {
-      await this.session.updateUsage(usage, model);
+  getContextStats(): ContextStats | null {
+    if (!this.session) return null;
+    if (this.history.length === 0 && this.session.messageCount > 0) {
+      this.history = this.session.loadHistorySync();
     }
-
-    if (this.onUsage) {
-      try {
-        await this.onUsage(usage, model);
-      } catch (error) {
-        logger.warn('onUsage callback failed', { error });
-      }
-    }
+    return this.contextOrchestrator.getContextStats(
+      this.history, this.session.countOffloadedFiles()
+    );
   }
 
-  /**
-   * Clear conversation history (memory only)
-   */
-  clearHistory(): void {
-    this.history = [];
-  }
-
-  /**
-   * Clear session history
-   * 清除当前会话历史（清空文件内容，不删除文件）
-   */
   async clearSession(): Promise<void> {
-    // 清空内存中的历史
     this.history = [];
-
-    // 清空 session 文件内容
     if (this.session) {
       await this.session.clear();
       logger.info(`Cleared session history: ${this.session.id}`);
     }
   }
 
-  /**
-   * Initialize session (lazy, called on first run)
-   */
-  private async initSession(): Promise<void> {
-    if (this.sessionInitialized) return;
-
-    if (!this.shouldPersistSession) {
-      this.sessionInitialized = true;
-      return;
-    }
-
-    if (this.session) {
-      this.history = await this.session.loadHistory();
-      this.sessionInitialized = true;
-      return;
-    }
-
-    const options = this.sessionsDir ? { sessionsDir: this.sessionsDir } : {};
-    const model = this.client.modelName;
-
-    if (this.sessionId) {
-      // 恢复现有会话
-      this.session = await Session.find(this.sessionId, { ...options, model });
-      if (this.session) {
-        // 加载历史消息
-        this.history = await this.session.loadHistory();
-        logger.info(`Resumed session: ${this.sessionId} (${this.history.length} messages)`);
-      } else {
-        logger.warn(`Session not found: ${this.sessionId}, creating new one`);
-        this.session = await Session.create({ ...options, model });
-      }
-    } else {
-      // 创建新会话
-      this.session = await Session.create({ ...options, model });
-    }
-
-    this.sessionInitialized = true;
-  }
-
-  private async sanitizeHistoryForToolProtocol(
-    stage: 'before run' | 'before step'
-  ): Promise<void> {
-    const { sanitized, changed } = sanitizeToolProtocolHistory(this.history);
-    if (!changed) {
-      return;
-    }
-
-    const beforeCount = this.history.length;
-    this.history = sanitized;
-
-    if (this.session) {
-      await this.session.clear({ resetUsage: false });
-      if (this.history.length > 0) {
-        await this.session.appendMessage(this.history);
-      }
-    }
-
-    logger.warn('Sanitized dangling or malformed tool-call history', {
-      stage,
-      beforeCount,
-      afterCount: this.history.length,
-    });
-  }
-
-  private ensureContextManager(): ContextManager | null {
-    if (!this.session) {
-      return null;
-    }
-
-    if (!this.contextManager) {
-      const storage = new OffloadStorage(this.session.offloadSessionDir);
-      this.contextManager = new ContextManager(storage, {
-        offloadThreshold: this.offloadThreshold,
-        scanRatio: this.offloadScanRatio,
-        minChars: this.offloadMinChars,
-      });
-    }
-
-    return this.contextManager;
-  }
-
-  private ensureContextCompactor(): ContextCompactor | null {
-    if (!this.session) {
-      return null;
-    }
-
-    if (!this.contextCompactor) {
-      const storage = new OffloadStorage(this.session.offloadSessionDir);
-      this.contextCompactor = new ContextCompactor(storage, this.client, {
-        targetTokens: this.compactTargetTokens,
-        preserveCount: this.compactPreserveCount,
-        model: this.compactModel,
-        retryCount: this.compactRetryCount,
-      });
-    }
-
-    return this.contextCompactor;
-  }
-
   async forceCompact(): Promise<CompactResult> {
     await this.initSession();
-
-    const compactor = this.ensureContextCompactor();
-    if (!compactor) {
+    if (!this.session) {
       const previousTokens = countMessageTokens(this.history);
       return {
-        messages: [...this.history],
-        previousTokens,
-        currentTokens: previousTokens,
-        freedTokens: 0,
-        preservedCount: Math.min(this.history.length, this.compactPreserveCount),
-        deletedFiles: [],
-        success: true,
+        messages: [...this.history], previousTokens, currentTokens: previousTokens,
+        freedTokens: 0, deletedFiles: [], success: true,
+        preservedCount: Math.min(this.history.length, this.contextOrchestrator.compactPreserveCount),
       };
     }
-
-    const result = await compactor.compact(this.history);
+    const result = await this.contextOrchestrator.forceCompact(
+      this.history, this.session.offloadSessionDir
+    );
     if (result.success) {
-      await this.applyCompactResult(result);
-      this.emitCompactNotification(result);
+      this.history = result.messages;
+      await this.session.rewriteHistory(this.history);
+      this.emit('compact', this.contextOrchestrator.buildCompactPayload(result));
     }
-
     return result;
   }
 
-  private shouldTriggerCompact(result: OffloadResult): boolean {
-    return result.stillExceedsThreshold && result.freedTokens < this.compactTriggerThreshold;
-  }
-
-  private async compactHistoryIfNeeded(result: OffloadResult): Promise<CompactResult | null> {
-    if (!this.shouldTriggerCompact(result)) {
-      return null;
-    }
-
-    const compactor = this.ensureContextCompactor();
-    if (!compactor) {
-      return null;
-    }
-
-    const compactResult = await compactor.compact(this.history);
-    if (compactResult.success) {
-      await this.applyCompactResult(compactResult);
-      this.emitCompactNotification(compactResult);
-    }
-
-    return compactResult;
-  }
-
-  private async applyCompactResult(result: CompactResult): Promise<void> {
-    this.history = result.messages;
-    if (this.session) {
-      await this.session.rewriteHistory(this.history);
-    }
-  }
-
-  private async offloadHistoryIfNeeded(): Promise<void> {
-    const contextManager = this.ensureContextManager();
-    if (!contextManager) {
-      return;
-    }
-
-    let result = contextManager.offloadIfNeeded(this.history);
-    if (result.offloadedCount > 0) {
-      this.history = result.messages;
-      if (this.session) {
-        await this.session.rewriteHistory(this.history);
-      }
-      this.emitOffloadNotification(result);
-    }
-
-    const compactResult = await this.compactHistoryIfNeeded(result);
-    if (compactResult?.success) {
-      result = {
-        ...result,
-        messages: compactResult.messages,
-        currentTokens: compactResult.currentTokens,
-        freedTokens: result.freedTokens + compactResult.freedTokens,
-        stillExceedsThreshold: compactResult.currentTokens >= this.offloadThreshold,
-      };
-    }
-
-    if (result.stillExceedsThreshold) {
-      logger.warn(
-        'TODO: Context still exceeds threshold after offload, consider increasing scan ratio or reducing min chars',
-        {
-          currentTokens: result.currentTokens,
-          offloadThreshold: this.offloadThreshold,
-          offloadedCount: result.offloadedCount,
-        }
-      );
-    }
-
-  }
-
-  private emitOffloadNotification(result: OffloadResult): void {
-    const payload: OffloadEventPayload = {
-      count: result.offloadedCount,
-      freedTokens: result.freedTokens,
-    };
-    this.emit('offload', payload);
-  }
-
-  private emitCompactNotification(result: CompactResult): void {
-    const payload: CompactEventPayload = {
-      previousTokens: result.previousTokens,
-      currentTokens: result.currentTokens,
-      freedTokens: result.freedTokens,
-      deletedFileCount: result.deletedFiles.length,
-    };
-    this.emit('compact', payload);
-  }
-
-  /**
-   * Run the Agent Loop for a user message
-   *
-   * @param userMessage - User message to process
-   * @returns Final text response
-   */
+  /** Run the Agent Loop for a user message */
   async run(userMessage: string, options?: AgentRunOptions): Promise<string> {
     const signal = options?.signal;
     throwIfAborted(signal);
 
-    // 延迟初始化 Session
     await this.initSession();
-    // 初始化 hooks（仅主 Agent 会执行实际加载）
-    await this.initHooks();
+    await this.stopHookExecutor.init();
     throwIfAborted(signal);
 
-    // Recover from interrupted runs that may have left dangling/malformed tool_call history.
     await this.sanitizeHistoryForToolProtocol('before run');
     throwIfAborted(signal);
 
-    // 添加用户消息到聊天历史中
-    const enhancedUserMessage = this.enableSkillSearchInstruction
-      ? prependSkillSearchInstruction(userMessage)
-      : userMessage;
-    const userMsg = createTextMessage('user', enhancedUserMessage);
-    const appendMessage = async (message: Message): Promise<void> => {
-      this.history.push(message);
-      if (this.session) {
-        await this.session.appendMessage(message);
-      }
-    };
-    await appendMessage(userMsg);
+    // 添加用户消息（可选追加技能搜索指令）
+    const enhanced = this.enableSkillSearchInstruction
+      ? prependSkillSearchInstruction(userMessage) : userMessage;
+    await this.appendToHistory(createTextMessage('user', enhanced));
 
+    const { finalResponse, completedNormally } = await this.executeLoop(signal);
+
+    if (completedNormally && this.stopHookExecutor.shouldExecute()) {
+      return this.stopHookExecutor.executeAndAppend(finalResponse, {
+        sessionId: this.getSessionId(), history: this.history,
+      });
+    }
+    return finalResponse;
+  }
+
+  // --- Private: Agent loop ---
+
+  private async executeLoop(signal?: AbortSignal): Promise<{
+    finalResponse: string; completedNormally: boolean;
+  }> {
     let iteration = 0;
     let consecutiveFailures = 0;
-    let finalResponse = '';
-    let completedNormally = false;
 
     while (iteration < this.maxIterations) {
       await this.sanitizeHistoryForToolProtocol('before step');
@@ -722,179 +212,169 @@ export class AgentRunner extends EventEmitter {
       await this.offloadHistoryIfNeeded();
       throwIfAborted(signal);
 
-      // 循环的次数
       iteration++;
       logger.info('Agent loop iteration', { iteration });
 
-      // Run one step
-      const result = await step(
-        this.client,
-        this.systemPrompt,
-        this.toolset,
-        this.history,
-        {
-          onMessagePart: this.onMessagePart,
-          onToolCall: this.onToolCall,
-          onToolResult: this.onToolResult,
-          onUsage: (usage, model) => this.handleUsage(usage, model),
-          signal,
-        }
-      );
+      const result = await step(this.client, this.systemPrompt, this.toolset, this.history, {
+        onMessagePart: this.onMessagePart,
+        onToolCall: this.onToolCall,
+        onToolResult: this.onToolResult,
+        onUsage: (usage, model) => this.handleUsage(usage, model),
+        signal,
+      });
 
-      // done
+      // 无工具调用 — 检查是否可以停止
       if (result.toolCalls.length === 0) {
-        await appendMessage(result.message);
-
-        // 检查是否有未完成的 todo 任务
-        const todoState = todoStore.get();
-        const incompleteTodos = todoState.items.filter(
-          (item) => item.status !== 'completed'
-        );
-
-        if (incompleteTodos.length > 0) {
-          // 有未完成的任务，注入提示消息继续执行
-          const pendingTasks = incompleteTodos
-            .map((item) => `- ${item.content} (${item.status})`)
-            .join('\n');
-          const reminderMsg = createTextMessage(
-            'user',
-            `[System Reminder] You have incomplete tasks in your todo list. You MUST continue working on them before stopping:\n${pendingTasks}\n\nPlease continue with the next task.`
-          );
-          await appendMessage(reminderMsg);
-          logger.info('Agent attempted to stop with incomplete todos, continuing...', {
-            incompleteTodosCount: incompleteTodos.length,
-          });
-          continue; // 继续循环，不退出
-        }
-
-        finalResponse = extractText(result.message);
+        await this.appendToHistory(result.message);
+        if (this.hasIncompleteTodos()) continue;
+        const finalResponse = extractText(result.message);
         logger.info(`Agent loop completed, no tool calls，messages : ${finalResponse}`);
-        completedNormally = true;
-        break;
+        return { finalResponse, completedNormally: true };
       }
 
-      // Wait for tool results
+      // 等待并记录工具执行结果
       throwIfAborted(signal);
       const toolResults = await result.toolResults();
       throwIfAborted(signal);
-
-      // Commit assistant tool call message only after tool results complete
-      await appendMessage(result.message);
-
-      // Add tool results to history
+      await this.appendToHistory(result.message);
       for (const tr of toolResults) {
-        const toolMsg = toolResultToMessage(tr);
-        await appendMessage(toolMsg);
+        await this.appendToHistory(toolResultToMessage(tr));
       }
 
-      // Check for failures
-      const failedResults = toolResults.filter((result) => result.returnValue.isError);
-      if (failedResults.length === 0) {
-        consecutiveFailures = 0;
-        continue;
-      }
-
-      const countableFailures = failedResults.filter((result) => this.shouldCountFailure(result));
-      const nextConsecutiveFailures = countableFailures.length > 0 ? consecutiveFailures + 1 : 0;
-      const errors = failedResults.map((result) => ({
-        toolCallId: result.toolCallId,
-        message: result.returnValue.message,
-        brief: result.returnValue.brief,
-        output: result.returnValue.output,
-        extras: result.returnValue.extras,
-      }));
-      logger.warn(
-        `Tool execution failed (counted: ${countableFailures.length}/${failedResults.length}, consecutive: ${nextConsecutiveFailures}/${this.maxConsecutiveToolFailures})`,
-        { errors, countableFailureIds: countableFailures.map((result) => result.toolCallId) }
-      );
-
-      consecutiveFailures = nextConsecutiveFailures;
+      consecutiveFailures = this.updateConsecutiveFailures(toolResults, consecutiveFailures);
       if (consecutiveFailures >= this.maxConsecutiveToolFailures) {
-        finalResponse = 'Consecutive tool execution failures; stopping.';
-        break;
+        return { finalResponse: 'Consecutive tool execution failures; stopping.', completedNormally: false };
       }
     }
 
-    if (!completedNormally && iteration >= this.maxIterations) {
-      const stopMessage = `Reached tool iteration limit (${this.maxIterations}); stopping.\nUse --help to see command usage.`;
-      logger.error(stopMessage);
-      finalResponse = stopMessage;
-      this.history.push(createTextMessage('assistant', stopMessage));
-    }
+    const stopMessage = `Reached tool iteration limit (${this.maxIterations}); stopping.\nUse --help to see command usage.`;
+    logger.error(stopMessage);
+    await this.appendToHistory(createTextMessage('assistant', stopMessage));
+    return { finalResponse: stopMessage, completedNormally: false };
+  }
 
-    if (completedNormally && this.shouldExecuteStopHooks()) {
-      // 执行 Stop Hooks（正常完成时）
-      const hookResults = await this.executeStopHooks({
-        sessionId: this.getSessionId(),
-        cwd: process.cwd(),
-        messages: this.history,
-        finalResponse,
-        onProgress: (message) => this.emitStopHookProgress(message),
-      });
+  /** 检查是否有未完成的 todo 任务，如果有则追加提醒消息 */
+  private hasIncompleteTodos(): boolean {
+    const incompleteTodos = todoStore.get().items.filter((i) => i.status !== 'completed');
+    if (incompleteTodos.length === 0) return false;
 
-      const hookMessages = hookResults
-        .map((result) => result.message)
-        .filter((message): message is string => Boolean(message && message.trim().length > 0));
+    const pendingTasks = incompleteTodos.map((i) => `- ${i.content} (${i.status})`).join('\n');
+    const reminderMsg = createTextMessage(
+      'user',
+      `[System Reminder] You have incomplete tasks in your todo list. You MUST continue working on them before stopping:\n${pendingTasks}\n\nPlease continue with the next task.`
+    );
+    this.history.push(reminderMsg);
+    if (this.session) this.session.appendMessage(reminderMsg);
+    logger.info('Agent attempted to stop with incomplete todos, continuing...', {
+      incompleteTodosCount: incompleteTodos.length,
+    });
+    return true;
+  }
 
-      if (hookMessages.length > 0) {
-        const hookBody = hookMessages.join('\n\n');
-        const prefix = finalResponse ? '\n\n' : '';
-        finalResponse = `${finalResponse}${prefix}${STOP_HOOK_MARKER}\n${hookBody}`;
+  /** 更新连续失败计数并记录日志 */
+  private updateConsecutiveFailures(
+    toolResults: MessageToolResult[], previousFailures: number
+  ): number {
+    const failedResults = toolResults.filter((r) => r.returnValue.isError);
+    if (failedResults.length === 0) return 0;
+
+    const countable = failedResults.filter((r) => this.shouldCountFailure(r));
+    const next = countable.length > 0 ? previousFailures + 1 : 0;
+    logger.warn(
+      `Tool execution failed (counted: ${countable.length}/${failedResults.length}, consecutive: ${next}/${this.maxConsecutiveToolFailures})`,
+      {
+        errors: failedResults.map((r) => ({
+          toolCallId: r.toolCallId, message: r.returnValue.message,
+          brief: r.returnValue.brief, output: r.returnValue.output,
+          extras: r.returnValue.extras,
+        })),
+        countableFailureIds: countable.map((r) => r.toolCallId),
       }
+    );
+    return next;
+  }
+
+  // --- Private: 历史管理 ---
+
+  private async appendToHistory(message: Message): Promise<void> {
+    this.history.push(message);
+    if (this.session) await this.session.appendMessage(message);
+  }
+
+  private async sanitizeHistoryForToolProtocol(stage: 'before run' | 'before step'): Promise<void> {
+    const { sanitized, changed } = sanitizeToolProtocolHistory(this.history);
+    if (!changed) return;
+
+    const beforeCount = this.history.length;
+    this.history = sanitized;
+    if (this.session) {
+      await this.session.clear({ resetUsage: false });
+      if (this.history.length > 0) await this.session.appendMessage(this.history);
     }
-
-    return finalResponse;
+    logger.warn('Sanitized dangling or malformed tool-call history', {
+      stage, beforeCount, afterCount: this.history.length,
+    });
   }
 
-  /**
-   * Execute Stop Hooks via global StopHookRegistry
-   *
-   * - Empty registry: silently skip
-   * - Single hook failure: log error and continue with other hooks
-   * - LIFO order: last registered hook executes first
-   *
-   * @param context - Stop hook context
-   */
-  private async executeStopHooks(context: StopHookContext): Promise<HookResult[]> {
-    return stopHookRegistry.executeAll(context);
-  }
+  // --- Private: Session 管理 ---
 
-  /**
-   * Emit Stop Hook progress through the existing message streaming callback.
-   */
-  private async emitStopHookProgress(message: string): Promise<void> {
-    const text = message.trim();
-    if (!text || !this.onMessagePart) {
+  private async initSession(): Promise<void> {
+    if (this.sessionInitialized) return;
+    if (!this.shouldPersistSession) { this.sessionInitialized = true; return; }
+    if (this.session) {
+      this.history = await this.session.loadHistory();
+      this.sessionInitialized = true;
       return;
     }
 
-    try {
-      await this.onMessagePart({
-        type: 'text',
-        text: `\n${text}\n`,
-      });
-    } catch (error) {
-      logger.warn('Stop hook progress callback failed', { error });
+    const opts = this.sessionsDir ? { sessionsDir: this.sessionsDir } : {};
+    const model = this.client.modelName;
+    if (this.sessionId) {
+      this.session = await Session.find(this.sessionId, { ...opts, model });
+      if (this.session) {
+        this.history = await this.session.loadHistory();
+        logger.info(`Resumed session: ${this.sessionId} (${this.history.length} messages)`);
+      } else {
+        logger.warn(`Session not found: ${this.sessionId}, creating new one`);
+        this.session = await Session.create({ ...opts, model });
+      }
+    } else {
+      this.session = await Session.create({ ...opts, model });
+    }
+    this.sessionInitialized = true;
+  }
+
+  // --- Private: 工具失败与使用量 ---
+
+  private shouldCountFailure(result: MessageToolResult): boolean {
+    const category = result.returnValue.extras?.failureCategory;
+    return shouldCountToolFailure(category, `${result.returnValue.brief}\n${result.returnValue.output}`);
+  }
+
+  private async handleUsage(usage: TokenUsage, model: string): Promise<void> {
+    if (this.session) await this.session.updateUsage(usage, model);
+    if (this.onUsage) {
+      try { await this.onUsage(usage, model); }
+      catch (error) { logger.warn('onUsage callback failed', { error }); }
     }
   }
 
-  /**
-   * 是否执行 Stop Hooks
-   *
-   * 子类可覆盖该方法以控制 Stop Hooks 的执行策略
-   */
-  protected shouldExecuteStopHooks(): boolean {
-    return this.enableStopHooks;
-  }
+  // --- Private: Context offload ---
 
-  /**
-   * 初始化 Stop Hooks
-   *
-   * 子类可覆盖该方法以跳过 hooks 初始化
-   */
-  protected async initHooks(): Promise<void> {
-    if (this.enableStopHooks) {
-      await ensureStopHooksLoaded();
+  private async offloadHistoryIfNeeded(): Promise<void> {
+    if (!this.session) return;
+    const { messages, offloadResult, compactResult } =
+      await this.contextOrchestrator.offloadIfNeeded(this.history, this.session.offloadSessionDir);
+
+    if (offloadResult) {
+      this.history = messages;
+      await this.session.rewriteHistory(this.history);
+      this.emit('offload', this.contextOrchestrator.buildOffloadPayload(offloadResult));
+    }
+    if (compactResult) {
+      this.history = messages;
+      await this.session.rewriteHistory(this.history);
+      this.emit('compact', this.contextOrchestrator.buildCompactPayload(compactResult));
     }
   }
 }

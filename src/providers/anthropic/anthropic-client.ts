@@ -6,13 +6,16 @@
  *
  * Core Exports:
  * - AnthropicClient: Main client class for Anthropic API
+ * - AnthropicClientOptions: 构造选项接口
+ * - LlmSettings: LLM 配置参数接口
  * - GenerationKwargs: Generation parameters interface
  * - toAnthropicMessage(s): Convert internal Message to Anthropic wire format
  */
 
 import Anthropic from '@anthropic-ai/sdk';
-import { SettingsManager } from '../../config/settings-manager.ts';
 import type { ContentPart, ImageUrlPart, Message, ToolCall } from '../message.ts';
+import type { LLMTool } from '../../types/tool.ts';
+import type { LLMClient, LLMStreamedMessage } from '../llm-client.ts';
 import {
   type ThinkingEffort,
   ChatProviderError,
@@ -25,7 +28,7 @@ import { parseEnvInt } from '../../utils/env.ts';
 
 const logger = createLogger('anthropic-client');
 
-const DEFAULT_MAX_TOKENS = parseEnvInt(process.env.MAX_TOKENS, 4096);
+const DEFAULT_MAX_TOKENS = parseEnvInt(process.env.SYNAPSE_MAX_TOKENS, 4096);
 
 /**
  * Generation parameters
@@ -55,24 +58,50 @@ interface ClientConfig {
 }
 
 /**
+ * LLM 配置参数
+ */
+export interface LlmSettings {
+  apiKey: string;
+  baseURL: string;
+  model: string;
+}
+
+/**
+ * AnthropicClient 构造选项
+ */
+export interface AnthropicClientOptions {
+  /** LLM 配置（必需，由调用方从 SettingsManager 获取后传入） */
+  settings: LlmSettings;
+  /** 是否启用流式输出 */
+  stream?: boolean;
+}
+
+/**
  * Anthropic API client with streaming and caching support
  */
-export class AnthropicClient {
+export class AnthropicClient implements LLMClient {
   static readonly name = 'anthropic';
 
+  readonly providerName = 'anthropic';
   private readonly client: Anthropic;
   private readonly config: ClientConfig;
 
-  constructor(options?: { stream?: boolean; settings?: { apiKey: string; baseURL: string; model: string } }) {
-    const { apiKey, baseURL, model } =
-      options?.settings ?? new SettingsManager().getLlmConfig();
+  constructor(options: AnthropicClientOptions) {
+    const { apiKey, baseURL, model } = options.settings;
+
+    // 确保 API key 已配置，避免以空 key 发起请求后得到难以理解的错误
+    if (!apiKey) {
+      throw new ChatProviderError(
+        'ANTHROPIC_API_KEY is not configured. Set it via environment variable or settings file (~/.synapse/settings.json).'
+      );
+    }
 
     this.client = new Anthropic({ apiKey, baseURL });
     this.config = {
       apiKey,
       baseURL,
       model,
-      stream: options?.stream ?? true,
+      stream: options.stream ?? true,
       generationKwargs: {
         maxTokens: DEFAULT_MAX_TOKENS,
       },
@@ -157,9 +186,9 @@ export class AnthropicClient {
   async generate(
     systemPrompt: string,
     messages: readonly Message[],
-    tools: Anthropic.Tool[],
+    tools: LLMTool[],
     options?: GenerateOptions
-  ): Promise<AnthropicStreamedMessage> {
+  ): Promise<LLMStreamedMessage> {
     try {
       // Build system prompt with cache_control
       const system: Anthropic.TextBlockParam[] | undefined = systemPrompt
@@ -178,7 +207,8 @@ export class AnthropicClient {
       const processedMessages = this.injectMessageCacheControl(anthropicMessages);
 
       // Inject cache_control into last tool
-      const processedTools = this.injectToolsCacheControl(tools);
+      // LLMTool 与 Anthropic.Tool 结构兼容，直接传递给 SDK
+      const processedTools = this.injectToolsCacheControl(tools) as Anthropic.Tool[];
 
       // Build request parameters
       const { thinking, toolChoice, maxTokens, ...restKwargs } = this.config.generationKwargs;
@@ -260,15 +290,15 @@ export class AnthropicClient {
   /**
    * Inject cache_control into the last tool
    */
-  private injectToolsCacheControl(tools: Anthropic.Tool[]): Anthropic.Tool[] {
+  private injectToolsCacheControl(tools: LLMTool[]): LLMTool[] {
     if (tools.length === 0) return tools;
 
     const result = [...tools];
     const lastIndex = result.length - 1;
     result[lastIndex] = {
-      ...result[lastIndex],
+      ...result[lastIndex]!,
       cache_control: { type: 'ephemeral' },
-    } as Anthropic.Tool;
+    };
     return result;
   }
 

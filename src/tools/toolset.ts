@@ -10,11 +10,11 @@
  * - CallableToolset: Toolset implementation backed by CallableTool instances
  */
 
-import type Anthropic from '@anthropic-ai/sdk';
+import type { LLMTool } from '../types/tool.ts';
 import type { ToolCall, ToolResult } from '../providers/message.ts';
 import type { CallableTool, CancelablePromise } from './callable-tool.ts';
 import { ToolError, asCancelablePromise } from './callable-tool.ts';
-import { TOOL_FAILURE_CATEGORIES } from '../utils/tool-failure.ts';
+import { TOOL_FAILURE_CATEGORIES } from './tool-failure.ts';
 
 export type { ToolResult };
 
@@ -23,7 +23,7 @@ export type { ToolResult };
  */
 export interface Toolset {
   /** Tool definitions for LLM */
-  readonly tools: Anthropic.Tool[];
+  readonly tools: LLMTool[];
 
   /** Handle a tool call, returns result promise */
   handle(toolCall: ToolCall): CancelablePromise<ToolResult>;
@@ -34,7 +34,7 @@ export interface Toolset {
  * Routes tool calls to the matching CallableTool by name.
  */
 export class CallableToolset implements Toolset {
-  readonly tools: Anthropic.Tool[];
+  readonly tools: LLMTool[];
   private toolMap: Map<string, CallableTool<unknown>>;
 
   constructor(callableTools: CallableTool<unknown>[]) {

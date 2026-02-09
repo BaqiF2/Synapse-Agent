@@ -144,4 +144,28 @@ describe('session-usage', () => {
       'Token: 500 in / 50 out | Cache: 300 read / 100 write (60% hit) | Cost: N/A'
     );
   });
+
+  test('should trim rounds to MAX_ROUNDS_KEPT while preserving totals', () => {
+    // MAX_ROUNDS_KEPT 默认为 50，累积 55 轮后 rounds 应被截断为 50
+    const roundCount = 55;
+    let usage = createEmptySessionUsage('claude-sonnet-4-20250514');
+
+    for (let i = 0; i < roundCount; i++) {
+      usage = accumulateUsage(usage, {
+        inputOther: 10,
+        output: 5,
+        inputCacheRead: 20,
+        inputCacheCreation: 3,
+      });
+    }
+
+    // rounds 被截断为最近 50 轮
+    expect(usage.rounds).toHaveLength(50);
+
+    // total 仍然包含全部 55 轮的累积值
+    expect(usage.totalInputOther).toBe(10 * roundCount);
+    expect(usage.totalOutput).toBe(5 * roundCount);
+    expect(usage.totalCacheRead).toBe(20 * roundCount);
+    expect(usage.totalCacheCreation).toBe(3 * roundCount);
+  });
 });

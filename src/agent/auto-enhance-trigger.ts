@@ -291,6 +291,3 @@ export class AutoEnhanceTrigger {
     };
   }
 }
-
-// Default export
-export default AutoEnhanceTrigger;

@@ -4,7 +4,7 @@
 
 import { describe, it, expect, mock, afterEach } from 'bun:test';
 import { BashTool } from '../../../src/tools/bash-tool.ts';
-import type { CommandResult } from '../../../src/tools/handlers/base-bash-handler.ts';
+import type { CommandResult } from '../../../src/tools/handlers/native-command-handler.ts';
 
 function setRouterResult(bashTool: BashTool, result: CommandResult) {
   const router = bashTool.getRouter() as unknown as {

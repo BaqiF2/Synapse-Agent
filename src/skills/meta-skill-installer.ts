@@ -15,15 +15,15 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import * as os from 'node:os';
 import { createLogger } from '../utils/logger.js';
+import { getSynapseSkillsDir } from '../config/paths.ts';
 
 const logger = createLogger('meta-skill-installer');
 
 /**
  * Default skills directory under user home
  */
-const DEFAULT_SKILLS_DIR = path.join(os.homedir(), '.synapse', 'skills');
+const DEFAULT_SKILLS_DIR = getSynapseSkillsDir();
 
 /**
  * Get the default resource directory path

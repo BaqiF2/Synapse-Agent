@@ -9,6 +9,7 @@
  * - SettingsManager: Class for reading and writing settings
  * - SynapseSettings: TypeScript type for settings
  * - DEFAULT_SETTINGS: Default settings values
+ * - getSynapseHome/getSynapseSkillsDir/getSynapseSessionsDir: 路径常量函数
  */
 
 export {
@@ -31,3 +32,11 @@ export {
   type ModelPricing,
   type PricingConfig,
 } from './pricing.ts';
+
+export {
+  getSynapseHome,
+  getSynapseSkillsDir,
+  getSynapseSessionsDir,
+  getSynapseBinDir,
+  getSynapseLogDir,
+} from './paths.ts';

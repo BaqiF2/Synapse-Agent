@@ -86,8 +86,9 @@ describe('BashRouter', () => {
       resolveInner = resolve;
     }) as CancelablePromise<{ stdout: string; stderr: string; exitCode: number }>;
     innerPromise.cancel = innerCancel;
-    (router as unknown as { executeAgentShellCommand: ReturnType<typeof mock> }).executeAgentShellCommand =
-      mock(() => innerPromise);
+
+    // 注册 mock handler 替代 task: 处理器
+    router.registerHandler('task:', CommandType.AGENT_SHELL_COMMAND, { execute: () => innerPromise }, 'prefix');
 
     const resultPromise = router.route('task:general --prompt "hi" --description "cancel"', true) as CancelablePromise<{
       stdout: string;

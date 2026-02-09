@@ -11,7 +11,6 @@
  */
 
 import path from 'node:path';
-import { z } from 'zod';
 import {
   CallableTool,
   ToolOk,
@@ -20,16 +19,18 @@ import {
   type ToolReturnValue,
   type CancelablePromise,
 } from './callable-tool.ts';
+import { BashToolParamsSchema, type BashToolParams } from './schemas.ts';
+export type { BashToolParams } from './schemas.ts';
 import { BashRouter } from './bash-router.ts';
 import { BashSession } from './bash-session.ts';
 import { loadDesc } from '../utils/load-desc.js';
-import type { AnthropicClient } from '../providers/anthropic/anthropic-client.ts';
+import type { LLMClient } from '../providers/llm-client.ts';
 import { extractBaseCommand } from './constants.ts';
 import {
   classifyToolFailure,
   shouldAttachToolSelfDescription,
   TOOL_FAILURE_CATEGORIES,
-} from '../utils/tool-failure.ts';
+} from './tool-failure.ts';
 import type { OnUsage } from '../providers/generate.ts';
 import type {
   ToolResultEvent,
@@ -62,25 +63,11 @@ function isBashToolMisuse(command: string): boolean {
 }
 
 /**
- * Zod schema for Bash tool parameters
- */
-const BashToolParamsSchema = z.object({
-  command: z.string().describe(
-    'The bash command to execute. Must be non-interactive. Chain commands with `&&` or `;` if needed.'
-  ),
-  restart: z.boolean().default(false).describe(
-    'If true, kills the existing shell session and starts a fresh one (clears env vars and resets CWD). Use only when the environment is corrupted.'
-  ),
-});
-
-export type BashToolParams = z.infer<typeof BashToolParamsSchema>;
-
-/**
  * Options for constructing BashTool
  */
 export interface BashToolOptions {
   /** LLM client for semantic skill search */
-  llmClient?: AnthropicClient;
+  llmClient?: LLMClient;
   /** Callback to get current conversation path */
   getConversationPath?: () => string | null;
   /** SubAgent 工具调用开始回调 */

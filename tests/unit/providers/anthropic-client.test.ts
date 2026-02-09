@@ -50,6 +50,18 @@ afterAll(() => {
 });
 
 describe('AnthropicClient', () => {
+  it('should reject empty api key in constructor', async () => {
+    const { AnthropicClient } = await import('../../../src/providers/anthropic/anthropic-client.ts');
+    const { ChatProviderError } = await import('../../../src/providers/anthropic/anthropic-types.ts');
+
+    expect(() =>
+      new AnthropicClient({
+        stream: false,
+        settings: { apiKey: '', baseURL: 'https://example.test', model: 'test-model' },
+      })
+    ).toThrow(ChatProviderError);
+  });
+
   it('should map thinking effort levels', async () => {
     const { AnthropicClient } = await import('../../../src/providers/anthropic/anthropic-client.ts');
 

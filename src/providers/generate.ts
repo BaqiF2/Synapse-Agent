@@ -11,8 +11,8 @@
  * - OnToolCall: Callback type for complete tool calls
  */
 
-import type Anthropic from '@anthropic-ai/sdk';
-import type { AnthropicClient } from './anthropic/anthropic-client.ts';
+import type { LLMTool } from '../types/tool.ts';
+import type { LLMClient } from './llm-client.ts';
 import type { StreamedMessagePart, TokenUsage } from './anthropic/anthropic-types.ts';
 import { APIEmptyResponseError } from './anthropic/anthropic-types.ts';
 import {
@@ -64,7 +64,7 @@ export interface GenerateResult {
  * Generate one message based on the given context.
  * Parts of the message will be streamed to callbacks if provided.
  *
- * @param client - The Anthropic client to use
+ * @param client - The LLM client to use
  * @param systemPrompt - System prompt for generation
  * @param tools - Available tools for the model
  * @param history - Message history
@@ -72,9 +72,9 @@ export interface GenerateResult {
  * @returns Generated message with usage info
  */
 export async function generate(
-  client: AnthropicClient,
+  client: LLMClient,
   systemPrompt: string,
-  tools: Anthropic.Tool[],
+  tools: LLMTool[],
   history: readonly Message[],
   options?: GenerateOptions
 ): Promise<GenerateResult> {

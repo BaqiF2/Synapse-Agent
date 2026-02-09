@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { TodoItem } from './todo-store.ts';
+import { parseEnvPositiveInt } from '../../../../utils/env.ts';
 
 const DEFAULT_MAX_ITEMS = 50;
 const DEFAULT_MAX_CONTENT_LENGTH = 200;
@@ -10,25 +11,13 @@ export interface TodoConstraints {
 }
 
 export function readTodoConstraints(): TodoConstraints {
-  const maxItems = readPositiveIntEnv('TODO_MAX_ITEMS', DEFAULT_MAX_ITEMS);
-  const maxContentLength = readPositiveIntEnv(
-    'TODO_MAX_CONTENT_LENGTH',
+  const maxItems = parseEnvPositiveInt(process.env.SYNAPSE_TODO_MAX_ITEMS, DEFAULT_MAX_ITEMS);
+  const maxContentLength = parseEnvPositiveInt(
+    process.env.SYNAPSE_TODO_MAX_CONTENT_LENGTH,
     DEFAULT_MAX_CONTENT_LENGTH
   );
 
   return { maxItems, maxContentLength };
-}
-
-function readPositiveIntEnv(name: string, fallback: number): number {
-  const raw = process.env[name];
-  if (raw === undefined || raw === '') {
-    return fallback;
-  }
-  const value = parseInt(raw, 10);
-  if (!Number.isFinite(value) || value <= 0) {
-    throw new Error(`Invalid environment variable ${name}`);
-  }
-  return value;
 }
 
 function nonBlankString(maxLength: number) {

@@ -12,7 +12,7 @@
  * - OnToolResult: Callback type for tool results
  */
 
-import type { AnthropicClient } from '../providers/anthropic/anthropic-client.ts';
+import type { LLMClient } from '../providers/llm-client.ts';
 import type { TokenUsage } from '../providers/anthropic/anthropic-types.ts';
 import { generate, type OnMessagePart, type OnUsage } from '../providers/generate.ts';
 import type { Message, ToolCall, ToolResult } from '../providers/message.ts';
@@ -246,7 +246,7 @@ export interface StepResult {
  * @returns Step result with message and tool results accessor
  */
 export async function step(
-  client: AnthropicClient,
+  client: LLMClient,
   systemPrompt: string,
   toolset: Toolset,
   history: readonly Message[],

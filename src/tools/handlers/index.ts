@@ -15,4 +15,4 @@ export {
 export {
   NativeShellCommandHandler,
   type CommandResult,
-} from './base-bash-handler.js';
+} from './native-command-handler.js';

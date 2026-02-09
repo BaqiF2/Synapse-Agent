@@ -12,30 +12,13 @@
  * - ToolValidateError: Convenience class for parameter validation errors
  */
 
-import type Anthropic from '@anthropic-ai/sdk';
+import type { LLMTool } from '../types/tool.ts';
 import {toJSONSchema, type ZodType} from 'zod';
-import { TOOL_FAILURE_CATEGORIES } from '../utils/tool-failure.ts';
+import { TOOL_FAILURE_CATEGORIES } from './tool-failure.ts';
 
-/**
- * Structured return value of a tool execution.
- *
- * Separates concerns:
- * - output / message: content for the model
- * - brief: short summary for the user
- * - extras: debugging / testing metadata
- */
-export interface ToolReturnValue {
-  /** Whether the tool call resulted in an error */
-  readonly isError: boolean;
-  /** Output content returned to the model */
-  readonly output: string;
-  /** Explanatory message for the model (appended after output) */
-  readonly message: string;
-  /** Short summary displayed to the user */
-  readonly brief: string;
-  /** Optional debugging / testing metadata */
-  readonly extras?: Record<string, unknown>;
-}
+// 从共享类型层导入并 re-export，保持向后兼容
+export type { ToolReturnValue } from '../types/tool.ts';
+import type { ToolReturnValue } from '../types/tool.ts';
 
 export type CancelablePromise<T> = Promise<T> & { cancel: () => void };
 
@@ -114,13 +97,13 @@ export abstract class CallableTool<Params> {
   /** Zod schema that validates and types the tool parameters */
   abstract readonly paramsSchema: ZodType<Params>;
 
-  /** Cached Anthropic tool definition */
-  private _toolDefinition: Anthropic.Tool | null = null;
+  /** Cached LLM tool definition */
+  private _toolDefinition: LLMTool | null = null;
 
   /**
-   * Get the Anthropic Tool definition (lazily generated from Zod schema).
+   * Get the LLM Tool definition (lazily generated from Zod schema).
    */
-  get toolDefinition(): Anthropic.Tool {
+  get toolDefinition(): LLMTool {
     if (!this._toolDefinition) {
       const jsonSchema = toJSONSchema(this.paramsSchema) as Record<string, unknown>;
 
@@ -130,7 +113,7 @@ export abstract class CallableTool<Params> {
       this._toolDefinition = {
         name: this.name,
         description: this.description,
-        input_schema: inputSchema as Anthropic.Tool.InputSchema,
+        input_schema: inputSchema as LLMTool['input_schema'],
       };
     }
     return this._toolDefinition;

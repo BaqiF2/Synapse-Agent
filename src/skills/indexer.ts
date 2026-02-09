@@ -1,15 +1,14 @@
 /**
  * Skill Indexer
  *
- * This module provides functionality to scan the skills directory
- * and generate an index file (index.json) for fast skill discovery.
+ * 扫描 skills 目录并生成 index.json 索引文件，支持快速技能发现。
+ * 包含增量更新、添加、删除等操作（原 SkillIndexUpdater 已合并至此）。
  *
- * @module indexer
- *
- * Core Exports:
- * - SkillIndexer: Scans skills and generates index
- * - SkillIndex: Index data structure
- * - SkillIndexEntry: Individual skill entry in the index
+ * 核心导出：
+ * - SkillIndexer: 技能索引扫描与管理
+ * - SkillIndexUpdater: SkillIndexer 的向后兼容别名
+ * - SkillIndex: 索引数据结构
+ * - SkillIndexEntry: 单条技能索引条目
  */
 
 import * as fs from 'node:fs';
@@ -17,6 +16,9 @@ import * as path from 'node:path';
 import * as os from 'node:os';
 import { z } from 'zod';
 import { SkillDocParser, type SkillDoc, SKILL_DOMAINS } from './skill-schema.js';
+import { createLogger } from '../utils/logger.ts';
+
+const logger = createLogger('skill-indexer');
 
 /**
  * Default skills directory
@@ -395,7 +397,27 @@ export class SkillIndexer {
 
     return index;
   }
+
+  /**
+   * Add a new skill to the index (convenience method with logging)
+   *
+   * @param skillName - Name of the skill to add
+   */
+  public addSkill(skillName: string): void {
+    logger.debug('Adding skill to index', { skill: skillName });
+    this.updateSkill(skillName);
+    logger.info('Skill added to index', { skill: skillName });
+  }
+
+  /**
+   * Rebuild the entire index (convenience alias with logging)
+   */
+  public rebuildIndex(): void {
+    logger.debug('Rebuilding entire index');
+    this.rebuild();
+    logger.info('Index rebuilt');
+  }
 }
 
-// Default export
-export default SkillIndexer;
+// 向后兼容别名：SkillIndexUpdater 已合并到 SkillIndexer
+export { SkillIndexer as SkillIndexUpdater };

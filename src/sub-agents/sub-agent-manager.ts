@@ -1,10 +1,10 @@
 /**
  * Sub Agent Manager
  *
- * 功能：管理 Sub Agent 的生命周期（创建、复用、销毁）
+ * 功能：管理 Sub Agent 的执行（创建 AgentRunner、配置工具权限、转发回调）
  *
  * 核心导出：
- * - SubAgentManager: Sub Agent 管理器类
+ * - SubAgentManager: Sub Agent 管理器类，每次 execute() 创建一次性 AgentRunner
  * - SubAgentManagerOptions: 管理器配置选项
  */
 
@@ -13,7 +13,7 @@ import { parseEnvInt } from '../utils/env.ts';
 import { AgentRunner } from '../agent/agent-runner.ts';
 import { CallableToolset } from '../tools/toolset.ts';
 import { RestrictedBashTool } from '../tools/restricted-bash-tool.ts';
-import type { AnthropicClient } from '../providers/anthropic/anthropic-client.ts';
+import type { LLMClient } from '../providers/llm-client.ts';
 import type { OnUsage } from '../providers/generate.ts';
 import type { BashTool } from '../tools/bash-tool.ts';
 import type { SubAgentType, TaskCommandParams, ToolPermissions } from './sub-agent-types.ts';
@@ -48,8 +48,8 @@ export type OnSubAgentComplete = (event: SubAgentCompleteEvent) => void;
  * SubAgentManager 配置选项
  */
 export interface SubAgentManagerOptions {
-  /** Anthropic 客户端 */
-  client: AnthropicClient;
+  /** LLM 客户端 */
+  client: LLMClient;
   /** Bash 工具（用于创建受限 Toolset） */
   bashTool: BashTool;
   /** 最大迭代次数（默认继承主 Agent） */
@@ -68,15 +68,6 @@ export interface SubAgentExecuteOptions {
   signal?: AbortSignal;
 }
 
-/**
- * Sub Agent 实例信息
- */
-interface SubAgentInstance {
-  runner: AgentRunner;
-  type: SubAgentType;
-  createdAt: Date;
-}
-
 interface AgentWithCleanup {
   runner: AgentRunner;
   cleanup: () => void;
@@ -88,18 +79,17 @@ interface ToolsetWithCleanup {
 }
 
 /**
- * SubAgentManager - 管理 Sub Agent 生命周期
+ * SubAgentManager - 管理 Sub Agent 执行
  *
  * 特性：
- * - 同一 session 中复用 Sub Agent 实例
+ * - 每次 execute() 创建独立的 AgentRunner 实例
  * - 根据类型配置工具权限
- * - 运行时 resume（内存中）
+ * - 转发工具调用、结果、完成回调到上层
  */
 export class SubAgentManager {
-  private client: AnthropicClient;
+  private client: LLMClient;
   private bashTool: BashTool;
   private maxIterations: number;
-  private agents: Map<SubAgentType, SubAgentInstance> = new Map();
   private onToolStart?: OnSubAgentToolCall;
   private onToolEnd?: OnSubAgentToolResult;
   private onComplete?: OnSubAgentComplete;
@@ -315,52 +305,9 @@ export class SubAgentManager {
   }
 
   /**
-   * 获取指定类型的 Sub Agent 实例（如果存在）
-   */
-  get(type: SubAgentType): SubAgentInstance | undefined {
-    return this.agents.get(type);
-  }
-
-  /**
-   * 检查指定类型的 Sub Agent 是否存在
-   */
-  has(type: SubAgentType): boolean {
-    return this.agents.has(type);
-  }
-
-  /**
-   * 销毁指定类型的 Sub Agent
-   */
-  destroy(type: SubAgentType): boolean {
-    const instance = this.agents.get(type);
-    if (instance) {
-      this.agents.delete(type);
-      logger.info('Sub agent destroyed', { type });
-      return true;
-    }
-    return false;
-  }
-
-  /**
-   * 销毁所有 Sub Agent
-   */
-  destroyAll(): void {
-    const count = this.agents.size;
-    this.agents.clear();
-    logger.info('All sub agents destroyed', { count });
-  }
-
-  /**
-   * 获取当前活跃的 Sub Agent 数量
-   */
-  get size(): number {
-    return this.agents.size;
-  }
-
-  /**
-   * 关闭管理器
+   * 关闭管理器（预留扩展点，当前为空操作）
    */
   shutdown(): void {
-    this.destroyAll();
+    // 当前无需清理资源，每次 execute 结束时已通过 cleanup 释放
   }
 }

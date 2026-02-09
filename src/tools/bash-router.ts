@@ -1,25 +1,24 @@
 /**
  * Bash Command Router
  *
- * Function: Parse and route Bash commands to different handlers (Native Shell Command / Agent Shell Command / extend Shell command)
+ * 功能：解析 Bash 命令并路由到三层处理器（Native Shell / Agent Shell / Extend Shell）。
+ * 使用注册表模式统一管理命令处理器，通过 Map<prefix, handler> 实现路由。
  *
- * Core Exports:
- * - BashRouter: Bash command router class
- * - CommandType: Command type enum
+ * 核心导出：
+ * - BashRouter: 命令路由器，识别命令类型并分发到对应 handler
+ * - CommandType: 命令类型枚举
+ * - BashRouterOptions: 路由器配置选项
  */
 
 import * as path from 'node:path';
 import * as os from 'node:os';
 import type { BashSession } from './bash-session.ts';
-import { NativeShellCommandHandler, type CommandResult } from './handlers/base-bash-handler.ts';
+import { NativeShellCommandHandler, type CommandResult } from './handlers/native-command-handler.ts';
 import { ReadHandler, WriteHandler, EditHandler, BashWrapperHandler, TodoWriteHandler } from './handlers/agent-bash/index.ts';
-import { CommandSearchHandler } from './handlers/extend-bash/index.ts';
-import { parseColonCommand } from './handlers/agent-bash/command-utils.ts';
-import { McpConfigParser, McpClient, McpInstaller } from './converters/mcp/index.ts';
-import { SkillStructure, DocstringParser } from './converters/skill/index.ts';
+import { CommandSearchHandler, McpCommandHandler, SkillToolHandler } from './handlers/extend-bash/index.ts';
 import { SkillCommandHandler } from './handlers/skill-command-handler.ts';
 import { TaskCommandHandler } from './handlers/task-command-handler.ts';
-import type { AnthropicClient } from '../providers/anthropic/anthropic-client.ts';
+import type { LLMClient } from '../providers/llm-client.ts';
 import type { OnUsage } from '../providers/generate.ts';
 import type { BashTool } from './bash-tool.ts';
 import { asCancelablePromise, type CancelablePromise } from './callable-tool.ts';
@@ -29,580 +28,255 @@ import type {
   SubAgentToolCallEvent,
 } from '../cli/terminal-renderer-types.ts';
 
-/**
- * Command types in the three-layer Bash architecture
- */
+/** 三层 Bash 架构中的命令类型 */
 export enum CommandType {
-  NATIVE_SHELL_COMMAND = 'native_shell_command',       // Standard Unix commands
-  AGENT_SHELL_COMMAND = 'agent_shell_command',         // Built-in Agent commands (read, write, edit, etc.)
-  EXTEND_SHELL_COMMAND = 'extend_shell_command', // Domain-specific tools (mcp:*, skill:*:*)
+  NATIVE_SHELL_COMMAND = 'native_shell_command',
+  AGENT_SHELL_COMMAND = 'agent_shell_command',
+  EXTEND_SHELL_COMMAND = 'extend_shell_command',
 }
 
-const SKILL_MANAGEMENT_COMMAND_PREFIXES = ['skill:load'] as const;
-const COMMAND_SEARCH_PREFIX = 'command:search';
-const TASK_COMMAND_PREFIX = 'task:';
-const TODO_WRITE_COMMAND = 'TodoWrite';
-
-/**
- * Default Synapse directory
- */
 const DEFAULT_SYNAPSE_DIR = path.join(os.homedir(), '.synapse');
 
+/** BashRouter 配置选项 */
+export interface BashRouterOptions {
+  synapseDir?: string;
+  llmClient?: LLMClient;
+  toolExecutor?: BashTool;
+  getConversationPath?: () => string | null;
+  onSubAgentToolStart?: (event: SubAgentToolCallEvent) => void;
+  onSubAgentToolEnd?: (event: ToolResultEvent) => void;
+  onSubAgentComplete?: (event: SubAgentCompleteEvent) => void;
+  onSubAgentUsage?: OnUsage;
+}
+
+/** 注册表中的命令处理器接口 */
 interface CommandHandler {
-  execute(command: string): Promise<CommandResult>;
+  execute(command: string): Promise<CommandResult> | CancelablePromise<CommandResult>;
+  shutdown?(): void;
 }
 
-interface AgentHandlerEntry {
-  command: string;
-  handler: CommandHandler;
+/** 注册表条目：命令类型 + 处理器（支持惰性初始化） */
+interface HandlerEntry {
+  type: CommandType;
+  handler: CommandHandler | null;
+  /** 惰性初始化工厂，首次调用时创建 handler */
+  factory?: () => CommandHandler | null;
+  /** 前缀匹配模式：'exact' 匹配 cmd 或 cmd+空格，'prefix' 匹配 startsWith */
+  matchMode: 'exact' | 'prefix';
 }
 
-function startsWithAny(value: string, prefixes: readonly string[]): boolean {
-  return prefixes.some((prefix) => value.startsWith(prefix));
+// 辅助函数
+function matchesExact(trimmed: string, cmd: string): boolean {
+  return trimmed === cmd || trimmed.startsWith(cmd + ' ');
 }
 
 function isSkillToolCommand(value: string): boolean {
   return value.startsWith('skill:') && value.split(':').length >= 3;
 }
 
-/**
- * Create an error result with the given message
- */
 function errorResult(message: string): CommandResult {
   return { stdout: '', stderr: message, exitCode: 1 };
 }
 
 /**
- * BashRouter options
- */
-export interface BashRouterOptions {
-  /** Synapse 目录 (默认 ~/.synapse) */
-  synapseDir?: string;
-  /** LLM client for semantic skill search */
-  llmClient?: AnthropicClient;
-  /** Tool executor for skill sub-agent */
-  toolExecutor?: BashTool;
-  /** Callback to get current conversation path */
-  getConversationPath?: () => string | null;
-  /** SubAgent 工具调用开始回调 */
-  onSubAgentToolStart?: (event: SubAgentToolCallEvent) => void;
-  /** SubAgent 工具调用结束回调 */
-  onSubAgentToolEnd?: (event: ToolResultEvent) => void;
-  /** SubAgent 完成回调 */
-  onSubAgentComplete?: (event: SubAgentCompleteEvent) => void;
-  /** SubAgent usage 回调 */
-  onSubAgentUsage?: OnUsage;
-}
-
-/**
- * Router for Bash commands - routes commands to appropriate handlers
+ * BashRouter — 命令路由器
+ *
+ * 使用注册表模式：通过 handlerRegistry 统一管理所有命令前缀与处理器的映射。
  */
 export class BashRouter {
-  private nativeShellCommandHandler: NativeShellCommandHandler;
-  private readHandler: ReadHandler;
-  private writeHandler: WriteHandler;
-  private editHandler: EditHandler;
-  private bashWrapperHandler: BashWrapperHandler;
-  private todoWriteHandler: TodoWriteHandler;
-  private commandSearchHandler: CommandSearchHandler;
-  private mcpInstaller: McpInstaller;
-  private skillCommandHandler: SkillCommandHandler | null = null;
-  private taskCommandHandler: TaskCommandHandler | null = null;
-  private agentHandlers: AgentHandlerEntry[];
-  private synapseDir: string;
-  private llmClient: AnthropicClient | undefined;
-  private toolExecutor: BashTool | undefined;
-  private getConversationPath: (() => string | null) | undefined;
-  private onSubAgentToolStart: ((event: SubAgentToolCallEvent) => void) | undefined;
-  private onSubAgentToolEnd: ((event: ToolResultEvent) => void) | undefined;
-  private onSubAgentComplete: ((event: SubAgentCompleteEvent) => void) | undefined;
-  private onSubAgentUsage: OnUsage | undefined;
+  private readonly options: BashRouterOptions;
+  private readonly nativeHandler: NativeShellCommandHandler;
+  /** 命令前缀 → 处理器注册表 */
+  private readonly handlerRegistry = new Map<string, HandlerEntry>();
 
   constructor(private session: BashSession, options: BashRouterOptions = {}) {
-    this.synapseDir = options.synapseDir ?? DEFAULT_SYNAPSE_DIR;
-    this.llmClient = options.llmClient;
-    this.toolExecutor = options.toolExecutor;
-    this.getConversationPath = options.getConversationPath;
-    this.onSubAgentToolStart = options.onSubAgentToolStart;
-    this.onSubAgentToolEnd = options.onSubAgentToolEnd;
-    this.onSubAgentComplete = options.onSubAgentComplete;
-    this.onSubAgentUsage = options.onSubAgentUsage;
+    this.options = { synapseDir: DEFAULT_SYNAPSE_DIR, ...options };
+    this.nativeHandler = new NativeShellCommandHandler(session);
 
-    this.nativeShellCommandHandler = new NativeShellCommandHandler(session);
-    this.readHandler = new ReadHandler();
-    this.writeHandler = new WriteHandler();
-    this.editHandler = new EditHandler();
-    this.bashWrapperHandler = new BashWrapperHandler(session);
-    this.todoWriteHandler = new TodoWriteHandler();
-    this.commandSearchHandler = new CommandSearchHandler();
-    this.mcpInstaller = new McpInstaller();
-    this.agentHandlers = [
-      { command: 'read', handler: this.readHandler },
-      { command: 'write', handler: this.writeHandler },
-      { command: 'edit', handler: this.editHandler },
-      { command: 'bash', handler: this.bashWrapperHandler },
-      { command: 'TodoWrite', handler: this.todoWriteHandler },
-    ];
+    this.registerBuiltinHandlers();
   }
 
-  /**
-   * Route and execute a command
-   */
+  /** 路由并执行命令 */
   route(command: string, restart: boolean = false): CancelablePromise<CommandResult> {
-    // Handle session restart
     if (restart) {
-      let cancelled = false;
-      let routedPromise: CancelablePromise<CommandResult> | null = null;
-      return asCancelablePromise(
-        this.session.restart().then(() => {
-          if (cancelled) {
-            return {
-              stdout: '',
-              stderr: 'Command execution interrupted.',
-              exitCode: 130,
-            };
-          }
-
-          routedPromise = this.route(command, false);
-          if (cancelled) {
-            routedPromise.cancel?.();
-          }
-          return routedPromise;
-        }),
-        () => {
-          cancelled = true;
-          routedPromise?.cancel?.();
-        }
-      );
+      return this.routeWithRestart(command);
     }
 
-    const commandType = this.identifyCommandType(command);
+    const trimmed = command.trim();
+    const entry = this.findHandler(trimmed);
 
-    switch (commandType) {
-      case CommandType.NATIVE_SHELL_COMMAND:
-        return asCancelablePromise(this.nativeShellCommandHandler.execute(command));
-
-      case CommandType.AGENT_SHELL_COMMAND:
-        return this.executeAgentShellCommand(command);
-
-      case CommandType.EXTEND_SHELL_COMMAND:
-        return asCancelablePromise(this.executeExtendShellCommand(command));
-
-      default:
-        return asCancelablePromise(Promise.resolve(errorResult(`Unknown command type: ${command}`)));
+    if (!entry) {
+      // 默认 Native Shell
+      return asCancelablePromise(this.nativeHandler.execute(command));
     }
+
+    const handler = this.resolveHandler(entry);
+    if (!handler) {
+      return asCancelablePromise(Promise.resolve(errorResult(`Handler initialization failed for: ${command}`)));
+    }
+
+    const result = handler.execute(command);
+    return 'cancel' in result ? result as CancelablePromise<CommandResult> : asCancelablePromise(result);
   }
 
-  /**
-   * Identify the type of command (public for testing)
-   */
+  /** 识别命令类型（public，供测试使用） */
   identifyCommandType(command: string): CommandType {
     const trimmed = command.trim();
 
-    // command:search → Agent Shell Command
-    if (trimmed.startsWith(COMMAND_SEARCH_PREFIX)) {
-      return CommandType.AGENT_SHELL_COMMAND;
-    }
+    // Extend Shell — mcp:* 和 skill:*:*（三段式）
+    if (trimmed.startsWith('mcp:')) return CommandType.EXTEND_SHELL_COMMAND;
+    if (isSkillToolCommand(trimmed)) return CommandType.EXTEND_SHELL_COMMAND;
 
-    // task:* → Agent Shell Command
-    if (trimmed.startsWith(TASK_COMMAND_PREFIX)) {
-      return CommandType.AGENT_SHELL_COMMAND;
-    }
+    // 注册表查找
+    const entry = this.findHandler(trimmed);
+    if (entry) return entry.type;
 
-    // Skill management commands: skill:search, skill:load, skill:enhance
-    if (startsWithAny(trimmed, SKILL_MANAGEMENT_COMMAND_PREFIXES)) {
-      return CommandType.AGENT_SHELL_COMMAND;
-    }
-
-    // extend Shell command commands (Layer 3) - mcp:*, skill:*:* (extension tools)
-    if (trimmed.startsWith('mcp:')) {
-      return CommandType.EXTEND_SHELL_COMMAND;
-    }
-
-    // skill:*:* is Extension (for skill tool execution, e.g. skill:analyzer:run)
-    if (isSkillToolCommand(trimmed)) {
-      return CommandType.EXTEND_SHELL_COMMAND;
-    }
-
-    // TodoWrite → Agent Shell Command (case sensitive)
-    if (this.matchesCommand(trimmed, TODO_WRITE_COMMAND)) {
-      return CommandType.AGENT_SHELL_COMMAND;
-    }
-
-    // Agent Shell Command commands (Layer 2)
-    if (this.isAgentShellCommand(trimmed)) {
-      return CommandType.AGENT_SHELL_COMMAND;
-    }
-
-    // Default to Native Shell Command (Layer 1)
+    // 默认 Native Shell
     return CommandType.NATIVE_SHELL_COMMAND;
   }
 
-  /**
-   * Check if command matches a prefix
-   */
-  private matchesCommand(trimmed: string, cmd: string): boolean {
-    return trimmed === cmd || trimmed.startsWith(cmd + ' ');
+  /** 注册命令处理器 */
+  registerHandler(
+    prefix: string,
+    type: CommandType,
+    handler: CommandHandler | null,
+    matchMode: 'exact' | 'prefix' = 'exact',
+    factory?: () => CommandHandler | null,
+  ): void {
+    this.handlerRegistry.set(prefix, { type, handler, factory, matchMode });
   }
 
-  /**
-   * Check if command is a built-in Agent Shell Command (Layer 2)
-   */
-  private isAgentShellCommand(trimmed: string): boolean {
-    return this.agentHandlers.some((entry) => this.matchesCommand(trimmed, entry.command));
-  }
-
-  /**
-   * Execute Agent Shell Command commands (Layer 2)
-   */
-  private executeAgentShellCommand(command: string): CancelablePromise<CommandResult> {
-    const trimmed = command.trim();
-
-    // Route to appropriate handler based on command prefix
-    for (const entry of this.agentHandlers) {
-      if (this.matchesCommand(trimmed, entry.command)) {
-        return asCancelablePromise(entry.handler.execute(command));
-      }
-    }
-
-    // command:search
-    if (trimmed.startsWith(COMMAND_SEARCH_PREFIX)) {
-      return asCancelablePromise(this.commandSearchHandler.execute(command));
-    }
-
-    // task:* commands
-    if (trimmed.startsWith(TASK_COMMAND_PREFIX)) {
-      return this.executeTaskCommand(command);
-    }
-
-    // Skill management commands: skill:search, skill:load, skill:enhance
-    if (startsWithAny(trimmed, SKILL_MANAGEMENT_COMMAND_PREFIXES)) {
-      return asCancelablePromise(this.executeSkillManagementCommand(command));
-    }
-
-    return asCancelablePromise(Promise.resolve(errorResult(`Unknown Agent Shell Command: ${command}`)));
-  }
-
-  /**
-   * Execute skill management command
-   */
-  private async executeSkillManagementCommand(command: string): Promise<CommandResult> {
-    // Lazy initialize skill command handler
-    // synapseDir 的父目录即为 homeDir
-    if (!this.skillCommandHandler) {
-      this.skillCommandHandler = new SkillCommandHandler({
-        homeDir: path.dirname(this.synapseDir),
-      });
-    }
-
-    return this.skillCommandHandler.execute(command);
-  }
-
-  /**
-   * Execute extend Shell command commands (Layer 3)
-   * Handles mcp:* and skill:*:* commands
-   */
-  private async executeExtendShellCommand(command: string): Promise<CommandResult> {
-    const trimmed = command.trim();
-
-    // Handle mcp:* commands
-    if (trimmed.startsWith('mcp:')) {
-      return this.executeMcpCommand(trimmed);
-    }
-
-    // Handle skill:*:* commands (extension tool execution)
-    if (trimmed.startsWith('skill:')) {
-      return this.executeSkillCommand(trimmed);
-    }
-
-    return errorResult(`Unknown extend Shell command: ${command}`);
-  }
-
-  /**
-   * Execute MCP tool command
-   * Format: mcp:<server>:<tool> [args...]
-   */
-  private async executeMcpCommand(command: string): Promise<CommandResult> {
-    const MCP_FORMAT_ERROR = 'Invalid MCP command format. Expected: mcp:<server>:<tool> [args...]';
-
-    const parsed = parseColonCommand(command);
-    if (!parsed) {
-      return errorResult(MCP_FORMAT_ERROR);
-    }
-
-    const { name: serverName, toolName, args } = parsed;
-
-    // Parse arguments
-    const positionalArgs: string[] = [];
-    const namedArgs: Record<string, string> = {};
-
-    for (const arg of args) {
-      if (arg === '-h' || arg === '--help') {
-        // Show tool help by running the wrapper with -h
-        const tool = this.mcpInstaller.search({ pattern: command.split(' ')[0] ?? '' }).tools[0];
-        if (tool) {
-          const { execSync } = await import('child_process');
-          try {
-            const helpOutput = execSync(`bun ${tool.path} ${arg}`, { encoding: 'utf-8' });
-            return { stdout: helpOutput, stderr: '', exitCode: 0 };
-          } catch {
-            // Fall through to direct help
-          }
-        }
-        return {
-          stdout: `Usage: mcp:${serverName}:${toolName} [args...]\nUse command:search "mcp:${serverName}:${toolName}" for more info.`,
-          stderr: '',
-          exitCode: 0,
-        };
-      } else if (arg.startsWith('--')) {
-        const eqIndex = arg.indexOf('=');
-        if (eqIndex > 0) {
-          namedArgs[arg.slice(2, eqIndex)] = arg.slice(eqIndex + 1);
-        } else {
-          namedArgs[arg.slice(2)] = 'true';
-        }
-      } else {
-        positionalArgs.push(arg);
-      }
-    }
-
-    // Connect to MCP server and call tool
-    try {
-      const parser = new McpConfigParser();
-      const serverEntry = parser.getServer(serverName);
-
-      if (!serverEntry) {
-        return errorResult(`MCP server '${serverName}' not found in configuration`);
-      }
-
-      const client = new McpClient(serverEntry, { timeout: 30000 });
-      const connectResult = await client.connect();
-
-      if (!connectResult.success) {
-        return errorResult(`Failed to connect to MCP server '${serverName}': ${connectResult.error}`);
-      }
-
-      try {
-        // Get tool schema to map positional args to named args
-        const tools = await client.listTools();
-        const tool = tools.find((t) => t.name === toolName);
-
-        if (!tool) {
-          await client.disconnect();
-          return errorResult(`Tool '${toolName}' not found on server '${serverName}'`);
-        }
-
-        // Map positional args based on schema
-        const schema = tool.inputSchema as { properties?: Record<string, unknown>; required?: string[] };
-        const required = schema.required || [];
-        const toolArgs: Record<string, unknown> = { ...namedArgs };
-
-        for (let i = 0; i < required.length && i < positionalArgs.length; i++) {
-          const paramName = required[i];
-          if (!paramName) {
-            continue;
-          }
-          const propSchema = schema.properties?.[paramName] as { type?: string } | undefined;
-          const type = propSchema?.type || 'string';
-
-          // Parse value based on type
-          let value: unknown = positionalArgs[i];
-          if (type === 'number' || type === 'integer') {
-            value = Number(positionalArgs[i]);
-          } else if (type === 'boolean') {
-            value = positionalArgs[i] === 'true' || positionalArgs[i] === '1';
-          }
-
-          toolArgs[paramName] = value;
-        }
-
-        // Call the tool
-        const result = await client.callTool(toolName, toolArgs);
-        await client.disconnect();
-
-        // Format output
-        const content = result.content
-          .map((c: unknown) => {
-            if (typeof c === 'object' && c !== null && 'text' in c) {
-              return (c as { text: string }).text;
-            }
-            return JSON.stringify(c);
-          })
-          .join('\n');
-
-        return {
-          stdout: content,
-          stderr: '',
-          exitCode: result.isError ? 1 : 0,
-        };
-      } catch (error) {
-        await client.disconnect();
-        throw error;
-      }
-    } catch (error) {
-      return errorResult(`MCP command failed: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  }
-
-  /**
-   * Execute Skill tool command
-   * Format: skill:<skill>:<tool> [args...]
-   */
-  private async executeSkillCommand(command: string): Promise<CommandResult> {
-    const SKILL_FORMAT_ERROR = 'Invalid skill command format. Expected: skill:<skill>:<tool> [args...]';
-
-    const parsed = parseColonCommand(command);
-    if (!parsed) {
-      return errorResult(SKILL_FORMAT_ERROR);
-    }
-
-    const { name: skillName, toolName, args } = parsed;
-
-    // Check for help flags
-    if (args.includes('-h') || args.includes('--help')) {
-      const helpFlag = args.includes('--help') ? '--help' : '-h';
-      // Try to find and run the wrapper
-      const wrapperPath = `${process.env.HOME}/.synapse/bin/skill:${skillName}:${toolName}`;
-      const fs = await import('fs');
-      if (fs.existsSync(wrapperPath)) {
-        const { execSync } = await import('child_process');
-        try {
-          const output = execSync(`bun "${wrapperPath}" ${helpFlag}`, { encoding: 'utf-8' });
-          return { stdout: output, stderr: '', exitCode: 0 };
-        } catch {
-          // Fall through
-        }
-      }
-      return {
-        stdout: `Usage: skill:${skillName}:${toolName} [args...]\nUse command:search "skill:${skillName}:${toolName}" for more info.`,
-        stderr: '',
-        exitCode: 0,
-      };
-    }
-
-    // Find the script to execute
-    const structure = new SkillStructure();
-    const scripts = structure.listScripts(skillName);
-
-    if (scripts.length === 0) {
-      return errorResult(`Skill '${skillName}' not found or has no scripts`);
-    }
-
-    // Find the matching script
-    const parser = new DocstringParser();
-    let targetScript: string | null = null;
-
-    for (const scriptPath of scripts) {
-      const metadata = parser.parseFile(scriptPath);
-      if (metadata && metadata.name === toolName) {
-        targetScript = scriptPath;
-        break;
-      }
-    }
-
-    if (!targetScript) {
-      return errorResult(`Tool '${toolName}' not found in skill '${skillName}'`);
-    }
-
-    // Determine interpreter based on extension
-    const path = await import('path');
-    const ext = path.extname(targetScript);
-    let interpreter: string;
-
-    switch (ext) {
-      case '.py':
-        interpreter = 'python3';
-        break;
-      case '.sh':
-        interpreter = 'bash';
-        break;
-      case '.ts':
-        interpreter = 'bun';
-        break;
-      case '.js':
-        interpreter = 'node';
-        break;
-      default:
-        interpreter = 'bash';
-    }
-
-    // Execute the script
-    try {
-      const { execSync } = await import('child_process');
-      const quotedArgs = args.map((a) => `"${a.replace(/"/g, '\\"')}"`).join(' ');
-      const output = execSync(`${interpreter} "${targetScript}" ${quotedArgs}`, {
-        encoding: 'utf-8',
-        env: process.env,
-        maxBuffer: 10 * 1024 * 1024, // 10MB
-      });
-
-      return {
-        stdout: output,
-        stderr: '',
-        exitCode: 0,
-      };
-    } catch (error) {
-      if (error && typeof error === 'object' && 'stdout' in error && 'stderr' in error) {
-        const execError = error as { stdout: string; stderr: string; status: number };
-        return {
-          stdout: execError.stdout || '',
-          stderr: execError.stderr || '',
-          exitCode: execError.status || 1,
-        };
-      }
-      return errorResult(`Skill command failed: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  }
-
-  /**
-   * Execute task command
-   */
-  private executeTaskCommand(command: string): CancelablePromise<CommandResult> {
-    // Lazy initialize task command handler
-    if (!this.taskCommandHandler) {
-      if (!this.llmClient || !this.toolExecutor) {
-        return asCancelablePromise(Promise.resolve(errorResult('Task commands require LLM client and tool executor')));
-      }
-
-      this.taskCommandHandler = new TaskCommandHandler({
-        client: this.llmClient,
-        bashTool: this.toolExecutor,
-        onToolStart: this.onSubAgentToolStart,
-        onToolEnd: this.onSubAgentToolEnd,
-        onComplete: this.onSubAgentComplete,
-        onUsage: this.onSubAgentUsage,
-      });
-    }
-
-    return this.taskCommandHandler.execute(command);
-  }
-
-  /**
-   * Set the BashTool instance (for delayed binding to avoid circular dependencies)
-   * This allows BashTool to pass itself after BashRouter is created.
-   *
-   * @param executor - The tool executor instance
-   */
+  /** 设置 BashTool 实例（延迟绑定，避免循环依赖） */
   setToolExecutor(executor: BashTool): void {
-    this.toolExecutor = executor;
-    // Reset skill command handler to pick up the new executor on next use
-    if (this.skillCommandHandler) {
-      this.skillCommandHandler.shutdown();
-      this.skillCommandHandler = null;
+    this.options.toolExecutor = executor;
+
+    // 重置 task handler 以使用新的 executor
+    const taskEntry = this.handlerRegistry.get('task:');
+    if (taskEntry?.handler) {
+      (taskEntry.handler as TaskCommandHandler).shutdown();
+      taskEntry.handler = null;
+    }
+
+    // 重置 skill command handler
+    const skillEntry = this.handlerRegistry.get('skill:load');
+    if (skillEntry?.handler) {
+      (skillEntry.handler as SkillCommandHandler).shutdown();
+      skillEntry.handler = null;
     }
   }
 
-  /**
-   * Shutdown and cleanup resources
-   */
+  /** 关闭并清理资源 */
   shutdown(): void {
-    if (this.skillCommandHandler) {
-      this.skillCommandHandler.shutdown();
-      this.skillCommandHandler = null;
+    for (const entry of this.handlerRegistry.values()) {
+      if (entry.handler?.shutdown) {
+        entry.handler.shutdown();
+      }
+      entry.handler = null;
     }
-    if (this.taskCommandHandler) {
-      this.taskCommandHandler.shutdown();
-      this.taskCommandHandler = null;
+  }
+
+  /** 注册所有内置命令处理器 */
+  private registerBuiltinHandlers(): void {
+    // Agent Shell — 文件操作命令（exact 匹配）
+    this.registerHandler('read', CommandType.AGENT_SHELL_COMMAND, new ReadHandler());
+    this.registerHandler('write', CommandType.AGENT_SHELL_COMMAND, new WriteHandler());
+    this.registerHandler('edit', CommandType.AGENT_SHELL_COMMAND, new EditHandler());
+    this.registerHandler('bash', CommandType.AGENT_SHELL_COMMAND, new BashWrapperHandler(this.session));
+    this.registerHandler('TodoWrite', CommandType.AGENT_SHELL_COMMAND, new TodoWriteHandler());
+
+    // Agent Shell — 搜索命令（prefix 匹配）
+    this.registerHandler('command:search', CommandType.AGENT_SHELL_COMMAND, new CommandSearchHandler(), 'prefix');
+
+    // Agent Shell — task 命令（prefix 匹配，惰性初始化）
+    this.registerHandler('task:', CommandType.AGENT_SHELL_COMMAND, null, 'prefix', () => this.createTaskHandler());
+
+    // Agent Shell — skill 管理命令（prefix 匹配，惰性初始化）
+    this.registerHandler('skill:load', CommandType.AGENT_SHELL_COMMAND, null, 'prefix', () => this.createSkillHandler());
+
+    // Extend Shell — mcp 和 skill tool（prefix 匹配）
+    this.registerHandler('mcp:', CommandType.EXTEND_SHELL_COMMAND, new McpCommandHandler(), 'prefix');
+    this.registerHandler('skill:', CommandType.EXTEND_SHELL_COMMAND, new SkillToolHandler(), 'prefix');
+  }
+
+  /** 在注册表中查找匹配的处理器条目 */
+  private findHandler(trimmed: string): HandlerEntry | null {
+    // Extend Shell 的 skill: 需要特殊处理：
+    // skill:load → Agent Shell（skill 管理）
+    // skill:name:tool → Extend Shell（skill 工具调用，三段式）
+    // skill:xxx → 不匹配（只有两段，既不是 load 也不是三段式工具调用）
+
+    for (const [prefix, entry] of this.handlerRegistry) {
+      if (entry.matchMode === 'exact') {
+        if (matchesExact(trimmed, prefix)) return entry;
+      } else {
+        // prefix 匹配
+        if (trimmed.startsWith(prefix)) {
+          // skill: 前缀需要区分 skill:load 和 skill:*:*
+          if (prefix === 'skill:' && !isSkillToolCommand(trimmed)) continue;
+          return entry;
+        }
+      }
     }
+
+    return null;
+  }
+
+  /** 解析处理器：直接返回或通过工厂惰性创建 */
+  private resolveHandler(entry: HandlerEntry): CommandHandler | null {
+    if (entry.handler) return entry.handler;
+
+    if (entry.factory) {
+      entry.handler = entry.factory();
+      return entry.handler;
+    }
+
+    return null;
+  }
+
+  /** 带 session 重启的路由 */
+  private routeWithRestart(command: string): CancelablePromise<CommandResult> {
+    let cancelled = false;
+    let routedPromise: CancelablePromise<CommandResult> | null = null;
+
+    return asCancelablePromise(
+      this.session.restart().then(() => {
+        if (cancelled) {
+          return { stdout: '', stderr: 'Command execution interrupted.', exitCode: 130 };
+        }
+        routedPromise = this.route(command, false);
+        if (cancelled) routedPromise.cancel?.();
+        return routedPromise;
+      }),
+      () => {
+        cancelled = true;
+        routedPromise?.cancel?.();
+      },
+    );
+  }
+
+  /** 创建 TaskCommandHandler（惰性） */
+  private createTaskHandler(): CommandHandler {
+    const { llmClient, toolExecutor, onSubAgentToolStart, onSubAgentToolEnd, onSubAgentComplete, onSubAgentUsage } =
+      this.options;
+    if (!llmClient || !toolExecutor) {
+      // 缺少依赖时返回一个固定错误的处理器
+      return { execute: () => Promise.resolve(errorResult('Task commands require LLM client and tool executor')) };
+    }
+
+    return new TaskCommandHandler({
+      client: llmClient,
+      bashTool: toolExecutor,
+      onToolStart: onSubAgentToolStart,
+      onToolEnd: onSubAgentToolEnd,
+      onComplete: onSubAgentComplete,
+      onUsage: onSubAgentUsage,
+    });
+  }
+
+  /** 创建 SkillCommandHandler（惰性） */
+  private createSkillHandler(): SkillCommandHandler {
+    return new SkillCommandHandler({
+      homeDir: path.dirname(this.options.synapseDir ?? DEFAULT_SYNAPSE_DIR),
+    });
   }
 }

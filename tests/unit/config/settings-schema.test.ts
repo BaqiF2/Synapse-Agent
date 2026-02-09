@@ -49,14 +49,14 @@ describe('SynapseSettingsSchema', () => {
     }
   });
 
-  it('should reject empty api key', () => {
-    const invalid = {
+  it('should accept empty api key as default (validation at provider level)', () => {
+    const withEmptyKey = {
       env: {
         ANTHROPIC_API_KEY: '',
       },
     };
-    const result = SynapseSettingsSchema.safeParse(invalid);
-    expect(result.success).toBe(false);
+    const result = SynapseSettingsSchema.safeParse(withEmptyKey);
+    expect(result.success).toBe(true);
   });
 
   it('should reject invalid autoEnhance value', () => {

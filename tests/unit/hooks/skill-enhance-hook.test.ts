@@ -464,8 +464,15 @@ describe('SkillEnhanceHook - Sub-agent 超时处理 (Feature 14)', () => {
     const settingsProto = SettingsManager.prototype;
     const originalIsAutoEnhanceEnabled = settingsProto.isAutoEnhanceEnabled;
     const originalGetMaxEnhanceContextChars = settingsProto.getMaxEnhanceContextChars;
+    const originalGetLlmConfig = settingsProto.getLlmConfig;
     settingsProto.isAutoEnhanceEnabled = () => true;
     settingsProto.getMaxEnhanceContextChars = () => 50000;
+    // mock getLlmConfig 提供 dummy API key，避免 AnthropicClient 构造时因无 key 报错
+    settingsProto.getLlmConfig = () => ({
+      apiKey: 'test-dummy-key',
+      baseURL: 'https://api.anthropic.com',
+      model: 'claude-sonnet-4-5',
+    });
 
     mockSubAgentResponses = [
       '我来分析这个对话历史，确定是否需要创建新技能或增强现有技能。',
@@ -484,6 +491,7 @@ describe('SkillEnhanceHook - Sub-agent 超时处理 (Feature 14)', () => {
     } finally {
       settingsProto.isAutoEnhanceEnabled = originalIsAutoEnhanceEnabled;
       settingsProto.getMaxEnhanceContextChars = originalGetMaxEnhanceContextChars;
+      settingsProto.getLlmConfig = originalGetLlmConfig;
       fs.rmSync(tempDir, { recursive: true, force: true });
       delete process.env.SYNAPSE_SESSIONS_DIR;
     }
@@ -505,8 +513,15 @@ describe('SkillEnhanceHook - Sub-agent 超时处理 (Feature 14)', () => {
     const settingsProto = SettingsManager.prototype;
     const originalIsAutoEnhanceEnabled = settingsProto.isAutoEnhanceEnabled;
     const originalGetMaxEnhanceContextChars = settingsProto.getMaxEnhanceContextChars;
+    const originalGetLlmConfig = settingsProto.getLlmConfig;
     settingsProto.isAutoEnhanceEnabled = () => true;
     settingsProto.getMaxEnhanceContextChars = () => 50000;
+    // mock getLlmConfig 提供 dummy API key，避免 AnthropicClient 构造时因无 key 报错
+    settingsProto.getLlmConfig = () => ({
+      apiKey: 'test-dummy-key',
+      baseURL: 'https://api.anthropic.com',
+      model: 'claude-sonnet-4-5',
+    });
 
     mockSubAgentResponses = ['我来分析一下。', '继续分析中。'];
 
@@ -522,6 +537,7 @@ describe('SkillEnhanceHook - Sub-agent 超时处理 (Feature 14)', () => {
     } finally {
       settingsProto.isAutoEnhanceEnabled = originalIsAutoEnhanceEnabled;
       settingsProto.getMaxEnhanceContextChars = originalGetMaxEnhanceContextChars;
+      settingsProto.getLlmConfig = originalGetLlmConfig;
       fs.rmSync(tempDir, { recursive: true, force: true });
       delete process.env.SYNAPSE_SESSIONS_DIR;
     }

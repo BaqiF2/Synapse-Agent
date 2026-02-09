@@ -12,15 +12,15 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import * as os from 'node:os';
 import { createLogger } from '../utils/logger.ts';
+import { getSynapseSkillsDir } from '../config/paths.ts';
 
 const logger = createLogger('skill-generator');
 
 /**
  * Default skills directory
  */
-const DEFAULT_SKILLS_DIR = path.join(os.homedir(), '.synapse', 'skills');
+const DEFAULT_SKILLS_DIR = getSynapseSkillsDir();
 
 /**
  * Script definition
@@ -56,6 +56,20 @@ export interface GenerationResult {
   error?: string;
 }
 
+/** YAML 特殊字符：含冒号、引号、井号等需要引号包裹 */
+const YAML_SPECIAL_CHARS = /[:#'"{}[\]|>&*!?@`]/;
+
+/**
+ * 包裹 YAML 值：当值包含特殊字符时用双引号包裹，内部双引号转义
+ */
+function yamlSafeValue(value: string): string {
+  if (!YAML_SPECIAL_CHARS.test(value)) {
+    return value;
+  }
+  const escaped = value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  return `"${escaped}"`;
+}
+
 /**
  * SkillGenerator - Creates and updates skill files
  *
@@ -88,13 +102,13 @@ export class SkillGenerator {
 
     // YAML frontmatter
     lines.push('---');
-    lines.push(`name: ${spec.name}`);
-    lines.push(`description: ${spec.description}`);
-    if (spec.domain) lines.push(`domain: ${spec.domain}`);
-    if (spec.version) lines.push(`version: ${spec.version}`);
-    if (spec.author) lines.push(`author: ${spec.author}`);
+    lines.push(`name: ${yamlSafeValue(spec.name)}`);
+    lines.push(`description: ${yamlSafeValue(spec.description)}`);
+    if (spec.domain) lines.push(`domain: ${yamlSafeValue(spec.domain)}`);
+    if (spec.version) lines.push(`version: ${yamlSafeValue(spec.version)}`);
+    if (spec.author) lines.push(`author: ${yamlSafeValue(spec.author)}`);
     if (spec.tags && spec.tags.length > 0) {
-      lines.push(`tags: ${spec.tags.join(', ')}`);
+      lines.push(`tags: ${spec.tags.map(t => yamlSafeValue(t)).join(', ')}`);
     }
     lines.push('---');
     lines.push('');
@@ -333,6 +347,3 @@ export class SkillGenerator {
     return spec;
   }
 }
-
-// Default export
-export default SkillGenerator;
