@@ -64,8 +64,6 @@
 | `/skill enhance --off` | 关闭自动强化 |
 | `task:skill:enhance --prompt ... --description ...` | 手动触发强化（Agent 工具） |
 
-> 说明：`/skill enhance --conversation` 在当前实现中不可用。
-
 **开关状态持久化**：存储在 `~/.synapse/settings.json` 中，跨 session 保持。
 
 #### 4.5.3 自动触发机制

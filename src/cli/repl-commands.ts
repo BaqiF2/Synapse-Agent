@@ -338,9 +338,9 @@ function handleSkillEnhanceCommand(args: string[], _agentRunner?: AgentRunner | 
     return;
   }
 
-  if (enhanceArgs.indexOf('--conversation') !== -1) {
-    console.log(chalk.yellow('\nManual enhance is temporarily unavailable.\n'));
-    console.log(chalk.gray('Use auto-enhance with --on flag instead.\n'));
+  if (enhanceArgs.length > 0) {
+    console.log(chalk.red(`\nUnknown command: /skill enhance ${enhanceArgs.join(' ')}`));
+    console.log(chalk.gray('Type /help for available commands.\n'));
     return;
   }
 
@@ -356,7 +356,6 @@ function handleSkillEnhanceCommand(args: string[], _agentRunner?: AgentRunner | 
   console.log(chalk.gray('Commands:'));
   console.log(chalk.gray('  /skill enhance --on              Enable auto-enhance'));
   console.log(chalk.gray('  /skill enhance --off             Disable auto-enhance'));
-  console.log(chalk.gray('  /skill enhance --conversation <path>  Manual enhance'));
   console.log(chalk.gray('  /skill enhance -h                Show help'));
   console.log();
 }

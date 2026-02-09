@@ -443,65 +443,6 @@ cat ~/.synapse/settings.json
 - [x] 命令执行成功
 - [x] 设置已持久化
 
-### 7.4 手动触发强化（需要对话文件）⭐ 重要：验证 AgentRunner 集成
-
-此测试验证 SkillSubAgent 使用 AgentRunner 进行完整 Agent Loop 的能力。
-
-首先创建一个测试对话文件：
-
-```bash
-# 创建测试对话目录
-mkdir -p ~/.synapse/conversations
-
-# 创建测试对话文件（包含多个工具调用以触发强化）
-cat > ~/.synapse/conversations/test-conversation.jsonl << 'EOF'
-{"role":"user","content":"请帮我分析这个Python文件"}
-{"role":"assistant","content":"好的，让我使用read工具读取文件","tool_use":{"name":"bash","input":{"command":"cat src/main.py"}}}
-{"role":"tool","content":"def main():\n    print('Hello World')","tool_use_id":"123"}
-{"role":"assistant","content":"这是一个Python模块，主要功能是打印Hello World"}
-{"role":"user","content":"请帮我优化这段代码"}
-{"role":"assistant","content":"我来使用edit工具进行优化","tool_use":{"name":"bash","input":{"command":"sed -i 's/Hello World/Hello, World!/g' src/main.py"}}}
-{"role":"tool","content":"File updated successfully","tool_use_id":"124"}
-{"role":"assistant","content":"代码已优化完成"}
-{"role":"user","content":"请运行测试"}
-{"role":"assistant","content":"运行测试中","tool_use":{"name":"bash","input":{"command":"python -m pytest tests/"}}}
-{"role":"tool","content":"All tests passed","tool_use_id":"125"}
-EOF
-```
-
-然后在 REPL 中：
-
-```
-You (4)> /skill enhance --conversation ~/.synapse/conversations/test-conversation.jsonl
-```
-
-**预期输出**:
-- 显示 "Triggering manual enhance from: ..."
-- SkillSubAgent 使用 AgentRunner 执行 Agent Loop
-- 分析对话内容
-- 返回 JSON 格式的结果，包含：
-  - `action`: "created" | "enhanced" | "none"
-  - `skillName`: 技能名称（如果创建或强化）
-  - `message`: 描述信息
-
-**验证日志**:
-```bash
-# 检查 agent-runner 和 skill-sub-agent 的日志
-grep -E "(agent-runner|skill-sub-agent)" ~/.synapse/logs/*.log | tail -30
-```
-
-**预期日志内容**:
-- `[agent-runner] Agent loop iteration 1`
-- `[skill-sub-agent] Skill Sub-Agent initialized`
-
-**验证结果**:
-- [x] 命令执行成功
-- [x] 返回分析结果（JSON 格式）
-- [x] 日志显示 AgentRunner 执行 Agent Loop
-- [x] SkillSubAgent 在 silent 模式下运行（无输出到控制台）
-
----
-
 ## 8. 技能评估命令测试 ⭐ 新增
 
 此测试验证 SkillSubAgent 新增的 `evaluate` 方法。
@@ -1010,7 +951,6 @@ grep "Agent loop iteration" ~/.synapse/logs/*.log | tail -10
 | `skill enhance --on` 启用自动强化 | ☐ | |
 | `skill enhance --off` 禁用自动强化 | ☐ | |
 | `skill enhance --status` 查看状态 | ☐ | |
-| `skill enhance --conversation <path>` 手动强化 | ☐ | |
 
 ### 元技能系统
 

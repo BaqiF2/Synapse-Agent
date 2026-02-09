@@ -215,14 +215,10 @@ export function showSkillEnhanceHelp(): void {
   console.log(chalk.gray('  /skill enhance                   ') + chalk.white('Show current status'));
   console.log(chalk.gray('  /skill enhance --on              ') + chalk.white('Enable auto-enhance'));
   console.log(chalk.gray('  /skill enhance --off             ') + chalk.white('Disable auto-enhance'));
-  console.log(
-    chalk.gray('  /skill enhance --conversation <path>  ') + chalk.white('Manual enhance from file')
-  );
   console.log(chalk.gray('  /skill enhance -h, --help        ') + chalk.white('Show this help'));
   console.log();
   console.log(chalk.white.bold('Examples:'));
   console.log(chalk.gray('  /skill enhance --on'));
-  console.log(chalk.gray('  /skill enhance --conversation ~/.synapse/conversations/session.jsonl'));
   console.log();
   console.log(chalk.white.bold('Note:'));
   console.log(chalk.yellow('  Auto-enhance consumes additional tokens for LLM analysis.'));

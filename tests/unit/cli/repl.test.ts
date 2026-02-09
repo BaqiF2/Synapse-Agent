@@ -166,6 +166,45 @@ describe('REPL commands', () => {
     setSpy.mockRestore();
   });
 
+  it('handleSpecialCommand should treat unknown /skill enhance options as invalid command', async () => {
+    const { handleSpecialCommand } = await import('../../../src/cli/repl.ts');
+    console.log = mock(() => {}) as unknown as typeof console.log;
+    const rl = createMockRl();
+
+    const handled = await handleSpecialCommand(
+      '/skill enhance --conversation ~/.synapse/conversations/session.jsonl',
+      rl as unknown as readline.Interface,
+      null,
+      {
+        skipExit: true,
+      }
+    );
+
+    expect(handled).toBe(true);
+    const output = getConsoleOutput();
+    expect(output).toContain('Unknown command: /skill enhance --conversation ~/.synapse/conversations/session.jsonl');
+    expect(output).toContain('Type /help for available commands.');
+
+    console.log = mock(() => {}) as unknown as typeof console.log;
+
+    const handledWithEquals = await handleSpecialCommand(
+      '/skill enhance --conversation=~/.synapse/conversations/session.jsonl',
+      rl as unknown as readline.Interface,
+      null,
+      {
+        skipExit: true,
+      }
+    );
+
+    expect(handledWithEquals).toBe(true);
+    const outputWithEquals = getConsoleOutput();
+    expect(outputWithEquals).toContain(
+      'Unknown command: /skill enhance --conversation=~/.synapse/conversations/session.jsonl'
+    );
+
+    console.log = originalConsoleLog;
+  });
+
   it('handleSpecialCommand should report resume unavailable without context', async () => {
     console.log = mock(() => {}) as unknown as typeof console.log;
     const rl = createMockRl();
