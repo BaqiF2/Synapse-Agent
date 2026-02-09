@@ -69,6 +69,8 @@ Criteria for evaluation:
 
 ### Step 3: Output Result
 
+IMPORTANT: Your final text output MUST start with `[Skill]`. Do NOT prefix with analysis or planning text. The `[Skill]` marker must be the FIRST non-whitespace content in your final response.
+
 After execution completes, output the result:
 - `[Skill] Created: {skill-name}` - New skill created successfully
 - `[Skill] Enhanced: {skill-name}` - Existing skill enhanced successfully

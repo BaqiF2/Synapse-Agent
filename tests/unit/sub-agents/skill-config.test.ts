@@ -132,7 +132,7 @@ describe('Skill Sub Agent Config', () => {
       expect(prompt).toContain('write');
       expect(prompt).toContain('edit');
       expect(prompt).toContain('skill:load');
-      expect(prompt).toContain('bash');
+      expect(prompt).toContain('Bash');
     });
   });
 

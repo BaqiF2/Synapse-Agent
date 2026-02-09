@@ -8,7 +8,7 @@
  * - normalizeSkillEnhanceResult: 标准化 skill 增强结果为统一格式
  * - parseSkillResultJson: 解析 JSON 格式的 skill 结果
  * - formatParsedSkillResult: 将解析后的结果格式化为标准文本
- * - buildRetryPrompt: 构建重试 prompt（附加输出契约）
+ * - buildRetryPrompt: 构建重试 prompt（附加输出契约和首次失败上下文）
  * - SKILL_RESULT_FALLBACK: 兜底结果常量
  * - RETRY_OUTPUT_CONTRACT: 重试时附加的输出格式要求
  * - ParsedSkillResult: 解析后的 skill 结果接口
@@ -30,6 +30,13 @@ Allowed outputs:
 2) [Skill] Enhanced: <skill-name>
 3) [Skill] No enhancement needed
 You may add one short reason line after the result.
+
+Example of CORRECT output:
+[Skill] No enhancement needed
+Reason: The conversation involved a simple one-step file read with no reusable pattern.
+
+Example of INCORRECT output (DO NOT produce this):
+我来分析这个对话，看看是否需要创建或增强技能。
 `.trim();
 
 // ===== 类型 =====
@@ -142,8 +149,26 @@ export function normalizeSkillEnhanceResult(rawResult: string): string | null {
 }
 
 /**
- * 构建重试 prompt，附加输出格式契约
+ * 首次失败输出的最大截断长度
  */
-export function buildRetryPrompt(prompt: string): string {
-  return `${prompt}\n\n${RETRY_OUTPUT_CONTRACT}`;
+const MAX_PREVIOUS_OUTPUT_LENGTH = 500;
+
+/**
+ * 构建重试 prompt，附加输出格式契约和首次失败上下文
+ */
+export function buildRetryPrompt(prompt: string, previousOutput: string): string {
+  const truncated = previousOutput.length > MAX_PREVIOUS_OUTPUT_LENGTH
+    ? previousOutput.slice(0, MAX_PREVIOUS_OUTPUT_LENGTH) + '...(truncated)'
+    : previousOutput;
+
+  const previousAttemptBlock = `
+[Previous Attempt Failed]
+Your previous output was NOT in the required format. Do NOT repeat this mistake.
+Previous invalid output:
+"""
+${truncated}
+"""
+`.trim();
+
+  return `${prompt}\n\n${previousAttemptBlock}\n\n${RETRY_OUTPUT_CONTRACT}`;
 }

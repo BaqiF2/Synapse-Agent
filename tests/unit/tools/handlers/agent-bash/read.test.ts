@@ -46,4 +46,28 @@ describe('ReadHandler', () => {
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain('File not found');
   });
+
+  it('should expand tilde path to home directory', async () => {
+    // 在 testDir 下创建测试文件
+    const testFile = path.join(testDir, 'tilde-test.txt');
+    fs.writeFileSync(testFile, 'tilde-content', 'utf-8');
+
+    // 将 HOME 临时指向 testDir，确保 ~ 展开到正确位置
+    const savedHome = process.env.HOME;
+    process.env.HOME = testDir;
+    try {
+      const handler = new ReadHandler();
+      const result = await handler.execute('read ~/tilde-test.txt');
+
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('tilde-content');
+    } finally {
+      // 必须恢复 HOME
+      if (savedHome !== undefined) {
+        process.env.HOME = savedHome;
+      } else {
+        delete process.env.HOME;
+      }
+    }
+  });
 });

@@ -775,3 +775,39 @@ describe('SkillEnhanceHook - TodoWrite 调用检测', () => {
     }
   });
 });
+
+describe('buildRetryPrompt - 新签名测试', () => {
+  it('输出应包含 [Previous Attempt Failed] 和截断文本', async () => {
+    const { buildRetryPrompt } = await import('../../../src/hooks/skill-enhance-result-parser.ts');
+
+    const prompt = 'Analyze conversation';
+    const previousOutput = '我来分析这个对话，看看是否需要创建或增强技能。';
+    const result = buildRetryPrompt(prompt, previousOutput);
+
+    expect(result).toContain('[Previous Attempt Failed]');
+    expect(result).toContain(previousOutput);
+    expect(result).toContain('[Output Contract]');
+    expect(result).toContain(prompt);
+  });
+
+  it('超过 500 字符的 previousOutput 应被截断', async () => {
+    const { buildRetryPrompt } = await import('../../../src/hooks/skill-enhance-result-parser.ts');
+
+    const longOutput = 'A'.repeat(600);
+    const result = buildRetryPrompt('test prompt', longOutput);
+
+    expect(result).toContain('...(truncated)');
+    expect(result).not.toContain('A'.repeat(600));
+    expect(result).toContain('A'.repeat(500));
+  });
+
+  it('短于 500 字符的 previousOutput 不应被截断', async () => {
+    const { buildRetryPrompt } = await import('../../../src/hooks/skill-enhance-result-parser.ts');
+
+    const shortOutput = 'Short invalid output';
+    const result = buildRetryPrompt('test prompt', shortOutput);
+
+    expect(result).toContain(shortOutput);
+    expect(result).not.toContain('...(truncated)');
+  });
+});

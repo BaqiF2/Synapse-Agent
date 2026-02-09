@@ -8,6 +8,7 @@
  * - BaseAgentHandler: 抽象基类，提供 isHelpRequest / showHelp / resolveFilePath
  */
 
+import * as os from 'node:os';
 import * as path from 'node:path';
 import type { CommandResult } from '../native-command-handler.ts';
 import { loadDesc } from '../../../utils/load-desc.js';
@@ -67,11 +68,20 @@ export abstract class BaseAgentHandler {
   /**
    * 将文件路径解析为绝对路径
    *
+   * 支持 ~ 展开为用户主目录（优先使用 $HOME，与 shell 行为一致）。
    * 如果已是绝对路径则直接返回，否则基于 cwd 解析。
    */
   protected resolveFilePath(filePath: string): string {
-    return path.isAbsolute(filePath)
-      ? filePath
-      : path.resolve(process.cwd(), filePath);
+    // ~ 展开为用户主目录（与 shell 行为一致，优先使用 $HOME）
+    const homeDir = process.env.HOME || os.homedir();
+    const expanded = filePath.startsWith('~/')
+      ? path.join(homeDir, filePath.slice(2))
+      : filePath === '~'
+        ? homeDir
+        : filePath;
+
+    return path.isAbsolute(expanded)
+      ? expanded
+      : path.resolve(process.cwd(), expanded);
   }
 }

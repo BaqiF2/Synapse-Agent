@@ -144,6 +144,21 @@ describe('MacOSAdapter', () => {
     expect(content).toContain('(allow file-read* (subpath "/usr/lib"))');
   });
 
+  it('.sb profile 允许 /dev/ 设备文件和 /private/etc/ 读取', () => {
+    const adapter = new MacOSAdapter();
+    const command = adapter.wrapCommand(createPolicy());
+    const profilePath = extractProfilePath(command);
+    createdProfilePaths.push(profilePath);
+
+    const content = fs.readFileSync(profilePath, 'utf-8');
+    // bash 启动需要访问 /dev/null, /dev/tty 等设备文件
+    expect(content).toContain('(subpath "/dev")');
+    // bash 需要读取 /private/etc/ 下的系统配置
+    expect(content).toContain('(subpath "/private/etc")');
+    // macOS bash 使用 sysctl 获取终端和 locale 信息
+    expect(content).toContain('(allow sysctl-read)');
+  });
+
   it('isViolation 能识别 sandbox-exec 拒绝特征', () => {
     const adapter = new MacOSAdapter();
     const blocked = adapter.isViolation({

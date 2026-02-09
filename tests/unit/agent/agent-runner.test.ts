@@ -958,6 +958,29 @@ describe('AgentRunner', () => {
       expect(userText).not.toContain('Skill Search Priority');
       expect(userText).not.toContain('task:skill:search');
     });
+
+    it('should maintain history across calls', async () => {
+      const client = createMockClient([
+        [{ type: 'text', text: 'First' }],
+        [{ type: 'text', text: 'Second' }],
+      ]);
+      const toolset = new CallableToolset([createMockCallableTool(() =>
+        Promise.resolve(ToolOk({ output: '' }))
+      )]);
+
+      const runner = new AgentRunner({
+        client,
+        systemPrompt: 'Test',
+        toolset,
+        enableStopHooks: false,
+      });
+
+      await runner.run('One');
+      const response = await runner.run('Two');
+
+      expect(response).toBe('Second');
+      expect(runner.getHistory()).toHaveLength(4); // 2 user + 2 assistant
+    });
   });
 });
 

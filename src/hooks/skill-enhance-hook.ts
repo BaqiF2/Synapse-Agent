@@ -250,7 +250,7 @@ export async function skillEnhanceHook(context: StopHookContext): Promise<HookRe
       resultLength: firstExecution.raw.length,
     });
 
-    const retryPrompt = buildRetryPrompt(prompt);
+    const retryPrompt = buildRetryPrompt(prompt, firstExecution.raw);
     const retryExecution = await executeAndNormalize(subAgentManager, retryPrompt, timeoutMs);
     if (retryExecution.normalized) {
       logger.info('Skill enhancement completed after retry', {
