@@ -1,0 +1,722 @@
+[
+  {
+    "category": "functional",
+    "prd": "2026-02-04-skill-management-system-design.md#数据结构",
+    "description": "类型定义 — VersionInfo、SkillMeta、ImportResult、MergeCandidate 等核心数据结构",
+    "bdd": [
+      {
+        "title": "VersionInfo 包含必要字段",
+        "description": "验证版本信息结构包含 version、createdAt、dirPath 字段",
+        "steps": [
+          "创建一个符合 VersionInfo 接口的对象",
+          "设置 version 为 '2026-02-03-001'",
+          "设置 createdAt 为 Date 实例",
+          "设置 dirPath 为版本目录路径"
+        ],
+        "expected": "对象通过 TypeScript 类型检查，所有必需字段均存在且类型正确"
+      },
+      {
+        "title": "SkillMeta 扩展 SkillIndexEntry",
+        "description": "验证 SkillMeta 继承 SkillIndexEntry 的所有字段并新增 versions 数组",
+        "steps": [
+          "创建一个符合 SkillMeta 接口的对象",
+          "设置 SkillIndexEntry 的字段（name、title、domain、description 等）",
+          "设置 versions 为 VersionInfo 数组"
+        ],
+        "expected": "对象通过 TypeScript 类型检查，同时包含 SkillIndexEntry 字段和 versions 字段"
+      },
+      {
+        "title": "ImportResult 包含四类结果",
+        "description": "验证导入结果结构包含 imported、skipped、conflicts、similar 四个数组",
+        "steps": [
+          "创建一个符合 ImportResult 接口的对象",
+          "设置 imported、skipped 为字符串数组",
+          "设置 conflicts 为 ConflictInfo 数组",
+          "设置 similar 为 SimilarInfo 数组"
+        ],
+        "expected": "对象通过 TypeScript 类型检查，四个数组字段均存在"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-04-skill-management-system-design.md#skillmanager",
+    "description": "版本管理 — 创建版本快照、版本号生成、版本列表获取、旧版本清理",
+    "bdd": [
+      {
+        "title": "创建版本快照包含完整目录结构",
+        "description": "调用 createVersion 后验证版本目录包含 SKILL.md 和 scripts/ 的完整快照",
+        "steps": [
+          "准备一个包含 SKILL.md 和 scripts/commit.py 的技能目录",
+          "调用 skillManager.createVersion('git-commit')"
+        ],
+        "expected": "versions/ 目录下创建了新版本目录，其中包含 SKILL.md 和 scripts/commit.py 的完整副本"
+      },
+      {
+        "title": "同一天多次创建版本序列号递增",
+        "description": "在同一天内多次调用 createVersion，验证序列号从 001 递增",
+        "steps": [
+          "调用 skillManager.createVersion('git-commit') 三次（同一天内）",
+          "获取版本列表"
+        ],
+        "expected": "生成三个版本号：{today}-001、{today}-002、{today}-003"
+      },
+      {
+        "title": "版本列表按版本号降序排列",
+        "description": "获取版本列表时验证最新版本排在前面",
+        "steps": [
+          "创建多个版本（跨天）",
+          "调用 skillManager.getVersions('git-commit')"
+        ],
+        "expected": "返回的 VersionInfo 数组按 version 字段降序排列（最新在前）"
+      },
+      {
+        "title": "超过最大版本数时 FIFO 清理",
+        "description": "当版本数超过 MAX_VERSIONS（默认 20）时自动删除最旧的版本",
+        "steps": [
+          "设置 SYNAPSE_SKILL_MAX_VERSIONS=3",
+          "创建 4 个版本",
+          "获取版本列表"
+        ],
+        "expected": "版本目录中只保留最新的 3 个版本，第 1 个版本的目录已被删除"
+      },
+      {
+        "title": "版本 hash 排除 versions/ 目录",
+        "description": "计算目录 hash 时验证排除了 versions/ 子目录",
+        "steps": [
+          "准备一个包含 SKILL.md、scripts/ 和 versions/ 的技能目录",
+          "计算 hashDirectory 的结果",
+          "修改 versions/ 目录内容后再次计算 hash"
+        ],
+        "expected": "两次 hash 结果相同，证明 versions/ 目录被排除"
+      },
+      {
+        "title": "空目录的 hash 返回 null",
+        "description": "当技能目录为空（无文件）时，hashDirectory 返回 null",
+        "steps": [
+          "准备一个空的技能目录（只有目录本身，无任何文件）",
+          "调用 hashDirectory"
+        ],
+        "expected": "返回 null"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-04-skill-management-system-design.md#skillmanager",
+    "description": "回滚功能 — 回滚到指定历史版本，包含智能备份判断",
+    "bdd": [
+      {
+        "title": "回滚到指定版本恢复整个目录",
+        "description": "指定版本号回滚后，技能目录内容与该版本快照一致",
+        "steps": [
+          "准备技能 git-commit，内容为 v2",
+          "创建版本快照保存 v1 内容",
+          "调用 skillManager.rollback('git-commit', '{version-id}')"
+        ],
+        "expected": "技能目录的 SKILL.md 和 scripts/ 恢复为 v1 版本内容，versions/ 目录保持不变"
+      },
+      {
+        "title": "回滚时智能备份 — 当前版本已在历史中",
+        "description": "当前版本内容的 hash 已存在于某个历史版本中时，跳过备份",
+        "steps": [
+          "准备技能，当前内容与版本 A 相同",
+          "调用 rollback 到版本 B"
+        ],
+        "expected": "不创建新的版本快照（版本总数不变），直接恢复版本 B 的内容"
+      },
+      {
+        "title": "回滚时自动备份 — 当前版本是新内容",
+        "description": "当前版本内容未在历史中出现时，先创建备份再回滚",
+        "steps": [
+          "准备技能，当前内容不匹配任何历史版本",
+          "记录当前版本数量 N",
+          "调用 rollback 到某历史版本"
+        ],
+        "expected": "版本数量变为 N+1（新备份），技能内容恢复为目标版本"
+      },
+      {
+        "title": "回滚不存在的版本返回错误",
+        "description": "指定一个不存在的版本号进行回滚",
+        "steps": [
+          "调用 skillManager.rollback('git-commit', 'non-existent-version')"
+        ],
+        "expected": "抛出错误：'Version non-existent-version not found for skill git-commit'"
+      },
+      {
+        "title": "无版本历史的技能回滚提示无可用版本",
+        "description": "对没有任何版本历史的技能调用 getVersions",
+        "steps": [
+          "准备一个没有 versions/ 目录的技能",
+          "调用 skillManager.getVersions('new-skill')"
+        ],
+        "expected": "返回空数组 []"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-04-skill-management-system-design.md#skillmanager",
+    "description": "技能列表与详情 — list() 获取所有技能元信息，info() 获取单个技能详情",
+    "bdd": [
+      {
+        "title": "列出所有已安装技能",
+        "description": "调用 list() 返回所有技能的 SkillMeta 数组",
+        "steps": [
+          "在 skills/ 目录下准备 git-commit/ 和 code-review/ 两个技能目录",
+          "调用 skillManager.list()"
+        ],
+        "expected": "返回包含 2 个 SkillMeta 元素的数组，每个包含 name、description、versions 等字段"
+      },
+      {
+        "title": "获取单个技能详情和版本历史",
+        "description": "调用 info() 返回指定技能的完整元信息",
+        "steps": [
+          "准备技能 git-commit，包含 2 个历史版本",
+          "调用 skillManager.info('git-commit')"
+        ],
+        "expected": "返回 SkillMeta 对象，versions 数组长度为 2，包含各版本的 version、createdAt、dirPath"
+      },
+      {
+        "title": "获取不存在技能的详情返回 null",
+        "description": "对不存在的技能名调用 info()",
+        "steps": [
+          "调用 skillManager.info('non-existent')"
+        ],
+        "expected": "返回 null"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-04-skill-management-system-design.md#skillmanager",
+    "description": "本地目录导入 — 从本地目录批量导入技能，支持冲突检测、相似检测、--continue 和 --merge 选项",
+    "bdd": [
+      {
+        "title": "本地目录导入正确复制技能",
+        "description": "从本地目录导入技能后，目标目录结构与源一致",
+        "steps": [
+          "准备源目录包含技能 new-skill/（含 SKILL.md 和 scripts/）",
+          "调用 skillManager.import('/path/to/source')"
+        ],
+        "expected": "skills/new-skill/ 目录创建成功，内容与源目录一致，imported 包含 'new-skill'"
+      },
+      {
+        "title": "同名冲突返回 conflicts 信息",
+        "description": "导入已存在同名技能时，记录到 conflicts 并跳过",
+        "steps": [
+          "skills/ 下已存在 git-commit/ 目录",
+          "准备源目录也包含 git-commit/",
+          "调用 skillManager.import(source)"
+        ],
+        "expected": "ImportResult.conflicts 包含一条 ConflictInfo（name='git-commit'），imported 为空"
+      },
+      {
+        "title": "语义相似检测触发 findSimilar 调用",
+        "description": "导入时对无同名冲突的技能调用 SkillMerger.findSimilar()",
+        "steps": [
+          "准备源目录包含技能 commit-helper/（SKILL.md 元数据与现有 git-commit 相似）",
+          "mock SkillMerger.findSimilar 返回相似结果",
+          "调用 skillManager.import(source)"
+        ],
+        "expected": "findSimilar 被调用，参数为 SKILL.md 元数据内容和现有技能列表"
+      },
+      {
+        "title": "发现相似技能时中断并返回 similar",
+        "description": "检测到相似技能后记录到 similar 数组，不执行导入",
+        "steps": [
+          "mock findSimilar 返回 [{target: 'git-commit', similarity: 'Both handle git commits'}]",
+          "调用 skillManager.import(source)"
+        ],
+        "expected": "ImportResult.similar 包含一条记录，imported 为空，技能未复制到目标目录"
+      },
+      {
+        "title": "--continue 选项跳过相似检测直接导入",
+        "description": "使用 continueSkills 选项跳过指定技能的相似度检测",
+        "steps": [
+          "调用 skillManager.import(source, { continueSkills: ['commit-helper'] })"
+        ],
+        "expected": "commit-helper 直接导入成功，不调用 findSimilar，imported 包含 'commit-helper'"
+      },
+      {
+        "title": "--merge 选项融合到现有技能",
+        "description": "使用 mergeInto 选项将新技能合并到指定的现有技能",
+        "steps": [
+          "调用 skillManager.import(source, { mergeInto: [{ source: 'commit-helper', target: 'git-commit' }] })"
+        ],
+        "expected": "调用 merger.merge(sourcePath, 'git-commit')，imported 包含 'commit-helper → git-commit'"
+      },
+      {
+        "title": "空目录导入返回空结果",
+        "description": "从空目录导入时不报错，返回空结果",
+        "steps": [
+          "准备一个空的源目录（无子目录）",
+          "调用 skillManager.import(emptyDir)"
+        ],
+        "expected": "ImportResult 的所有数组均为空，无错误抛出"
+      },
+      {
+        "title": "导入中途单个技能失败不影响其他",
+        "description": "批量导入时某个技能复制失败，其他技能仍然成功导入",
+        "steps": [
+          "准备源目录包含 skill-a/（正常）和 skill-b/（复制时模拟异常）和 skill-c/（正常）",
+          "调用 skillManager.import(source)"
+        ],
+        "expected": "imported 包含 'skill-a' 和 'skill-c'，skipped 包含 'skill-b'"
+      },
+      {
+        "title": "逐个复制策略：已导入技能不受后续冲突影响",
+        "description": "验证导入是逐个复制的，前面成功的技能不会因后续冲突被回滚",
+        "steps": [
+          "准备源目录包含 new-skill/（无冲突）和 existing-skill/（同名冲突）",
+          "调用 skillManager.import(source)"
+        ],
+        "expected": "new-skill 已复制到目标目录并在 imported 中，existing-skill 在 conflicts 中"
+      },
+      {
+        "title": "有冲突或相似时不更新索引",
+        "description": "当 ImportResult 中存在 conflicts 或 similar 时，不调用 indexer.rebuild()",
+        "steps": [
+          "导入包含冲突的目录",
+          "检查 indexer.rebuild() 是否被调用"
+        ],
+        "expected": "indexer.rebuild() 未被调用"
+      },
+      {
+        "title": "全部成功导入后更新索引",
+        "description": "所有技能导入成功（无冲突无相似）后调用 indexer.rebuild()",
+        "steps": [
+          "导入一个全部无冲突的目录",
+          "检查 indexer.rebuild() 是否被调用"
+        ],
+        "expected": "indexer.rebuild() 被调用一次"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-04-skill-management-system-design.md#skillmanager",
+    "description": "远程 URL 导入 — 从 Git 仓库 URL 克隆并导入技能，包含超时和清理机制",
+    "bdd": [
+      {
+        "title": "远程 URL 导入完整流程",
+        "description": "克隆仓库到临时目录，导入技能，清理临时目录",
+        "steps": [
+          "mock execAsync 模拟 git clone 成功",
+          "调用 skillManager.import('https://github.com/user/skills-repo')"
+        ],
+        "expected": "执行 git clone --depth 1，然后调用 importFromDirectory 处理临时目录，最后临时目录被 fs.rm 清理"
+      },
+      {
+        "title": "远程克隆超时返回错误",
+        "description": "git clone 超过 SYNAPSE_SKILL_IMPORT_TIMEOUT 时抛出超时错误",
+        "steps": [
+          "设置 SYNAPSE_SKILL_IMPORT_TIMEOUT=1000",
+          "mock execAsync 模拟超时",
+          "调用 skillManager.import('https://github.com/user/slow-repo')"
+        ],
+        "expected": "抛出超时错误，临时目录不存在或已清理"
+      },
+      {
+        "title": "远程仓库不存在返回 git 错误",
+        "description": "git clone 不存在的仓库时抛出 git 错误",
+        "steps": [
+          "mock execAsync 模拟 git clone 失败（仓库不存在）",
+          "调用 skillManager.import('https://github.com/user/non-existent')"
+        ],
+        "expected": "抛出包含 git 错误信息的异常"
+      },
+      {
+        "title": "克隆失败时清理临时目录",
+        "description": "即使导入过程中出错，临时目录也会被清理",
+        "steps": [
+          "mock execAsync 成功但 importFromDirectory 抛出异常",
+          "检查临时目录是否被清理"
+        ],
+        "expected": "finally 块中 fs.rm 被调用，临时目录被删除"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-04-skill-management-system-design.md#skillmanager",
+    "description": "删除技能 — 直接删除技能目录及所有版本历史，更新索引",
+    "bdd": [
+      {
+        "title": "删除技能移除整个目录",
+        "description": "调用 delete() 后技能目录及所有版本历史被删除",
+        "steps": [
+          "准备技能 git-commit/（包含 SKILL.md、scripts/、versions/）",
+          "调用 skillManager.delete('git-commit')"
+        ],
+        "expected": "skills/git-commit/ 目录完全删除，indexer.removeSkill('git-commit') 被调用"
+      },
+      {
+        "title": "删除不存在的技能返回错误",
+        "description": "尝试删除不存在的技能名时抛出友好错误",
+        "steps": [
+          "调用 skillManager.delete('non-existent')"
+        ],
+        "expected": "抛出错误：'Skill non-existent not found'"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-04-skill-management-system-design.md#skillmerger",
+    "description": "相似度检测 — 通过 SubAgent 语义分析检测新技能与现有技能的相似度",
+    "bdd": [
+      {
+        "title": "调用 SubAgent 进行相似度分析",
+        "description": "findSimilar 构建正确的提示词并调用 SubAgentManager",
+        "steps": [
+          "准备 SKILL.md 元数据内容和现有技能列表",
+          "调用 merger.findSimilar(skillContent, existingSkills)"
+        ],
+        "expected": "SubAgentManager.execute 被调用，参数包含 action: 'search'、构建的相似度分析提示词"
+      },
+      {
+        "title": "无相似技能时返回空数组",
+        "description": "SubAgent 分析后确认无相似技能",
+        "steps": [
+          "mock SubAgent 返回 '{\"similar\": []}'",
+          "调用 merger.findSimilar(skillContent, existingSkills)"
+        ],
+        "expected": "返回空数组 []"
+      },
+      {
+        "title": "SubAgent 调用超时时跳过检测",
+        "description": "当 SubAgent 调用失败时，相似检测被跳过，不影响导入流程",
+        "steps": [
+          "mock SubAgentManager.execute 抛出超时异常",
+          "在 importFromDirectory 流程中调用 findSimilar"
+        ],
+        "expected": "捕获异常并记录 warn 日志，返回空数组，技能继续正常导入"
+      },
+      {
+        "title": "SubAgent 返回格式异常时返回空数组",
+        "description": "当 SubAgent 返回非 JSON 或结构不符预期时，安全降级",
+        "steps": [
+          "mock SubAgent 返回 'This is not JSON'",
+          "调用 merger.findSimilar(skillContent, existingSkills)"
+        ],
+        "expected": "parseSimilarityResult 捕获 JSON.parse 异常，返回空数组 []"
+      },
+      {
+        "title": "无 SubAgentManager 时降级为空结果",
+        "description": "当 SkillMerger 以 null SubAgentManager 初始化时（降级模式）",
+        "steps": [
+          "创建 new SkillMerger(null)",
+          "调用 merger.findSimilar(skillContent, existingSkills)"
+        ],
+        "expected": "直接返回空数组 []，不抛出错误"
+      },
+      {
+        "title": "现有技能列表为空时跳过检测",
+        "description": "当没有任何现有技能时，无需进行相似度分析",
+        "steps": [
+          "调用 merger.findSimilar(skillContent, [])"
+        ],
+        "expected": "直接返回空数组 []，不调用 SubAgentManager"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-04-skill-management-system-design.md#skillmerger",
+    "description": "技能融合 — 通过 SubAgent 将源技能合并到目标技能",
+    "bdd": [
+      {
+        "title": "调用 SubAgent 执行技能融合",
+        "description": "merge 方法构建融合提示词并调用 SubAgent 的 enhance action",
+        "steps": [
+          "调用 merger.merge('/path/to/source', 'git-commit')"
+        ],
+        "expected": "SubAgentManager.execute 被调用，参数包含 action: 'enhance' 和融合提示词"
+      },
+      {
+        "title": "无 SubAgentManager 时融合抛出错误",
+        "description": "降级模式下调用 merge 应抛出明确错误",
+        "steps": [
+          "创建 new SkillMerger(null)",
+          "调用 merger.merge('/path/to/source', 'git-commit')"
+        ],
+        "expected": "抛出错误：'SubAgentManager is required for skill merging'"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-04-skill-management-system-design.md#skillcommandhandler-扩展",
+    "description": "SkillCommandHandler 命令路由 — 解析 skill:* 命令并分发到对应处理方法",
+    "bdd": [
+      {
+        "title": "skill:load 路由到 handleLoad",
+        "description": "skill:load 命令保持现有行为",
+        "steps": [
+          "调用 handler.execute('skill:load git-commit')"
+        ],
+        "expected": "调用 handleLoad 方法处理加载逻辑"
+      },
+      {
+        "title": "skill:list 路由到 handleList",
+        "description": "skill:list 命令路由到列表处理",
+        "steps": [
+          "调用 handler.execute('skill:list')"
+        ],
+        "expected": "调用 handleList 方法，返回格式化的技能列表"
+      },
+      {
+        "title": "skill:info 路由到 handleInfo",
+        "description": "skill:info 命令路由到详情处理",
+        "steps": [
+          "调用 handler.execute('skill:info git-commit')"
+        ],
+        "expected": "调用 handleInfo 方法，返回技能详情和版本历史"
+      },
+      {
+        "title": "skill:import 路由到 handleImport",
+        "description": "skill:import 命令路由到导入处理",
+        "steps": [
+          "调用 handler.execute('skill:import /path/to/skills')"
+        ],
+        "expected": "调用 handleImport 方法处理导入逻辑"
+      },
+      {
+        "title": "skill:rollback 路由到 handleRollback",
+        "description": "skill:rollback 命令路由到回滚处理",
+        "steps": [
+          "调用 handler.execute('skill:rollback git-commit 2026-02-02-001')"
+        ],
+        "expected": "调用 handleRollback 方法处理回滚逻辑"
+      },
+      {
+        "title": "skill:delete 路由到 handleDelete",
+        "description": "skill:delete 命令路由到删除处理",
+        "steps": [
+          "调用 handler.execute('skill:delete git-commit')"
+        ],
+        "expected": "调用 handleDelete 方法，直接删除技能"
+      },
+      {
+        "title": "未知 skill 子命令返回错误",
+        "description": "输入不支持的 skill 子命令时返回错误",
+        "steps": [
+          "调用 handler.execute('skill:unknown-command')"
+        ],
+        "expected": "返回 exitCode=1，stderr 包含 'Unknown skill command: skill:unknown-command'"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-04-skill-management-system-design.md#skillcommandhandler-扩展",
+    "description": "SkillCommandHandler 依赖注入 — 支持 llmClient、toolExecutor 等可选依赖，降级模式运行",
+    "bdd": [
+      {
+        "title": "完整依赖注入创建完整功能的 SkillMerger",
+        "description": "提供 llmClient 和 toolExecutor 时，SkillMerger 具备 SubAgent 能力",
+        "steps": [
+          "创建 SkillCommandHandler({ llmClient: mockClient, toolExecutor: mockTool })"
+        ],
+        "expected": "内部 SkillMerger 的 subAgentManager 不为 null"
+      },
+      {
+        "title": "缺少依赖时降级创建 SkillMerger",
+        "description": "不提供 llmClient 或 toolExecutor 时，SkillMerger 以降级模式运行",
+        "steps": [
+          "创建 SkillCommandHandler({})"
+        ],
+        "expected": "内部 SkillMerger 的 subAgentManager 为 null，相似检测跳过"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-04-skill-management-system-design.md#slash-commands",
+    "description": "skill:list 命令输出格式 — 列出所有技能的名称、描述和版本数量",
+    "bdd": [
+      {
+        "title": "skill:list 输出包含版本数量",
+        "description": "验证列表输出格式为 name - description (N versions)",
+        "steps": [
+          "准备 2 个技能：git-commit（3 个版本）、code-review（5 个版本）",
+          "调用 handler.execute('skill:list')"
+        ],
+        "expected": "stdout 包含 'git-commit' 对齐显示描述和 '(3 versions)'，'code-review' 对齐显示描述和 '(5 versions)'"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-04-skill-management-system-design.md#slash-commands",
+    "description": "skill:info 命令输出格式 — 显示技能详情和完整版本历史",
+    "bdd": [
+      {
+        "title": "skill:info 显示详情和版本历史",
+        "description": "验证输出包含技能基本信息和版本列表",
+        "steps": [
+          "准备技能 git-commit（2 个历史版本、包含 tools 列表）",
+          "调用 handler.execute('skill:info git-commit')"
+        ],
+        "expected": "stdout 包含 Skill 名称、Description、Version、Created、Updated、Tools 列表和 Version History 列表"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-04-skill-management-system-design.md#slash-commands",
+    "description": "skill:import 命令交互 — 处理导入结果，冲突和相似时返回提示信息",
+    "bdd": [
+      {
+        "title": "导入冲突时提示用户修改名称",
+        "description": "存在同名冲突时，输出提示信息引导用户修改源目录中的技能名称",
+        "steps": [
+          "mock SkillManager.import 返回 ImportResult 含 conflicts",
+          "调用 handler.execute('skill:import /path/to/skills')"
+        ],
+        "expected": "stdout 包含冲突技能名称列表和提示：修改源目录中的名称后重新导入"
+      },
+      {
+        "title": "发现相似时提示 --continue 或 --merge 选项",
+        "description": "检测到相似技能时，输出相似信息并提示可用选项",
+        "steps": [
+          "mock SkillManager.import 返回 ImportResult 含 similar",
+          "调用 handler.execute('skill:import /path/to/skills')"
+        ],
+        "expected": "stdout 包含相似技能名称、相似原因，并提示使用 --continue=name 或 --merge=source:target 选项"
+      },
+      {
+        "title": "解析 --continue 选项",
+        "description": "正确解析逗号分隔的技能名称",
+        "steps": [
+          "调用 handler.execute('skill:import /path --continue=skill-a,skill-b')"
+        ],
+        "expected": "传递给 SkillManager.import 的 options.continueSkills 为 ['skill-a', 'skill-b']"
+      },
+      {
+        "title": "解析 --merge 选项",
+        "description": "正确解析 source:target 格式的合并指令",
+        "steps": [
+          "调用 handler.execute('skill:import /path --merge=new-commit:git-commit')"
+        ],
+        "expected": "传递给 SkillManager.import 的 options.mergeInto 为 [{ source: 'new-commit', target: 'git-commit' }]"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-04-skill-management-system-design.md#slash-commands",
+    "description": "skill:rollback 命令交互 — 不指定版本时显示列表，指定版本时执行回滚",
+    "bdd": [
+      {
+        "title": "不指定版本时显示版本列表",
+        "description": "只提供技能名称不提供版本号时，输出可用版本列表",
+        "steps": [
+          "准备技能 git-commit 有 3 个历史版本",
+          "调用 handler.execute('skill:rollback git-commit')"
+        ],
+        "expected": "stdout 包含版本列表，格式为编号+版本号+创建时间，提示用户选择版本号重新执行"
+      },
+      {
+        "title": "指定版本时执行回滚",
+        "description": "提供技能名称和版本号时，直接执行回滚",
+        "steps": [
+          "调用 handler.execute('skill:rollback git-commit 2026-02-02-001')"
+        ],
+        "expected": "调用 SkillManager.rollback('git-commit', '2026-02-02-001')，stdout 包含回滚成功信息"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-04-skill-management-system-design.md#slash-commands",
+    "description": "skill:delete 命令 — 直接删除技能，无需确认",
+    "bdd": [
+      {
+        "title": "skill:delete 直接删除技能",
+        "description": "输入技能名称后直接删除，无需额外确认步骤",
+        "steps": [
+          "调用 handler.execute('skill:delete git-commit')"
+        ],
+        "expected": "调用 SkillManager.delete('git-commit')，stdout 包含删除成功信息"
+      },
+      {
+        "title": "skill:delete 不存在的技能返回错误",
+        "description": "删除不存在的技能时返回友好错误",
+        "steps": [
+          "调用 handler.execute('skill:delete non-existent')"
+        ],
+        "expected": "返回 exitCode=1，stderr 包含 'Skill non-existent not found'"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-04-skill-management-system-design.md#命令注册",
+    "description": "BashRouter 命令注册 — skill: 前缀统一注册，管理命令作为斜杠命令与三段式工具调用区分",
+    "bdd": [
+      {
+        "title": "createSkillHandler 传递完整依赖",
+        "description": "创建 SkillCommandHandler 时传递 llmClient、toolExecutor 和 SubAgent 回调",
+        "steps": [
+          "配置 BashRouterOptions 包含 llmClient 和 toolExecutor",
+          "调用 createSkillHandler()"
+        ],
+        "expected": "返回的 SkillCommandHandler 内部 SkillMerger 具备完整 SubAgent 能力"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "non-functional",
+    "prd": "2026-02-04-skill-management-system-design.md#环境变量",
+    "description": "环境变量配置 — SYNAPSE_SKILL_MAX_VERSIONS 和 SYNAPSE_SKILL_IMPORT_TIMEOUT 可通过环境变量覆盖",
+    "bdd": [
+      {
+        "title": "MAX_VERSIONS 默认值为 20",
+        "description": "未设置环境变量时使用默认值 20",
+        "steps": [
+          "确保 SYNAPSE_SKILL_MAX_VERSIONS 环境变量未设置",
+          "检查 MAX_VERSIONS 常量值"
+        ],
+        "expected": "MAX_VERSIONS 等于 20"
+      },
+      {
+        "title": "MAX_VERSIONS 可通过环境变量覆盖",
+        "description": "设置环境变量后使用自定义值",
+        "steps": [
+          "设置 SYNAPSE_SKILL_MAX_VERSIONS=5",
+          "检查 MAX_VERSIONS 常量值"
+        ],
+        "expected": "MAX_VERSIONS 等于 5"
+      },
+      {
+        "title": "IMPORT_TIMEOUT 默认值为 60000",
+        "description": "未设置环境变量时使用默认值 60000 毫秒",
+        "steps": [
+          "确保 SYNAPSE_SKILL_IMPORT_TIMEOUT 环境变量未设置",
+          "检查 IMPORT_TIMEOUT 常量值"
+        ],
+        "expected": "IMPORT_TIMEOUT 等于 60000"
+      }
+    ],
+    "passes": false
+  }
+]
