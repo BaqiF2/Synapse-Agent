@@ -10,7 +10,6 @@
  */
 
 import * as fs from 'node:fs';
-import * as fsp from 'node:fs/promises';
 import * as path from 'node:path';
 import * as os from 'node:os';
 
@@ -113,11 +112,6 @@ export interface LoggerConfig {
 }
 
 /**
- * Default buffer flush interval in milliseconds
- */
-const LOG_FLUSH_INTERVAL_MS = parseInt(process.env.SYNAPSE_LOG_FLUSH_INTERVAL_MS || '1000', 10);
-
-/**
  * Logger class for structured logging
  */
 export class Logger {
@@ -127,10 +121,6 @@ export class Logger {
   private logDir: string;
   private logFile: string;
   private logPath: string;
-  // 写入缓冲区和异步 flush 队列
-  private _buffer: string[] = [];
-  private _flushTimer: ReturnType<typeof setInterval> | null = null;
-  private _writeQueue: Promise<void> = Promise.resolve();
 
   constructor(config: LoggerConfig = {}) {
     this.level = config.level ?? LOG_LEVEL;
@@ -143,7 +133,6 @@ export class Logger {
     // Ensure log directory exists
     if (this.logToFile) {
       this.ensureLogDir();
-      this.startFlushTimer();
     }
   }
 
@@ -158,55 +147,6 @@ export class Logger {
     } catch {
       // Silently ignore if directory creation fails
       this.logToFile = false;
-    }
-  }
-
-  /**
-   * 启动定时 flush
-   */
-  private startFlushTimer(): void {
-    if (this._flushTimer) return;
-    this._flushTimer = setInterval(() => {
-      this.flush();
-    }, LOG_FLUSH_INTERVAL_MS);
-    // 不阻止进程退出
-    if (this._flushTimer && typeof this._flushTimer === 'object' && 'unref' in this._flushTimer) {
-      this._flushTimer.unref();
-    }
-  }
-
-  /**
-   * 将缓冲区内容异步写入文件
-   */
-  flush(): void {
-    if (this._buffer.length === 0) return;
-    const data = this._buffer.join('');
-    this._buffer = [];
-
-    const task = this._writeQueue.then(async () => {
-      try {
-        await this.rotateIfNeededAsync();
-        await fsp.appendFile(this.logPath, data);
-      } catch {
-        // Silently ignore file write errors
-      }
-    });
-    this._writeQueue = task.catch(() => {});
-  }
-
-  /**
-   * Rotate log file if it exceeds max size (async)
-   */
-  private async rotateIfNeededAsync(): Promise<void> {
-    try {
-      const stats = await fsp.stat(this.logPath);
-      if (stats.size >= LOG_MAX_SIZE) {
-        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-        const backupPath = this.logPath.replace('.log', `-${timestamp}.log`);
-        await fsp.rename(this.logPath, backupPath);
-      }
-    } catch {
-      // 文件不存在或读取失败，忽略
     }
   }
 
@@ -251,16 +191,17 @@ export class Logger {
   }
 
   /**
-   * Buffer log entry for async file write
+   * Write log entry to file
    */
   private writeToFile(entry: LogEntry): void {
     if (!this.logToFile) return;
 
     try {
+      this.rotateIfNeeded();
       const line = JSON.stringify(entry) + '\n';
-      this._buffer.push(line);
+      fs.appendFileSync(this.logPath, line);
     } catch {
-      // Silently ignore serialization errors
+      // Silently ignore file write errors
     }
   }
 

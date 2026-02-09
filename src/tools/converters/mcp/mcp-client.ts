@@ -223,21 +223,14 @@ export class McpClient {
 
       // Connect with timeout
       const connectPromise = this.client.connect(this.transport);
-      let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
       const timeoutPromise = new Promise<never>((_, reject) => {
-        timeoutHandle = setTimeout(
+        setTimeout(
           () => reject(new Error(`Connection timeout after ${this.options.timeout}ms`)),
           this.options.timeout
         );
       });
 
-      try {
-        await Promise.race([connectPromise, timeoutPromise]);
-      } finally {
-        if (timeoutHandle !== null) {
-          clearTimeout(timeoutHandle);
-        }
-      }
+      await Promise.race([connectPromise, timeoutPromise]);
 
       this.state = ConnectionState.CONNECTED;
 
