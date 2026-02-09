@@ -1,0 +1,692 @@
+[
+  {
+    "category": "functional",
+    "prd": "2026-02-09-sandbox-isolation-design-v2.md#协议层核心抽象",
+    "description": "沙盒协议层类型定义 — SandboxBackend、SandboxProvider、SandboxPolicy、SandboxConfig 等核心接口",
+    "bdd": [
+      {
+        "title": "ExecuteResult 包含完整的执行结果字段",
+        "description": "验证 ExecuteResult 接口包含 stdout、stderr、exitCode、blocked、blockedReason、blockedResource 字段",
+        "steps": [
+          "创建一个符合 ExecuteResult 接口的对象",
+          "设置 stdout='hello'、stderr=''、exitCode=0、blocked=false",
+          "验证类型检查通过"
+        ],
+        "expected": "对象满足 ExecuteResult 接口约束，所有必填字段存在，可选字段可省略"
+      },
+      {
+        "title": "SandboxBackend 接口要求 id、execute、dispose",
+        "description": "验证 SandboxBackend 接口定义了必需的属性和方法",
+        "steps": [
+          "实现一个 MockSandboxBackend 类",
+          "提供 readonly id、execute(command)、dispose() 方法",
+          "验证类型检查通过"
+        ],
+        "expected": "MockSandboxBackend 满足 SandboxBackend 接口，缺少任何方法将导致类型错误"
+      },
+      {
+        "title": "SandboxPolicy 定义文件系统白名单/黑名单和网络策略",
+        "description": "验证 SandboxPolicy 包含 filesystem.whitelist、filesystem.blacklist、network.allowNetwork",
+        "steps": [
+          "创建一个 SandboxPolicy 对象",
+          "设置 filesystem.whitelist=['/tmp']、filesystem.blacklist=['~/.ssh']、network.allowNetwork=false",
+          "验证类型检查通过"
+        ],
+        "expected": "对象满足 SandboxPolicy 接口约束"
+      },
+      {
+        "title": "SandboxProvider 接口要求 type、create、destroy",
+        "description": "验证 SandboxProvider 接口定义了必需的属性和方法，list 为可选",
+        "steps": [
+          "实现一个 MockSandboxProvider 类",
+          "提供 readonly type、create(options)、destroy(sandboxId) 方法",
+          "不实现 list() 方法",
+          "验证类型检查通过"
+        ],
+        "expected": "MockSandboxProvider 满足 SandboxProvider 接口，list() 为可选方法"
+      },
+      {
+        "title": "SandboxConfig 包含 enabled、provider、policy、providerOptions",
+        "description": "验证 SandboxConfig 接口定义了完整的配置字段",
+        "steps": [
+          "创建一个 SandboxConfig 对象",
+          "设置 enabled=true、provider='local'、policy={...}、providerOptions={}",
+          "验证类型检查通过"
+        ],
+        "expected": "对象满足 SandboxConfig 接口约束"
+      },
+      {
+        "title": "SandboxCreateOptions 包含 cwd、policy、providerOptions",
+        "description": "验证 SandboxCreateOptions 用于传递给 Provider.create()",
+        "steps": [
+          "创建一个 SandboxCreateOptions 对象",
+          "设置 cwd='/workspace'、policy={...}",
+          "providerOptions 为可选",
+          "验证类型检查通过"
+        ],
+        "expected": "对象满足 SandboxCreateOptions 接口，providerOptions 可省略"
+      },
+      {
+        "title": "SandboxInfo 包含 id 和 status",
+        "description": "验证 SandboxInfo 的 status 字段只接受 'running' | 'stopped'",
+        "steps": [
+          "创建 SandboxInfo 对象 { id: 'test', status: 'running' }",
+          "验证类型检查通过",
+          "尝试 status='unknown'",
+          "验证类型检查失败"
+        ],
+        "expected": "status 字段仅接受 'running' 或 'stopped'，其他值类型错误"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-09-sandbox-isolation-design-v2.md#配置文件",
+    "description": "沙盒配置加载、合并、验证 — 支持默认配置、用户配置、运行时配置三层合并",
+    "bdd": [
+      {
+        "title": "无用户配置文件时加载默认配置",
+        "description": "当 ~/.synapse/sandbox.json 不存在时使用内置默认配置",
+        "steps": [
+          "确保配置文件路径不存在",
+          "调用 loadSandboxConfig()",
+          "检查返回的配置对象"
+        ],
+        "expected": "返回默认配置：enabled=true、provider='local'、blacklist 包含 ~/.ssh、~/.aws 等敏感路径"
+      },
+      {
+        "title": "用户配置的 whitelist 追加到默认列表",
+        "description": "用户配置的白名单与默认白名单合并而非替换",
+        "steps": [
+          "创建用户配置 { policy: { filesystem: { whitelist: ['/home/user/projects'] } } }",
+          "调用 loadSandboxConfig() 并传入用户配置",
+          "检查合并后的 whitelist"
+        ],
+        "expected": "合并后的 whitelist 包含 '/home/user/projects'，默认白名单项保留"
+      },
+      {
+        "title": "用户配置的 blacklist 追加到默认列表且默认黑名单不可移除",
+        "description": "用户无法通过配置移除默认黑名单保护",
+        "steps": [
+          "创建用户配置 { policy: { filesystem: { blacklist: ['~/.kube'] } } }",
+          "调用 loadSandboxConfig()",
+          "检查合并后的 blacklist"
+        ],
+        "expected": "合并后的 blacklist 同时包含默认项（~/.ssh 等）和用户项（~/.kube），默认黑名单不可被用户配置移除"
+      },
+      {
+        "title": "network.allowNetwork 始终为 false 不可配置",
+        "description": "用户配置中设置 allowNetwork=true 无效",
+        "steps": [
+          "创建用户配置 { policy: { network: { allowNetwork: true } } }",
+          "调用 loadSandboxConfig()",
+          "检查 network.allowNetwork"
+        ],
+        "expected": "network.allowNetwork 仍为 false，用户配置被忽略"
+      },
+      {
+        "title": "配置文件格式错误时使用默认配置并输出警告",
+        "description": "JSON 解析失败时降级到默认配置",
+        "steps": [
+          "写入无效 JSON 到配置文件路径",
+          "调用 loadSandboxConfig()",
+          "检查返回值和日志输出"
+        ],
+        "expected": "返回默认配置，日志输出 warn 级别警告信息 (Default assumption: 不阻塞启动，仅输出警告日志)"
+      },
+      {
+        "title": "路径中 ~ 被展开为 HOME 环境变量",
+        "description": "buildPolicy 展开 ~ 为绝对路径",
+        "steps": [
+          "配置 blacklist 包含 '~/.ssh'",
+          "设置 HOME=/home/testuser",
+          "调用 buildPolicy()",
+          "检查展开后的路径"
+        ],
+        "expected": "blacklist 中的 '~/.ssh' 被展开为 '/home/testuser/.ssh'"
+      },
+      {
+        "title": "路径中环境变量 $VAR 被展开",
+        "description": "buildPolicy 展开 $VAR 引用",
+        "steps": [
+          "配置 whitelist 包含 '$WORKSPACE/data'",
+          "设置环境变量 WORKSPACE=/opt/work",
+          "调用 buildPolicy()",
+          "检查展开后的路径"
+        ],
+        "expected": "whitelist 中的 '$WORKSPACE/data' 被展开为 '/opt/work/data'"
+      },
+      {
+        "title": "Zod Schema 验证配置结构",
+        "description": "使用 Zod 对配置进行结构验证",
+        "steps": [
+          "传入缺少 provider 字段的配置",
+          "调用配置验证函数"
+        ],
+        "expected": "Zod 验证失败，返回结构化错误信息"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-09-sandbox-isolation-design-v2.md#sandboxproviderregistry",
+    "description": "Provider 工厂注册表 — 管理沙盒 Provider 的注册、查找和列举",
+    "bdd": [
+      {
+        "title": "注册并获取 Provider",
+        "description": "注册工厂函数后可通过 type 获取 Provider 实例",
+        "steps": [
+          "调用 SandboxProviderRegistry.register('test', () => new MockProvider())",
+          "调用 SandboxProviderRegistry.get('test')",
+          "检查返回值"
+        ],
+        "expected": "返回 MockProvider 实例"
+      },
+      {
+        "title": "获取未注册的 Provider 抛异常",
+        "description": "请求不存在的 Provider 类型时抛出明确错误",
+        "steps": [
+          "不注册任何 'unknown' 类型的 Provider",
+          "调用 SandboxProviderRegistry.get('unknown')"
+        ],
+        "expected": "抛出 Error，消息包含 'Unknown sandbox provider: \"unknown\"' 和已注册类型列表"
+      },
+      {
+        "title": "listTypes 返回所有已注册类型",
+        "description": "列举当前注册的所有 Provider 类型名",
+        "steps": [
+          "注册 'local' 和 'test' 两个 Provider",
+          "调用 SandboxProviderRegistry.listTypes()"
+        ],
+        "expected": "返回包含 'local' 和 'test' 的数组"
+      },
+      {
+        "title": "内置注册 local Provider",
+        "description": "模块加载时自动注册 local Provider",
+        "steps": [
+          "导入 provider-registry 模块",
+          "调用 SandboxProviderRegistry.get('local')"
+        ],
+        "expected": "返回 LocalSandboxProvider 实例，type 为 'local'"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-09-sandbox-isolation-design-v2.md#sandboxmanager",
+    "description": "SandboxManager — 懒初始化、生命周期管理、运行时白名单、沙盒重建",
+    "bdd": [
+      {
+        "title": "首次 getSandbox 触发懒初始化",
+        "description": "第一次调用 getSandbox 时通过 Provider 创建沙盒实例",
+        "steps": [
+          "创建 SandboxManager（enabled=true）",
+          "调用 getSandbox('/workspace')",
+          "检查 Provider.create() 是否被调用"
+        ],
+        "expected": "Provider.create() 被调用一次，返回 SandboxBackend 实例"
+      },
+      {
+        "title": "后续 getSandbox 复用已有实例",
+        "description": "第二次调用 getSandbox 不再创建新实例",
+        "steps": [
+          "创建 SandboxManager（enabled=true）",
+          "调用 getSandbox('/workspace') 两次",
+          "检查 Provider.create() 调用次数"
+        ],
+        "expected": "Provider.create() 仅被调用一次，两次返回同一 Backend 实例"
+      },
+      {
+        "title": "沙盒禁用时返回无沙盒 Backend",
+        "description": "enabled=false 时直接创建裸 BashSession Backend",
+        "steps": [
+          "创建 SandboxManager（enabled=false）",
+          "调用 getSandbox('/workspace')"
+        ],
+        "expected": "返回无沙盒的 Backend 实例，Provider.create() 不被调用 (Default assumption: 直接创建裸 BashSession 作为 Backend，不经过 Provider)"
+      },
+      {
+        "title": "沙盒创建失败直接抛异常不降级",
+        "description": "Provider.create() 失败时不降级为无沙盒模式",
+        "steps": [
+          "创建 SandboxManager（enabled=true）",
+          "Mock Provider.create() 抛出 Error",
+          "调用 getSandbox('/workspace')"
+        ],
+        "expected": "异常向上传播，不捕获不降级"
+      },
+      {
+        "title": "addRuntimeWhitelist 添加路径并触发沙盒重建",
+        "description": "会话级授权新增白名单后重建沙盒以应用新策略",
+        "steps": [
+          "创建 SandboxManager 并初始化沙盒",
+          "调用 addRuntimeWhitelist('/extra/path', '/workspace')",
+          "检查旧 Backend 是否 dispose()",
+          "检查 Provider.create() 是否以包含新路径的 policy 被调用"
+        ],
+        "expected": "旧 Backend.dispose() 被调用，Provider.create() 再次被调用，新 policy.filesystem.whitelist 包含 '/extra/path'"
+      },
+      {
+        "title": "重建沙盒保留所有运行时白名单",
+        "description": "多次 addRuntimeWhitelist 后重建包含所有授权路径",
+        "steps": [
+          "调用 addRuntimeWhitelist('/path1', cwd)",
+          "调用 addRuntimeWhitelist('/path2', cwd)",
+          "检查最后一次 Provider.create() 接收的 policy"
+        ],
+        "expected": "policy.filesystem.whitelist 同时包含 '/path1' 和 '/path2'"
+      },
+      {
+        "title": "shutdown 销毁活跃沙盒",
+        "description": "关闭时清理所有资源",
+        "steps": [
+          "创建 SandboxManager 并初始化沙盒",
+          "调用 shutdown()",
+          "检查 Provider.destroy() 和 Backend 状态"
+        ],
+        "expected": "Provider.destroy() 被调用，activeSandbox 置为 null"
+      },
+      {
+        "title": "buildPolicy 合并 cwd + 配置白名单 + 运行时白名单 + TMPDIR",
+        "description": "构建的策略包含所有来源的白名单",
+        "steps": [
+          "配置 whitelist=['/data']",
+          "运行时白名单=['/extra']",
+          "调用 buildPolicy('/workspace')",
+          "设置 TMPDIR=/custom/tmp"
+        ],
+        "expected": "返回的 whitelist 包含 '/workspace'、'/data'、'/extra'、'/custom/tmp'"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-09-sandbox-isolation-design-v2.md#localsandboxprovider",
+    "description": "LocalSandboxProvider — 本地沙盒的创建、销毁和列举",
+    "bdd": [
+      {
+        "title": "create 返回 LocalSandboxBackend 实例",
+        "description": "创建本地沙盒 Backend 并启动",
+        "steps": [
+          "创建 LocalSandboxProvider",
+          "调用 create({ cwd: '/workspace', policy: validPolicy })",
+          "检查返回值"
+        ],
+        "expected": "返回 LocalSandboxBackend 实例，id 格式为 'local-{timestamp}-{random}'"
+      },
+      {
+        "title": "destroy 销毁指定沙盒并从活跃列表移除",
+        "description": "按 ID 销毁沙盒",
+        "steps": [
+          "创建一个沙盒 Backend",
+          "调用 destroy(backend.id)",
+          "调用 list()"
+        ],
+        "expected": "Backend.dispose() 被调用，list() 不再包含该 ID"
+      },
+      {
+        "title": "destroy 不存在的 ID 静默忽略",
+        "description": "销毁不存在的沙盒不抛异常",
+        "steps": [
+          "调用 destroy('nonexistent-id')"
+        ],
+        "expected": "不抛异常，静默返回"
+      },
+      {
+        "title": "list 返回所有活跃沙盒信息",
+        "description": "列举当前运行的沙盒",
+        "steps": [
+          "创建两个沙盒 Backend",
+          "调用 list()"
+        ],
+        "expected": "返回两个 SandboxInfo 对象，status 均为 'running'"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-09-sandbox-isolation-design-v2.md#localsandboxbackend",
+    "description": "LocalSandboxBackend — 通过 PlatformAdapter 启动沙盒化 BashSession 并执行命令",
+    "bdd": [
+      {
+        "title": "start 通过 PlatformAdapter 生成沙盒命令并启动 BashSession",
+        "description": "启动时调用 platform.wrapCommand() 获取沙盒化 shell 命令",
+        "steps": [
+          "创建 LocalSandboxBackend（MockPlatformAdapter）",
+          "Mock wrapCommand 返回 'sandbox-exec -f /tmp/test.sb /bin/bash'",
+          "调用 start()",
+          "检查 BashSession 的 shellCommand 参数"
+        ],
+        "expected": "BashSession 以 'sandbox-exec -f /tmp/test.sb /bin/bash' 作为 shellCommand 创建"
+      },
+      {
+        "title": "execute 正常命令返回完整结果",
+        "description": "非违规命令返回正常 ExecuteResult",
+        "steps": [
+          "启动 Backend",
+          "Mock BashSession.execute 返回 { stdout: 'ok', stderr: '', exitCode: 0 }",
+          "Mock platform.isViolation 返回 false",
+          "调用 execute('echo hello')"
+        ],
+        "expected": "返回 { stdout: 'ok', stderr: '', exitCode: 0, blocked: false, blockedReason: undefined }"
+      },
+      {
+        "title": "execute 检测沙盒违规并标记 blocked",
+        "description": "PlatformAdapter 检测到违规时设置 blocked=true",
+        "steps": [
+          "启动 Backend",
+          "Mock BashSession.execute 返回含违规 stderr 的结果",
+          "Mock platform.isViolation 返回 true",
+          "Mock platform.extractViolationReason 返回 'deny file-read'",
+          "Mock platform.extractBlockedResource 返回 '/home/.ssh/id_rsa'",
+          "调用 execute('cat ~/.ssh/id_rsa')"
+        ],
+        "expected": "返回 { blocked: true, blockedReason: 'deny file-read', blockedResource: '/home/.ssh/id_rsa' }"
+      },
+      {
+        "title": "dispose 关闭 BashSession 并清理平台资源",
+        "description": "释放所有资源",
+        "steps": [
+          "启动 Backend",
+          "调用 dispose()",
+          "检查 BashSession.kill() 和 platform.cleanup() 是否被调用"
+        ],
+        "expected": "BashSession.kill() 和 platform.cleanup() 均被调用"
+      },
+      {
+        "title": "id 格式为 local-{timestamp}-{random}",
+        "description": "生成唯一标识符",
+        "steps": [
+          "创建 LocalSandboxBackend",
+          "检查 id 格式"
+        ],
+        "expected": "id 匹配正则 /^local-\\d+-[a-z0-9]{6}$/"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-09-sandbox-isolation-design-v2.md#platformadapter-接口",
+    "description": "PlatformAdapter 接口与平台检测 — getPlatformAdapter() 按平台返回对应适配器",
+    "bdd": [
+      {
+        "title": "macOS 平台返回 MacOSAdapter",
+        "description": "darwin 平台返回 macOS 适配器",
+        "steps": [
+          "Mock process.platform 为 'darwin'",
+          "调用 getPlatformAdapter()"
+        ],
+        "expected": "返回 MacOSAdapter 实例"
+      },
+      {
+        "title": "Linux 平台返回 LinuxAdapter",
+        "description": "linux 平台返回 Linux 适配器",
+        "steps": [
+          "Mock process.platform 为 'linux'",
+          "调用 getPlatformAdapter()"
+        ],
+        "expected": "返回 LinuxAdapter 实例"
+      },
+      {
+        "title": "不支持的平台抛异常",
+        "description": "Windows 等平台不支持沙盒",
+        "steps": [
+          "Mock process.platform 为 'win32'",
+          "调用 getPlatformAdapter()"
+        ],
+        "expected": "抛出 Error，消息包含 'Sandbox not supported on platform: win32'"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-09-sandbox-isolation-design-v2.md#macosadapter",
+    "description": "MacOSAdapter — sandbox-exec .sb profile 生成、违规检测、资源清理",
+    "bdd": [
+      {
+        "title": "wrapCommand 生成 sandbox-exec 启动命令",
+        "description": "根据策略生成 .sb profile 并返回 sandbox-exec 命令",
+        "steps": [
+          "创建 MacOSAdapter",
+          "调用 wrapCommand({ filesystem: { whitelist: ['/workspace'], blacklist: ['~/.ssh'] }, network: { allowNetwork: false } })"
+        ],
+        "expected": "返回字符串 'sandbox-exec -f /tmp/synapse-sandbox-xxx.sb /bin/bash'，临时文件已写入"
+      },
+      {
+        "title": ".sb profile 包含默认拒绝规则",
+        "description": "生成的 profile 以 deny default 开头",
+        "steps": [
+          "生成 .sb profile",
+          "读取 profile 文件内容"
+        ],
+        "expected": "profile 包含 '(deny default)'"
+      },
+      {
+        "title": ".sb profile 包含白名单读写规则",
+        "description": "whitelist 路径生成 allow file-read* file-write* 规则",
+        "steps": [
+          "传入 whitelist=['/workspace', '/tmp']",
+          "生成 .sb profile"
+        ],
+        "expected": "profile 包含 '(allow file-read* file-write*' 和 '(subpath \"/workspace\")' 和 '(subpath \"/tmp\")'"
+      },
+      {
+        "title": ".sb profile 中黑名单规则在白名单之后声明",
+        "description": "sandbox-exec 后声明优先，确保黑名单覆盖白名单",
+        "steps": [
+          "传入 whitelist=['/home']、blacklist=['/home/.ssh']",
+          "生成 .sb profile",
+          "检查 deny 规则位置"
+        ],
+        "expected": "deny 规则出现在 allow 规则之后 (Default assumption: sandbox-exec 采用后声明优先 last-match-wins)"
+      },
+      {
+        "title": "blacklist glob 模式转为 regex",
+        "description": "glob 格式的黑名单路径转为 sandbox-exec regex 规则",
+        "steps": [
+          "传入 blacklist=['**/.env', '**/.env.local']",
+          "生成 .sb profile"
+        ],
+        "expected": "profile 包含 (regex #\".*\\.env\") 和 (regex #\".*\\.env\\.local\")"
+      },
+      {
+        "title": ".sb profile 禁止网络访问",
+        "description": "生成的 profile 包含 deny network 规则",
+        "steps": [
+          "生成 .sb profile",
+          "读取内容"
+        ],
+        "expected": "profile 包含 '(deny network*)'"
+      },
+      {
+        "title": ".sb profile 允许基本进程操作和系统文件读取",
+        "description": "允许 process-fork、process-exec 和系统目录读取",
+        "steps": [
+          "生成 .sb profile",
+          "读取内容"
+        ],
+        "expected": "profile 包含 (allow process-fork)、(allow process-exec)、(allow file-read* (subpath \"/usr/lib\")) 等系统目录"
+      },
+      {
+        "title": "isViolation 检测 stderr 中的 sandbox/deny 关键字",
+        "description": "识别 macOS sandbox 的违规输出",
+        "steps": [
+          "传入 result { stderr: 'sandbox deny file-read' }",
+          "调用 isViolation(result)"
+        ],
+        "expected": "返回 true"
+      },
+      {
+        "title": "isViolation 正常结果返回 false",
+        "description": "无违规关键字时不误判",
+        "steps": [
+          "传入 result { stderr: 'npm WARN deprecated', exitCode: 0 }",
+          "调用 isViolation(result)"
+        ],
+        "expected": "返回 false"
+      },
+      {
+        "title": "extractViolationReason 提取 deny 后的操作类型",
+        "description": "从 stderr 提取被拒绝的操作",
+        "steps": [
+          "传入 result { stderr: 'deny file-read-data' }",
+          "调用 extractViolationReason(result)"
+        ],
+        "expected": "返回 'file-read-data'"
+      },
+      {
+        "title": "extractBlockedResource 提取被拦截的路径",
+        "description": "从 stderr 提取路径信息",
+        "steps": [
+          "传入 result { stderr: 'path \"/home/user/.ssh/id_rsa\"' }",
+          "调用 extractBlockedResource(result)"
+        ],
+        "expected": "返回 '/home/user/.ssh/id_rsa'"
+      },
+      {
+        "title": "cleanup 删除临时 .sb profile 文件",
+        "description": "释放临时资源",
+        "steps": [
+          "调用 wrapCommand() 生成 profile 文件",
+          "确认文件存在",
+          "调用 cleanup()",
+          "检查文件是否已删除"
+        ],
+        "expected": "临时 .sb profile 文件被删除"
+      },
+      {
+        "title": "cleanup 清理不存在的文件不抛异常",
+        "description": "文件已被删除时静默忽略",
+        "steps": [
+          "设置 profilePath 为不存在的路径",
+          "调用 cleanup()"
+        ],
+        "expected": "不抛异常"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-09-sandbox-isolation-design-v2.md#linuxadapter",
+    "description": "LinuxAdapter — bwrap/unshare 命令构建、违规检测、fallback 机制",
+    "bdd": [
+      {
+        "title": "bwrap 可用时生成 bwrap 命令",
+        "description": "检测到 bwrap 后构建完整的 bwrap 沙盒命令",
+        "steps": [
+          "Mock which bwrap 返回成功",
+          "调用 wrapCommand(policy)",
+          "policy.filesystem.whitelist=['/workspace']"
+        ],
+        "expected": "返回的命令以 'bwrap' 开头，包含 '--unshare-net'、'--die-with-parent'、'--new-session'、'--bind /workspace /workspace'、'/bin/bash'"
+      },
+      {
+        "title": "bwrap 命令包含只读系统目录绑定",
+        "description": "系统目录以只读方式绑定",
+        "steps": [
+          "调用 wrapCommand(policy)"
+        ],
+        "expected": "命令包含 '--ro-bind /usr /usr'、'--ro-bind /bin /bin'、'--ro-bind /lib /lib'、'--ro-bind /etc /etc'"
+      },
+      {
+        "title": "bwrap 不可用时 fallback 到 unshare",
+        "description": "仅网络隔离的降级方案",
+        "steps": [
+          "Mock which bwrap 返回失败",
+          "调用 wrapCommand(policy)"
+        ],
+        "expected": "返回 'unshare --net /bin/bash'，日志输出 warn 级别提示"
+      },
+      {
+        "title": "bwrap 跳过 glob 模式的白名单路径",
+        "description": "bwrap --bind 不支持 glob",
+        "steps": [
+          "传入 whitelist=['/workspace', '/data/**/logs']",
+          "调用 wrapCommand(policy)"
+        ],
+        "expected": "命令包含 '--bind /workspace /workspace'，不包含含 glob 的路径 (Default assumption: glob 黑名单在沙盒创建时预展开为绝对路径列表)"
+      },
+      {
+        "title": "isViolation 检测 Permission denied",
+        "description": "识别 Linux 权限拒绝",
+        "steps": [
+          "传入 result { stderr: 'Permission denied' }",
+          "调用 isViolation(result)"
+        ],
+        "expected": "返回 true"
+      },
+      {
+        "title": "isViolation 检测 Operation not permitted",
+        "description": "识别 Linux 操作不允许",
+        "steps": [
+          "传入 result { stderr: 'Operation not permitted' }",
+          "调用 isViolation(result)"
+        ],
+        "expected": "返回 true"
+      },
+      {
+        "title": "extractBlockedResource 从错误信息提取路径",
+        "description": "提取被拒绝访问的文件路径",
+        "steps": [
+          "传入 result { stderr: \"'/home/user/.ssh/id_rsa': Permission denied\" }",
+          "调用 extractBlockedResource(result)"
+        ],
+        "expected": "返回 '/home/user/.ssh/id_rsa'"
+      },
+      {
+        "title": "cleanup 为空操作",
+        "description": "Linux 适配器无需清理临时文件",
+        "steps": [
+          "调用 cleanup()"
+        ],
+        "expected": "正常返回，无副作用"
+      }
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "prd": "2026-02-09-sandbox-isolation-design-v2.md#bashsession-改造",
+    "description": "BashSession 改造 — 支持自定义 shellCommand 参数启动沙盒化进程",
+    "bdd": [
+      {
+        "title": "默认 shellCommand 为 /bin/bash",
+        "description": "无参数时使用裸 bash",
+        "steps": [
+          "创建 BashSession()",
+          "检查 shellCommand 属性"
+        ],
+        "expected": "shellCommand 为 '/bin/bash'"
+      },
+      {
+        "title": "自定义 shellCommand 被正确解析为命令和参数",
+        "description": "传入的 shellCommand 被分割为 spawn 的 cmd 和 args",
+        "steps": [
+          "创建 BashSession({ shellCommand: 'sandbox-exec -f /tmp/test.sb /bin/bash' })",
+          "触发 start()",
+          "检查 spawn 调用参数"
+        ],
+        "expected": "spawn 以 cmd='sandbox-exec'、args=['-f', '/tmp/test.sb', '/bin/bash', '--norc', '--noprofile'] 调用"
+      },
+      {
+        "title": "execute/kill/超时/标记检测逻辑不变",
+        "description": "BashSession 其余行为保持不变",
+        "steps": [
+          "创建沙盒化 BashSession",
+          "调用 execute('echo test')",
+          "验证标记检测（___SYNAPSE_COMMAND_END___）正常工作"
+        ],
+        "expected": "execute 正常返回结果，标记检测和超时机制与原行为一致"
+      }
+    ],
+    "passes": false
+  }
+]
