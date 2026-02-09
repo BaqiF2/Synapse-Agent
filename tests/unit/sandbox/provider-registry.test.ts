@@ -40,6 +40,7 @@ class MockProvider implements SandboxProvider {
 describe('SandboxProviderRegistry', () => {
   beforeEach(() => {
     SandboxProviderRegistry.resetForTest();
+    SandboxProviderRegistry.init();
   });
 
   it('注册后可通过 type 获取 Provider', () => {
@@ -77,10 +78,21 @@ describe('SandboxProviderRegistry', () => {
     expect(types).toContain('test');
   });
 
-  it('模块加载时内置注册 local Provider', () => {
+  it('init 会注册内置 local Provider', () => {
     const provider = SandboxProviderRegistry.get('local');
 
     expect(provider).toBeInstanceOf(LocalSandboxProvider);
     expect(provider.type).toBe('local');
+  });
+
+  it('resetForTest 仅清理注册表，不自动初始化内置 provider', () => {
+    SandboxProviderRegistry.register('test', () => new MockProvider());
+
+    SandboxProviderRegistry.resetForTest();
+
+    expect(SandboxProviderRegistry.listTypes()).toEqual([]);
+    expect(() => SandboxProviderRegistry.get('local')).toThrow(
+      'Unknown sandbox provider: "local"'
+    );
   });
 });

@@ -93,8 +93,12 @@ export class MacOSAdapter implements PlatformAdapter {
   }
 
   isViolation(result: CommandResult): boolean {
-    const stderr = result.stderr.toLowerCase();
-    return stderr.includes('sandbox') || stderr.includes('deny');
+    const stderr = result.stderr;
+    const sandboxExecFailure = /sandbox-exec:\s/i.test(stderr)
+      && /(operation not permitted|denied|prohibited|failed|error)/i.test(stderr);
+    const sandboxKernelDeny = /\bSandbox:\s[^\n]*\bdeny\([^)]+\)/.test(stderr);
+
+    return sandboxExecFailure || sandboxKernelDeny;
   }
 
   extractViolationReason(result: CommandResult): string | undefined {

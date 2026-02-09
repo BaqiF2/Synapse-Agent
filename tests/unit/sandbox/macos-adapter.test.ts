@@ -144,14 +144,24 @@ describe('MacOSAdapter', () => {
     expect(content).toContain('(allow file-read* (subpath "/usr/lib"))');
   });
 
-  it('isViolation 能识别 sandbox/deny 违规关键字', () => {
+  it('isViolation 能识别 sandbox-exec 拒绝特征', () => {
     const adapter = new MacOSAdapter();
     const blocked = adapter.isViolation({
       stdout: '',
-      stderr: 'sandbox deny file-read',
+      stderr: 'sandbox-exec: sandbox_apply: Operation not permitted',
       exitCode: 1,
     });
     expect(blocked).toBe(true);
+  });
+
+  it('isViolation 不应把普通 sandbox/deny 文本误判为违规', () => {
+    const adapter = new MacOSAdapter();
+    const blocked = adapter.isViolation({
+      stdout: '',
+      stderr: 'docs mention sandbox policy and deny list semantics',
+      exitCode: 0,
+    });
+    expect(blocked).toBe(false);
   });
 
   it('isViolation 正常输出返回 false', () => {

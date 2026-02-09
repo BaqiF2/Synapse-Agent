@@ -14,6 +14,13 @@ function toUnknownProviderError(type: string, availableTypes: string[]): Error {
 export class SandboxProviderRegistry {
   private static providers = new Map<string, SandboxProviderFactory>();
 
+  /**
+   * 初始化内置 provider（幂等）。
+   */
+  static init(): void {
+    this.registerBuiltins();
+  }
+
   static register(type: string, factory: SandboxProviderFactory): void {
     const normalizedType = type.trim();
     if (!normalizedType) {
@@ -37,11 +44,10 @@ export class SandboxProviderRegistry {
   }
 
   /**
-   * 仅用于单元测试：重置注册表并重新注册内置 provider。
+   * 仅用于单元测试：清空注册表。
    */
   static resetForTest(): void {
     this.providers.clear();
-    this.registerBuiltins();
   }
 
   private static registerBuiltins(): void {
@@ -51,4 +57,4 @@ export class SandboxProviderRegistry {
   }
 }
 
-SandboxProviderRegistry.resetForTest();
+SandboxProviderRegistry.init();
