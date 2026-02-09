@@ -37,7 +37,7 @@
         "expected": "对象通过 TypeScript 类型检查，四个数组字段均存在"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -101,7 +101,7 @@
         "expected": "返回 null"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -155,7 +155,7 @@
         "expected": "返回空数组 []"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -189,7 +189,7 @@
         "expected": "返回 null"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -296,7 +296,7 @@
         "expected": "indexer.rebuild() 被调用一次"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -341,7 +341,7 @@
         "expected": "finally 块中 fs.rm 被调用，临时目录被删除"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -366,7 +366,7 @@
         "expected": "抛出错误：'Skill non-existent not found'"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -427,7 +427,7 @@
         "expected": "直接返回空数组 []，不调用 SubAgentManager"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -452,7 +452,7 @@
         "expected": "抛出错误：'SubAgentManager is required for skill merging'"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -516,7 +516,7 @@
         "expected": "返回 exitCode=1，stderr 包含 'Unknown skill command: skill:unknown-command'"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -540,7 +540,7 @@
         "expected": "内部 SkillMerger 的 subAgentManager 为 null，相似检测跳过"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -557,7 +557,7 @@
         "expected": "stdout 包含 'git-commit' 对齐显示描述和 '(3 versions)'，'code-review' 对齐显示描述和 '(5 versions)'"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -574,7 +574,7 @@
         "expected": "stdout 包含 Skill 名称、Description、Version、Created、Updated、Tools 列表和 Version History 列表"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -616,7 +616,7 @@
         "expected": "传递给 SkillManager.import 的 options.mergeInto 为 [{ source: 'new-commit', target: 'git-commit' }]"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -641,7 +641,7 @@
         "expected": "调用 SkillManager.rollback('git-commit', '2026-02-02-001')，stdout 包含回滚成功信息"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -665,7 +665,7 @@
         "expected": "返回 exitCode=1，stderr 包含 'Skill non-existent not found'"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -682,7 +682,7 @@
         "expected": "返回的 SkillCommandHandler 内部 SkillMerger 具备完整 SubAgent 能力"
       }
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "non-functional",
@@ -717,6 +717,6 @@
         "expected": "IMPORT_TIMEOUT 等于 60000"
       }
     ],
-    "passes": false
+    "passes": true
   }
 ]

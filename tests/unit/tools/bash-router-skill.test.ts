@@ -2,7 +2,7 @@
  * BashRouter Skill Command Integration Tests
  *
  * Tests for skill command routing through BashRouter.
- * Note: skill:search and skill:enhance have been moved to task:skill:* commands.
+ * 覆盖 skill 管理命令与 skill 三段式工具调用的路由区分。
  */
 
 import { describe, expect, it, beforeEach, afterEach } from 'bun:test';
@@ -80,6 +80,14 @@ description: A test skill
       expect(router.identifyCommandType('skill:load my-skill')).toBe(CommandType.AGENT_SHELL_COMMAND);
     });
 
+    it('should identify skill:list/info/import/rollback/delete as AGENT_SHELL_COMMAND', () => {
+      expect(router.identifyCommandType('skill:list')).toBe(CommandType.AGENT_SHELL_COMMAND);
+      expect(router.identifyCommandType('skill:info my-skill')).toBe(CommandType.AGENT_SHELL_COMMAND);
+      expect(router.identifyCommandType('skill:import /tmp/skills')).toBe(CommandType.AGENT_SHELL_COMMAND);
+      expect(router.identifyCommandType('skill:rollback my-skill')).toBe(CommandType.AGENT_SHELL_COMMAND);
+      expect(router.identifyCommandType('skill:delete my-skill')).toBe(CommandType.AGENT_SHELL_COMMAND);
+    });
+
     it('should identify skill:name:tool as EXTEND_SHELL_COMMAND', () => {
       expect(router.identifyCommandType('skill:analyzer:run')).toBe(CommandType.EXTEND_SHELL_COMMAND);
     });
@@ -92,14 +100,10 @@ description: A test skill
       expect(router.identifyCommandType('skill search test')).toBe(CommandType.NATIVE_SHELL_COMMAND);
     });
 
-    it('should identify skill:search as NATIVE (moved to task:skill:search)', () => {
-      // skill:search is no longer a recognized command after refactoring
-      expect(router.identifyCommandType('skill:search')).toBe(CommandType.NATIVE_SHELL_COMMAND);
-    });
-
-    it('should identify skill:enhance as NATIVE (moved to task:skill:enhance)', () => {
-      // skill:enhance is no longer a recognized command after refactoring
-      expect(router.identifyCommandType('skill:enhance --on')).toBe(CommandType.NATIVE_SHELL_COMMAND);
+    it('should identify unknown two-part skill command as AGENT_SHELL_COMMAND', () => {
+      expect(router.identifyCommandType('skill:search')).toBe(CommandType.AGENT_SHELL_COMMAND);
+      expect(router.identifyCommandType('skill:enhance --on')).toBe(CommandType.AGENT_SHELL_COMMAND);
+      expect(router.identifyCommandType('skill:unknown')).toBe(CommandType.AGENT_SHELL_COMMAND);
     });
   });
 
@@ -118,7 +122,7 @@ description: A test skill
     });
   });
 
-  describe('route skill:load command', () => {
+  describe('route skill management command', () => {
     it('should route skill:load command', async () => {
       const result = await router.route('skill:load test-skill');
       expect(result.exitCode).toBe(0);
@@ -135,6 +139,39 @@ description: A test skill
       const result = await router.route('skill:load');
       expect(result.exitCode).toBe(1);
       expect(result.stdout).toContain('USAGE');
+    });
+
+    it('should route skill:list command', async () => {
+      const result = await router.route('skill:list');
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('test-skill');
+      expect(result.stdout).toContain('versions');
+    });
+
+    it('should return unknown command error from skill handler', async () => {
+      const result = await router.route('skill:unknown-command');
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain('Unknown skill command: skill:unknown-command');
+    });
+
+    it('createSkillHandler should pass llm/tool dependencies', async () => {
+      const routerWithDeps = new BashRouter(session, {
+        synapseDir,
+        llmClient: {} as any,
+        toolExecutor: {} as any,
+      });
+
+      try {
+        const result = await routerWithDeps.route('skill:list');
+        expect(result.exitCode).toBe(0);
+
+        const entry = (routerWithDeps as any).handlerRegistry.get('skill:');
+        const handler = entry?.handler as { getSkillMerger: () => { getSubAgentManager: () => unknown } } | undefined;
+        expect(handler).toBeDefined();
+        expect(handler?.getSkillMerger().getSubAgentManager()).not.toBeNull();
+      } finally {
+        routerWithDeps.shutdown();
+      }
     });
   });
 
