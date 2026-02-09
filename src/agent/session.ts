@@ -1,7 +1,9 @@
 /**
  * Session 管理
  *
- * 功能：管理会话生命周期、消息持久化、会话恢复
+ * 功能：管理会话生命周期、消息持久化、会话恢复。
+ *       所有 I/O 操作使用 fs.promises 实现真正异步，
+ *       索引写入通过内部队列序列化防止并发冲突。
  *
  * 核心导出：
  * - Session: 会话管理类
@@ -11,14 +13,15 @@
  */
 
 import * as fs from 'node:fs';
+import * as fsp from 'node:fs/promises';
 import * as path from 'node:path';
-import * as os from 'node:os';
 import { z } from 'zod';
 import { createLogger } from '../utils/logger.ts';
 import { parseEnvInt } from '../utils/env.ts';
 import type { Message } from '../providers/message.ts';
 import type { TokenUsage } from '../providers/anthropic/anthropic-types.ts';
 import { loadPricing } from '../config/pricing.ts';
+import { getSynapseSessionsDir } from '../config/paths.ts';
 import {
   accumulateUsage,
   createEmptySessionUsage,
@@ -30,8 +33,7 @@ import {
 // 环境变量配置
 // ════════════════════════════════════════════════════════════════════
 
-const DEFAULT_SESSIONS_DIR =
-  process.env.SYNAPSE_SESSIONS_DIR || path.join(os.homedir(), '.synapse', 'sessions');
+const DEFAULT_SESSIONS_DIR = getSynapseSessionsDir();
 const MAX_SESSIONS = parseEnvInt(process.env.SYNAPSE_MAX_SESSIONS, 100);
 const SESSION_INDEX_FILE = 'sessions.json';
 export const TITLE_MAX_LENGTH = 50;
@@ -131,9 +133,24 @@ function toJsonl(messages: readonly Message[]): string {
   return `${messages.map((message) => JSON.stringify(message)).join('\n')}\n`;
 }
 
+/**
+ * 解析 JSONL 内容为消息数组
+ *
+ * 逐行 try-catch，损坏的行会被跳过并记录警告
+ */
 function parseJsonl(content: string): Message[] {
   const lines = content.trim().split('\n').filter((line) => line.length > 0);
-  return lines.map((line) => JSON.parse(line) as Message);
+  const messages: Message[] = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    try {
+      messages.push(JSON.parse(lines[i]!) as Message);
+    } catch {
+      logger.warn('Skipped corrupted JSONL line', { lineIndex: i });
+    }
+  }
+
+  return messages;
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -154,6 +171,9 @@ export class Session {
   private _indexPath: string;
   private _messageCount: number = 0;
   private _usage: SessionUsage;
+
+  /** 索引写入队列，确保并发 updateIndex 调用顺序执行 */
+  private _indexWriteQueue: Promise<void> = Promise.resolve();
 
   private constructor(id: string, sessionsDir: string, model: string = DEFAULT_SESSION_MODEL) {
     this._id = id;
@@ -208,9 +228,7 @@ export class Session {
     const model = options.model ?? DEFAULT_SESSION_MODEL;
 
     // 确保目录存在
-    if (!fs.existsSync(sessionsDir)) {
-      fs.mkdirSync(sessionsDir, { recursive: true });
-    }
+    await fsp.mkdir(sessionsDir, { recursive: true });
 
     const session = new Session(sessionId, sessionsDir, model);
     await session.register();
@@ -229,12 +247,8 @@ export class Session {
     const sessionsDir = options.sessionsDir ?? DEFAULT_SESSIONS_DIR;
     const indexPath = path.join(sessionsDir, SESSION_INDEX_FILE);
 
-    if (!fs.existsSync(indexPath)) {
-      return null;
-    }
-
     try {
-      const content = fs.readFileSync(indexPath, 'utf-8');
+      const content = await fsp.readFile(indexPath, 'utf-8');
       const index = SessionsIndexSchema.parse(JSON.parse(content));
       const info = index.sessions.find((s) => s.id === sessionId);
 
@@ -262,12 +276,8 @@ export class Session {
     const sessionsDir = options.sessionsDir ?? DEFAULT_SESSIONS_DIR;
     const indexPath = path.join(sessionsDir, SESSION_INDEX_FILE);
 
-    if (!fs.existsSync(indexPath)) {
-      return [];
-    }
-
     try {
-      const content = fs.readFileSync(indexPath, 'utf-8');
+      const content = await fsp.readFile(indexPath, 'utf-8');
       const index = SessionsIndexSchema.parse(JSON.parse(content));
       return index.sessions;
     } catch {
@@ -301,8 +311,8 @@ export class Session {
   async appendMessage(message: Message | Message[]): Promise<void> {
     const messages = Array.isArray(message) ? message : [message];
 
-    // 写入 JSONL 文件
-    fs.appendFileSync(this._historyPath, toJsonl(messages), 'utf-8');
+    // 异步写入 JSONL 文件
+    await fsp.appendFile(this._historyPath, toJsonl(messages), 'utf-8');
 
     // 更新消息计数
     this._messageCount += messages.length;
@@ -322,12 +332,20 @@ export class Session {
   }
 
   /**
-   * 从历史文件加载消息
+   * 从历史文件异步加载消息
    */
   async loadHistory(): Promise<Message[]> {
-    return this.loadHistorySync();
+    try {
+      const content = await fsp.readFile(this._historyPath, 'utf-8');
+      return parseJsonl(content);
+    } catch {
+      return [];
+    }
   }
 
+  /**
+   * 从历史文件同步加载消息（供需要同步访问的场景使用）
+   */
   loadHistorySync(): Message[] {
     if (!fs.existsSync(this._historyPath)) {
       return [];
@@ -345,12 +363,11 @@ export class Session {
     const tempPath = `${this._historyPath}.tmp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
     try {
-      fs.writeFileSync(tempPath, content, 'utf-8');
-      fs.renameSync(tempPath, this._historyPath);
+      await fsp.writeFile(tempPath, content, 'utf-8');
+      await fsp.rename(tempPath, this._historyPath);
     } catch (error) {
-      if (fs.existsSync(tempPath)) {
-        fs.rmSync(tempPath, { force: true });
-      }
+      // 清理临时文件
+      try { await fsp.rm(tempPath, { force: true }); } catch { /* ignore */ }
 
       const message = error instanceof Error ? error.message : String(error);
       throw new Error(`Failed to rewrite session history: ${message}`);
@@ -392,20 +409,16 @@ export class Session {
    * 删除会话
    */
   async delete(): Promise<void> {
-    // 删除历史文件
-    if (fs.existsSync(this._historyPath)) {
-      fs.unlinkSync(this._historyPath);
-    }
+    // 异步删除历史文件
+    try { await fsp.unlink(this._historyPath); } catch { /* file may not exist */ }
 
-    // 删除卸载目录
-    if (fs.existsSync(this.offloadSessionDir)) {
-      fs.rmSync(this.offloadSessionDir, { recursive: true, force: true });
-    }
+    // 异步删除卸载目录
+    try { await fsp.rm(this.offloadSessionDir, { recursive: true, force: true }); } catch { /* ignore */ }
 
     // 从索引中移除
-    const index = this.loadIndex();
+    const index = await this.loadIndex();
     index.sessions = index.sessions.filter((s) => s.id !== this._id);
-    this.saveIndex(index);
+    await this.saveIndex(index);
 
     logger.info(`Deleted session: ${this._id}`);
   }
@@ -416,13 +429,11 @@ export class Session {
   async clear(options?: { resetUsage?: boolean }): Promise<void> {
     const resetUsage = options?.resetUsage ?? true;
 
-    // 清空文件内容
-    fs.writeFileSync(this._historyPath, '', 'utf-8');
+    // 异步清空文件内容
+    await fsp.writeFile(this._historyPath, '', 'utf-8');
 
-    // 清空卸载目录
-    if (fs.existsSync(this.offloadSessionDir)) {
-      fs.rmSync(this.offloadSessionDir, { recursive: true, force: true });
-    }
+    // 异步清空卸载目录
+    try { await fsp.rm(this.offloadSessionDir, { recursive: true, force: true }); } catch { /* ignore */ }
 
     // 重置消息计数和标题
     this._messageCount = 0;
@@ -441,7 +452,7 @@ export class Session {
    * 刷新会话状态（从文件重新加载）
    */
   async refresh(): Promise<void> {
-    const index = this.loadIndex();
+    const index = await this.loadIndex();
     const info = index.sessions.find((s) => s.id === this._id);
 
     if (info) {
@@ -459,7 +470,7 @@ export class Session {
    * 注册会话到索引
    */
   private async register(): Promise<void> {
-    const index = this.loadIndex();
+    const index = await this.loadIndex();
 
     const newSession: SessionInfo = {
       id: this._id,
@@ -481,19 +492,15 @@ export class Session {
       }
     }
 
-    this.saveIndex(index);
+    await this.saveIndex(index);
   }
 
   /**
-   * 加载会话索引
+   * 异步加载会话索引
    */
-  private loadIndex(): SessionsIndex {
-    if (!fs.existsSync(this._indexPath)) {
-      return createEmptyIndex();
-    }
-
+  private async loadIndex(): Promise<SessionsIndex> {
     try {
-      const content = fs.readFileSync(this._indexPath, 'utf-8');
+      const content = await fsp.readFile(this._indexPath, 'utf-8');
       return SessionsIndexSchema.parse(JSON.parse(content));
     } catch {
       logger.warn('Failed to load sessions index, creating new one');
@@ -502,11 +509,11 @@ export class Session {
   }
 
   /**
-   * 保存会话索引
+   * 异步保存会话索引
    */
-  private saveIndex(index: SessionsIndex): void {
+  private async saveIndex(index: SessionsIndex): Promise<void> {
     index.updatedAt = new Date().toISOString();
-    fs.writeFileSync(this._indexPath, JSON.stringify(index, null, 2), 'utf-8');
+    await fsp.writeFile(this._indexPath, JSON.stringify(index, null, 2), 'utf-8');
   }
 
   /**
@@ -548,19 +555,27 @@ export class Session {
 
   /**
    * 更新索引中的会话信息
+   *
+   * 通过队列序列化写入，防止并发调用导致数据丢失
    */
   private async updateIndex(): Promise<void> {
-    const index = this.loadIndex();
-    const sessionInfo = index.sessions.find((s) => s.id === this._id);
+    const task = this._indexWriteQueue.then(async () => {
+      const index = await this.loadIndex();
+      const sessionInfo = index.sessions.find((s) => s.id === this._id);
 
-    if (sessionInfo) {
-      sessionInfo.updatedAt = new Date().toISOString();
-      sessionInfo.messageCount = this._messageCount;
-      sessionInfo.usage = this._usage;
-      if (this._title) {
-        sessionInfo.title = this._title;
+      if (sessionInfo) {
+        sessionInfo.updatedAt = new Date().toISOString();
+        sessionInfo.messageCount = this._messageCount;
+        sessionInfo.usage = this._usage;
+        if (this._title) {
+          sessionInfo.title = this._title;
+        }
+        await this.saveIndex(index);
       }
-      this.saveIndex(index);
-    }
+    });
+
+    // 更新队列尾部，确保异常不阻塞后续写入
+    this._indexWriteQueue = task.catch(() => {});
+    return task;
   }
 }

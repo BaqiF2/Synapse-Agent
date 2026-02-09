@@ -171,9 +171,11 @@ describe('SkillIndexUpdater', () => {
       expect(index?.totalSkills).toBe(1);
     });
 
-    it('should return null for empty/missing index', () => {
+    it('should return empty index for empty skills directory', () => {
       const index = updater.getIndex();
-      expect(index).toBeNull();
+      // SkillIndexer.getIndex() 在缺失时自动 rebuild，空目录返回空索引
+      expect(index).not.toBeNull();
+      expect(index.totalSkills).toBe(0);
     });
   });
 });

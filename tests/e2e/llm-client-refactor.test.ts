@@ -24,7 +24,12 @@ import {
   getTokenUsageInput,
   getTokenUsageTotal,
 } from '../../src/providers/anthropic/anthropic-types.ts';
-import { BashToolSchema } from '../../src/tools/bash-tool-schema.ts';
+// mock tool definition，替代已删除的 bash-tool-schema.ts
+const MockBashToolDef = {
+  name: 'Bash',
+  description: 'Mock bash tool',
+  input_schema: { type: 'object' as const, properties: { command: { type: 'string' } }, required: ['command'] },
+};
 
 describe('E2E: LLM Client Refactor', () => {
   describe('AnthropicClient Configuration', () => {
@@ -304,7 +309,7 @@ describe('E2E: LLM Client Refactor', () => {
         name: 'Bash',
         description: 'Mock bash tool',
         paramsSchema: {} as any,
-        toolDefinition: BashToolSchema,
+        toolDefinition: MockBashToolDef,
         call: handler,
       } as unknown as CallableTool<unknown>;
     }

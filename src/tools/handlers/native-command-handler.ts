@@ -9,11 +9,9 @@
 
 import type { BashSession } from '../bash-session.ts';
 
-export interface CommandResult {
-  stdout: string;
-  stderr: string;
-  exitCode: number;
-}
+// 从共享类型层导入并 re-export，保持向后兼容
+export type { CommandResult } from '../../types/tool.ts';
+import type { CommandResult } from '../../types/tool.ts';
 
 /**
  * Handler for Native Shell Command commands (standard Unix commands)

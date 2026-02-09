@@ -16,7 +16,12 @@ import { CallableToolset, type Toolset } from '../../../src/tools/toolset.ts';
 import { ToolOk, ToolError, asCancelablePromise } from '../../../src/tools/callable-tool.ts';
 import type { CallableTool, CancelablePromise, ToolReturnValue } from '../../../src/tools/callable-tool.ts';
 import { createTextMessage, type Message } from '../../../src/providers/message.ts';
-import { BashToolSchema } from '../../../src/tools/bash-tool-schema.ts';
+// mock tool definition，替代已删除的 bash-tool-schema.ts
+const MockBashToolDef = {
+  name: 'Bash',
+  description: 'Mock bash tool',
+  input_schema: { type: 'object' as const, properties: { command: { type: 'string' } }, required: ['command'] },
+};
 import type { AnthropicClient } from '../../../src/providers/anthropic/anthropic-client.ts';
 import type { StreamedMessagePart } from '../../../src/providers/anthropic/anthropic-types.ts';
 import { Logger } from '../../../src/utils/logger.ts';
@@ -33,7 +38,7 @@ function createMockCallableTool(
     name: 'Bash',
     description: 'Mock bash tool',
     paramsSchema: {} as any,
-    toolDefinition: BashToolSchema,
+    toolDefinition: MockBashToolDef,
     call: (args: unknown) => asCancelablePromise(Promise.resolve(handler(args))),
   } as unknown as CallableTool<unknown>;
 }
@@ -616,7 +621,7 @@ describe('AgentRunner', () => {
       const pendingToolResult = new Promise(() => {}) as Promise<unknown> & { cancel: () => void };
       pendingToolResult.cancel = cancel;
       const toolset: Toolset = {
-        tools: [BashToolSchema],
+        tools: [MockBashToolDef],
         handle: mock(() => pendingToolResult as CancelablePromise<any>),
       };
 
@@ -1344,7 +1349,7 @@ describe('AgentRunner with Session', () => {
       await runner.run('new request');
 
       const hasTodoWarn = warnSpy.mock.calls.some(([message]) => {
-        return typeof message === 'string' && message.includes('TODO: Context still exceeds threshold');
+        return typeof message === 'string' && message.includes('Context still exceeds threshold');
       });
       expect(hasTodoWarn).toBe(true);
     } finally {

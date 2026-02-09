@@ -3,29 +3,31 @@
  *
  * Manages persistent settings for Synapse Agent.
  * Settings are stored in ~/.synapse/settings.json.
+ * 提供 getInstance() 单例访问默认实例，避免重复实例化。
  *
  * @module settings-manager
  *
  * Core Exports:
  * - SettingsManager: Class for reading and writing settings
+ * - SettingsManager.getInstance(): 获取默认单例实例
  */
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import * as os from 'node:os';
 import { createLogger } from '../utils/logger.ts';
 import {
   SynapseSettingsSchema,
   type SynapseSettings,
   DEFAULT_SETTINGS,
 } from './settings-schema.ts';
+import { getSynapseHome } from './paths.ts';
 
 const logger = createLogger('settings');
 
 /**
  * Default Synapse directory
  */
-const DEFAULT_SYNAPSE_DIR = path.join(os.homedir(), '.synapse');
+const DEFAULT_SYNAPSE_DIR = getSynapseHome();
 
 /**
  * Settings file name
@@ -43,8 +45,31 @@ const SETTINGS_FILE = 'settings.json';
  * ```
  */
 export class SettingsManager {
+  /** 默认实例（单例） */
+  private static _instance: SettingsManager | null = null;
+
   private synapseDir: string;
   private settingsPath: string;
+
+  /**
+   * 获取默认 SettingsManager 单例
+   *
+   * 使用默认 synapseDir (~/.synapse)，适用于大多数场景。
+   * 需要自定义目录时，直接使用 new SettingsManager(customDir)。
+   */
+  static getInstance(): SettingsManager {
+    if (!SettingsManager._instance) {
+      SettingsManager._instance = new SettingsManager();
+    }
+    return SettingsManager._instance;
+  }
+
+  /**
+   * 重置单例实例（仅用于测试）
+   */
+  static resetInstance(): void {
+    SettingsManager._instance = null;
+  }
 
   /**
    * Creates a new SettingsManager

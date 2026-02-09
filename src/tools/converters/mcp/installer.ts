@@ -1,80 +1,45 @@
 /**
  * MCP Command Installer
  *
- * This module handles the installation of generated MCP wrapper scripts
- * to the user's bin directory (~/.synapse/bin/). It also provides
- * functionality to search for installed tools.
+ * 功能：管理 MCP 工具 wrapper 脚本的安装、搜索和移除。
+ * 通过 BinInstaller 公共类处理文件操作，自身负责工具元数据解析和搜索逻辑。
  *
- * @module installer
- *
- * Core Exports:
- * - McpInstaller: Installs wrapper scripts and manages the bin directory
- * - InstalledTool: Metadata about an installed tool
- * - InstallResult: Result of an installation operation
+ * 核心导出：
+ * - McpInstaller: MCP wrapper 脚本安装管理器
+ * - InstalledTool: 已安装工具的元数据
+ * - InstallResult: 安装操作结果（重导出自 shared/bin-installer）
+ * - SearchOptions / SearchResult: 搜索选项和结果
  */
 
 import * as fs from 'node:fs';
-import * as path from 'node:path';
 import * as os from 'node:os';
 import type { GeneratedWrapper } from './wrapper-generator.js';
+import { BinInstaller, type InstallResult } from '../shared/bin-installer.ts';
+// 重导出 InstallResult，供外部（如 mcp/index.ts）使用
+export type { InstallResult } from '../shared/bin-installer.ts';
 
 /**
- * Default bin directory for installed tools
- */
-const DEFAULT_BIN_DIR = '.synapse/bin';
-
-/**
- * File mode for executable scripts (755)
- */
-const EXECUTABLE_MODE = 0o755;
-
-/**
- * Metadata about an installed tool
+ * 已安装工具的元数据
  */
 export interface InstalledTool {
-  /** Command name (e.g., mcp:test-server:echo) */
   commandName: string;
-  /** Server name */
   serverName: string;
-  /** Tool name */
   toolName: string;
-  /** Full path to the script */
   path: string;
-  /** Tool description (extracted from script) */
   description?: string;
-  /** Tool type (mcp or skill) */
   type: 'mcp' | 'skill';
-  /** Installation time */
   installedAt: Date;
 }
 
-/**
- * Result of an installation operation
- */
-export interface InstallResult {
-  success: boolean;
-  commandName: string;
-  path: string;
-  error?: string;
-}
-
-/**
- * Search options
- */
+/** 搜索选项 */
 export interface SearchOptions {
-  /** Search pattern (supports * and ? wildcards) */
   pattern?: string;
-  /** Regular expression pattern */
   regex?: RegExp;
-  /** Filter by server name */
   serverName?: string;
-  /** Filter by tool type */
   type?: 'mcp' | 'skill' | 'all';
 }
 
-/**
- * Search result
- */
+/** 搜索结果 */
 export interface SearchResult {
   tools: InstalledTool[];
   total: number;
@@ -82,131 +47,149 @@ export interface SearchResult {
 }
 
 /**
- * McpInstaller
+ * McpInstaller — MCP 工具安装与搜索管理器
  *
- * Manages the installation and discovery of MCP tool wrapper scripts.
- * Provides methods to:
- * - Install generated wrappers to ~/.synapse/bin/
- * - List all installed tools
- * - Search for tools by pattern or name
- * - Remove installed tools
+ * 委托 BinInstaller 处理文件操作（install/remove/ensureBinDir），
+ * 自身负责工具元数据解析、搜索过滤和结果格式化。
  */
 export class McpInstaller {
-  private binDir: string;
+  private readonly bin: BinInstaller;
 
-  /**
-   * Creates a new McpInstaller
-   *
-   * @param homeDir - User home directory (defaults to os.homedir())
-   */
   constructor(homeDir: string = os.homedir()) {
-    this.binDir = path.join(homeDir, DEFAULT_BIN_DIR);
+    this.bin = new BinInstaller(homeDir);
   }
 
-  /**
-   * Gets the bin directory path
-   */
   public getBinDir(): string {
-    return this.binDir;
+    return this.bin.getBinDir();
   }
 
-  /**
-   * Ensures the bin directory exists
-   */
   public ensureBinDir(): void {
-    if (!fs.existsSync(this.binDir)) {
-      fs.mkdirSync(this.binDir, { recursive: true });
-    }
+    this.bin.ensureBinDir();
   }
 
-  /**
-   * Installs a single wrapper script
-   *
-   * @param wrapper - Generated wrapper to install
-   * @returns Installation result
-   */
+  /** 安装单个 wrapper 脚本 */
   public install(wrapper: GeneratedWrapper): InstallResult {
-    try {
-      this.ensureBinDir();
-
-      const scriptPath = path.join(this.binDir, wrapper.commandName);
-
-      // Write the script
-      fs.writeFileSync(scriptPath, wrapper.content, { encoding: 'utf-8' });
-
-      // Make it executable
-      fs.chmodSync(scriptPath, EXECUTABLE_MODE);
-
-      return {
-        success: true,
-        commandName: wrapper.commandName,
-        path: scriptPath,
-      };
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      return {
-        success: false,
-        commandName: wrapper.commandName,
-        path: '',
-        error: errorMessage,
-      };
-    }
+    return this.bin.install({ commandName: wrapper.commandName, content: wrapper.content });
   }
 
-  /**
-   * Installs multiple wrapper scripts
-   *
-   * @param wrappers - Array of generated wrappers to install
-   * @returns Array of installation results
-   */
+  /** 批量安装 wrapper 脚本 */
   public installAll(wrappers: GeneratedWrapper[]): InstallResult[] {
-    return wrappers.map((wrapper) => this.install(wrapper));
+    return wrappers.map((w) => this.install(w));
   }
 
-  /**
-   * Removes an installed tool
-   *
-   * @param commandName - Name of the command to remove
-   * @returns True if removed, false if not found
-   */
+  /** 移除指定命令名称的已安装工具 */
   public remove(commandName: string): boolean {
-    const scriptPath = path.join(this.binDir, commandName);
-
-    if (fs.existsSync(scriptPath)) {
-      fs.unlinkSync(scriptPath);
-      return true;
-    }
-
-    return false;
+    return this.bin.remove(commandName);
   }
 
-  /**
-   * Removes all tools from a specific server
-   *
-   * @param serverName - Server name
-   * @returns Number of tools removed
-   */
+  /** 移除指定服务器的所有工具 */
   public removeByServer(serverName: string): number {
     const tools = this.listTools();
     let removed = 0;
-
     for (const tool of tools) {
-      if (tool.serverName === serverName) {
-        if (this.remove(tool.commandName)) {
-          removed++;
-        }
+      if (tool.serverName === serverName && this.bin.remove(tool.commandName)) {
+        removed++;
       }
     }
-
     return removed;
   }
 
-  /**
-   * Parses tool info from a script file
-   */
+  /** 列出所有已安装工具 */
+  public listTools(): InstalledTool[] {
+    const files = this.bin.listFiles();
+    const tools: InstalledTool[] = [];
+
+    for (const file of files) {
+      const filePath = this.bin.getFilePath(file);
+      const tool = this.parseToolFromFile(filePath, file);
+      if (tool) {
+        tools.push(tool);
+      }
+    }
+
+    tools.sort((a, b) => a.commandName.localeCompare(b.commandName));
+    return tools;
+  }
+
+  /** 搜索已安装工具 */
+  public search(options: SearchOptions = {}): SearchResult {
+    let filtered = this.listTools();
+
+    if (options.type && options.type !== 'all') {
+      filtered = filtered.filter((t) => t.type === options.type);
+    }
+    if (options.serverName) {
+      filtered = filtered.filter((t) => t.serverName === options.serverName);
+    }
+
+    const pattern = options.pattern || options.regex?.source || '*';
+
+    if (options.regex) {
+      filtered = filtered.filter(
+        (t) =>
+          options.regex!.test(t.commandName) ||
+          options.regex!.test(t.toolName) ||
+          (t.description && options.regex!.test(t.description)),
+      );
+    } else if (options.pattern && options.pattern !== '*') {
+      const regex = this.patternToRegex(options.pattern);
+      filtered = filtered.filter(
+        (t) =>
+          regex.test(t.commandName) ||
+          regex.test(t.toolName) ||
+          (t.description && regex.test(t.description)),
+      );
+    }
+
+    return { tools: filtered, total: filtered.length, pattern };
+  }
+
+  /** 格式化搜索结果 */
+  public formatSearchResult(result: SearchResult): string {
+    if (result.total === 0) {
+      return `No tools found matching pattern: ${result.pattern}`;
+    }
+
+    const lines: string[] = [];
+    lines.push(`Found ${result.total} tool${result.total > 1 ? 's' : ''}:\n`);
+
+    const mcpTools = result.tools.filter((t) => t.type === 'mcp');
+    const skillTools = result.tools.filter((t) => t.type === 'skill');
+
+    if (mcpTools.length > 0) {
+      lines.push('MCP Tools:');
+      for (const tool of mcpTools) {
+        lines.push(`  ${tool.commandName}`);
+        if (tool.description) lines.push(`    ${tool.description}`);
+      }
+      if (skillTools.length > 0) lines.push('');
+    }
+
+    if (skillTools.length > 0) {
+      lines.push('Skill Tools:');
+      for (const tool of skillTools) {
+        lines.push(`  ${tool.commandName}`);
+        if (tool.description) lines.push(`    ${tool.description}`);
+      }
+    }
+
+    return lines.join('\n');
+  }
+
+  public getPathExportCommand(): string {
+    return `export PATH="${this.bin.getBinDir()}:$PATH"`;
+  }
+
+  public isBinDirInPath(): boolean {
+    const pathEnv = process.env.PATH || '';
+    return pathEnv.split(':').includes(this.bin.getBinDir());
+  }
+
+  // -- 私有方法 --
+
+  /** 从文件名解析工具元数据 */
   private parseToolFromFile(filePath: string, fileName: string): InstalledTool | null {
     try {
-      // Check if it's an mcp: or skill: prefixed file
       let type: 'mcp' | 'skill';
       let serverName: string;
       let toolName: string;
@@ -229,64 +212,24 @@ export class McpInstaller {
         return null;
       }
 
-      // Try to extract description from file content
+      // 提取脚本中的描述信息
       let description: string | undefined;
       try {
         const content = fs.readFileSync(filePath, 'utf-8');
         const descMatch = content.match(/\* Description: (.+)/);
-        if (descMatch) {
-          description = descMatch[1];
-        }
+        if (descMatch) description = descMatch[1];
       } catch {
-        // Ignore read errors
+        // 忽略读取错误
       }
 
       const stats = fs.statSync(filePath);
-
-      return {
-        commandName: fileName,
-        serverName,
-        toolName,
-        path: filePath,
-        description,
-        type,
-        installedAt: stats.mtime,
-      };
+      return { commandName: fileName, serverName, toolName, path: filePath, description, type, installedAt: stats.mtime };
     } catch {
       return null;
     }
   }
 
-  /**
-   * Lists all installed tools
-   *
-   * @returns Array of installed tool metadata
-   */
-  public listTools(): InstalledTool[] {
-    if (!fs.existsSync(this.binDir)) {
-      return [];
-    }
-
-    const tools: InstalledTool[] = [];
-    const files = fs.readdirSync(this.binDir);
-
-    for (const file of files) {
-      const filePath = path.join(this.binDir, file);
-      const tool = this.parseToolFromFile(filePath, file);
-      if (tool) {
-        tools.push(tool);
-      }
-    }
-
-    // Sort by command name
-    tools.sort((a, b) => a.commandName.localeCompare(b.commandName));
-
-    return tools;
-  }
-
-  /**
-   * Converts a glob-like pattern to regex
-   */
+  /** 将 glob 模式转为正则表达式 */
   private patternToRegex(pattern: string): RegExp {
     const escaped = pattern
       .replace(/[.+^${}()|[\]\\]/g, '\\$&')
@@ -294,113 +237,6 @@ export class McpInstaller {
       .replace(/\?/g, '.');
     return new RegExp(`^${escaped}$`, 'i');
   }
-
-  /**
-   * Searches for installed tools
-   *
-   * @param options - Search options
-   * @returns Search result with matching tools
-   */
-  public search(options: SearchOptions = {}): SearchResult {
-    const allTools = this.listTools();
-    let filtered = allTools;
-
-    // Filter by type
-    if (options.type && options.type !== 'all') {
-      filtered = filtered.filter((t) => t.type === options.type);
-    }
-
-    // Filter by server name
-    if (options.serverName) {
-      filtered = filtered.filter((t) => t.serverName === options.serverName);
-    }
-
-    // Filter by pattern or regex
-    const pattern = options.pattern || options.regex?.source || '*';
-
-    if (options.regex) {
-      filtered = filtered.filter(
-        (t) =>
-          options.regex!.test(t.commandName) ||
-          options.regex!.test(t.toolName) ||
-          (t.description && options.regex!.test(t.description))
-      );
-    } else if (options.pattern && options.pattern !== '*') {
-      const regex = this.patternToRegex(options.pattern);
-      filtered = filtered.filter(
-        (t) =>
-          regex.test(t.commandName) ||
-          regex.test(t.toolName) ||
-          (t.description && regex.test(t.description))
-      );
-    }
-
-    return {
-      tools: filtered,
-      total: filtered.length,
-      pattern,
-    };
-  }
-
-  /**
-   * Formats search results for display
-   *
-   * @param result - Search result to format
-   * @returns Formatted string for display
-   */
-  public formatSearchResult(result: SearchResult): string {
-    if (result.total === 0) {
-      return `No tools found matching pattern: ${result.pattern}`;
-    }
-
-    const lines: string[] = [];
-    lines.push(`Found ${result.total} tool${result.total > 1 ? 's' : ''}:\n`);
-
-    // Group by type
-    const mcpTools = result.tools.filter((t) => t.type === 'mcp');
-    const skillTools = result.tools.filter((t) => t.type === 'skill');
-
-    if (mcpTools.length > 0) {
-      lines.push('MCP Tools:');
-      for (const tool of mcpTools) {
-        lines.push(`  ${tool.commandName}`);
-        if (tool.description) {
-          lines.push(`    ${tool.description}`);
-        }
-      }
-      if (skillTools.length > 0) {
-        lines.push('');
-      }
-    }
-
-    if (skillTools.length > 0) {
-      lines.push('Skill Tools:');
-      for (const tool of skillTools) {
-        lines.push(`  ${tool.commandName}`);
-        if (tool.description) {
-          lines.push(`    ${tool.description}`);
-        }
-      }
-    }
-
-    return lines.join('\n');
-  }
-
-  /**
-   * Gets the PATH export command for adding bin dir to PATH
-   */
-  public getPathExportCommand(): string {
-    return `export PATH="${this.binDir}:$PATH"`;
-  }
-
-  /**
-   * Checks if the bin directory is in PATH
-   */
-  public isBinDirInPath(): boolean {
-    const pathEnv = process.env.PATH || '';
-    return pathEnv.split(':').includes(this.binDir);
-  }
 }
 
-// Default export
 export default McpInstaller;

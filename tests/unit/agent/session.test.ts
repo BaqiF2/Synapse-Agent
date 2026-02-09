@@ -6,6 +6,7 @@
 
 import { describe, test, expect, beforeEach, afterEach, spyOn } from 'bun:test';
 import * as fs from 'node:fs';
+import * as fsp from 'node:fs/promises';
 import * as path from 'node:path';
 import * as os from 'node:os';
 import { Session, TITLE_MAX_LENGTH } from '../../../src/agent/session.ts';
@@ -264,9 +265,9 @@ describe('Session', () => {
       await session.appendMessage(originalMessages);
       const beforeContent = fs.readFileSync(session.historyPath, 'utf-8');
 
-      const writeSpy = spyOn(fs, 'writeFileSync').mockImplementation(() => {
-        throw new Error('mock write failure');
-      });
+      const writeSpy = spyOn(fsp, 'writeFile').mockRejectedValue(
+        new Error('mock write failure')
+      );
 
       try {
         await expect(

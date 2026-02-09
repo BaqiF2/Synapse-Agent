@@ -2,6 +2,12 @@
  * Tool failure utilities
  *
  * 功能：统一工具失败分类、失败计数规则和提示判定逻辑
+ *
+ * 核心导出：
+ * - TOOL_FAILURE_CATEGORIES: 工具失败类别常量
+ * - classifyToolFailure: 基于 stderr 文本识别失败类型
+ * - shouldAttachToolSelfDescription: 判断是否追加工具自描述提示
+ * - shouldCountToolFailure: 判断是否计入连续失败次数
  */
 
 export const TOOL_FAILURE_CATEGORIES = {

@@ -1,35 +1,52 @@
 /**
  * Bash 会话管理
  *
- * 功能：管理持久的 Bash 进程，保持环境变量和工作目录状态
+ * 功能：管理持久的 Bash 进程，保持环境变量和工作目录状态。
+ * 使用事件驱动模式替代轮询，监听 stdout data 事件检测命令完成。
  *
  * 核心导出：
  * - BashSession: Bash 会话管理类
  */
 
 import { spawn, type ChildProcess } from 'node:child_process';
-import type { CommandResult } from './handlers/base-bash-handler.ts';
+import type { CommandResult } from './handlers/native-command-handler.ts';
 import { parseEnvInt } from '../utils/env.ts';
 
-const COMMAND_TIMEOUT = parseEnvInt(process.env.COMMAND_TIMEOUT, 30000);
+const COMMAND_TIMEOUT = parseEnvInt(process.env.SYNAPSE_COMMAND_TIMEOUT, 30000);
 const COMMAND_END_MARKER = '___SYNAPSE_COMMAND_END___';
 const EXIT_CODE_MARKER = '___SYNAPSE_EXIT_CODE___';
+const RESTART_DELAY = parseEnvInt(process.env.SYNAPSE_BASH_RESTART_DELAY, 200);
+
+/** 等待命令完成的回调，由 stdout data 事件触发 */
+interface PendingExecution {
+  resolve: (value: { stdout: string; stderr: string; exitCode: number }) => void;
+  reject: (reason: Error) => void;
+  timeoutId: ReturnType<typeof setTimeout>;
+}
 
 /**
- * Manages a persistent Bash session
+ * 管理持久的 Bash 会话
+ *
+ * 使用事件驱动模式：stdout data 事件触发完成检测，
+ * 进程 exit 事件 reject 挂起的 Promise，
+ * 执行锁防止并发调用。
  */
 export class BashSession {
   private process: ChildProcess | null = null;
   private stdoutBuffer: string = '';
   private stderrBuffer: string = '';
   private isReady: boolean = false;
+  /** 当前挂起的执行，用于事件驱动回调 */
+  private pendingExecution: PendingExecution | null = null;
+  /** 执行锁，防止并发命令 */
+  private isExecuting: boolean = false;
 
   constructor() {
     this.start();
   }
 
   /**
-   * Start the Bash session
+   * 启动 Bash 进程并绑定事件监听
    */
   private start(): void {
     this.process = spawn('/bin/bash', ['--norc', '--noprofile'], {
@@ -41,32 +58,43 @@ export class BashSession {
       throw new Error('Failed to create Bash process streams');
     }
 
-    // Set up output listeners - separate stdout and stderr
+    // stdout data 事件：累积缓冲区并检测完成标记
     this.process.stdout.on('data', (data: Buffer) => {
       this.stdoutBuffer += data.toString();
+      this.tryResolveCompletion();
     });
 
     this.process.stderr.on('data', (data: Buffer) => {
       this.stderrBuffer += data.toString();
     });
 
+    // 进程退出时 reject 挂起的 Promise
     this.process.on('exit', (code) => {
-      if (code !== null && code !== 0) {
-        console.error(`Bash process exited unexpectedly with code ${code}`);
-      }
       this.isReady = false;
+      if (this.pendingExecution) {
+        const exitCode = code ?? 1;
+        this.rejectPending(
+          new Error(`Bash process exited unexpectedly with code ${exitCode}`)
+        );
+      }
     });
 
     this.process.on('error', (error) => {
-      console.error('Bash process error:', error);
       this.isReady = false;
+      if (this.pendingExecution) {
+        this.rejectPending(
+          new Error(`Bash process error: ${error.message}`)
+        );
+      }
     });
 
     this.isReady = true;
   }
 
   /**
-   * Execute a command in the session
+   * 在会话中执行命令
+   *
+   * 包含执行锁防止并发调用。
    */
   async execute(command: string): Promise<CommandResult> {
     if (!this.process || !this.isReady) {
@@ -77,92 +105,127 @@ export class BashSession {
       throw new Error('Bash stdin is not available');
     }
 
-    // Clear output buffers
-    this.stdoutBuffer = '';
-    this.stderrBuffer = '';
+    if (this.isExecuting) {
+      throw new Error('Another command is already executing');
+    }
 
-    // Send command with exit code capture and end marker
-    // 执行命令后获取真正的 exit code，使用 ${} 分隔变量名
-    const commandWithMarker = `${command}\n__synapse_ec__=$?; echo "${EXIT_CODE_MARKER}\${__synapse_ec__}${COMMAND_END_MARKER}"\n`;
-    this.process.stdin.write(commandWithMarker);
+    this.isExecuting = true;
 
-    // Wait for command to complete
-    const { stdout, stderr, exitCode } = await this.waitForCompletion();
+    try {
+      // 清空缓冲区
+      this.stdoutBuffer = '';
+      this.stderrBuffer = '';
 
-    return {
-      stdout,
-      stderr,
-      exitCode,
-    };
+      // 发送带有退出码捕获和结束标记的命令
+      const commandWithMarker = `${command}\n__synapse_ec__=$?; echo "${EXIT_CODE_MARKER}\${__synapse_ec__}${COMMAND_END_MARKER}"\n`;
+      this.process.stdin.write(commandWithMarker);
+
+      // 事件驱动等待完成
+      const { stdout, stderr, exitCode } = await this.waitForCompletion();
+
+      return { stdout, stderr, exitCode };
+    } finally {
+      this.isExecuting = false;
+    }
   }
 
   /**
-   * Wait for command completion
+   * 事件驱动等待命令完成
+   *
+   * 通过 PendingExecution 回调从 stdout data 事件中触发 resolve，
+   * 而非轮询缓冲区。超时通过 setTimeout 实现。
    */
-  private async waitForCompletion(): Promise<{ stdout: string; stderr: string; exitCode: number }> {
-    const startTime = Date.now();
-
+  private waitForCompletion(): Promise<{ stdout: string; stderr: string; exitCode: number }> {
     return new Promise((resolve, reject) => {
-      const checkInterval = setInterval(() => {
-        // Check timeout
-        if (Date.now() - startTime > COMMAND_TIMEOUT) {
-          clearInterval(checkInterval);
-          reject(new Error(`Command execution timeout after ${COMMAND_TIMEOUT}ms`));
-          return;
-        }
+      const timeoutId = setTimeout(() => {
+        this.pendingExecution = null;
+        reject(new Error(`Command execution timeout after ${COMMAND_TIMEOUT}ms`));
+      }, COMMAND_TIMEOUT);
 
-        // Check for end marker in stdout
-        if (this.stdoutBuffer.includes(COMMAND_END_MARKER)) {
-          clearInterval(checkInterval);
+      this.pendingExecution = { resolve, reject, timeoutId };
 
-          // Parse exit code from output
-          // Format: ...___SYNAPSE_EXIT_CODE___<code>___SYNAPSE_COMMAND_END___
-          const exitCodeMatch = this.stdoutBuffer.match(
-            new RegExp(`${EXIT_CODE_MARKER}(\\d+)${COMMAND_END_MARKER}`)
-          );
-          const exitCodeText = exitCodeMatch?.[1];
-          const exitCode = exitCodeText ? parseInt(exitCodeText, 10) : 1;
-
-          // Remove the markers from output
-          const stdout = this.stdoutBuffer
-            .replace(new RegExp(`${EXIT_CODE_MARKER}\\d+${COMMAND_END_MARKER}`), '')
-            .trim();
-
-          const stderr = this.stderrBuffer.trim();
-
-          resolve({ stdout, stderr, exitCode });
-        }
-      }, 50); // Check every 50ms for better responsiveness
+      // 缓冲区中可能已经有完整结果（小命令可能在 Promise 创建前就完成）
+      this.tryResolveCompletion();
     });
   }
 
   /**
-   * Restart the Bash session
+   * 尝试从缓冲区解析完成结果
+   *
+   * 由 stdout data 事件和 waitForCompletion 初始化时调用。
+   */
+  private tryResolveCompletion(): void {
+    if (!this.pendingExecution) return;
+    if (!this.stdoutBuffer.includes(COMMAND_END_MARKER)) return;
+
+    const { resolve, timeoutId } = this.pendingExecution;
+    this.pendingExecution = null;
+    clearTimeout(timeoutId);
+
+    // 解析退出码: ...___SYNAPSE_EXIT_CODE___<code>___SYNAPSE_COMMAND_END___
+    const exitCodeMatch = this.stdoutBuffer.match(
+      new RegExp(`${EXIT_CODE_MARKER}(\\d+)${COMMAND_END_MARKER}`)
+    );
+    const exitCodeText = exitCodeMatch?.[1];
+    const exitCode = exitCodeText ? parseInt(exitCodeText, 10) : 1;
+
+    // 移除标记
+    const stdout = this.stdoutBuffer
+      .replace(new RegExp(`${EXIT_CODE_MARKER}\\d+${COMMAND_END_MARKER}`), '')
+      .trim();
+
+    const stderr = this.stderrBuffer.trim();
+
+    resolve({ stdout, stderr, exitCode });
+  }
+
+  /**
+   * Reject 挂起的 Promise 并清理定时器
+   */
+  private rejectPending(error: Error): void {
+    if (!this.pendingExecution) return;
+
+    const { reject, timeoutId } = this.pendingExecution;
+    this.pendingExecution = null;
+    clearTimeout(timeoutId);
+    reject(error);
+  }
+
+  /**
+   * 重启 Bash 会话
    */
   async restart(): Promise<void> {
-    if (this.process) {
-      this.process.kill('SIGTERM');
-      this.process = null;
-    }
+    this.cleanupProcess();
 
-    this.stdoutBuffer = '';
-    this.stderrBuffer = '';
-    this.isReady = false;
-
-    // Wait a bit before restarting to ensure process cleanup
-    await new Promise((resolve) => setTimeout(resolve, 200));
+    // 等待进程清理完毕
+    await new Promise((resolve) => setTimeout(resolve, RESTART_DELAY));
 
     this.start();
   }
 
   /**
-   * Cleanup the session
+   * 清理会话资源
    */
   cleanup(): void {
+    this.cleanupProcess();
+  }
+
+  /**
+   * 终止进程并重置状态
+   */
+  private cleanupProcess(): void {
+    if (this.pendingExecution) {
+      this.rejectPending(new Error('Bash session is being terminated'));
+    }
+
     if (this.process) {
       this.process.kill('SIGTERM');
       this.process = null;
     }
+
+    this.stdoutBuffer = '';
+    this.stderrBuffer = '';
     this.isReady = false;
+    this.isExecuting = false;
   }
 }

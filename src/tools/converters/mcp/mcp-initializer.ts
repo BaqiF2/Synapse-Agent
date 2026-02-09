@@ -24,7 +24,7 @@ const logger = createLogger('mcp-init');
 /**
  * Default timeout for MCP operations in milliseconds
  */
-const DEFAULT_TIMEOUT_MS = parseEnvInt(process.env.MCP_INIT_TIMEOUT_MS, 30000);
+const DEFAULT_TIMEOUT_MS = parseEnvInt(process.env.SYNAPSE_MCP_INIT_TIMEOUT_MS, 30000);
 
 /**
  * Result of MCP tool initialization for a single server

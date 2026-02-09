@@ -2,6 +2,7 @@
  * Anthropic Types and Error Classes
  *
  * Type definitions for LLM client, streaming responses, and error handling.
+ * 纯类型定义已迁移至 src/types/，此文件保留 Error 类和工具函数并 re-export 类型。
  *
  * Core Exports:
  * - ThinkingEffort: Thinking effort level type
@@ -13,6 +14,21 @@
  * - APIStatusError: Error for HTTP status errors
  * - APIEmptyResponseError: Error for empty responses
  */
+
+// 从共享类型层 re-export 类型
+export type {
+  TokenUsage,
+} from '../../types/usage.ts';
+
+export type {
+  TextPart,
+  ThinkPart,
+  ToolCallPart,
+  ToolCallDeltaPart,
+  StreamedMessagePart,
+} from '../../types/message.ts';
+
+import type { TokenUsage } from '../../types/usage.ts';
 
 // ===== Error Classes =====
 
@@ -69,21 +85,7 @@ export class APIEmptyResponseError extends ChatProviderError {
   }
 }
 
-// ===== Token Usage =====
-
-/**
- * Token usage statistics
- */
-export interface TokenUsage {
-  /** Input tokens excluding cache read and cache creation */
-  inputOther: number;
-  /** Total output tokens */
-  output: number;
-  /** Cached input tokens (read from cache) */
-  inputCacheRead: number;
-  /** Input tokens used for cache creation */
-  inputCacheCreation: number;
-}
+// ===== Token Usage Functions =====
 
 /**
  * Get total input tokens
@@ -105,45 +107,3 @@ export function getTokenUsageTotal(usage: TokenUsage): number {
  * Thinking effort level
  */
 export type ThinkingEffort = 'off' | 'low' | 'medium' | 'high';
-
-// ===== Streamed Message Parts =====
-
-/**
- * Text content part
- */
-export interface TextPart {
-  type: 'text';
-  text: string;
-}
-
-/**
- * Thinking content part
- */
-export interface ThinkPart {
-  type: 'thinking';
-  content: string;
-  signature?: string;
-}
-
-/**
- * Tool call part (complete)
- */
-export interface ToolCallPart {
-  type: 'tool_call';
-  id: string;
-  name: string;
-  input: Record<string, unknown>;
-}
-
-/**
- * Tool call delta part (streaming)
- */
-export interface ToolCallDeltaPart {
-  type: 'tool_call_delta';
-  argumentsDelta: string;
-}
-
-/**
- * Union type for all streamed message parts
- */
-export type StreamedMessagePart = TextPart | ThinkPart | ToolCallPart | ToolCallDeltaPart;

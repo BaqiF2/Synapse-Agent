@@ -13,13 +13,13 @@ function setEnv(name: string, value: string | undefined) {
 }
 
 const originalEnv = {
-  TODO_MAX_ITEMS: process.env.TODO_MAX_ITEMS,
-  TODO_MAX_CONTENT_LENGTH: process.env.TODO_MAX_CONTENT_LENGTH,
+  SYNAPSE_TODO_MAX_ITEMS: process.env.SYNAPSE_TODO_MAX_ITEMS,
+  SYNAPSE_TODO_MAX_CONTENT_LENGTH: process.env.SYNAPSE_TODO_MAX_CONTENT_LENGTH,
 };
 
 afterEach(() => {
-  setEnv('TODO_MAX_ITEMS', originalEnv.TODO_MAX_ITEMS);
-  setEnv('TODO_MAX_CONTENT_LENGTH', originalEnv.TODO_MAX_CONTENT_LENGTH);
+  setEnv('SYNAPSE_TODO_MAX_ITEMS', originalEnv.SYNAPSE_TODO_MAX_ITEMS);
+  setEnv('SYNAPSE_TODO_MAX_CONTENT_LENGTH', originalEnv.SYNAPSE_TODO_MAX_CONTENT_LENGTH);
   todoStore.clear();
 });
 
@@ -80,7 +80,7 @@ describe('TodoWriteHandler', () => {
   });
 
   it('content 与 activeForm 长度限制', async () => {
-    setEnv('TODO_MAX_CONTENT_LENGTH', '5');
+    setEnv('SYNAPSE_TODO_MAX_CONTENT_LENGTH', '5');
     const result = await handler.execute(
       "TodoWrite '{\"todos\":[{\"content\":\"123456\",\"activeForm\":\"Doing\",\"status\":\"pending\"}]}'"
     );
@@ -95,7 +95,7 @@ describe('TodoWriteHandler', () => {
   });
 
   it('todos 数组长度上限可被环境变量覆盖', async () => {
-    setEnv('TODO_MAX_ITEMS', '2');
+    setEnv('SYNAPSE_TODO_MAX_ITEMS', '2');
     const payload = {
       todos: [
         { content: 'A', activeForm: 'Doing A', status: 'pending' },
@@ -108,10 +108,10 @@ describe('TodoWriteHandler', () => {
     expect(result.stderr).toContain('Too many items');
   });
 
-  it('无效环境变量直接报错', async () => {
-    setEnv('TODO_MAX_ITEMS', '0');
+  it('无效环境变量回退到默认值', async () => {
+    setEnv('SYNAPSE_TODO_MAX_ITEMS', '0');
+    // parseEnvPositiveInt 对无效值（0 不是正整数）回退到默认值 50，不再报错
     const result = await handler.execute("TodoWrite '{\"todos\":[]}'");
-    expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain('Invalid environment variable TODO_MAX_ITEMS');
+    expect(result.exitCode).toBe(0);
   });
 });

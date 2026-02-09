@@ -9,6 +9,7 @@
 
 import type Anthropic from '@anthropic-ai/sdk';
 import type { TokenUsage, StreamedMessagePart } from './anthropic-types.ts';
+import type { LLMStreamedMessage } from '../llm-client.ts';
 import { createLogger } from '../../utils/logger.ts';
 
 const logger = createLogger('anthropic-stream');
@@ -22,7 +23,7 @@ type AnthropicResponse = Anthropic.Message | StreamResponse;
 /**
  * Wrapper for Anthropic API responses (streaming and non-streaming)
  */
-export class AnthropicStreamedMessage {
+export class AnthropicStreamedMessage implements LLMStreamedMessage {
   private readonly response: AnthropicResponse;
   private _id: string | null = null;
   private _usage: TokenUsage = {

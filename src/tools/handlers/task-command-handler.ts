@@ -8,7 +8,7 @@
  * - parseTaskCommand: 命令解析函数
  */
 
-import type { CommandResult } from './base-bash-handler.ts';
+import type { CommandResult } from './native-command-handler.ts';
 import { parseCommandArgs } from './agent-bash/command-utils.ts';
 import { SubAgentManager, type SubAgentManagerOptions } from '../../sub-agents/sub-agent-manager.ts';
 import {

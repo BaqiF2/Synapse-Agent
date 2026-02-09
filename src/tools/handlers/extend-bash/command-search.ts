@@ -11,7 +11,7 @@
  * - parseCommandSearchCommand: Parse command:search arguments
  */
 
-import type { CommandResult } from '../base-bash-handler.ts';
+import type { CommandResult } from '../native-command-handler.ts';
 import { McpInstaller, type SearchOptions } from '../../converters/mcp/installer.js';
 
 /**

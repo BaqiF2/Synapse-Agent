@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
 import path from 'node:path';
-import type { AnthropicClient } from '../providers/anthropic/anthropic-client.ts';
+import type { LLMClient } from '../providers/llm-client.ts';
 import { countMessageTokens } from '../utils/token-counter.ts';
 import { createLogger } from '../utils/logger.ts';
 import { loadDesc } from '../utils/load-desc.ts';
@@ -36,7 +36,7 @@ export interface CompactResult {
 export class ContextCompactor {
   constructor(
     private readonly storage: OffloadStorage,
-    private readonly client: AnthropicClient,
+    private readonly client: LLMClient,
     private readonly options: CompactOptions = {}
   ) {}
 
@@ -189,7 +189,7 @@ export class ContextCompactor {
     throw new Error('unreachable');
   }
 
-  private createSummaryClient(maxTokens: number): AnthropicClient {
+  private createSummaryClient(maxTokens: number): LLMClient {
     let summaryClient = this.client;
     const compactModel = this.options.model?.trim();
 

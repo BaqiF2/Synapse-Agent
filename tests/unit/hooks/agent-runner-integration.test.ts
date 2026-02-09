@@ -9,7 +9,12 @@ import { AgentRunner } from '../../../src/agent/agent-runner.ts';
 import { CallableToolset } from '../../../src/tools/toolset.ts';
 import { ToolOk } from '../../../src/tools/callable-tool.ts';
 import type { CallableTool, ToolReturnValue } from '../../../src/tools/callable-tool.ts';
-import { BashToolSchema } from '../../../src/tools/bash-tool-schema.ts';
+// mock tool definition，替代已删除的 bash-tool-schema.ts
+const MockBashToolDef = {
+  name: 'Bash',
+  description: 'Mock bash tool',
+  input_schema: { type: 'object' as const, properties: { command: { type: 'string' } }, required: ['command'] },
+};
 import type { AnthropicClient } from '../../../src/providers/anthropic/anthropic-client.ts';
 import type { StreamedMessagePart } from '../../../src/providers/anthropic/anthropic-types.ts';
 import { StopHookRegistry, stopHookRegistry } from '../../../src/hooks/stop-hook-registry.ts';
@@ -20,7 +25,7 @@ function createMockCallableTool(handler: (args: unknown) => Promise<ToolReturnVa
     name: 'Bash',
     description: 'Mock bash tool',
     paramsSchema: {} as any,
-    toolDefinition: BashToolSchema,
+    toolDefinition: MockBashToolDef,
     call: handler,
   } as unknown as CallableTool<unknown>;
 }

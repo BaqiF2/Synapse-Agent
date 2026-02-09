@@ -9,14 +9,19 @@ import { CallableToolset, type Toolset, type ToolResult } from '../../../src/too
 import type { CallableTool, ToolReturnValue } from '../../../src/tools/callable-tool.ts';
 import { ToolOk } from '../../../src/tools/callable-tool.ts';
 import type { ToolCall } from '../../../src/providers/message.ts';
-import { BashToolSchema } from '../../../src/tools/bash-tool-schema.ts';
+// mock tool definition，替代已删除的 bash-tool-schema.ts
+const MockBashToolDef = {
+  name: 'Bash',
+  description: 'Mock bash tool',
+  input_schema: { type: 'object' as const, properties: { command: { type: 'string' } }, required: ['command'] },
+};
 
 function createMockCallableTool(handler: (args: unknown) => Promise<ToolReturnValue>): CallableTool<unknown> {
   return {
     name: 'Bash',
     description: 'Mock bash tool',
     paramsSchema: {} as any,
-    toolDefinition: BashToolSchema,
+    toolDefinition: MockBashToolDef,
     call: handler,
   } as unknown as CallableTool<unknown>;
 }
@@ -26,7 +31,7 @@ describe('SimpleToolset', () => {
     const handler = mock(() => Promise.resolve(ToolOk({ output: '' })));
     const toolset = new CallableToolset([createMockCallableTool(handler)]);
 
-    expect(toolset.tools).toEqual([BashToolSchema]);
+    expect(toolset.tools).toEqual([MockBashToolDef]);
   });
 
   it('should handle tool call', async () => {

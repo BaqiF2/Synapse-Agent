@@ -12,7 +12,12 @@ import { ToolOk, ToolError, asCancelablePromise } from '../../../src/tools/calla
 import type { CallableTool, CancelablePromise, ToolReturnValue } from '../../../src/tools/callable-tool.ts';
 import type { AnthropicClient } from '../../../src/providers/anthropic/anthropic-client.ts';
 import type { StreamedMessagePart } from '../../../src/providers/anthropic/anthropic-types.ts';
-import { BashToolSchema } from '../../../src/tools/bash-tool-schema.ts';
+// mock tool definition，替代已删除的 bash-tool-schema.ts
+const MockBashToolDef = {
+  name: 'Bash',
+  description: 'Mock bash tool',
+  input_schema: { type: 'object' as const, properties: { command: { type: 'string' } }, required: ['command'] },
+};
 
 function createMockCallableTool(
   handler: (args: unknown) => Promise<ToolReturnValue> | CancelablePromise<ToolReturnValue>
@@ -21,7 +26,7 @@ function createMockCallableTool(
     name: 'Bash',
     description: 'Mock bash tool',
     paramsSchema: {} as any,
-    toolDefinition: BashToolSchema,
+    toolDefinition: MockBashToolDef,
     call: (args: unknown) => asCancelablePromise(Promise.resolve(handler(args))),
   } as unknown as CallableTool<unknown>;
 }
@@ -246,7 +251,7 @@ describe('step', () => {
     ]);
     const cancel = mock(() => {});
     const toolset: Toolset = {
-      tools: [BashToolSchema],
+      tools: [MockBashToolDef],
       handle: mock(() => {
         const pending = new Promise<ToolResult>(() => {}) as Promise<ToolResult> & { cancel: () => void };
         pending.cancel = cancel;

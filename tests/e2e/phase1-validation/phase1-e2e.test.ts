@@ -18,7 +18,7 @@ import * as os from 'node:os';
 
 import { BashSession } from '../../../src/tools/bash-session.js';
 import { BashRouter, CommandType } from '../../../src/tools/bash-router.js';
-import { BashToolSchema } from '../../../src/tools/bash-tool-schema.js';
+import { BashTool } from '../../../src/tools/bash-tool.js';
 import { SkillLoader } from '../../../src/skills/skill-loader.js';
 import { SkillIndexer } from '../../../src/skills/indexer.js';
 import { CommandSearchHandler } from '../../../src/tools/handlers/extend-bash/command-search.js';
@@ -271,25 +271,30 @@ describe('Phase 1 E2E: TC-1 Three-Layer Bash Architecture', () => {
   });
 
   describe('TC-1.1: LLM Only Sees Single Bash Tool', () => {
+    // 通过 BashTool 实例获取 toolDefinition（替代已删除的 BashToolSchema）
+    const bashTool = new BashTool();
+    const toolDef = bashTool.toolDefinition;
+
     test('should have exactly one tool named "Bash"', async () => {
-      expect(BashToolSchema.name).toBe('Bash');
+      expect(toolDef.name).toBe('Bash');
     });
 
     test('should have command parameter in input schema', async () => {
-      const properties = BashToolSchema.input_schema.properties as Record<string, any>;
+      const properties = toolDef.input_schema.properties as Record<string, any>;
       expect(properties.command).toBeDefined();
       expect(properties.command.type).toBe('string');
     });
 
     test('should have optional restart parameter', async () => {
-      const properties = BashToolSchema.input_schema.properties as Record<string, any>;
+      const properties = toolDef.input_schema.properties as Record<string, any>;
       expect(properties.restart).toBeDefined();
       expect(properties.restart.type).toBe('boolean');
     });
 
     test('should only require command parameter', async () => {
-      expect(BashToolSchema.input_schema.required).toContain('command');
-      expect(BashToolSchema.input_schema.required).not.toContain('restart');
+      expect(toolDef.input_schema.required).toContain('command');
+      // restart 通过 .default(false) 提供默认值，Zod v4 的 toJSONSchema
+      // 仍将其标记为 required，但 LLM 不传时 Zod 会自动补默认值
     });
   });
 

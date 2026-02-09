@@ -15,13 +15,14 @@
  */
 
 import { z } from 'zod';
+import { parseEnvPositiveInt } from '../utils/env.ts';
 
 /**
  * Default max characters for enhance context
  */
-const DEFAULT_MAX_ENHANCE_CONTEXT_CHARS = parseInt(
-  process.env.SYNAPSE_MAX_ENHANCE_CONTEXT_CHARS || '50000',
-  10
+const DEFAULT_MAX_ENHANCE_CONTEXT_CHARS = parseEnvPositiveInt(
+  process.env.SYNAPSE_MAX_ENHANCE_CONTEXT_CHARS,
+  50000
 );
 
 /**
@@ -50,7 +51,8 @@ export type SkillEnhanceSettings = z.infer<typeof SkillEnhanceSettingsSchema>;
  * LLM environment settings schema
  */
 export const LlmEnvSettingsSchema = z.object({
-  ANTHROPIC_API_KEY: z.string().min(1),
+  // 允许空字符串作为默认值，实际验证应在 Provider 初始化时进行
+  ANTHROPIC_API_KEY: z.string().default(''),
   ANTHROPIC_BASE_URL: z.string().url().default(DEFAULT_ANTHROPIC_BASE_URL),
 });
 
@@ -78,7 +80,7 @@ export type SynapseSettings = z.infer<typeof SynapseSettingsSchema>;
  */
 export const DEFAULT_SETTINGS: SynapseSettings = {
   env: {
-    ANTHROPIC_API_KEY: 'your_api_key_here',
+    ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || '',
     ANTHROPIC_BASE_URL: DEFAULT_ANTHROPIC_BASE_URL,
   },
   model: DEFAULT_MODEL,

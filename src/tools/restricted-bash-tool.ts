@@ -8,7 +8,6 @@
  * - isCommandBlocked: 检查命令是否被权限配置阻止
  */
 
-import { z } from 'zod';
 import {
   CallableTool,
   ToolError,
@@ -16,21 +15,10 @@ import {
   type ToolReturnValue,
   type CancelablePromise,
 } from './callable-tool.ts';
-import type { BashTool, BashToolParams } from './bash-tool.ts';
+import { BashToolParamsSchema, type BashToolParams } from './schemas.ts';
+import type { BashTool } from './bash-tool.ts';
 import type { ToolPermissions } from '../sub-agents/sub-agent-types.ts';
 import { extractBaseCommand } from './constants.ts';
-
-/**
- * Zod schema for Bash tool parameters (与 BashTool 保持一致)
- */
-const BashToolParamsSchema = z.object({
-  command: z.string().describe(
-    'The bash command to execute. Must be non-interactive. Chain commands with `&&` or `;` if needed.'
-  ),
-  restart: z.boolean().default(false).describe(
-    'If true, kills the existing shell session and starts a fresh one (clears env vars and resets CWD). Use only when the environment is corrupted.'
-  ),
-});
 
 /**
  * 检查命令是否被权限配置阻止

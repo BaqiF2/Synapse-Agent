@@ -8,6 +8,7 @@
  * - buildSystemPrompt(): Build the complete system prompt
  * - SystemPromptOptions: System prompt configuration options
  * - AUTO_ENHANCE_PROMPT: Auto-enhance prompt for dynamic injection after task completion
+ * - prependSkillSearchInstruction(): Prepend skill-search instruction to user messages
  */
 
 import path from 'node:path';
@@ -58,4 +59,20 @@ export function buildSystemPrompt(options?: SystemPromptOptions): string {
   }
 
   return sections.join('\n\n');
+}
+
+/**
+ * 技能搜索优先指令前缀（从 prompts 目录加载）
+ */
+const SKILL_SEARCH_INSTRUCTION_PREFIX = loadDesc(
+  path.join(PROMPTS_DIR, 'skill-search-priority.md')
+);
+
+/**
+ * 在用户消息前添加技能搜索优先指令
+ *
+ * 主 Agent 启用此功能以引导 LLM 优先搜索可复用技能
+ */
+export function prependSkillSearchInstruction(userMessage: string): string {
+  return `${SKILL_SEARCH_INSTRUCTION_PREFIX}\n\nOriginal user request:\n${userMessage}`;
 }

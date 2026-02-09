@@ -8,7 +8,8 @@
  */
 
 import * as os from 'node:os';
-import type { CommandResult } from './base-bash-handler.ts';
+import type { CommandResult } from './native-command-handler.ts';
+import { parseCommandArgs } from './agent-bash/command-utils.ts';
 import { createLogger } from '../../utils/logger.ts';
 import { SkillLoader } from '../../skills/skill-loader.js';
 
@@ -57,7 +58,7 @@ export class SkillCommandHandler {
    */
   private handleLoad(command: string): CommandResult {
     // 解析技能名称
-    const parts = this.tokenize(command);
+    const parts = parseCommandArgs(command);
     const skillName = parts[1]; // skill:load <name>
 
     if (!skillName || skillName === '-h' || skillName === '--help') {
@@ -105,42 +106,6 @@ EXAMPLES:
       stderr: '',
       exitCode: 0,
     };
-  }
-
-  /**
-   * 分词（支持引号）
-   */
-  private tokenize(command: string): string[] {
-    const tokens: string[] = [];
-    let current = '';
-    let inQuote: string | null = null;
-
-    for (let i = 0; i < command.length; i++) {
-      const char = command[i];
-
-      if (inQuote) {
-        if (char === inQuote) {
-          inQuote = null;
-        } else {
-          current += char;
-        }
-      } else if (char === '"' || char === "'") {
-        inQuote = char;
-      } else if (char === ' ' || char === '\t') {
-        if (current) {
-          tokens.push(current);
-          current = '';
-        }
-      } else {
-        current += char;
-      }
-    }
-
-    if (current) {
-      tokens.push(current);
-    }
-
-    return tokens;
   }
 
   /**

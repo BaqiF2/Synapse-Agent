@@ -1,17 +1,27 @@
 /**
  * Command Utilities - Agent Shell Command Layer 2
  *
- * Shared utilities for parsing command arguments.
+ * 通用命令参数解析工具，供所有命令处理器共享。
  *
  * Core Exports:
- * - parseCommandArgs: Parse command arguments with proper quote handling
+ * - parseCommandArgs: 支持引号和转义字符的统一命令分词函数
+ * - toCommandErrorResult: 将未知错误标准化为 CommandResult
+ * - ColonCommandParts: 冒号分隔命令的解析结果接口
+ * - parseColonCommand: 解析冒号分隔的命令格式
  */
 
-import type { CommandResult } from '../base-bash-handler.ts';
+import type { CommandResult } from '../native-command-handler.ts';
 
 /**
- * Parse command arguments with proper quote handling
- * Supports both single and double quotes
+ * Parse command arguments with proper quote and escape handling
+ *
+ * 支持单引号、双引号，以及引号内的转义序列：
+ * - \\  → 反斜杠
+ * - \"  → 双引号（在双引号内）/ \'  → 单引号（在单引号内）
+ * - \n  → 换行
+ * - \t  → 制表符
+ * - \r  → 回车
+ * 未闭合引号会抛出异常。
  *
  * @param command - The command string to parse
  * @returns Array of parsed arguments
@@ -21,12 +31,31 @@ export function parseCommandArgs(command: string): string[] {
   let current = '';
   let inQuote: string | null = null;
 
+  /** 转义字符映射 */
+  const ESCAPE_MAP: Record<string, string> = {
+    n: '\n',
+    t: '\t',
+    r: '\r',
+    '\\': '\\',
+  };
+
   for (let i = 0; i < command.length; i++) {
     const char = command[i];
 
     if (inQuote) {
       if (char === inQuote) {
+        // 闭合引号
         inQuote = null;
+      } else if (char === '\\' && i + 1 < command.length) {
+        // 处理转义序列
+        const nextChar = command[i + 1]!;
+        if (nextChar === inQuote || ESCAPE_MAP[nextChar] !== undefined) {
+          current += nextChar === inQuote ? nextChar : ESCAPE_MAP[nextChar]!;
+          i++;
+        } else {
+          // 不可识别的转义，保留反斜杠原字符
+          current += char;
+        }
       } else {
         current += char;
       }
@@ -40,6 +69,10 @@ export function parseCommandArgs(command: string): string[] {
     } else {
       current += char;
     }
+  }
+
+  if (inQuote) {
+    throw new Error('Unclosed quote in arguments');
   }
 
   if (current) {

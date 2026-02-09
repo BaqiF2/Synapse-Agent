@@ -3,9 +3,9 @@
  */
 
 import * as path from 'node:path';
-import type { CommandResult } from '../../base-bash-handler.ts';
+import type { CommandResult } from '../../native-command-handler.ts';
 import { toCommandErrorResult } from '../command-utils.ts';
-import { loadDesc } from '../../../../utils/load-desc.js';
+import { BaseAgentHandler } from '../base-agent-handler.ts';
 import { todoStore, type TodoItem } from './todo-store.ts';
 import { buildTodoWriteSchema } from './todo-schema.ts';
 
@@ -18,14 +18,10 @@ interface ParsedArgs {
 
 function extractJsonFromArgs(command: string): ParsedArgs | null {
   const trimmed = command.trim();
-  if (!trimmed.startsWith('TodoWrite')) {
-    return null;
-  }
+  if (!trimmed.startsWith('TodoWrite')) return null;
 
   const rest = trimmed.slice('TodoWrite'.length).trim();
-  if (!rest) {
-    return null;
-  }
+  if (!rest) return null;
 
   let jsonText = rest;
   if (
@@ -53,13 +49,13 @@ function formatZodError(error: unknown): string {
   }).issues;
 
   const lines = issues.map((issue) => {
-    const path = issue.path.length > 0 ? issue.path.join('.') : 'input';
+    const pathStr = issue.path.length > 0 ? issue.path.join('.') : 'input';
     const message =
       (issue.code === 'invalid_type' && issue.received === 'undefined') ||
       issue.message.includes('received undefined')
         ? 'Required'
         : issue.message;
-    return `- ${path}: ${message}`;
+    return `- ${pathStr}: ${message}`;
   });
 
   return ['Error: Validation failed', ...lines].join('\n');
@@ -71,68 +67,43 @@ function buildSummary(items: TodoItem[]): string {
       acc[item.status] += 1;
       return acc;
     },
-    { pending: 0, in_progress: 0, completed: 0 }
+    { pending: 0, in_progress: 0, completed: 0 },
   );
 
   return `Todo list updated: ${counts.completed} completed, ${counts.in_progress} in_progress, ${counts.pending} pending`;
 }
 
-export class TodoWriteHandler {
-  async execute(command: string): Promise<CommandResult> {
-    try {
-      if (command.includes(' -h') || command.includes(' --help')) {
-        return this.showHelp(command.includes('--help'));
-      }
+export class TodoWriteHandler extends BaseAgentHandler {
+  protected readonly commandName = 'TodoWrite';
+  protected readonly usage = USAGE;
+  protected readonly helpFilePath = path.join(import.meta.dirname, 'todo-write.md');
 
+  protected async executeCommand(command: string): Promise<CommandResult> {
+    try {
       const parsed = extractJsonFromArgs(command);
       if (!parsed) {
-        return {
-          stdout: '',
-          stderr: `Error: Missing JSON parameter\n${USAGE}`,
-          exitCode: 1,
-        };
+        return { stdout: '', stderr: `Error: Missing JSON parameter\n${USAGE}`, exitCode: 1 };
       }
 
       let data: unknown;
       try {
         data = JSON.parse(parsed.jsonText);
       } catch (_error) {
-        return {
-          stdout: '',
-          stderr: `Error: Invalid JSON format\n${USAGE}`,
-          exitCode: 1,
-        };
+        return { stdout: '', stderr: `Error: Invalid JSON format\n${USAGE}`, exitCode: 1 };
       }
 
       const { inputSchema } = buildTodoWriteSchema();
       const result = inputSchema.safeParse(data);
       if (!result.success) {
-        return {
-          stdout: '',
-          stderr: formatZodError(result.error),
-          exitCode: 1,
-        };
+        return { stdout: '', stderr: formatZodError(result.error), exitCode: 1 };
       }
 
       const { todos } = result.data;
       todoStore.update(todos);
 
-      return {
-        stdout: buildSummary(todos),
-        stderr: '',
-        exitCode: 0,
-      };
+      return { stdout: buildSummary(todos), stderr: '', exitCode: 0 };
     } catch (error) {
       return toCommandErrorResult(error);
     }
-  }
-
-  private showHelp(verbose: boolean): CommandResult {
-    if (verbose) {
-      const help = loadDesc(path.join(import.meta.dirname, 'todo-write.md'));
-      return { stdout: help, stderr: '', exitCode: 0 };
-    }
-
-    return { stdout: USAGE, stderr: '', exitCode: 0 };
   }
 }

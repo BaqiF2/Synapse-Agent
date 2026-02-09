@@ -4,6 +4,8 @@
  * Independent message type definitions for the agent system,
  * decoupled from Anthropic SDK types.
  *
+ * 类型定义已迁移至 src/types/message.ts，此文件保留函数实现并 re-export 类型。
+ *
  * Core Exports:
  * - Role: Message sender role type
  * - ContentPart: Union type for message content parts
@@ -23,73 +25,33 @@
  * - isToolCallPart: Type guard for tool call parts
  */
 
-import type { StreamedMessagePart, ToolCallPart, ToolCallDeltaPart, ThinkPart } from './anthropic/anthropic-types.ts';
-import type { ToolReturnValue } from '../tools/callable-tool.ts';
+// 从共享类型层 re-export 所有类型
+export type {
+  Role,
+  TextPart,
+  ThinkingPart,
+  ImageUrlPart,
+  ContentPart,
+  ToolCall,
+  ToolResult,
+  Message,
+  MergeableToolCallPart,
+  MergeablePart,
+} from '../types/message.ts';
+
+import type {
+  Role,
+  TextPart,
+  Message,
+  ToolResult,
+  MergeablePart,
+  MergeableToolCallPart,
+  StreamedMessagePart,
+} from '../types/message.ts';
+
 import { createLogger } from '../utils/logger.ts';
 
 const logger = createLogger('message');
-
-/**
- * Message sender role
- */
-export type Role = 'system' | 'user' | 'assistant' | 'tool';
-
-/**
- * Text content part
- */
-export interface TextPart {
-  type: 'text';
-  text: string;
-}
-
-/**
- * Thinking content part (matches anthropic-types.ts ThinkPart)
- */
-export interface ThinkingPart {
-  type: 'thinking';
-  content: string;
-  signature?: string;
-}
-
-/**
- * Image URL content part
- */
-export interface ImageUrlPart {
-  type: 'image_url';
-  imageUrl: { url: string; id?: string };
-}
-
-/**
- * Union type for all content parts
- */
-export type ContentPart = TextPart | ThinkingPart | ImageUrlPart;
-
-/**
- * Tool call request from assistant
- */
-export interface ToolCall {
-  id: string;
-  name: string;
-  arguments: string;
-}
-
-/**
- * Tool execution result
- */
-export interface ToolResult {
-  toolCallId: string;
-  returnValue: ToolReturnValue;
-}
-
-/**
- * Complete message structure
- */
-export interface Message {
-  role: Role;
-  content: ContentPart[];
-  toolCalls?: ToolCall[];
-  toolCallId?: string;
-}
 
 /**
  * Create a simple text message
@@ -126,24 +88,7 @@ export function toolResultToMessage(result: ToolResult): Message {
   };
 }
 
-// ===== Stream Merging Types and Functions =====
-
-/**
- * Extended tool call part for merging (includes accumulated JSON)
- */
-export interface MergeableToolCallPart extends ToolCallPart {
-  _argumentsJson: string;
-}
-
-/**
- * Union type for parts that can be merged
- * Uses ThinkPart from anthropic-types for streaming compatibility
- */
-export type MergeablePart =
-  | TextPart
-  | ThinkPart
-  | MergeableToolCallPart
-  | ToolCallDeltaPart;
+// ===== Stream Merging Functions =====
 
 /**
  * Check if a part is a tool call

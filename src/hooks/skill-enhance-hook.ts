@@ -1,55 +1,41 @@
 /**
  * Skill Enhance Hook
  *
- * Stop hook that automatically analyzes completed conversations
- * and suggests skill enhancements. Triggered when agent loop exits normally.
+ * 功能：在 Agent 对话正常结束时自动分析对话历史并建议技能增强。
+ *       结果解析逻辑见 skill-enhance-result-parser.ts，
+ *       meta-skill 加载逻辑见 skill-enhance-meta-loader.ts。
  *
- * @module skill-enhance-hook
+ * 核心导出：
+ * - skillEnhanceHook: 技能增强分析的主 hook 函数
+ * - HOOK_NAME: Hook 注册名称常量
  *
- * Core Exports:
- * - skillEnhanceHook: Main hook function for skill enhancement analysis
- * - HOOK_NAME: Hook registration name constant
- *
- * Internal Functions:
- * - hasTodoWriteCall: Check if TodoWrite was called in conversation (prerequisite for enhancement)
- *
- * Environment Variables:
- * - SYNAPSE_SESSIONS_DIR: Session files directory (default: ~/.synapse/sessions)
- * - SYNAPSE_META_SKILLS_DIR: Meta-skill directory (default: ~/.synapse/skills)
- * - SYNAPSE_MAX_ENHANCE_CONTEXT_CHARS: Max context chars (default: 50000)
- * - SYNAPSE_SKILL_SUBAGENT_TIMEOUT: Sub-agent execution timeout in ms (default: 300000)
+ * 环境变量：
+ * - SYNAPSE_SESSIONS_DIR: 会话文件目录（默认: ~/.synapse/sessions）
+ * - SYNAPSE_MAX_ENHANCE_CONTEXT_CHARS: 最大上下文字符数（默认: 50000）
+ * - SYNAPSE_SKILL_SUBAGENT_TIMEOUT: Sub-agent 执行超时时间（默认: 300000ms）
  */
 
 import * as path from 'node:path';
-import * as os from 'node:os';
-import * as fs from 'node:fs';
 import { createLogger } from '../utils/logger.ts';
 import { SettingsManager } from '../config/settings-manager.ts';
+import { getSynapseSessionsDir } from '../config/paths.ts';
 import { ConversationReader } from '../skills/conversation-reader.ts';
 import { AnthropicClient } from '../providers/anthropic/anthropic-client.ts';
 import { BashTool } from '../tools/bash-tool.ts';
 import { SubAgentManager } from '../sub-agents/sub-agent-manager.ts';
 import { stopHookRegistry } from './stop-hook-registry.ts';
 import { SKILL_ENHANCE_PROGRESS_TEXT } from './skill-enhance-constants.ts';
-import { loadDesc } from '../utils/load-desc.js';
+import {
+  normalizeSkillEnhanceResult,
+  buildRetryPrompt,
+  SKILL_RESULT_FALLBACK,
+  type SkillExecutionResult,
+} from './skill-enhance-result-parser.ts';
+import { loadMetaSkills, buildEnhancePrompt } from './skill-enhance-meta-loader.ts';
 import type { StopHookContext, HookResult } from './types.ts';
 import type { Message } from '../providers/message.ts';
 
 const logger = createLogger('skill-enhance-hook');
-const PROMPT_TEMPLATE_PATH = path.join(import.meta.dirname, 'skill-enhance-hook-prompt.md');
-const SKILL_RESULT_FALLBACK = '[Skill] No enhancement needed\nReason: invalid sub-agent output format';
-const SKILL_MARKER_PATTERN = /\[Skill\][\s\S]*$/m;
-const SKILL_HEADER_PATTERN = /^\[Skill\]\s*(Created:|Enhanced:|No enhancement needed\b)/i;
-const JSON_FENCE_PATTERN = /```(?:json)?\s*([\s\S]*?)```/i;
-const RETRY_OUTPUT_CONTRACT = `
-[Output Contract]
-Return ONLY one final skill-enhancement result. Do not output preamble, analysis plan, or "I will analyze..." text.
-Allowed outputs:
-1) [Skill] Created: <skill-name>
-2) [Skill] Enhanced: <skill-name>
-3) [Skill] No enhancement needed
-You may add one short reason line after the result.
-`.trim();
 
 /**
  * Hook registration name
@@ -76,100 +62,13 @@ function getSubagentTimeout(): number {
 }
 
 /**
- * Get sessions directory path
- *
- * 在调用时读取环境变量，支持测试时动态设置
- *
- * @returns Sessions directory path
- */
-function getSessionsDir(): string {
-  return process.env.SYNAPSE_SESSIONS_DIR || path.join(os.homedir(), '.synapse', 'sessions');
-}
-
-/**
- * Get meta-skill directory path
- *
- * Meta-skills 位于用户的 ~/.synapse/skill 目录
- *
- * @returns Meta-skill directory path
- */
-function getMetaSkillDir(): string {
-  return process.env.SYNAPSE_META_SKILLS_DIR || path.join(os.homedir(), '.synapse', 'skills');
-}
-
-/**
  * Build session file path from sessionId
  *
  * @param sessionId - Session ID
  * @returns Full path to session JSONL file
  */
 function buildSessionPath(sessionId: string): string {
-  return path.join(getSessionsDir(), `${sessionId}.jsonl`);
-}
-
-/**
- * Meta-skill content container
- */
-interface MetaSkillContent {
-  skillCreator: string | null;
-  skillEnhance: string | null;
-}
-
-/**
- * Load meta-skill content from user directory
- *
- * @param skillName - Meta-skill name (e.g., 'skill-creator', 'skill-enhance')
- * @returns Raw content of SKILL.md or null if not found
- */
-function loadMetaSkillContent(skillName: string): string | null {
-  const metaSkillDir = getMetaSkillDir();
-  const skillMdPath = path.join(metaSkillDir, skillName, 'SKILL.md');
-
-  try {
-    if (!fs.existsSync(skillMdPath)) {
-      logger.warn('Meta-skill SKILL.md not found', { skillName, path: skillMdPath });
-      return null;
-    }
-    return fs.readFileSync(skillMdPath, 'utf-8');
-  } catch (error) {
-    logger.error('Failed to read meta-skill', {
-      skillName,
-      path: skillMdPath,
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return null;
-  }
-}
-
-/**
- * Load all required meta-skills
- *
- * @returns Meta-skill content or null if any required skill is missing
- */
-function loadMetaSkills(): MetaSkillContent | null {
-  const skillCreator = loadMetaSkillContent('skill-creator');
-  const skillEnhance = loadMetaSkillContent('skill-enhance');
-
-  if (!skillCreator || !skillEnhance) {
-    return null;
-  }
-
-  return { skillCreator, skillEnhance };
-}
-
-/**
- * Build the skill enhancement prompt
- *
- * @param compactedHistory - Compacted conversation history
- * @param metaSkills - Meta-skill content
- * @returns Full prompt for skill sub-agent
- */
-function buildEnhancePrompt(compactedHistory: string, metaSkills: MetaSkillContent): string {
-  return loadDesc(PROMPT_TEMPLATE_PATH, {
-    COMPACTED_HISTORY: compactedHistory,
-    META_SKILL_CREATOR: metaSkills.skillCreator || '',
-    META_SKILL_ENHANCE: metaSkills.skillEnhance || '',
-  });
+  return path.join(getSynapseSessionsDir(), `${sessionId}.jsonl`);
 }
 
 /**
@@ -198,96 +97,6 @@ async function executeWithTimeout(
   });
 
   return Promise.race([executionPromise, timeoutPromise]);
-}
-
-interface ParsedSkillResult {
-  action: 'create' | 'enhance' | 'skip';
-  skillName?: string;
-  reason?: string;
-}
-
-interface SkillExecutionResult {
-  raw: string;
-  normalized: string | null;
-}
-
-function sanitizeReason(reason: string | undefined): string | undefined {
-  if (!reason) {
-    return;
-  }
-  const normalized = reason.trim().replace(/\s+/g, ' ');
-  return normalized || undefined;
-}
-
-function parseSkillResultJson(raw: string): ParsedSkillResult | null {
-  const text = raw.trim();
-  if (!text) {
-    return null;
-  }
-
-  const candidates = [text];
-  const fencedJson = text.match(JSON_FENCE_PATTERN)?.[1];
-  if (fencedJson) {
-    candidates.unshift(fencedJson.trim());
-  }
-
-  for (const candidate of candidates) {
-    try {
-      const parsed = JSON.parse(candidate) as Record<string, unknown>;
-      const action = typeof parsed.action === 'string' ? parsed.action.toLowerCase() : '';
-      if (action !== 'create' && action !== 'enhance' && action !== 'skip') {
-        continue;
-      }
-
-      const skillName = typeof parsed.skill_name === 'string' ? parsed.skill_name.trim() : undefined;
-      const reason = typeof parsed.reason === 'string' ? sanitizeReason(parsed.reason) : undefined;
-      return { action, skillName, reason };
-    } catch {
-      continue;
-    }
-  }
-
-  return null;
-}
-
-function formatParsedSkillResult(parsed: ParsedSkillResult): string {
-  const reasonSuffix = parsed.reason ? `\nReason: ${parsed.reason}` : '';
-  if (parsed.action === 'create') {
-    const skillName = parsed.skillName || 'unknown-skill';
-    return `[Skill] Created: ${skillName}${reasonSuffix}`;
-  }
-  if (parsed.action === 'enhance') {
-    const skillName = parsed.skillName || 'unknown-skill';
-    return `[Skill] Enhanced: ${skillName}${reasonSuffix}`;
-  }
-  return `[Skill] No enhancement needed${reasonSuffix}`;
-}
-
-function normalizeSkillEnhanceResult(rawResult: string): string | null {
-  const trimmed = rawResult.trim();
-  if (!trimmed) {
-    return null;
-  }
-
-  const skillMarkerMatch = trimmed.match(SKILL_MARKER_PATTERN);
-  if (skillMarkerMatch?.[0]) {
-    const candidate = skillMarkerMatch[0].trimStart();
-    const firstLine = candidate.split('\n')[0] ?? '';
-    if (SKILL_HEADER_PATTERN.test(firstLine)) {
-      return candidate;
-    }
-  }
-
-  const parsed = parseSkillResultJson(trimmed);
-  if (parsed) {
-    return formatParsedSkillResult(parsed);
-  }
-
-  return null;
-}
-
-function buildRetryPrompt(prompt: string): string {
-  return `${prompt}\n\n${RETRY_OUTPUT_CONTRACT}`;
 }
 
 async function executeAndNormalize(
@@ -347,7 +156,7 @@ function hasTodoWriteCall(messages: readonly Message[]): boolean {
  * @returns Hook result with message, or void if skipped
  */
 export async function skillEnhanceHook(context: StopHookContext): Promise<HookResult | void> {
-  const settings = new SettingsManager();
+  const settings = SettingsManager.getInstance();
 
   // Step 1: 检查是否启用自动增强
   if (!settings.isAutoEnhanceEnabled()) {
@@ -418,7 +227,7 @@ export async function skillEnhanceHook(context: StopHookContext): Promise<HookRe
 
   try {
     // 创建必要的组件
-    const client = new AnthropicClient();
+    const client = new AnthropicClient({ settings: SettingsManager.getInstance().getLlmConfig() });
     const bashTool = new BashTool({ llmClient: client });
     const subAgentManager = new SubAgentManager({
       client,

@@ -19,8 +19,6 @@ import {
   TREE_SYMBOLS,
 } from './terminal-renderer-types.ts';
 import type { SubAgentType } from '../sub-agents/sub-agent-types.ts';
-import type { TodoState } from '../tools/handlers/agent-bash/todo/todo-store.ts';
-import type { TodoStore } from '../tools/handlers/agent-bash/todo/todo-store.ts';
 import { SKILL_ENHANCE_PROGRESS_TEXT, isSkillEnhanceCommand } from '../hooks/skill-enhance-constants.ts';
 import { parseEnvInt } from '../utils/env.ts';
 
@@ -33,7 +31,7 @@ const MAX_COMMAND_DISPLAY_LENGTH = 40;
 const INVALID_BASH_TOOL_MISUSE_DISPLAY = '[invalid command: tool name Bash]';
 /** Task 描述摘要最大长度（超出后截断） */
 const TASK_DESCRIPTION_SUMMARY_LIMIT = parseEnvInt(
-  process.env.TOOL_RESULT_SUMMARY_LIMIT ?? process.env.SYNAPSE_TOOL_RESULT_SUMMARY_LIMIT,
+  process.env.SYNAPSE_TOOL_RESULT_SUMMARY_LIMIT,
   200
 );
 /** spinner 动画间隔（毫秒） */
@@ -96,7 +94,6 @@ export class TerminalRenderer {
   private activeCalls: Map<string, ActiveCall>;
   private activeSubAgents: Map<string, SubAgentEvent>;
   private activeAnimations: Map<string, ReturnType<typeof setInterval>>;
-  private todoUnsubscribe?: () => void;
   /** 活跃的 SubAgent 状态（新增） */
   private activeSubAgentStates: Map<string, ActiveSubAgentState>;
   /** 当前正在渲染的 SubAgent ID */
@@ -224,56 +221,6 @@ export class TerminalRenderer {
     console.log(`${prefix}${chalk.gray('[completed]')}`);
 
     this.activeSubAgents.delete(id);
-  }
-
-  /**
-   * Bind TodoStore changes to renderer
-   */
-  attachTodoStore(store: Pick<TodoStore, 'onChange'>): () => void {
-    if (this.todoUnsubscribe) {
-      this.todoUnsubscribe();
-    }
-    this.todoUnsubscribe = store.onChange((state) => this.renderTodos(state));
-    return this.todoUnsubscribe;
-  }
-
-  /**
-   * Render Todo list to terminal
-   */
-  renderTodos(state: TodoState): void {
-    // 如果没有任务，不显示Task框
-    if (state.items.length === 0) {
-      return;
-    }
-    const lines = state.items.map((item) => {
-      switch (item.status) {
-        case 'completed':
-          return chalk.gray(`✓ ${item.content}`);
-        case 'in_progress':
-          return chalk.yellow(`● ${item.activeForm}...`);
-        default:
-          return chalk.dim(`○ ${item.content}`);
-      }
-    });
-
-    const header = 'Tasks';
-    const contentLengths = lines.map((line) => this.stripAnsi(line).length);
-    const innerWidth = Math.max(
-      header.length + 1,
-      ...contentLengths,
-      0
-    );
-
-    const topPadding = Math.max(0, innerWidth - header.length - 1);
-    const top = `┌─ ${header} ${'─'.repeat(topPadding)}┐`;
-    const body = lines.map((line) => `│ ${line}${' '.repeat(innerWidth - this.stripAnsi(line).length)} │`);
-    const bottom = `└${'─'.repeat(innerWidth + 2)}┘`;
-
-    console.log(top);
-    for (const line of body) {
-      console.log(line);
-    }
-    console.log(bottom);
   }
 
   // ============================================================

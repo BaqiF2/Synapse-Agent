@@ -1,23 +1,20 @@
 /**
  * MCP Wrapper Generator
  *
- * This module generates executable Bash wrapper scripts for MCP tools.
- * Each wrapper script provides a CLI interface to invoke the corresponding
- * MCP tool through the Synapse Agent infrastructure.
+ * 功能：为 MCP 工具生成可执行的 Bash wrapper 脚本，
+ * 提供 CLI 参数解析、帮助信息和 MCP 工具调用。
+ * 通过共享模块 HelpGenerator 消除帮助文本生成的重复逻辑。
  *
- * @module wrapper-generator
- *
- * Core Exports:
- * - McpWrapperGenerator: Generates wrapper scripts for MCP tools
- * - WrapperGeneratorOptions: Configuration options for generation
- * - GeneratedWrapper: Metadata about a generated wrapper
+ * 核心导出：
+ * - McpWrapperGenerator: 生成 MCP wrapper 脚本
+ * - WrapperGeneratorOptions: 生成器配置选项
+ * - GeneratedWrapper: 生成的 wrapper 元数据
  */
 
 import type { McpToolInfo } from './mcp-client.js';
+import { generateBriefHelp, generateDetailedHelp, type HelpParam } from '../shared/help-generator.ts';
 
-/**
- * JSON Schema property type
- */
+/** JSON Schema 属性 */
 interface SchemaProperty {
   type?: string;
   description?: string;
@@ -25,77 +22,42 @@ interface SchemaProperty {
   enum?: unknown[];
 }
 
-/**
- * JSON Schema for tool input
- */
+/** JSON Schema for tool input */
 interface ToolInputSchema {
   type?: string;
   properties?: Record<string, SchemaProperty>;
   required?: string[];
 }
 
-/**
- * Options for wrapper generation
- */
+/** 生成器配置选项 */
 export interface WrapperGeneratorOptions {
-  /** Directory to install wrappers (default: ~/.synapse/bin) */
   binDir?: string;
-  /** Path to the synapse-mcp-caller helper script */
   callerPath?: string;
 }
 
-/**
- * Generated wrapper metadata
- */
+/** 生成的 wrapper 元数据 */
 export interface GeneratedWrapper {
-  /** Command name (e.g., mcp:test-server:echo) */
   commandName: string;
-  /** Server name */
   serverName: string;
-  /** Tool name */
   toolName: string;
-  /** Full path to the generated script */
   scriptPath: string;
-  /** Script content */
   content: string;
-  /** Tool description */
   description?: string;
 }
 
-/**
- * Parameter info extracted from schema
- */
-interface ParamInfo {
-  name: string;
-  type: string;
-  description: string;
-  required: boolean;
-  defaultValue?: unknown;
-  enumValues?: unknown[];
-}
-
-/**
- * Default bin directory
- */
 const DEFAULT_BIN_DIR = '~/.synapse/bin';
 
 /**
- * McpWrapperGenerator
+ * McpWrapperGenerator — MCP 工具 wrapper 脚本生成器
  *
- * Generates executable wrapper scripts for MCP tools. Each wrapper provides:
- * - Command-line argument parsing based on tool's inputSchema
- * - -h flag for brief help
- * - --help flag for detailed documentation
- * - Invocation of the MCP tool through the synapse infrastructure
+ * 为每个 MCP 工具生成：
+ * - 基于 inputSchema 的 CLI 参数解析
+ * - -h / --help 帮助信息
+ * - MCP 工具调用输出
  */
 export class McpWrapperGenerator {
   private options: Required<WrapperGeneratorOptions>;
 
-  /**
-   * Creates a new McpWrapperGenerator
-   *
-   * @param options - Generation options
-   */
   constructor(options: WrapperGeneratorOptions = {}) {
     this.options = {
       binDir: options.binDir ?? DEFAULT_BIN_DIR,
@@ -103,13 +65,28 @@ export class McpWrapperGenerator {
     };
   }
 
-  /**
-   * Extracts parameter information from a JSON Schema
-   */
-  private extractParams(schema: ToolInputSchema): ParamInfo[] {
-    const params: ParamInfo[] = [];
+  /** 为单个工具生成 wrapper */
+  public generateWrapper(serverName: string, tool: McpToolInfo): GeneratedWrapper {
+    const commandName = `mcp:${serverName}:${tool.name}`;
+    const content = this.generateScriptContent(serverName, tool);
+    const binDir = this.options.binDir.replace(/^~/, process.env.HOME || '');
+    const scriptPath = `${binDir}/${commandName}`;
+
+    return { commandName, serverName, toolName: tool.name, scriptPath, content, description: tool.description };
+  }
+
+  /** 为服务器所有工具批量生成 wrapper */
+  public generateWrappers(serverName: string, tools: McpToolInfo[]): GeneratedWrapper[] {
+    return tools.map((tool) => this.generateWrapper(serverName, tool));
+  }
+
+  // -- 私有方法 --
+
+  /** 从 JSON Schema 提取参数信息并转为 HelpParam */
+  private extractParams(schema: ToolInputSchema): HelpParam[] {
     const properties = schema.properties || {};
     const required = new Set(schema.required || []);
+    const params: HelpParam[] = [];
 
     for (const [name, prop] of Object.entries(properties)) {
       params.push({
@@ -122,126 +99,29 @@ export class McpWrapperGenerator {
       });
     }
 
-    // Sort: required first, then alphabetically
+    // 排序：必选在前，然后按字母序
     params.sort((a, b) => {
-      if (a.required !== b.required) {
-        return a.required ? -1 : 1;
-      }
+      if (a.required !== b.required) return a.required ? -1 : 1;
       return a.name.localeCompare(b.name);
     });
 
     return params;
   }
 
-  /**
-   * Generates brief help text (-h)
-   */
-  private generateBriefHelp(
-    serverName: string,
-    toolName: string,
-    description: string | undefined,
-    params: ParamInfo[]
-  ): string {
-    const commandName = `mcp:${serverName}:${toolName}`;
-    const requiredParams = params.filter((p) => p.required);
-    const optionalParams = params.filter((p) => !p.required);
-
-    let usage = commandName;
-    for (const p of requiredParams) {
-      usage += ` <${p.name}>`;
-    }
-    if (optionalParams.length > 0) {
-      usage += ' [options]';
-    }
-
-    let help = `Usage: ${usage}\n`;
-    if (description) {
-      help += `${description}\n`;
-    }
-    help += `Use --help for detailed information.`;
-
-    return help;
-  }
-
-  /**
-   * Generates detailed help text (--help)
-   */
-  private generateDetailedHelp(
-    serverName: string,
-    toolName: string,
-    description: string | undefined,
-    params: ParamInfo[]
-  ): string {
-    const commandName = `mcp:${serverName}:${toolName}`;
-    const requiredParams = params.filter((p) => p.required);
-    const optionalParams = params.filter((p) => !p.required);
-
-    let help = `${commandName}\n`;
-    help += '='.repeat(commandName.length) + '\n\n';
-
-    if (description) {
-      help += `DESCRIPTION\n  ${description}\n\n`;
-    }
-
-    // Usage
-    let usage = commandName;
-    for (const p of requiredParams) {
-      usage += ` <${p.name}>`;
-    }
-    if (optionalParams.length > 0) {
-      usage += ' [options]';
-    }
-    help += `USAGE\n  ${usage}\n\n`;
-
-    // Arguments
-    if (requiredParams.length > 0) {
-      help += 'ARGUMENTS\n';
-      for (const p of requiredParams) {
-        help += `  <${p.name}>  (${p.type}) ${p.description}\n`;
-        if (p.enumValues) {
-          help += `             Allowed values: ${p.enumValues.join(', ')}\n`;
-        }
-      }
-      help += '\n';
-    }
-
-    // Options
-    if (optionalParams.length > 0) {
-      help += 'OPTIONS\n';
-      for (const p of optionalParams) {
-        const defaultStr = p.defaultValue !== undefined ? ` (default: ${JSON.stringify(p.defaultValue)})` : '';
-        help += `  --${p.name}=<value>  (${p.type}) ${p.description}${defaultStr}\n`;
-        if (p.enumValues) {
-          help += `                      Allowed values: ${p.enumValues.join(', ')}\n`;
-        }
-      }
-      help += '\n';
-    }
-
-    help += 'SPECIAL OPTIONS\n';
-    help += '  -h         Show brief help\n';
-    help += '  --help     Show this detailed help\n';
-
-    return help;
-  }
-
-  /**
-   * Generates the wrapper script content
-   */
-  private generateScriptContent(
-    serverName: string,
-    tool: McpToolInfo
-  ): string {
+  /** 生成 wrapper 脚本内容 */
+  private generateScriptContent(serverName: string, tool: McpToolInfo): string {
     const params = this.extractParams(tool.inputSchema as ToolInputSchema);
-    const briefHelp = this.generateBriefHelp(serverName, tool.name, tool.description, params);
-    const detailedHelp = this.generateDetailedHelp(serverName, tool.name, tool.description, params);
+    const commandName = `mcp:${serverName}:${tool.name}`;
+
+    const briefHelp = generateBriefHelp({ commandName, description: tool.description, params });
+    const detailedHelp = generateDetailedHelp({ commandName, description: tool.description, params });
+
     const requiredParams = params.filter((p) => p.required);
     const optionalParams = params.filter((p) => !p.required);
 
-    // Generate the script
-    const script = `#!/usr/bin/env bun
+    return `#!/usr/bin/env bun
 /**
- * MCP Tool Wrapper: mcp:${serverName}:${tool.name}
+ * MCP Tool Wrapper: ${commandName}
  *
  * Auto-generated by Synapse Agent MCP Wrapper Generator
  * Server: ${serverName}
@@ -336,44 +216,7 @@ function parseValue(value: string, type: string): unknown {
 // Format: __MCP_CALL__:serverName:toolName:argsJson
 console.log('__MCP_CALL__:${serverName}:${tool.name}:' + JSON.stringify(toolArgs));
 `;
-
-    return script;
-  }
-
-  /**
-   * Generates a wrapper for a single tool
-   *
-   * @param serverName - Name of the MCP server
-   * @param tool - Tool information
-   * @returns Generated wrapper metadata
-   */
-  public generateWrapper(serverName: string, tool: McpToolInfo): GeneratedWrapper {
-    const commandName = `mcp:${serverName}:${tool.name}`;
-    const scriptContent = this.generateScriptContent(serverName, tool);
-    const binDir = this.options.binDir.replace(/^~/, process.env.HOME || '');
-    const scriptPath = `${binDir}/${commandName}`;
-
-    return {
-      commandName,
-      serverName,
-      toolName: tool.name,
-      scriptPath,
-      content: scriptContent,
-      description: tool.description,
-    };
-  }
-
-  /**
-   * Generates wrappers for all tools from a server
-   *
-   * @param serverName - Name of the MCP server
-   * @param tools - Array of tool information
-   * @returns Array of generated wrapper metadata
-   */
-  public generateWrappers(serverName: string, tools: McpToolInfo[]): GeneratedWrapper[] {
-    return tools.map((tool) => this.generateWrapper(serverName, tool));
   }
 }
 
-// Default export
 export default McpWrapperGenerator;

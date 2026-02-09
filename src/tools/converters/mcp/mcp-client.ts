@@ -28,7 +28,7 @@ import { parseEnvInt } from '../../../utils/env.js';
 /**
  * Default timeout for MCP operations in milliseconds
  */
-const DEFAULT_TIMEOUT_MS = parseEnvInt(process.env.MCP_TIMEOUT_MS, 30000);
+const DEFAULT_TIMEOUT_MS = parseEnvInt(process.env.SYNAPSE_MCP_TIMEOUT_MS, 30000);
 
 /**
  * Default client name for MCP protocol handshake

@@ -3,6 +3,12 @@
  */
 
 export {
+  type LLMClient,
+  type LLMStreamedMessage,
+  type LLMGenerateOptions,
+} from './llm-client.ts';
+
+export {
   generate,
   type GenerateResult,
   type GenerateOptions,
