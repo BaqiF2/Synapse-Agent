@@ -72,10 +72,15 @@ let originalHomeDir: string | undefined;
 let tempHomeDir: string;
 let homedirSpy: ReturnType<typeof spyOn> | null = null;
 
+let originalApiKey: string | undefined;
+
 beforeEach(() => {
   capturedSkillEnhancePrompt = null;
   mockSubAgentResponses = ['[Skill] No enhancement needed'];
   capturedExecuteParams = [];
+  // 设置 dummy API key，避免 AnthropicClient 构造函数抛出异常（SubAgentManager 已被 mock）
+  originalApiKey = process.env.ANTHROPIC_API_KEY;
+  process.env.ANTHROPIC_API_KEY = 'test-dummy-key';
   originalHomeDir = process.env.HOME;
   tempHomeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skill-enhance-home-'));
   process.env.HOME = tempHomeDir;
@@ -103,6 +108,7 @@ afterEach(() => {
     fs.rmSync(tempHomeDir, { recursive: true, force: true });
   }
   process.env.HOME = originalHomeDir;
+  process.env.ANTHROPIC_API_KEY = originalApiKey;
   delete process.env.SYNAPSE_META_SKILLS_DIR;
 });
 
