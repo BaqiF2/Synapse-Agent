@@ -72,15 +72,10 @@ let originalHomeDir: string | undefined;
 let tempHomeDir: string;
 let homedirSpy: ReturnType<typeof spyOn> | null = null;
 
-let originalApiKey: string | undefined;
-
 beforeEach(() => {
   capturedSkillEnhancePrompt = null;
   mockSubAgentResponses = ['[Skill] No enhancement needed'];
   capturedExecuteParams = [];
-  // 设置 dummy API key，避免 AnthropicClient 构造函数抛出异常（SubAgentManager 已被 mock）
-  originalApiKey = process.env.ANTHROPIC_API_KEY;
-  process.env.ANTHROPIC_API_KEY = 'test-dummy-key';
   originalHomeDir = process.env.HOME;
   tempHomeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skill-enhance-home-'));
   process.env.HOME = tempHomeDir;
@@ -108,7 +103,6 @@ afterEach(() => {
     fs.rmSync(tempHomeDir, { recursive: true, force: true });
   }
   process.env.HOME = originalHomeDir;
-  process.env.ANTHROPIC_API_KEY = originalApiKey;
   delete process.env.SYNAPSE_META_SKILLS_DIR;
 });
 
@@ -470,8 +464,15 @@ describe('SkillEnhanceHook - Sub-agent 超时处理 (Feature 14)', () => {
     const settingsProto = SettingsManager.prototype;
     const originalIsAutoEnhanceEnabled = settingsProto.isAutoEnhanceEnabled;
     const originalGetMaxEnhanceContextChars = settingsProto.getMaxEnhanceContextChars;
+    const originalGetLlmConfig = settingsProto.getLlmConfig;
     settingsProto.isAutoEnhanceEnabled = () => true;
     settingsProto.getMaxEnhanceContextChars = () => 50000;
+    // mock getLlmConfig 提供 dummy API key，避免 AnthropicClient 构造时因无 key 报错
+    settingsProto.getLlmConfig = () => ({
+      apiKey: 'test-dummy-key',
+      baseURL: 'https://api.anthropic.com',
+      model: 'claude-sonnet-4-5',
+    });
 
     mockSubAgentResponses = [
       '我来分析这个对话历史，确定是否需要创建新技能或增强现有技能。',
@@ -490,6 +491,7 @@ describe('SkillEnhanceHook - Sub-agent 超时处理 (Feature 14)', () => {
     } finally {
       settingsProto.isAutoEnhanceEnabled = originalIsAutoEnhanceEnabled;
       settingsProto.getMaxEnhanceContextChars = originalGetMaxEnhanceContextChars;
+      settingsProto.getLlmConfig = originalGetLlmConfig;
       fs.rmSync(tempDir, { recursive: true, force: true });
       delete process.env.SYNAPSE_SESSIONS_DIR;
     }
@@ -511,8 +513,15 @@ describe('SkillEnhanceHook - Sub-agent 超时处理 (Feature 14)', () => {
     const settingsProto = SettingsManager.prototype;
     const originalIsAutoEnhanceEnabled = settingsProto.isAutoEnhanceEnabled;
     const originalGetMaxEnhanceContextChars = settingsProto.getMaxEnhanceContextChars;
+    const originalGetLlmConfig = settingsProto.getLlmConfig;
     settingsProto.isAutoEnhanceEnabled = () => true;
     settingsProto.getMaxEnhanceContextChars = () => 50000;
+    // mock getLlmConfig 提供 dummy API key，避免 AnthropicClient 构造时因无 key 报错
+    settingsProto.getLlmConfig = () => ({
+      apiKey: 'test-dummy-key',
+      baseURL: 'https://api.anthropic.com',
+      model: 'claude-sonnet-4-5',
+    });
 
     mockSubAgentResponses = ['我来分析一下。', '继续分析中。'];
 
@@ -528,6 +537,7 @@ describe('SkillEnhanceHook - Sub-agent 超时处理 (Feature 14)', () => {
     } finally {
       settingsProto.isAutoEnhanceEnabled = originalIsAutoEnhanceEnabled;
       settingsProto.getMaxEnhanceContextChars = originalGetMaxEnhanceContextChars;
+      settingsProto.getLlmConfig = originalGetLlmConfig;
       fs.rmSync(tempDir, { recursive: true, force: true });
       delete process.env.SYNAPSE_SESSIONS_DIR;
     }
