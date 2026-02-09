@@ -158,7 +158,7 @@ export class BashRouter {
     }
 
     // 重置 skill command handler
-    const skillEntry = this.handlerRegistry.get('skill:load');
+    const skillEntry = this.handlerRegistry.get('skill:');
     if (skillEntry?.handler) {
       (skillEntry.handler as SkillCommandHandler).shutdown();
       skillEntry.handler = null;
@@ -191,30 +191,31 @@ export class BashRouter {
     this.registerHandler('task:', CommandType.AGENT_SHELL_COMMAND, null, 'prefix', () => this.createTaskHandler());
 
     // Agent Shell — skill 管理命令（prefix 匹配，惰性初始化）
-    this.registerHandler('skill:load', CommandType.AGENT_SHELL_COMMAND, null, 'prefix', () => this.createSkillHandler());
+    this.registerHandler('skill:', CommandType.AGENT_SHELL_COMMAND, null, 'prefix', () => this.createSkillHandler());
 
     // Extend Shell — mcp 和 skill tool（prefix 匹配）
     this.registerHandler('mcp:', CommandType.EXTEND_SHELL_COMMAND, new McpCommandHandler(), 'prefix');
-    this.registerHandler('skill:', CommandType.EXTEND_SHELL_COMMAND, new SkillToolHandler(), 'prefix');
+    // 注意：使用内部前缀 skill-tool: 作为注册表 key，实际匹配在 findHandler() 中特殊处理
+    this.registerHandler('skill-tool:', CommandType.EXTEND_SHELL_COMMAND, new SkillToolHandler(), 'prefix');
   }
 
   /** 在注册表中查找匹配的处理器条目 */
   private findHandler(trimmed: string): HandlerEntry | null {
-    // Extend Shell 的 skill: 需要特殊处理：
-    // skill:load → Agent Shell（skill 管理）
-    // skill:name:tool → Extend Shell（skill 工具调用，三段式）
-    // skill:xxx → 不匹配（只有两段，既不是 load 也不是三段式工具调用）
+    // skill: 命令需要特殊处理：
+    // 1. skill:name:tool（三段式）-> Extend Shell SkillToolHandler
+    // 2. 其他 skill:* -> Agent Shell SkillCommandHandler
+    if (trimmed.startsWith('skill:')) {
+      if (isSkillToolCommand(trimmed)) {
+        return this.handlerRegistry.get('skill-tool:') ?? null;
+      }
+      return this.handlerRegistry.get('skill:') ?? null;
+    }
 
     for (const [prefix, entry] of this.handlerRegistry) {
       if (entry.matchMode === 'exact') {
         if (matchesExact(trimmed, prefix)) return entry;
       } else {
-        // prefix 匹配
-        if (trimmed.startsWith(prefix)) {
-          // skill: 前缀需要区分 skill:load 和 skill:*:*
-          if (prefix === 'skill:' && !isSkillToolCommand(trimmed)) continue;
-          return entry;
-        }
+        if (trimmed.startsWith(prefix)) return entry;
       }
     }
 
@@ -275,8 +276,17 @@ export class BashRouter {
 
   /** 创建 SkillCommandHandler（惰性） */
   private createSkillHandler(): SkillCommandHandler {
+    const { llmClient, toolExecutor, onSubAgentToolStart, onSubAgentToolEnd, onSubAgentComplete, onSubAgentUsage } =
+      this.options;
+
     return new SkillCommandHandler({
       homeDir: path.dirname(this.options.synapseDir ?? DEFAULT_SYNAPSE_DIR),
+      llmClient,
+      toolExecutor,
+      onSubAgentToolStart,
+      onSubAgentToolEnd,
+      onSubAgentComplete,
+      onSubAgentUsage,
     });
   }
 }

@@ -42,6 +42,33 @@ export {
   type SkillLevel2,
 } from './skill-loader.js';
 
+// Skill Management Types
+export type {
+  VersionInfo,
+  SkillMeta,
+  ConflictInfo,
+  SimilarInfo,
+  MergeCandidate,
+  ImportResult,
+  ImportOptions,
+  MergeIntoOption,
+} from './types.js';
+
+// Skill Merger
+export {
+  SkillMerger,
+} from './skill-merger.js';
+
+// Skill Manager
+export {
+  SkillManager,
+  MAX_VERSIONS_DEFAULT,
+  IMPORT_TIMEOUT_DEFAULT,
+  getConfiguredMaxVersions,
+  getConfiguredImportTimeout,
+  type SkillManagerOptions,
+} from './skill-manager.js';
+
 // Conversation Reader
 export {
   ConversationReader,
