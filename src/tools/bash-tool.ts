@@ -39,7 +39,7 @@ import type {
 } from '../cli/terminal-renderer-types.ts';
 import { addPermanentWhitelist, loadSandboxConfig } from '../sandbox/sandbox-config.ts';
 import { SandboxManager } from '../sandbox/sandbox-manager.ts';
-import type { ExecuteResult } from '../sandbox/types.ts';
+import type { ExecuteResult, SandboxConfig } from '../sandbox/types.ts';
 
 const COMMAND_TIMEOUT_MARKER = 'Command execution timeout';
 const BASH_TOOL_MISUSE_REGEX = /^Bash(?:\s|\(|$)/;
@@ -83,6 +83,8 @@ export interface BashToolOptions {
   onSubAgentUsage?: OnUsage;
   /** 测试或外部注入的 SandboxManager */
   sandboxManager?: SandboxManager;
+  /** 沙箱配置（createIsolatedCopy 时继承，优先于 loadSandboxConfig()） */
+  sandboxConfig?: SandboxConfig;
 }
 
 /**
@@ -106,7 +108,8 @@ export class BashTool extends CallableTool<BashToolParams> {
     this.description = loadDesc(path.join(import.meta.dirname, 'bash-tool.md'));
 
     this.session = new BashSession();
-    this.sandboxManager = options.sandboxManager ?? new SandboxManager(loadSandboxConfig());
+    this.sandboxManager = options.sandboxManager
+      ?? new SandboxManager(options.sandboxConfig ?? loadSandboxConfig());
     this.router = new BashRouter(this.session, {
       llmClient: options.llmClient,
       sandboxManager: this.sandboxManager,

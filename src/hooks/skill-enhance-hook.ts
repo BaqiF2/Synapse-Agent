@@ -23,6 +23,7 @@ import { ConversationReader } from '../skills/conversation-reader.ts';
 import { AnthropicClient } from '../providers/anthropic/anthropic-client.ts';
 import { BashTool } from '../tools/bash-tool.ts';
 import { SubAgentManager } from '../sub-agents/sub-agent-manager.ts';
+import { loadSandboxConfig } from '../sandbox/sandbox-config.ts';
 import { stopHookRegistry } from './stop-hook-registry.ts';
 import { SKILL_ENHANCE_PROGRESS_TEXT } from './skill-enhance-constants.ts';
 import {
@@ -226,9 +227,12 @@ export async function skillEnhanceHook(context: StopHookContext): Promise<HookRe
   await context.onProgress?.(SKILL_ENHANCE_PROGRESS_TEXT);
 
   try {
-    // 创建必要的组件
+    // 创建必要的组件（SubAgent 为内部组件，禁用沙箱避免不必要的隔离失败）
     const client = new AnthropicClient({ settings: SettingsManager.getInstance().getLlmConfig() });
-    const bashTool = new BashTool({ llmClient: client });
+    const bashTool = new BashTool({
+      llmClient: client,
+      sandboxConfig: { ...loadSandboxConfig(), enabled: false },
+    });
     const subAgentManager = new SubAgentManager({
       client,
       bashTool,

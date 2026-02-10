@@ -60,14 +60,15 @@ describe('MacOSAdapter', () => {
     expect(fs.existsSync(profilePath)).toBe(true);
   });
 
-  it('.sb profile 包含默认拒绝规则', () => {
+  it('.sb profile 使用默认允许策略，避免 Bash 启动时被过度限制', () => {
     const adapter = new MacOSAdapter();
     const command = adapter.wrapCommand(createPolicy());
     const profilePath = extractProfilePath(command);
     createdProfilePaths.push(profilePath);
 
     const content = fs.readFileSync(profilePath, 'utf-8');
-    expect(content).toContain('(deny default)');
+    expect(content).toContain('(allow default)');
+    expect(content).not.toContain('(deny default)');
   });
 
   it('.sb profile 包含白名单读写规则', () => {

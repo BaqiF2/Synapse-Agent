@@ -143,7 +143,7 @@ export class MacOSAdapter implements PlatformAdapter {
     return [
       '(version 1)',
       '',
-      '(deny default)',
+      '(allow default)',
       '',
       '(allow process-fork)',
       '(allow process-exec)',

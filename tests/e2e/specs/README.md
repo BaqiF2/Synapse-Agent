@@ -2,14 +2,14 @@
 
 ## 分片规则
 - 单个文件最大 `1000` 行（含空行）。
-- 达到上限后，新增同模块下一分片文件：`part02`、`part03`。
+- 达到上限后，新增同模块下一分片文件：`part02`、`part03`、`part04`、`part05`、`part06`、`part07`、`part08`、`part09`（按需递增）。
 - 单个 Scenario 不跨文件拆分。
 
 ## 模块与优先级
-1. P0 核心运行链路：`01-p0-core-runtime-part01.md`
-2. P1 核心工具能力：`02-p1-core-tools-part01.md`
-3. P2 扩展与集成能力：`03-p2-integration-part01.md`
-4. P3 稳定性与体验保障：`04-p3-reliability-ux-part01.md`
+1. P0 核心运行链路：`01-p0-core-runtime-part01.md`、`01-p0-core-runtime-part02.md`、`01-p0-core-runtime-part03.md`、`01-p0-core-runtime-part04.md`、`01-p0-core-runtime-part05.md`、`01-p0-core-runtime-part06.md`、`01-p0-core-runtime-part07.md`、`01-p0-core-runtime-part08.md`、`01-p0-core-runtime-part09.md`
+2. P1 核心工具能力：`02-p1-core-tools-part01.md`、`02-p1-core-tools-part02.md`、`02-p1-core-tools-part03.md`、`02-p1-core-tools-part04.md`、`02-p1-core-tools-part05.md`、`02-p1-core-tools-part06.md`、`02-p1-core-tools-part07.md`、`02-p1-core-tools-part08.md`、`02-p1-core-tools-part09.md`
+3. P2 扩展与集成能力：`03-p2-integration-part01.md`、`03-p2-integration-part02.md`、`03-p2-integration-part03.md`、`03-p2-integration-part04.md`、`03-p2-integration-part05.md`、`03-p2-integration-part06.md`、`03-p2-integration-part07.md`、`03-p2-integration-part08.md`、`03-p2-integration-part09.md`
+4. P3 稳定性与体验保障：`04-p3-reliability-ux-part01.md`、`04-p3-reliability-ux-part02.md`、`04-p3-reliability-ux-part03.md`、`04-p3-reliability-ux-part04.md`、`04-p3-reliability-ux-part05.md`、`04-p3-reliability-ux-part06.md`、`04-p3-reliability-ux-part07.md`、`04-p3-reliability-ux-part08.md`、`04-p3-reliability-ux-part09.md`
 
 ## 持续生成策略
 - 先补齐高优先级模块的空白场景。
