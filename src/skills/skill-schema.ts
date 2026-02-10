@@ -151,7 +151,8 @@ export class SkillDocParser {
    * @returns Parsed skill document
    */
   public parseContent(content: string, mdPath: string, skillName: string): SkillDoc {
-    const lines = content.split('\n');
+    const { bodyContent, frontmatter } = this.extractFrontmatter(content);
+    const lines = bodyContent.split('\n');
     const skillPath = path.dirname(mdPath);
 
     const result: Partial<SkillDoc> = {
@@ -164,6 +165,7 @@ export class SkillDocParser {
       executionSteps: [],
       examples: [],
     };
+    this.applyFrontmatter(result, frontmatter);
 
     let currentSection: string | null = null;
     let inCodeBlock = false;
@@ -231,6 +233,150 @@ export class SkillDocParser {
     }
 
     return SkillDocSchema.parse(result);
+  }
+
+  /**
+   * 提取 YAML frontmatter
+   */
+  private extractFrontmatter(content: string): { bodyContent: string; frontmatter: Record<string, string | string[]> } {
+    const normalized = content.replace(/^\uFEFF/, '');
+    if (!normalized.startsWith('---')) {
+      return { bodyContent: content, frontmatter: {} };
+    }
+
+    const lines = normalized.split(/\r?\n/);
+    if ((lines[0] ?? '').trim() !== '---') {
+      return { bodyContent: content, frontmatter: {} };
+    }
+
+    let frontmatterEnd = -1;
+    for (let i = 1; i < lines.length; i++) {
+      if ((lines[i] ?? '').trim() === '---') {
+        frontmatterEnd = i;
+        break;
+      }
+    }
+
+    if (frontmatterEnd === -1) {
+      return { bodyContent: content, frontmatter: {} };
+    }
+
+    const frontmatterContent = lines.slice(1, frontmatterEnd).join('\n');
+    const bodyContent = lines.slice(frontmatterEnd + 1).join('\n');
+
+    return {
+      bodyContent,
+      frontmatter: this.parseFrontmatter(frontmatterContent),
+    };
+  }
+
+  /**
+   * 解析 frontmatter 的 key/value
+   */
+  private parseFrontmatter(frontmatterContent: string): Record<string, string | string[]> {
+    const metadata: Record<string, string | string[]> = {};
+    const lines = frontmatterContent.split('\n');
+    let currentListKey: string | null = null;
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) {
+        continue;
+      }
+
+      const listItemMatch = trimmed.match(/^-\s+(.+)$/);
+      if (listItemMatch && currentListKey) {
+        const item = this.stripWrappingQuotes((listItemMatch[1] ?? '').trim());
+        if (!item) continue;
+        const existing = metadata[currentListKey];
+        if (Array.isArray(existing)) {
+          existing.push(item);
+        } else {
+          metadata[currentListKey] = [item];
+        }
+        continue;
+      }
+
+      const keyValueMatch = trimmed.match(/^([A-Za-z0-9_-]+)\s*:\s*(.*)$/);
+      if (!keyValueMatch) {
+        currentListKey = null;
+        continue;
+      }
+
+      const key = (keyValueMatch[1] ?? '').toLowerCase();
+      const rawValue = (keyValueMatch[2] ?? '').trim();
+      if (!key) {
+        currentListKey = null;
+        continue;
+      }
+
+      if (!rawValue) {
+        metadata[key] = [];
+        currentListKey = key;
+        continue;
+      }
+
+      currentListKey = null;
+      if (rawValue.startsWith('[') && rawValue.endsWith(']')) {
+        metadata[key] = this.parseFrontmatterListValue(rawValue);
+      } else {
+        metadata[key] = this.stripWrappingQuotes(rawValue);
+      }
+    }
+
+    return metadata;
+  }
+
+  /**
+   * 将 frontmatter 映射到 SkillDoc
+   */
+  private applyFrontmatter(result: Partial<SkillDoc>, frontmatter: Record<string, string | string[]>): void {
+    const domain = frontmatter.domain;
+    if (typeof domain === 'string' && SKILL_DOMAINS.includes(domain as SkillDomain)) {
+      result.domain = domain as SkillDomain;
+    }
+
+    const version = frontmatter.version;
+    if (typeof version === 'string' && version) {
+      result.version = version;
+    }
+
+    const description = frontmatter.description;
+    if (typeof description === 'string' && description) {
+      result.description = description;
+    }
+
+    const author = frontmatter.author;
+    if (typeof author === 'string' && author) {
+      result.author = author;
+    }
+
+    const tags = frontmatter.tags;
+    if (Array.isArray(tags)) {
+      result.tags = tags.map((tag) => tag.trim()).filter(Boolean);
+    } else if (typeof tags === 'string' && tags) {
+      result.tags = tags.split(/[,，]/).map((tag) => tag.trim()).filter(Boolean);
+    }
+  }
+
+  private parseFrontmatterListValue(rawValue: string): string[] {
+    const inner = rawValue.slice(1, -1).trim();
+    if (!inner) return [];
+    return inner
+      .split(',')
+      .map((item) => this.stripWrappingQuotes(item.trim()))
+      .filter(Boolean);
+  }
+
+  private stripWrappingQuotes(value: string): string {
+    const trimmed = value.trim();
+    if (
+      (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+      (trimmed.startsWith('\'') && trimmed.endsWith('\''))
+    ) {
+      return trimmed.slice(1, -1).trim();
+    }
+    return trimmed;
   }
 
   /**

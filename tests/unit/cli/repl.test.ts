@@ -66,6 +66,28 @@ describe('REPL commands', () => {
     expect(output).toContain('/cost');
     expect(output).toContain('/context');
     expect(output).toContain('Show context usage stats');
+    expect(output).toContain('/skill:list');
+    expect(output).toContain('/skill:import');
+    expect(output).not.toContain('/skills');
+
+    console.log = originalConsoleLog;
+  });
+
+  it('handleSpecialCommand should route /skill:* commands through agent bash execution', async () => {
+    console.log = mock(() => {}) as unknown as typeof console.log;
+    const rl = createMockRl();
+    const executeBashCommand = mock(async (_command: string) => 'import output');
+    const agentRunner = { executeBashCommand } as unknown as AgentRunner;
+    const { handleSpecialCommand } = await loadRepl();
+
+    const handled = await handleSpecialCommand('/skill:import /tmp/source', rl as unknown as readline.Interface, agentRunner, {
+      skipExit: true,
+    });
+
+    expect(handled).toBe(true);
+    expect(executeBashCommand).toHaveBeenCalledWith('skill:import /tmp/source');
+    const output = getConsoleOutput();
+    expect(output).toContain('import output');
 
     console.log = originalConsoleLog;
   });
@@ -129,7 +151,7 @@ describe('REPL commands', () => {
     console.log = originalConsoleLog;
   });
 
-  it('handleSpecialCommand should show skills when empty', async () => {
+  it('handleSpecialCommand should show /skill:list when empty', async () => {
     const skillsDir = path.join(tempHomeDir, '.synapse', 'skills');
     fs.mkdirSync(skillsDir, { recursive: true });
 
@@ -137,11 +159,61 @@ describe('REPL commands', () => {
     console.log = mock(() => {}) as unknown as typeof console.log;
     const rl = createMockRl();
 
-    const handled = await handleSpecialCommand('/skills', rl as unknown as readline.Interface, null, { skipExit: true });
+    const handled = await handleSpecialCommand('/skill:list', rl as unknown as readline.Interface, null, {
+      skipExit: true,
+    });
 
     expect(handled).toBe(true);
     const output = getConsoleOutput();
     expect(output).toContain('No skills installed.');
+
+    console.log = originalConsoleLog;
+  });
+
+  it('handleSpecialCommand should report /skills as unknown command', async () => {
+    console.log = mock(() => {}) as unknown as typeof console.log;
+    const rl = createMockRl();
+    const { handleSpecialCommand } = await loadRepl();
+
+    const handled = await handleSpecialCommand('/skills', rl as unknown as readline.Interface, null, {
+      skipExit: true,
+    });
+
+    expect(handled).toBe(true);
+    const output = getConsoleOutput();
+    expect(output).toContain('Unknown command: /skills');
+
+    console.log = originalConsoleLog;
+  });
+
+  it('handleSpecialCommand should show versions in /skill:list output', async () => {
+    const skillDir = path.join(tempHomeDir, '.synapse', 'skills', 'demo-skill');
+    fs.mkdirSync(path.join(skillDir, 'versions', '2026-02-10-001'), { recursive: true });
+    fs.mkdirSync(path.join(skillDir, 'versions', '2026-02-10-002'), { recursive: true });
+    fs.writeFileSync(
+      path.join(skillDir, 'SKILL.md'),
+      `---
+name: demo-skill
+description: Demo skill description
+---
+`
+    );
+
+    const { handleSpecialCommand } = await import('../../../src/cli/repl.ts');
+    console.log = mock(() => {}) as unknown as typeof console.log;
+    const rl = createMockRl();
+
+    const handled = await handleSpecialCommand('/skill:list', rl as unknown as readline.Interface, null, {
+      skipExit: true,
+    });
+
+    expect(handled).toBe(true);
+    const output = getConsoleOutput();
+    expect(output).toContain('demo-skill');
+    expect(output).toContain('Demo skill description');
+    expect(output).toContain('versions:');
+    expect(output).toContain('2026-02-10-002');
+    expect(output).toContain('2026-02-10-001');
 
     console.log = originalConsoleLog;
   });
@@ -324,9 +396,118 @@ describe('REPL commands', () => {
     expect(onResumeSession).toHaveBeenCalledWith('session-visible-abcdef');
     const output = getConsoleOutput();
     expect(output).toContain('session-visible-abcde');
+    expect(output).toContain('first chat: 2026-02-07');
     expect(output).not.toContain('session-current-abcde');
     expect(output).not.toContain('session-empty-abcde');
 
+    listSpy.mockRestore();
+    console.log = originalConsoleLog;
+  });
+
+  it('handleSpecialCommand should show original user input in /resume list', async () => {
+    console.log = mock(() => {}) as unknown as typeof console.log;
+    const onResumeSession = mock((_sessionId: string) => {});
+    const rl = createMockRl();
+    rl.question = mock((_prompt: string, cb: (answer: string) => void) => cb(''));
+    const { handleSpecialCommand } = await loadRepl();
+    const { Session } = await import('../../../src/agent/session.ts');
+
+    const listSpy = spyOn(Session, 'list').mockResolvedValue([
+      {
+        id: 'session-user-input-abcdef',
+        createdAt: '2026-02-10T03:02:06.492Z',
+        updatedAt: '2026-02-10T03:03:57.289Z',
+        messageCount: 2,
+        title: '# Skill Search Priority\n\n**RULE: Never guess sk...',
+      },
+    ]);
+
+    const findSpy = spyOn(Session, 'find').mockImplementation(async () =>
+      ({
+        loadHistory: async () => [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text: '# Skill Search Priority\n\n...\n\nOriginal user request:\n请修复 /resume 展示',
+              },
+            ],
+          },
+        ],
+      }) as any
+    );
+
+    const handled = await handleSpecialCommand('/resume', rl as unknown as readline.Interface, null, {
+      skipExit: true,
+      onResumeSession,
+      getCurrentSessionId: () => 'session-current-abcdef',
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(handled).toBe(true);
+    const output = getConsoleOutput();
+    expect(output).toContain('请修复 /resume 展示');
+    expect(output).not.toContain('Skill Search Priority');
+
+    findSpy.mockRestore();
+    listSpy.mockRestore();
+    console.log = originalConsoleLog;
+  });
+
+  it('handleSpecialCommand should wait for /resume interactive selection before resolving', async () => {
+    console.log = mock(() => {}) as unknown as typeof console.log;
+    const onResumeSession = mock((_sessionId: string) => {});
+    let capturedCallback: ((answer: string) => void) | null = null;
+    const rl = createMockRl();
+    rl.question = mock((_prompt: string, cb: (answer: string) => void) => {
+      capturedCallback = cb;
+    });
+    const { handleSpecialCommand } = await loadRepl();
+    const { Session } = await import('../../../src/agent/session.ts');
+
+    const listSpy = spyOn(Session, 'list').mockResolvedValue([
+      {
+        id: 'session-visible-abcdef',
+        createdAt: '2026-02-10T03:02:06.492Z',
+        updatedAt: '2026-02-10T03:03:57.289Z',
+        messageCount: 2,
+        title: 'hello',
+      },
+    ]);
+
+    const findSpy = spyOn(Session, 'find').mockImplementation(async () =>
+      ({
+        loadHistory: async () => [
+          {
+            role: 'user',
+            content: [{ type: 'text', text: 'hello' }],
+          },
+        ],
+      }) as any
+    );
+
+    const handledPromise = handleSpecialCommand('/resume', rl as unknown as readline.Interface, null, {
+      skipExit: true,
+      onResumeSession,
+      getCurrentSessionId: () => 'session-current-abcdef',
+    });
+
+    let resolved = false;
+    void handledPromise.then(() => {
+      resolved = true;
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(resolved).toBe(false);
+    expect(capturedCallback).not.toBeNull();
+
+    capturedCallback!('1');
+    const handled = await handledPromise;
+    expect(handled).toBe(true);
+    expect(onResumeSession).toHaveBeenCalledWith('session-visible-abcdef');
+
+    findSpy.mockRestore();
     listSpy.mockRestore();
     console.log = originalConsoleLog;
   });

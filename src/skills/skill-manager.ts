@@ -46,6 +46,17 @@ export interface SkillManagerOptions {
   createTempDir?: () => Promise<string>;
 }
 
+interface ImportCandidate {
+  skillName: string;
+  sourcePath: string;
+}
+
+interface RemoteImportSource {
+  cloneUrl: string;
+  branch?: string;
+  importSubPath?: string;
+}
+
 /**
  * SkillManager
  *
@@ -109,10 +120,20 @@ export class SkillManager {
       return null;
     }
 
-    const indexed = this.indexer.getSkill(name) ?? this.createFallbackEntry(name);
+    let indexed = this.indexer.getSkill(name);
+    try {
+      const refreshed = this.indexer.updateSkill(name);
+      indexed = refreshed?.skills.find((entry) => entry.name === name) ?? indexed;
+    } catch (error) {
+      logger.warn('Failed to refresh skill index before info', {
+        name,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
     const versions = await this.getVersions(name);
     return {
-      ...indexed,
+      ...(indexed ?? this.createFallbackEntry(name)),
       versions,
     };
   }
@@ -219,12 +240,9 @@ export class SkillManager {
       similar: [],
     };
 
-    const entries = await fsp.readdir(dirPath, { withFileTypes: true });
-    for (const entry of entries) {
-      if (!entry.isDirectory() || entry.name.startsWith('.')) continue;
-
-      const skillName = entry.name;
-      const sourcePath = path.join(dirPath, skillName);
+    const candidates = await this.collectImportCandidates(dirPath);
+    for (const candidate of candidates) {
+      const { skillName, sourcePath } = candidate;
       const targetPath = path.join(this.skillsDir, skillName);
 
       // 1. 同名冲突
@@ -294,10 +312,18 @@ export class SkillManager {
     const tempDir = await this.createTempDir();
     await fsp.mkdir(tempDir, { recursive: true });
 
-    const command = `git clone --depth 1 ${quoteForShell(url)} ${quoteForShell(tempDir)}`;
+    const remote = this.parseRemoteImportSource(url);
+    const commandParts = ['git clone --depth 1'];
+    if (remote.branch) {
+      commandParts.push(`--branch ${quoteForShell(remote.branch)}`);
+    }
+    commandParts.push(quoteForShell(remote.cloneUrl), quoteForShell(tempDir));
+    const command = commandParts.join(' ');
+
     try {
       await this.execCommand(command, { timeout: this.importTimeoutMs });
-      return await this.importFromDirectory(tempDir, options);
+      const importSourceDir = await this.resolveImportSourceDir(tempDir, remote.importSubPath);
+      return await this.importFromDirectory(importSourceDir, options);
     } catch (error) {
       if (this.isTimeoutError(error)) {
         throw new Error(`Skill import from URL timed out after ${this.importTimeoutMs}ms`);
@@ -306,6 +332,80 @@ export class SkillManager {
     } finally {
       await fsp.rm(tempDir, { recursive: true, force: true });
     }
+  }
+
+  private async collectImportCandidates(dirPath: string): Promise<ImportCandidate[]> {
+    const sourceStat = await this.safeStat(dirPath);
+    if (!sourceStat) {
+      throw new Error(`Import source not found: ${dirPath}`);
+    }
+    if (!sourceStat.isDirectory()) {
+      throw new Error(`Import source is not a directory: ${dirPath}`);
+    }
+
+    const skillMdPath = path.join(dirPath, 'SKILL.md');
+    if (await this.exists(skillMdPath)) {
+      return [{
+        skillName: path.basename(path.resolve(dirPath)),
+        sourcePath: dirPath,
+      }];
+    }
+
+    const entries = await fsp.readdir(dirPath, { withFileTypes: true });
+    const visibleDirectories = entries.filter((entry) => entry.isDirectory() && !entry.name.startsWith('.'));
+
+    // 兼容包装目录：<wrapper>/skills/<skill-name>/SKILL.md
+    if (visibleDirectories.length === 1 && visibleDirectories[0]?.name === 'skills') {
+      const nestedRoot = path.join(dirPath, 'skills');
+      const nestedEntries = await fsp.readdir(nestedRoot, { withFileTypes: true });
+      const nestedCandidates = await this.toSkillCandidates(nestedRoot, nestedEntries);
+      if (nestedCandidates.length > 0) {
+        return nestedCandidates;
+      }
+    }
+
+    return this.toSkillCandidates(dirPath, visibleDirectories);
+  }
+
+  private parseRemoteImportSource(url: string): RemoteImportSource {
+    const githubTreeMatch = url.match(/^https?:\/\/github\.com\/([^/]+)\/([^/]+)\/tree\/([^/]+)(?:\/(.+))?\/?$/);
+    if (!githubTreeMatch) {
+      return { cloneUrl: url };
+    }
+
+    const owner = githubTreeMatch[1] ?? '';
+    const repo = githubTreeMatch[2] ?? '';
+    const branch = decodeURIComponent(githubTreeMatch[3] ?? '');
+    const importSubPath = githubTreeMatch[4] ? decodeURIComponent(githubTreeMatch[4]) : undefined;
+    const repoName = repo.endsWith('.git') ? repo : `${repo}.git`;
+
+    return {
+      cloneUrl: `https://github.com/${owner}/${repoName}`,
+      branch: branch || undefined,
+      importSubPath,
+    };
+  }
+
+  private async resolveImportSourceDir(baseDir: string, importSubPath?: string): Promise<string> {
+    if (!importSubPath) {
+      return baseDir;
+    }
+
+    const resolvedBase = path.resolve(baseDir);
+    const resolvedPath = path.resolve(baseDir, importSubPath);
+    if (resolvedPath !== resolvedBase && !resolvedPath.startsWith(`${resolvedBase}${path.sep}`)) {
+      throw new Error(`Invalid import path: ${importSubPath}`);
+    }
+
+    const sourceStat = await this.safeStat(resolvedPath);
+    if (!sourceStat) {
+      throw new Error(`Import path not found in repository: ${importSubPath}`);
+    }
+    if (!sourceStat.isDirectory()) {
+      throw new Error(`Import path is not a directory: ${importSubPath}`);
+    }
+
+    return resolvedPath;
   }
 
   private async generateVersionNumber(name: string): Promise<string> {
@@ -470,6 +570,28 @@ export class SkillManager {
     } catch {
       return false;
     }
+  }
+
+  private async safeStat(targetPath: string): Promise<fs.Stats | null> {
+    try {
+      return await fsp.stat(targetPath);
+    } catch {
+      return null;
+    }
+  }
+
+  private async toSkillCandidates(baseDir: string, entries: fs.Dirent[]): Promise<ImportCandidate[]> {
+    const candidates: ImportCandidate[] = [];
+    for (const entry of entries) {
+      if (!entry.isDirectory() || entry.name.startsWith('.')) continue;
+      const sourcePath = path.join(baseDir, entry.name);
+      if (!(await this.exists(path.join(sourcePath, 'SKILL.md')))) continue;
+      candidates.push({
+        skillName: entry.name,
+        sourcePath,
+      });
+    }
+    return candidates;
   }
 
   private isHttpSource(source: string): boolean {

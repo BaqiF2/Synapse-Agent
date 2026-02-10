@@ -77,7 +77,18 @@ function matchesExact(trimmed: string, cmd: string): boolean {
 }
 
 function isSkillToolCommand(value: string): boolean {
-  return value.startsWith('skill:') && value.split(':').length >= 3;
+  const commandToken = value.trim().split(/\s+/, 1)[0] ?? '';
+  return commandToken.startsWith('skill:') && commandToken.split(':').length >= 3;
+}
+
+function normalizeSlashSkillCommand(command: string): string {
+  const trimmedStart = command.trimStart();
+  if (!trimmedStart.startsWith('/skill:')) {
+    return command;
+  }
+
+  const leadingWhitespace = command.slice(0, command.length - trimmedStart.length);
+  return `${leadingWhitespace}${trimmedStart.slice(1)}`;
 }
 
 function errorResult(message: string): CommandResult {
@@ -108,26 +119,27 @@ export class BashRouter {
       return this.routeWithRestart(command);
     }
 
-    const trimmed = command.trim();
+    const normalizedCommand = normalizeSlashSkillCommand(command);
+    const trimmed = normalizedCommand.trim();
     const entry = this.findHandler(trimmed);
 
     if (!entry) {
       // 默认 Native Shell（可选走 SandboxManager）
-      return asCancelablePromise(this.executeNativeCommand(command));
+      return asCancelablePromise(this.executeNativeCommand(normalizedCommand));
     }
 
     const handler = this.resolveHandler(entry);
     if (!handler) {
-      return asCancelablePromise(Promise.resolve(errorResult(`Handler initialization failed for: ${command}`)));
+      return asCancelablePromise(Promise.resolve(errorResult(`Handler initialization failed for: ${normalizedCommand}`)));
     }
 
-    const result = handler.execute(command);
+    const result = handler.execute(normalizedCommand);
     return 'cancel' in result ? result as CancelablePromise<CommandResult> : asCancelablePromise(result);
   }
 
   /** 识别命令类型（public，供测试使用） */
   identifyCommandType(command: string): CommandType {
-    const trimmed = command.trim();
+    const trimmed = normalizeSlashSkillCommand(command).trim();
 
     // Extend Shell — mcp:* 和 skill:*:*（三段式）
     if (trimmed.startsWith('mcp:')) return CommandType.EXTEND_SHELL_COMMAND;

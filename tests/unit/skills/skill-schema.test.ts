@@ -19,4 +19,20 @@ describe('SkillDocSchema', () => {
 
     expect(doc.toolDependencies).toContain('mcp:filesystem:read_file');
   });
+
+  it('should parse description from frontmatter', () => {
+    const parser = new SkillDocParser();
+    const content = `---
+name: frontmatter-skill
+description: Frontmatter description
+domain: general
+---
+
+# Frontmatter Skill
+`;
+
+    const doc = parser.parseContent(content, '/tmp/SKILL.md', 'frontmatter-skill');
+
+    expect(doc.description).toBe('Frontmatter description');
+  });
 });

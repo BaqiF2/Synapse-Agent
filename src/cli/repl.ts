@@ -136,7 +136,6 @@ export async function startRepl(): Promise<void> {
       const history = await session.loadHistory();
       console.log(chalk.green(`✓ Loaded ${history.length} messages from session\n`));
     }
-    promptUser();
   };
 
   const createSpecialCommandOptions = (): SpecialCommandOptions => ({

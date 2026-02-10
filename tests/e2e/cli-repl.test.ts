@@ -123,10 +123,10 @@ describe('E2E: CLI/REPL Integration', () => {
       expect(handled).toBe(true);
     });
 
-    test('/skills should be handled', async () => {
+    test('/skill:list should be handled', async () => {
       const rl = createMockReadline();
 
-      const handled = await handleSpecialCommand('/skills', rl, null, { skipExit: true });
+      const handled = await handleSpecialCommand('/skill:list', rl, null, { skipExit: true });
       expect(handled).toBe(true);
     });
 

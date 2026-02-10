@@ -93,13 +93,17 @@ export function showHelp(): void {
   console.log(chalk.gray('  /compact         ') + chalk.white('Compress conversation history'));
   console.log(chalk.gray('  /model           ') + chalk.white('Show current model'));
   console.log(chalk.gray('  /tools           ') + chalk.white('List available tools'));
-  console.log(chalk.gray('  /skills          ') + chalk.white('List all available skills'));
   console.log();
   console.log(chalk.white.bold('Session:'));
   console.log(chalk.gray('  /resume          ') + chalk.white('List and resume a previous session'));
   console.log(chalk.gray('  /resume --latest ') + chalk.white('Resume the most recent previous session'));
   console.log();
   console.log(chalk.white.bold('Skill:'));
+  console.log(chalk.gray('  /skill:list          ') + chalk.white('List installed skills'));
+  console.log(chalk.gray('  /skill:info <name>   ') + chalk.white('Show skill details and versions'));
+  console.log(chalk.gray('  /skill:import <src>  ') + chalk.white('Import skills from local dir or URL'));
+  console.log(chalk.gray('  /skill:rollback <name> [version] ') + chalk.white('Rollback skill to a version'));
+  console.log(chalk.gray('  /skill:delete <name> ') + chalk.white('Delete a skill and version history'));
   console.log(chalk.gray('  /skill enhance       ') + chalk.white('Show auto-enhance status'));
   console.log(chalk.gray('  /skill enhance --on  ') + chalk.white('Enable auto skill enhance'));
   console.log(chalk.gray('  /skill enhance --off ') + chalk.white('Disable auto skill enhance'));
@@ -176,8 +180,10 @@ export function showSkillsList(): void {
     }
 
     for (const skill of skills) {
+      const skillDir = path.join(skillsDir, skill.name);
       const skillMdPath = path.join(skillsDir, skill.name, 'SKILL.md');
       let description = chalk.gray('(No description)');
+      let versionSummary = chalk.gray('(none)');
 
       if (fs.existsSync(skillMdPath)) {
         try {
@@ -191,8 +197,26 @@ export function showSkillsList(): void {
         }
       }
 
+      const versionsDir = path.join(skillDir, 'versions');
+      if (fs.existsSync(versionsDir)) {
+        try {
+          const versionEntries = fs.readdirSync(versionsDir, { withFileTypes: true });
+          const versions = versionEntries
+            .filter((entry) => entry.isDirectory() && !entry.name.startsWith('.'))
+            .map((entry) => entry.name)
+            .sort()
+            .reverse();
+          if (versions.length > 0) {
+            versionSummary = chalk.white(versions.join(', '));
+          }
+        } catch {
+          // Ignore read errors
+        }
+      }
+
       console.log(chalk.green(`  ${skill.name}`));
       console.log(`    ${description}`);
+      console.log(`    versions: ${versionSummary}`);
     }
 
     console.log();

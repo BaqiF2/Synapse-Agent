@@ -293,6 +293,33 @@ describe('SkillCommandHandler', () => {
       expect(result.stdout).toContain('Version History');
     });
 
+    it('skill:info 支持 frontmatter 描述并在无版本时显示创建时间', async () => {
+      const skillDir = path.join(skillsDir, 'conversation-memory-tracker');
+      fs.mkdirSync(skillDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(skillDir, 'SKILL.md'),
+        `---
+name: conversation-memory-tracker
+description: Frontmatter description
+domain: general
+---
+
+# Conversation Memory Tracker
+`,
+        'utf-8',
+      );
+
+      const handler = new SkillCommandHandler({ homeDir: testDir });
+      const result = await handler.execute('skill:info conversation-memory-tracker');
+
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('Description: Frontmatter description');
+
+      const createdLine = result.stdout.split('\n').find((line) => line.startsWith('Created: '));
+      expect(createdLine).toBeDefined();
+      expect(createdLine).not.toBe('Created: N/A');
+    });
+
     it('导入冲突时提示修改名称', async () => {
       const skillManager = {
         list: mock(async () => []),

@@ -26,6 +26,10 @@ Through the Bash tool, you can:
 ## Problem-Solving Approach
 
 1. Understand the task
-2. Search for relevant commands: `Bash(command="command:search keyword")`
-3. Execute with the Bash tool
-4. Verify results
+2. Judge complexity and capability needs
+3. If task is complex or capability is uncertain, search first:
+   - `Bash(command="task:skill:search --prompt 'intent keywords' --description 'Find relevant skills'")`
+   - `Bash(command="command:search intent keywords")`
+4. Execute with the Bash tool
+5. During execution, if any step needs unknown tools/skills, pause and search before continuing
+6. Verify results

@@ -156,6 +156,21 @@ export class AgentRunner extends EventEmitter {
   getModelName(): string { return this.client.modelName; }
   clearHistory(): void { this.history = []; }
 
+  async executeBashCommand(command: string, restart: boolean = false): Promise<string> {
+    const bashTool = this.toolset.getTool?.('Bash');
+    if (!bashTool) {
+      throw new Error('Bash tool is unavailable');
+    }
+
+    const result = await bashTool.call({ command, restart });
+    const parts = [
+      this.stripToolSelfDescriptionHint(result.output),
+      this.stripToolSelfDescriptionHint(result.message),
+    ]
+      .filter((value): value is string => typeof value === 'string' && value.trim().length > 0);
+    return parts.join('\n\n') || '(Command executed successfully with no output)';
+  }
+
   async recordUsage(usage: TokenUsage, model: string): Promise<void> {
     await this.handleUsage(usage, model);
   }
@@ -282,7 +297,8 @@ export class AgentRunner extends EventEmitter {
 
     // 添加用户消息（可选追加技能搜索指令）
     const enhanced = this.enableSkillSearchInstruction
-      ? prependSkillSearchInstruction(userMessage) : userMessage;
+      ? prependSkillSearchInstruction(userMessage)
+      : userMessage;
     await this.appendToHistory(createTextMessage('user', enhanced));
 
     return this.executeLoop(signal);
@@ -426,6 +442,18 @@ export class AgentRunner extends EventEmitter {
       output = `(Command exited with code ${exitCode})`;
     }
     return output;
+  }
+
+  private stripToolSelfDescriptionHint(value?: string): string {
+    if (!value) return '';
+
+    const marker = 'Self-description:';
+    const markerIndex = value.indexOf(marker);
+    if (markerIndex === -1) {
+      return value;
+    }
+
+    return value.slice(0, markerIndex).trimEnd();
   }
 
   /** 检查是否有未完成的 todo 任务，如果有则追加提醒消息 */

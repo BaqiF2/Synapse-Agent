@@ -328,6 +328,32 @@ describe('SkillManager', () => {
       expect(meta?.versions[0]?.version).toMatch(/^20\d\d-\d\d-\d\d-\d{3}$/);
     });
 
+    it('info 会刷新索引并读取 frontmatter description', async () => {
+      writeSkill(skillsDir, 'conversation-memory-tracker', {
+        content: `---
+name: conversation-memory-tracker
+description: Frontmatter description
+domain: general
+---
+
+# Conversation Memory Tracker
+`,
+      });
+      const staleIndex = indexer.rebuild();
+      staleIndex.skills = staleIndex.skills.map((skill) => (
+        skill.name === 'conversation-memory-tracker'
+          ? { ...skill, description: undefined }
+          : skill
+      ));
+      indexer.writeIndex(staleIndex);
+
+      const manager = new SkillManager(skillsDir, indexer, createMockMerger() as unknown as SkillMerger);
+      const meta = await manager.info('conversation-memory-tracker');
+
+      expect(meta).not.toBeNull();
+      expect(meta?.description).toBe('Frontmatter description');
+    });
+
     it('info 不存在技能返回 null', async () => {
       const manager = new SkillManager(skillsDir, indexer, createMockMerger() as unknown as SkillMerger);
       const meta = await manager.info('non-existent');
@@ -528,6 +554,29 @@ describe('SkillManager', () => {
       expect(rebuildSpy).toHaveBeenCalledTimes(1);
       fs.rmSync(source, { recursive: true, force: true });
     });
+
+    it('单技能目录导入时应导入该目录本身', async () => {
+      const sourceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'synapse-single-skill-src-'));
+      const singleSkillDir = path.join(sourceRoot, 'frontend-design');
+      fs.mkdirSync(path.join(singleSkillDir, 'scripts'), { recursive: true });
+      fs.writeFileSync(path.join(singleSkillDir, 'SKILL.md'), `---
+name: frontend-design
+description: Frontend design skill
+domain: general
+---
+`, 'utf-8');
+      fs.writeFileSync(path.join(singleSkillDir, 'scripts', 'run.sh'), 'echo run', 'utf-8');
+
+      const manager = new SkillManager(skillsDir, indexer, createMockMerger() as unknown as SkillMerger);
+      const result = await manager.import(singleSkillDir);
+
+      expect(result.imported).toEqual(['frontend-design']);
+      expect(fs.existsSync(path.join(skillsDir, 'frontend-design', 'SKILL.md'))).toBe(true);
+      expect(fs.existsSync(path.join(skillsDir, 'frontend-design', 'scripts', 'run.sh'))).toBe(true);
+      expect(fs.existsSync(path.join(skillsDir, 'scripts'))).toBe(false);
+
+      fs.rmSync(sourceRoot, { recursive: true, force: true });
+    });
   });
 
   describe('远程 URL 导入', () => {
@@ -619,6 +668,49 @@ describe('SkillManager', () => {
         manager.import('https://github.com/user/repo'),
       ).rejects.toThrow('import failed');
       expect(importSpy).toHaveBeenCalledTimes(1);
+      expect(fs.existsSync(tempDir)).toBe(false);
+    });
+
+    it('GitHub tree URL 应转换为仓库 URL 并导入指定子目录技能', async () => {
+      const tempDir = path.join(os.tmpdir(), `synapse-import-tree-url-${Date.now()}`);
+      const execCommand = mock(async (command: string) => {
+        // 如果仍然直接 clone tree URL，会模拟 git 报错
+        if (command.includes('/tree/')) {
+          throw new Error('fatal: repository not found');
+        }
+
+        const wrapperDir = path.join(tempDir, '.claude', 'skills', 'claude', 'frontend-design');
+        fs.mkdirSync(path.join(wrapperDir, 'skills', 'frontend-design', 'scripts'), { recursive: true });
+        fs.writeFileSync(path.join(wrapperDir, 'README.md'), '# wrapper\n', 'utf-8');
+        fs.writeFileSync(path.join(wrapperDir, 'skills', 'frontend-design', 'SKILL.md'), `---
+name: frontend-design
+description: Frontend design skill
+domain: general
+---
+`, 'utf-8');
+        fs.writeFileSync(path.join(wrapperDir, 'skills', 'frontend-design', 'scripts', 'run.sh'), 'echo run', 'utf-8');
+      });
+
+      const manager = new SkillManager(
+        skillsDir,
+        indexer,
+        createMockMerger() as unknown as SkillMerger,
+        {
+          execCommand,
+          createTempDir: async () => tempDir,
+        },
+      );
+
+      const result = await manager.import(
+        'https://github.com/BaqiF2/skills/tree/main/.claude/skills/claude/frontend-design',
+      );
+
+      expect(execCommand).toHaveBeenCalledTimes(1);
+      const command = execCommand.mock.calls[0]?.[0];
+      expect(String(command)).toContain('https://github.com/BaqiF2/skills.git');
+      expect(String(command)).toContain('--branch main');
+      expect(result.imported).toEqual(['frontend-design']);
+      expect(fs.existsSync(path.join(skillsDir, 'frontend-design', 'SKILL.md'))).toBe(true);
       expect(fs.existsSync(tempDir)).toBe(false);
     });
   });

@@ -2,24 +2,25 @@
 
 Skills are reusable workflows and expert knowledge.
 
-**CRITICAL: Never guess skill names. Always search first.**
+**CRITICAL: Never guess skill names. Search before load whenever skill usage is needed.**
 
 ---
 
-## Workflow (MUST follow this order)
+## Workflow (when skill usage is needed, MUST follow this order)
 
 ```
-1. SEARCH:  task:skill:search --prompt "query" --description "..."
-2. LOAD:    skill:load <name>  (only use exact name from search results)
-3. FOLLOW:  Execute according to skill instructions
-4. ENHANCE: task:skill:enhance --prompt "reason" --description "..."
+1. DECIDE:  Determine whether this step requires a skill
+2. SEARCH:  task:skill:search --prompt "query" --description "..."
+3. LOAD:    skill:load <name>  (only use exact name from search results)
+4. FOLLOW:  Execute according to skill instructions
+5. ENHANCE: task:skill:enhance --prompt "reason" --description "..."
 ```
 
 ---
 
-## 1. Searching Skills (REQUIRED first step)
+## 1. Searching Skills (REQUIRED before any skill load)
 
-**Always use `task:skill:search` before loading any skill.** Do not guess skill names.
+Use `task:skill:search` before loading any skill. Do not guess skill names.
 
 ```bash
 Bash(command="task:skill:search --prompt 'code analysis' --description 'Find analysis skills'")

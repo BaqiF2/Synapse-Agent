@@ -84,12 +84,34 @@ description: A test skill
       expect(router.identifyCommandType('skill:list')).toBe(CommandType.AGENT_SHELL_COMMAND);
       expect(router.identifyCommandType('skill:info my-skill')).toBe(CommandType.AGENT_SHELL_COMMAND);
       expect(router.identifyCommandType('skill:import /tmp/skills')).toBe(CommandType.AGENT_SHELL_COMMAND);
+      expect(
+        router.identifyCommandType(
+          'skill:import https://github.com/BaqiF2/skills/tree/main/.claude/skills/claude/frontend-design'
+        )
+      ).toBe(CommandType.AGENT_SHELL_COMMAND);
       expect(router.identifyCommandType('skill:rollback my-skill')).toBe(CommandType.AGENT_SHELL_COMMAND);
       expect(router.identifyCommandType('skill:delete my-skill')).toBe(CommandType.AGENT_SHELL_COMMAND);
     });
 
+    it('should identify /skill:* slash commands as AGENT_SHELL_COMMAND', () => {
+      expect(router.identifyCommandType('/skill:list')).toBe(CommandType.AGENT_SHELL_COMMAND);
+      expect(router.identifyCommandType('/skill:info my-skill')).toBe(CommandType.AGENT_SHELL_COMMAND);
+      expect(router.identifyCommandType('/skill:import /tmp/skills')).toBe(CommandType.AGENT_SHELL_COMMAND);
+      expect(
+        router.identifyCommandType(
+          '/skill:import https://github.com/BaqiF2/skills/tree/main/.claude/skills/claude/frontend-design'
+        )
+      ).toBe(CommandType.AGENT_SHELL_COMMAND);
+      expect(router.identifyCommandType('/skill:rollback my-skill')).toBe(CommandType.AGENT_SHELL_COMMAND);
+      expect(router.identifyCommandType('/skill:delete my-skill')).toBe(CommandType.AGENT_SHELL_COMMAND);
+    });
+
     it('should identify skill:name:tool as EXTEND_SHELL_COMMAND', () => {
       expect(router.identifyCommandType('skill:analyzer:run')).toBe(CommandType.EXTEND_SHELL_COMMAND);
+    });
+
+    it('should identify /skill:name:tool slash command as EXTEND_SHELL_COMMAND', () => {
+      expect(router.identifyCommandType('/skill:analyzer:run')).toBe(CommandType.EXTEND_SHELL_COMMAND);
     });
 
     it('should route old "skill list" as NATIVE (no longer agent)', () => {
@@ -143,6 +165,13 @@ description: A test skill
 
     it('should route skill:list command', async () => {
       const result = await router.route('skill:list');
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('test-skill');
+      expect(result.stdout).toContain('versions');
+    });
+
+    it('should route /skill:list slash command', async () => {
+      const result = await router.route('/skill:list');
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain('test-skill');
       expect(result.stdout).toContain('versions');

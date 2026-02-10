@@ -12,6 +12,7 @@
 
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { promises as fsp } from 'node:fs';
 import type { CommandResult } from './native-command-handler.ts';
 import { parseCommandArgs } from './agent-bash/command-utils.ts';
 import { createLogger } from '../../utils/logger.ts';
@@ -19,7 +20,7 @@ import { SkillLoader } from '../../skills/skill-loader.js';
 import { SkillIndexer } from '../../skills/indexer.js';
 import { SkillMerger } from '../../skills/skill-merger.js';
 import { SkillManager } from '../../skills/skill-manager.js';
-import type { ImportOptions, MergeIntoOption, VersionInfo } from '../../skills/types.js';
+import type { ImportOptions, MergeIntoOption, SkillMeta, VersionInfo } from '../../skills/types.js';
 import { SubAgentManager } from '../../sub-agents/sub-agent-manager.ts';
 import type { LLMClient } from '../../providers/llm-client.ts';
 import type { BashTool } from '../bash-tool.ts';
@@ -250,7 +251,7 @@ ARGUMENTS:
         };
       }
 
-      const created = this.getCreatedLabel(skill.versions);
+      const created = await this.getCreatedLabel(skill);
       const updated = skill.lastModified ? formatDateLabel(skill.lastModified) : this.getUpdatedLabel(skill.versions);
       const tools = skill.tools.length > 0 ? skill.tools.join(', ') : '(none)';
       const lines: string[] = [
@@ -466,14 +467,41 @@ USAGE:
     };
   }
 
-  private getCreatedLabel(versions: VersionInfo[]): string {
-    if (versions.length === 0) return 'N/A';
-    return formatDateLabel(versions[versions.length - 1]!.createdAt);
+  private async getCreatedLabel(skill: SkillMeta): Promise<string> {
+    if (skill.versions.length > 0) {
+      return formatDateLabel(skill.versions[skill.versions.length - 1]!.createdAt);
+    }
+
+    const filesystemCreatedAt = await this.getFilesystemCreatedAt(skill.path);
+    if (filesystemCreatedAt) {
+      return formatDateLabel(filesystemCreatedAt);
+    }
+
+    if (skill.lastModified) {
+      return formatDateLabel(skill.lastModified);
+    }
+
+    return 'N/A';
   }
 
   private getUpdatedLabel(versions: VersionInfo[]): string {
     if (versions.length === 0) return 'N/A';
     return formatDateLabel(versions[0]!.createdAt);
+  }
+
+  private async getFilesystemCreatedAt(skillPath: string): Promise<Date | null> {
+    try {
+      const stat = await fsp.stat(skillPath);
+      if (Number.isFinite(stat.birthtime.getTime())) {
+        return stat.birthtime;
+      }
+      if (Number.isFinite(stat.ctime.getTime())) {
+        return stat.ctime;
+      }
+    } catch {
+      return null;
+    }
+    return null;
   }
 
   private unknownCommand(command: string): CommandResult {
@@ -527,4 +555,3 @@ function formatDateLabel(date: Date | string): string {
 }
 
 export default SkillCommandHandler;
-

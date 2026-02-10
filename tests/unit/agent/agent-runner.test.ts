@@ -65,6 +65,54 @@ function createBashToolCallPart(id: string, command: string): StreamedMessagePar
 }
 
 describe('AgentRunner', () => {
+  describe('executeBashCommand', () => {
+    it('should execute Bash tool directly and return formatted output', async () => {
+      const client = createMockClient([[{ type: 'text', text: 'unused' }]]);
+      const toolHandler = mock((args: unknown) => {
+        const parsed = args as { command?: string; restart?: boolean };
+        expect(parsed.command).toBe('skill:list');
+        expect(parsed.restart).toBe(false);
+        return Promise.resolve(ToolOk({ output: 'skill output', message: 'command ok' }));
+      });
+      const toolset = new CallableToolset([createMockCallableTool(toolHandler)]);
+
+      const runner = new AgentRunner({
+        client,
+        systemPrompt: 'Test',
+        toolset,
+        enableStopHooks: false,
+      });
+
+      const output = await runner.executeBashCommand('skill:list');
+      expect(output).toContain('skill output');
+      expect(output).toContain('command ok');
+      expect(toolHandler).toHaveBeenCalledTimes(1);
+    });
+
+    it('should strip tool self-description hint from user-facing slash command output', async () => {
+      const client = createMockClient([[{ type: 'text', text: 'unused' }]]);
+      const toolHandler = mock(() => Promise.resolve(ToolError({
+        output: '[stderr]\nNo versions available for skill \'verification-before-completion\'',
+        message: 'Command failed with exit code 1\n\nSelf-description: The command failed. Next step: run `Bash(command="skill:rollback --help")` to learn usage, then retry with valid arguments.',
+        brief: 'Bash command failed',
+      })));
+      const toolset = new CallableToolset([createMockCallableTool(toolHandler)]);
+
+      const runner = new AgentRunner({
+        client,
+        systemPrompt: 'Test',
+        toolset,
+        enableStopHooks: false,
+      });
+
+      const output = await runner.executeBashCommand('skill:rollback verification-before-completion');
+      expect(output).toContain('No versions available for skill');
+      expect(output).toContain('Command failed with exit code 1');
+      expect(output).not.toContain('Self-description:');
+      expect(toolHandler).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe('run', () => {
     it('should process user message and return response (no tools)', async () => {
       const client = createMockClient([[{ type: 'text', text: 'Hello!' }]]);
