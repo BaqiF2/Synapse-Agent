@@ -139,9 +139,9 @@
 **And** Readline 应关闭
 
 ### Scenario: Readline close 事件会执行资源清理
-**Given** 已进入 REPL 并初始化 SIGINT 监听  
+**Given** 已进入 REPL 并初始化底部渲染器与 SIGINT 监听  
 **When** 触发 `rl.close` 事件  
-**Then** 应执行 REPL shutdown 清理流程  
+**Then** 应释放固定底部渲染器资源  
 **And** 应移除 SIGINT 监听后退出进程
 
 ## 备注

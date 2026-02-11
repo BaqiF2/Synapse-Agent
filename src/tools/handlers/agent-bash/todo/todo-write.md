@@ -37,7 +37,3 @@ EXAMPLES:
 
 OUTPUT:
     Todo list updated: 1 completed, 1 in_progress, 1 pending
-    Tasks:
-    - [x] Analyze code
-    - [>] Writing tests
-    - [ ] Update docs

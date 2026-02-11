@@ -36,6 +36,7 @@ const MAX_RECENT_TOOLS = parseEnvInt(process.env.SYNAPSE_MAX_RECENT_TOOLS, 5);
 const MAX_COMMAND_DISPLAY_LENGTH = 40;
 /** 当模型把 Bash 工具名当作命令时的统一展示文案 */
 const INVALID_BASH_TOOL_MISUSE_DISPLAY = '[invalid command: tool name Bash]';
+const TODO_WRITE_COMMAND_PREFIX = 'TodoWrite';
 /** Task 描述摘要最大长度（超出后截断） */
 const TASK_DESCRIPTION_SUMMARY_LIMIT = parseEnvInt(
   process.env.SYNAPSE_TOOL_RESULT_SUMMARY_LIMIT,
@@ -160,6 +161,10 @@ export class TerminalRenderer {
    * @param event 输入参数。
    */
   renderToolStart(event: ToolCallEvent): void {
+    if (event.command.trimStart().startsWith(TODO_WRITE_COMMAND_PREFIX)) {
+      return;
+    }
+
     this.finalizeOpenLines(event.id);
 
     const call: ActiveCall = {
