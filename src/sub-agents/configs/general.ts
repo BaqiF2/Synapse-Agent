@@ -1,10 +1,13 @@
 /**
- * General Sub Agent 配置
+ * 文件功能说明：
+ * - 该文件位于 `src/sub-agents/configs/general.ts`，主要负责 通用 相关实现。
+ * - 模块归属 sub、agents、configs 领域，为上层流程提供可复用能力。
  *
- * 功能：定义 General 类型 Sub Agent 的配置
+ * 核心导出列表：
+ * - `generalConfig`
  *
- * 核心导出：
- * - generalConfig: General Sub Agent 配置对象
+ * 作用说明：
+ * - `generalConfig`：提供可复用的模块级变量/常量。
  */
 
 import type { SubAgentConfig } from '../sub-agent-types.ts';

@@ -1,13 +1,17 @@
 /**
- * 工具相关类型定义
+ * 文件功能说明：
+ * - 该文件位于 `src/types/tool.ts`，主要负责 工具 相关实现。
+ * - 模块归属 类型 领域，为上层流程提供可复用能力。
  *
- * 从 tools/callable-tool.ts 和 tools/handlers/base-bash-handler.ts 提取的共享类型，
- * 消除 providers ↔ tools 之间的循环依赖。
+ * 核心导出列表：
+ * - `LLMTool`
+ * - `ToolReturnValue`
+ * - `CommandResult`
  *
- * 核心导出：
- * - LLMTool: Provider 无关的工具定义接口
- * - ToolReturnValue: 工具执行的结构化返回值
- * - CommandResult: 命令执行结果
+ * 作用说明：
+ * - `LLMTool`：定义模块交互的数据结构契约。
+ * - `ToolReturnValue`：定义模块交互的数据结构契约。
+ * - `CommandResult`：定义模块交互的数据结构契约。
  */
 
 /**

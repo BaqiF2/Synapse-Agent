@@ -1,18 +1,27 @@
 /**
- * Skill Enhance 结果解析器
+ * 文件功能说明：
+ * - 该文件位于 `src/hooks/skill-enhance-result-parser.ts`，主要负责 技能、增强、result、解析 相关实现。
+ * - 模块归属 Hook 领域，为上层流程提供可复用能力。
  *
- * 功能：解析和标准化 skill sub-agent 返回的结果文本，
- *       支持纯文本 [Skill] 标记格式和 JSON 格式两种解析方式。
+ * 核心导出列表：
+ * - `parseSkillResultJson`
+ * - `formatParsedSkillResult`
+ * - `normalizeSkillEnhanceResult`
+ * - `buildRetryPrompt`
+ * - `ParsedSkillResult`
+ * - `SkillExecutionResult`
+ * - `SKILL_RESULT_FALLBACK`
+ * - `RETRY_OUTPUT_CONTRACT`
  *
- * 核心导出：
- * - normalizeSkillEnhanceResult: 标准化 skill 增强结果为统一格式
- * - parseSkillResultJson: 解析 JSON 格式的 skill 结果
- * - formatParsedSkillResult: 将解析后的结果格式化为标准文本
- * - buildRetryPrompt: 构建重试 prompt（附加输出契约和首次失败上下文）
- * - SKILL_RESULT_FALLBACK: 兜底结果常量
- * - RETRY_OUTPUT_CONTRACT: 重试时附加的输出格式要求
- * - ParsedSkillResult: 解析后的 skill 结果接口
- * - SkillExecutionResult: 执行结果接口（包含 raw 和 normalized）
+ * 作用说明：
+ * - `parseSkillResultJson`：用于解析输入并转换为结构化数据。
+ * - `formatParsedSkillResult`：用于格式化输出内容。
+ * - `normalizeSkillEnhanceResult`：提供该模块的核心能力。
+ * - `buildRetryPrompt`：用于构建并产出目标内容。
+ * - `ParsedSkillResult`：定义模块交互的数据结构契约。
+ * - `SkillExecutionResult`：定义模块交互的数据结构契约。
+ * - `SKILL_RESULT_FALLBACK`：提供可复用的常量配置。
+ * - `RETRY_OUTPUT_CONTRACT`：提供可复用的常量配置。
  */
 
 // ===== 常量 =====
@@ -54,6 +63,10 @@ export interface SkillExecutionResult {
 
 // ===== 内部工具函数 =====
 
+/**
+ * 方法说明：执行 sanitizeReason 相关逻辑。
+ * @param reason 输入参数。
+ */
 function sanitizeReason(reason: string | undefined): string | undefined {
   if (!reason) {
     return;
@@ -68,6 +81,7 @@ function sanitizeReason(reason: string | undefined): string | undefined {
  * 解析 JSON 格式的 skill 结果
  *
  * 支持纯 JSON 和 ```json 围栏格式
+ * @param raw 输入参数。
  */
 export function parseSkillResultJson(raw: string): ParsedSkillResult | null {
   const text = raw.trim();
@@ -102,6 +116,7 @@ export function parseSkillResultJson(raw: string): ParsedSkillResult | null {
 
 /**
  * 将解析后的结果格式化为标准 [Skill] 文本
+ * @param parsed 输入参数。
  */
 export function formatParsedSkillResult(parsed: ParsedSkillResult): string {
   const reasonSuffix = parsed.reason ? `\nReason: ${parsed.reason}` : '';
@@ -122,6 +137,7 @@ export function formatParsedSkillResult(parsed: ParsedSkillResult): string {
  * 优先匹配 [Skill] 标记格式，其次尝试 JSON 解析
  *
  * @returns 标准化后的结果字符串，无法解析时返回 null
+ * @param rawResult 输入参数。
  */
 export function normalizeSkillEnhanceResult(rawResult: string): string | null {
   const trimmed = rawResult.trim();
@@ -155,6 +171,8 @@ const MAX_PREVIOUS_OUTPUT_LENGTH = 500;
 
 /**
  * 构建重试 prompt，附加输出格式契约和首次失败上下文
+ * @param prompt 输入参数。
+ * @param previousOutput 输入参数。
  */
 export function buildRetryPrompt(prompt: string, previousOutput: string): string {
   const truncated = previousOutput.length > MAX_PREVIOUS_OUTPUT_LENGTH

@@ -1,11 +1,15 @@
 /**
- * Tool Parameter Schemas
+ * 文件功能说明：
+ * - 该文件位于 `src/tools/schemas.ts`，主要负责 schemas 相关实现。
+ * - 模块归属 工具 领域，为上层流程提供可复用能力。
  *
- * 功能：定义工具参数的 Zod 校验 Schema，作为唯一定义点供所有工具文件导入。
+ * 核心导出列表：
+ * - `BashToolParams`
+ * - `BashToolParamsSchema`
  *
- * 核心导出：
- * - BashToolParamsSchema: Bash 工具参数的 Zod schema
- * - BashToolParams: Bash 工具参数类型（从 schema 推导）
+ * 作用说明：
+ * - `BashToolParams`：声明类型别名，约束输入输出类型。
+ * - `BashToolParamsSchema`：提供可复用的模块级变量/常量。
  */
 
 import { z } from 'zod';

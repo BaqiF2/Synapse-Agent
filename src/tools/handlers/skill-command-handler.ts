@@ -1,13 +1,15 @@
 /**
- * Skill Command Handler
+ * 文件功能说明：
+ * - 该文件位于 `src/tools/handlers/skill-command-handler.ts`，主要负责 技能、command、处理器 相关实现。
+ * - 模块归属 工具、处理器 领域，为上层流程提供可复用能力。
  *
- * 功能：处理 skill:* 管理命令
- * - skill:load
- * - skill:list
- * - skill:info
- * - skill:import
- * - skill:rollback
- * - skill:delete
+ * 核心导出列表：
+ * - `SkillCommandHandler`
+ * - `SkillCommandHandlerOptions`
+ *
+ * 作用说明：
+ * - `SkillCommandHandler`：封装该领域的核心流程与状态管理。
+ * - `SkillCommandHandlerOptions`：定义模块交互的数据结构契约。
  */
 
 import * as os from 'node:os';
@@ -65,6 +67,10 @@ export class SkillCommandHandler {
   private skillMerger: SkillMerger;
   private subAgentManager: SubAgentManager | null = null;
 
+  /**
+   * 方法说明：初始化 SkillCommandHandler 实例并设置初始状态。
+   * @param options 配置参数。
+   */
   constructor(options: SkillCommandHandlerOptions = {}) {
     const homeDir = options.homeDir ?? os.homedir();
     this.skillLoader = options.skillLoader ?? new SkillLoader(homeDir);
@@ -82,6 +88,7 @@ export class SkillCommandHandler {
 
   /**
    * 执行 skill 命令
+   * @param command 输入参数。
    */
   async execute(command: string): Promise<CommandResult> {
     const trimmed = command.trim();
@@ -129,6 +136,10 @@ export class SkillCommandHandler {
     this.subAgentManager?.shutdown();
   }
 
+  /**
+   * 方法说明：创建并返回 createMerger 对应结果。
+   * @param options 配置参数。
+   */
   private createMerger(options: SkillCommandHandlerOptions): SkillMerger {
     if (!options.llmClient || !options.toolExecutor) {
       this.subAgentManager = null;
@@ -148,6 +159,7 @@ export class SkillCommandHandler {
 
   /**
    * 处理 skill:load 命令
+   * @param command 输入参数。
    */
   private handleLoad(command: string): CommandResult {
     const parts = parseCommandArgs(command);
@@ -197,6 +209,9 @@ EXAMPLES:
     };
   }
 
+  /**
+   * 方法说明：执行 handleList 相关逻辑。
+   */
   private async handleList(): Promise<CommandResult> {
     try {
       const skills = await this.skillManager.list();
@@ -223,6 +238,10 @@ EXAMPLES:
     }
   }
 
+  /**
+   * 方法说明：执行 handleInfo 相关逻辑。
+   * @param command 输入参数。
+   */
   private async handleInfo(command: string): Promise<CommandResult> {
     const parts = parseCommandArgs(command);
     const skillName = parts[1];
@@ -284,6 +303,10 @@ ARGUMENTS:
     }
   }
 
+  /**
+   * 方法说明：执行 handleImport 相关逻辑。
+   * @param command 输入参数。
+   */
   private async handleImport(command: string): Promise<CommandResult> {
     const parts = parseCommandArgs(command);
     const source = parts[1];
@@ -343,6 +366,10 @@ OPTIONS:
     }
   }
 
+  /**
+   * 方法说明：执行 handleRollback 相关逻辑。
+   * @param command 输入参数。
+   */
   private async handleRollback(command: string): Promise<CommandResult> {
     const parts = parseCommandArgs(command);
     const skillName = parts[1];
@@ -399,6 +426,10 @@ EXAMPLES:
     }
   }
 
+  /**
+   * 方法说明：执行 handleDelete 相关逻辑。
+   * @param command 输入参数。
+   */
   private async handleDelete(command: string): Promise<CommandResult> {
     const parts = parseCommandArgs(command);
     const skillName = parts[1];
@@ -426,6 +457,10 @@ USAGE:
     }
   }
 
+  /**
+   * 方法说明：解析输入并生成 parseImportOptions 对应结构。
+   * @param args 集合数据。
+   */
   private parseImportOptions(args: string[]): ImportOptions {
     const continueSkills: string[] = [];
     const mergeInto: MergeIntoOption[] = [];
@@ -467,6 +502,10 @@ USAGE:
     };
   }
 
+  /**
+   * 方法说明：读取并返回 getCreatedLabel 对应的数据。
+   * @param skill 输入参数。
+   */
   private async getCreatedLabel(skill: SkillMeta): Promise<string> {
     if (skill.versions.length > 0) {
       return formatDateLabel(skill.versions[skill.versions.length - 1]!.createdAt);
@@ -484,11 +523,19 @@ USAGE:
     return 'N/A';
   }
 
+  /**
+   * 方法说明：读取并返回 getUpdatedLabel 对应的数据。
+   * @param versions 集合数据。
+   */
   private getUpdatedLabel(versions: VersionInfo[]): string {
     if (versions.length === 0) return 'N/A';
     return formatDateLabel(versions[0]!.createdAt);
   }
 
+  /**
+   * 方法说明：读取并返回 getFilesystemCreatedAt 对应的数据。
+   * @param skillPath 目标路径或文件信息。
+   */
   private async getFilesystemCreatedAt(skillPath: string): Promise<Date | null> {
     try {
       const stat = await fsp.stat(skillPath);
@@ -504,6 +551,10 @@ USAGE:
     return null;
   }
 
+  /**
+   * 方法说明：执行 unknownCommand 相关逻辑。
+   * @param command 输入参数。
+   */
   private unknownCommand(command: string): CommandResult {
     return {
       stdout: '',
@@ -512,6 +563,11 @@ USAGE:
     };
   }
 
+  /**
+   * 方法说明：执行 errorResult 相关逻辑。
+   * @param error 错误对象。
+   * @param fallbackPrefix 输入参数。
+   */
   private errorResult(error: unknown, fallbackPrefix: string): CommandResult {
     const message = error instanceof Error ? error.message : String(error);
     logger.warn(fallbackPrefix, { error: message });
@@ -523,6 +579,10 @@ USAGE:
   }
 }
 
+/**
+ * 方法说明：执行 splitCommaValues 相关逻辑。
+ * @param value 输入参数。
+ */
 function splitCommaValues(value: string): string[] {
   return value
     .split(',')
@@ -530,6 +590,10 @@ function splitCommaValues(value: string): string[] {
     .filter(Boolean);
 }
 
+/**
+ * 方法说明：解析输入并生成 parseMergeItems 对应结构。
+ * @param value 输入参数。
+ */
 function parseMergeItems(value: string): MergeIntoOption[] {
   const items = splitCommaValues(value);
   const merge: MergeIntoOption[] = [];
@@ -546,6 +610,10 @@ function parseMergeItems(value: string): MergeIntoOption[] {
   return merge;
 }
 
+/**
+ * 方法说明：格式化 formatDateLabel 相关输出。
+ * @param date 输入参数。
+ */
 function formatDateLabel(date: Date | string): string {
   const rawDate = date instanceof Date ? date : new Date(date);
   if (!Number.isFinite(rawDate.getTime())) {

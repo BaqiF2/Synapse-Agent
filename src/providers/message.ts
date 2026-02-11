@@ -1,28 +1,25 @@
 /**
- * Message Types
+ * 文件功能说明：
+ * - 该文件位于 `src/providers/message.ts`，主要负责 消息 相关实现。
+ * - 模块归属 Provider 领域，为上层流程提供可复用能力。
  *
- * Independent message type definitions for the agent system,
- * decoupled from Anthropic SDK types.
+ * 核心导出列表：
+ * - `createTextMessage`
+ * - `extractText`
+ * - `toolResultToMessage`
+ * - `isToolCallPart`
+ * - `mergePart`
+ * - `toMergeablePart`
+ * - `appendToMessage`
  *
- * 类型定义已迁移至 src/types/message.ts，此文件保留函数实现并 re-export 类型。
- *
- * Core Exports:
- * - Role: Message sender role type
- * - ContentPart: Union type for message content parts
- * - TextPart: Text content part
- * - ThinkingPart: Thinking content part
- * - ToolCall: Tool call request
- * - ToolResult: Tool execution result (wraps ToolReturnValue)
- * - Message: Complete message structure
- * - MergeablePart: Union type for mergeable stream parts
- * - MergeableToolCallPart: Tool call part with accumulated JSON
- * - createTextMessage: Helper to create text messages
- * - extractText: Helper to extract text from message
- * - toolResultToMessage: Convert ToolResult to Message
- * - mergePart: Merge two stream parts
- * - appendToMessage: Append a completed part to message
- * - toMergeablePart: Convert StreamedMessagePart to MergeablePart
- * - isToolCallPart: Type guard for tool call parts
+ * 作用说明：
+ * - `createTextMessage`：用于创建并返回新对象/实例。
+ * - `extractText`：用于从输入中提取目标信息。
+ * - `toolResultToMessage`：用于进行类型或结构转换。
+ * - `isToolCallPart`：用于条件判断并返回布尔结果。
+ * - `mergePart`：用于合并多个输入结果。
+ * - `toMergeablePart`：用于进行类型或结构转换。
+ * - `appendToMessage`：用于向现有结构追加内容。
  */
 
 // 从共享类型层 re-export 所有类型
@@ -55,6 +52,8 @@ const logger = createLogger('message');
 
 /**
  * Create a simple text message
+ * @param role 输入参数。
+ * @param text 输入参数。
  */
 export function createTextMessage(role: Role, text: string): Message {
   return {
@@ -65,6 +64,8 @@ export function createTextMessage(role: Role, text: string): Message {
 
 /**
  * Extract all text from a message
+ * @param message 消息内容。
+ * @param separator 输入参数。
  */
 export function extractText(message: Message, separator: string = ''): string {
   return message.content
@@ -75,6 +76,7 @@ export function extractText(message: Message, separator: string = ''): string {
 
 /**
  * Convert ToolResult to Message
+ * @param result 输入参数。
  */
 export function toolResultToMessage(result: ToolResult): Message {
   const output = result.returnValue.output ?? '';
@@ -92,6 +94,7 @@ export function toolResultToMessage(result: ToolResult): Message {
 
 /**
  * Check if a part is a tool call
+ * @param part 输入参数。
  */
 export function isToolCallPart(part: MergeablePart): part is MergeableToolCallPart {
   return part.type === 'tool_call';
@@ -100,6 +103,8 @@ export function isToolCallPart(part: MergeablePart): part is MergeableToolCallPa
 /**
  * Merge source part into target part in place.
  * Returns true if merge was successful, false otherwise.
+ * @param target 输入参数。
+ * @param source 输入参数。
  */
 export function mergePart(target: MergeablePart, source: MergeablePart): boolean {
   // Text + Text
@@ -141,6 +146,7 @@ export function mergePart(target: MergeablePart, source: MergeablePart): boolean
 
 /**
  * Convert StreamedMessagePart to MergeablePart
+ * @param part 输入参数。
  */
 export function toMergeablePart(part: StreamedMessagePart): MergeablePart {
   if (part.type === 'tool_call') {
@@ -164,6 +170,8 @@ export function toMergeablePart(part: StreamedMessagePart): MergeablePart {
 
 /**
  * Append a completed part to a message
+ * @param message 消息内容。
+ * @param part 输入参数。
  */
 export function appendToMessage(message: Message, part: MergeablePart): void {
   if (part.type === 'text') {

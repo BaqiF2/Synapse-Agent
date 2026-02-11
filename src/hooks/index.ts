@@ -1,16 +1,19 @@
 /**
- * Hooks 模块索引
+ * 文件功能说明：
+ * - 该文件位于 `src/hooks/index.ts`，主要负责 索引 相关实现。
+ * - 模块归属 Hook 领域，为上层流程提供可复用能力。
  *
- * 功能：导出所有 Hooks 相关的类型、类和单例
+ * 核心导出列表：
+ * - `StopHookRegistry`
+ * - `stopHookRegistry`
+ * - `skillEnhanceHook`
+ * - `SKILL_ENHANCE_HOOK_NAME`
  *
- * 核心导出：
- * - StopHookContext: 钩子执行时的上下文信息
- * - HookResult: 钩子执行结果
- * - StopHook: 钩子函数类型
- * - StopHookRegistry: Hook 注册表类
- * - stopHookRegistry: 全局单例实例
- * - skillEnhanceHook: 技能增强 Hook 函数
- * - HOOK_NAME: 技能增强 Hook 名称常量
+ * 作用说明：
+ * - `StopHookRegistry`：聚合并对外暴露其它模块的能力。
+ * - `stopHookRegistry`：聚合并对外暴露其它模块的能力。
+ * - `skillEnhanceHook`：聚合并对外暴露其它模块的能力。
+ * - `SKILL_ENHANCE_HOOK_NAME`：聚合并对外暴露其它模块的能力。
  */
 
 export type {

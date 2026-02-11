@@ -1,16 +1,17 @@
 /**
- * Meta Skill Installer
+ * 文件功能说明：
+ * - 该文件位于 `src/skills/meta-skill-installer.ts`，主要负责 元、技能、安装 相关实现。
+ * - 模块归属 skills 领域，为上层流程提供可复用能力。
  *
- * Copies meta skill templates from resource directory to user skills directory.
- * Meta skills are pre-built skills bundled with the project that provide
- * guidance for skill creation, enhancement, and evaluation.
+ * 核心导出列表：
+ * - `getDefaultResourceDir`
+ * - `MetaSkillInstaller`
+ * - `InstallResult`
  *
- * @module meta-skill-installer
- *
- * Core Exports:
- * - MetaSkillInstaller: Copies meta skills to user directory
- * - getDefaultResourceDir: Gets the default resource directory path
- * - InstallResult: Result of installation operation
+ * 作用说明：
+ * - `getDefaultResourceDir`：用于读取并返回目标数据。
+ * - `MetaSkillInstaller`：封装该领域的核心流程与状态管理。
+ * - `InstallResult`：定义模块交互的数据结构契约。
  */
 
 import * as fs from 'node:fs';

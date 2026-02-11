@@ -1,15 +1,61 @@
 /**
- * Agent 模块索引
+ * 文件功能说明：
+ * - 该文件位于 `src/agent/index.ts`，主要负责 索引 相关实现。
+ * - 模块归属 Agent 领域，为上层流程提供可复用能力。
  *
- * 功能：导出 Agent 核心模块（仅自身层内容，不跨层 re-export）
+ * 核心导出列表：
+ * - `step`
+ * - `StepResult`
+ * - `StepOptions`
+ * - `OnToolResult`
+ * - `AgentRunner`
+ * - `AgentRunnerOptions`
+ * - `AgentRunnerContextOptions`
+ * - `ContextStats`
+ * - `OffloadEventPayload`
+ * - `CompactEventPayload`
+ * - `ContextOrchestrator`
+ * - `Session`
+ * - `SessionInfo`
+ * - `SessionsIndex`
+ * - `SessionCreateOptions`
+ * - `TITLE_MAX_LENGTH`
+ * - `createEmptySessionUsage`
+ * - `accumulateUsage`
+ * - `resetSessionUsage`
+ * - `formatCostOutput`
+ * - `SessionUsage`
+ * - `buildSystemPrompt`
+ * - `SystemPromptOptions`
+ * - `AutoEnhanceTrigger`
+ * - `AutoEnhanceTriggerOptions`
  *
- * 核心导出：
- * - step: 生成 + 工具执行函数
- * - AgentRunner: Agent 循环实现
- * - Session: 会话管理类
- * - SessionUsage: 会话用量相关函数
- * - buildSystemPrompt: 系统提示词构建函数
- * - AutoEnhanceTrigger: 自动增强触发器
+ * 作用说明：
+ * - `step`：聚合并对外暴露其它模块的能力。
+ * - `StepResult`：聚合并对外暴露其它模块的能力。
+ * - `StepOptions`：聚合并对外暴露其它模块的能力。
+ * - `OnToolResult`：聚合并对外暴露其它模块的能力。
+ * - `AgentRunner`：聚合并对外暴露其它模块的能力。
+ * - `AgentRunnerOptions`：聚合并对外暴露其它模块的能力。
+ * - `AgentRunnerContextOptions`：聚合并对外暴露其它模块的能力。
+ * - `ContextStats`：聚合并对外暴露其它模块的能力。
+ * - `OffloadEventPayload`：聚合并对外暴露其它模块的能力。
+ * - `CompactEventPayload`：聚合并对外暴露其它模块的能力。
+ * - `ContextOrchestrator`：聚合并对外暴露其它模块的能力。
+ * - `Session`：聚合并对外暴露其它模块的能力。
+ * - `SessionInfo`：聚合并对外暴露其它模块的能力。
+ * - `SessionsIndex`：聚合并对外暴露其它模块的能力。
+ * - `SessionCreateOptions`：聚合并对外暴露其它模块的能力。
+ * - `TITLE_MAX_LENGTH`：聚合并对外暴露其它模块的能力。
+ * - `createEmptySessionUsage`：聚合并对外暴露其它模块的能力。
+ * - `accumulateUsage`：聚合并对外暴露其它模块的能力。
+ * - `resetSessionUsage`：聚合并对外暴露其它模块的能力。
+ * - `formatCostOutput`：聚合并对外暴露其它模块的能力。
+ * - `SessionUsage`：聚合并对外暴露其它模块的能力。
+ * - `buildSystemPrompt`：聚合并对外暴露其它模块的能力。
+ * - `SystemPromptOptions`：聚合并对外暴露其它模块的能力。
+ * - `AutoEnhanceTrigger`：聚合并对外暴露其它模块的能力。
+ * - `AutoEnhanceTriggerOptions`：聚合并对外暴露其它模块的能力。
  */
 
 // Step function
@@ -24,6 +70,8 @@ export {
 export {
   AgentRunner,
   type AgentRunnerOptions,
+  type AgentRunnerSessionRef,
+  type AgentRunnerSessionOptions,
   type AgentRunnerContextOptions,
   type ContextStats,
   type OffloadEventPayload,

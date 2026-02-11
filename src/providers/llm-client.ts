@@ -1,12 +1,17 @@
 /**
- * LLM Client Interface
+ * 文件功能说明：
+ * - 该文件位于 `src/providers/llm-client.ts`，主要负责 llm、client 相关实现。
+ * - 模块归属 Provider 领域，为上层流程提供可复用能力。
  *
- * Provider 无关的 LLM 客户端抽象接口，使上层代码（generate.ts、agent-runner 等）
- * 不再直接依赖特定 Provider SDK（如 Anthropic SDK）。
+ * 核心导出列表：
+ * - `LLMStreamedMessage`
+ * - `LLMGenerateOptions`
+ * - `LLMClient`
  *
- * 核心导出：
- * - LLMStreamedMessage: Provider 无关的流式响应接口
- * - LLMClient: Provider 无关的 LLM 客户端接口
+ * 作用说明：
+ * - `LLMStreamedMessage`：定义模块交互的数据结构契约。
+ * - `LLMGenerateOptions`：定义模块交互的数据结构契约。
+ * - `LLMClient`：定义模块交互的数据结构契约。
  */
 
 import type { LLMTool } from '../types/tool.ts';

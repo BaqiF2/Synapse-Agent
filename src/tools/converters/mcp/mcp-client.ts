@@ -1,16 +1,23 @@
 /**
- * MCP Client
+ * 文件功能说明：
+ * - 该文件位于 `src/tools/converters/mcp/mcp-client.ts`，主要负责 MCP、client 相关实现。
+ * - 模块归属 工具、转换器、MCP 领域，为上层流程提供可复用能力。
  *
- * This module provides a unified client for connecting to MCP (Model Context Protocol)
- * servers. It supports both command-based (local subprocess) and URL-based (remote HTTP)
- * server connections using the official MCP SDK.
+ * 核心导出列表：
+ * - `McpClient`
+ * - `McpClientManager`
+ * - `McpConnectionOptions`
+ * - `McpToolInfo`
+ * - `McpConnectionResult`
+ * - `ConnectionState`
  *
- * @module mcp-client
- *
- * Core Exports:
- * - McpClient: Main class for MCP server connections and tool discovery
- * - McpConnectionOptions: Configuration options for client connection
- * - McpToolInfo: Tool metadata returned from MCP servers
+ * 作用说明：
+ * - `McpClient`：封装该领域的核心流程与状态管理。
+ * - `McpClientManager`：封装该领域的核心流程与状态管理。
+ * - `McpConnectionOptions`：定义模块交互的数据结构契约。
+ * - `McpToolInfo`：定义模块交互的数据结构契约。
+ * - `McpConnectionResult`：定义模块交互的数据结构契约。
+ * - `ConnectionState`：定义可枚举选项，统一分支语义。
  */
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -42,6 +49,8 @@ const CLIENT_VERSION = '1.0.0';
 
 /**
  * Build a clean env map for MCP transports.
+ * @param baseEnv 输入参数。
+ * @param extraEnv 输入参数。
  */
 function buildTransportEnv(
   baseEnv: NodeJS.ProcessEnv,
@@ -157,6 +166,7 @@ export class McpClient {
 
   /**
    * Creates a transport for command-based (local) servers
+   * @param config 配置参数。
    */
   private createCommandTransport(config: CommandServerConfig): Transport {
     const transport = new StdioClientTransport({
@@ -171,6 +181,7 @@ export class McpClient {
 
   /**
    * Creates a transport for URL-based (remote) servers
+   * @param config 配置参数。
    */
   private createUrlTransport(config: UrlServerConfig): Transport {
     const transport = new SSEClientTransport(new URL(config.url));

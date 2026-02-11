@@ -950,63 +950,6 @@ describe('AgentRunner', () => {
       expect(runner.getSessionUsage()).toBeNull();
     });
 
-    it('should prepend English skill-search instruction loaded from prompt file before execution', async () => {
-      const client = createMockClient([[{ type: 'text', text: 'Done' }]]);
-      const toolset = new CallableToolset([createMockCallableTool(() =>
-        Promise.resolve(ToolOk({ output: '' }))
-      )]);
-
-      const runner = new AgentRunner({
-        client,
-        systemPrompt: 'Test',
-        toolset,
-        enableStopHooks: false,
-      });
-
-      const input = '请帮我实现一个命令行功能';
-      await runner.run(input);
-
-      const firstMessage = runner.getHistory()[0];
-      expect(firstMessage?.role).toBe('user');
-      expect(firstMessage?.content[0]?.type).toBe('text');
-      const userText = (firstMessage?.content[0] as { text: string }).text;
-      const [instructionBlock = ''] = userText.split('\n\nOriginal user request:\n');
-      // 验证 skill-search-priority.md 的关键内容
-      expect(instructionBlock).toContain('Skill Search Priority');
-      expect(instructionBlock).toContain('Never guess skill names');
-      expect(instructionBlock).toContain('task:skill:search');
-      expect(instructionBlock).toContain('skill:load');
-      expect(instructionBlock).toContain('command:search');
-      expect(instructionBlock).not.toContain('请');
-      expect(userText).toContain(input);
-    });
-
-    it('should skip prepending skill-search instruction when disabled', async () => {
-      const client = createMockClient([[{ type: 'text', text: 'Done' }]]);
-      const toolset = new CallableToolset([createMockCallableTool(() =>
-        Promise.resolve(ToolOk({ output: '' }))
-      )]);
-
-      const runner = new AgentRunner({
-        client,
-        systemPrompt: 'Test',
-        toolset,
-        enableStopHooks: false,
-        enableSkillSearchInstruction: false,
-      });
-
-      const input = '保持原始用户输入';
-      await runner.run(input);
-
-      const firstMessage = runner.getHistory()[0];
-      expect(firstMessage?.role).toBe('user');
-      expect(firstMessage?.content[0]?.type).toBe('text');
-      const userText = (firstMessage?.content[0] as { text: string }).text;
-      expect(userText).toBe(input);
-      expect(userText).not.toContain('Skill Search Priority');
-      expect(userText).not.toContain('task:skill:search');
-    });
-
     it('should maintain history across calls', async () => {
       const client = createMockClient([
         [{ type: 'text', text: 'First' }],
@@ -1049,6 +992,25 @@ describe('AgentRunner with Session', () => {
     }
   });
 
+  it('should throw when session and sessionRef are both provided', async () => {
+    const session = await Session.create({ sessionsDir: testDir });
+    const client = createMockClient([[{ type: 'text', text: 'Hello!' }]]);
+    const toolset = new CallableToolset([createMockCallableTool(() =>
+      Promise.resolve(ToolOk({ output: '' }))
+    )]);
+
+    expect(() => {
+      new AgentRunner({
+        client,
+        systemPrompt: 'Test',
+        toolset,
+        session,
+        sessionRef: { sessionId: session.id, sessionsDir: testDir },
+        enableStopHooks: false,
+      } as unknown as AgentRunnerOptions);
+    }).toThrow('Cannot provide both session and sessionRef');
+  });
+
   it('should create session on first run', async () => {
     const client = createMockClient([[{ type: 'text', text: 'Hello!' }]]);
     const toolset = new CallableToolset([createMockCallableTool(() =>
@@ -1059,7 +1021,7 @@ describe('AgentRunner with Session', () => {
       client,
       systemPrompt: 'Test',
       toolset,
-      sessionsDir: testDir,
+      sessionRef: { sessionsDir: testDir },
       enableStopHooks: false,
     });
 
@@ -1082,7 +1044,7 @@ describe('AgentRunner with Session', () => {
       client,
       systemPrompt: 'Test',
       toolset,
-      sessionsDir: testDir,
+      sessionRef: { sessionsDir: testDir },
       enableStopHooks: false,
     });
 
@@ -1105,7 +1067,7 @@ describe('AgentRunner with Session', () => {
       client,
       systemPrompt: 'Test',
       toolset,
-      sessionsDir: testDir,
+      sessionRef: { sessionsDir: testDir },
       enableStopHooks: false,
     });
 
@@ -1131,7 +1093,7 @@ describe('AgentRunner with Session', () => {
       client,
       systemPrompt: 'Test',
       toolset,
-      sessionsDir: testDir,
+      sessionRef: { sessionsDir: testDir },
       enableStopHooks: false,
     });
 
@@ -1160,7 +1122,7 @@ describe('AgentRunner with Session', () => {
       client,
       systemPrompt: 'Test',
       toolset,
-      sessionsDir: testDir,
+      sessionRef: { sessionsDir: testDir },
       enableStopHooks: false,
     });
 
@@ -1191,7 +1153,7 @@ describe('AgentRunner with Session', () => {
       client,
       systemPrompt: 'Test',
       toolset,
-      sessionsDir: testDir,
+      sessionRef: { sessionsDir: testDir },
       enableStopHooks: false,
     });
     await runner1.run('Message 1');
@@ -1203,8 +1165,7 @@ describe('AgentRunner with Session', () => {
       client,
       systemPrompt: 'Test',
       toolset,
-      sessionId: sessionId!,
-      sessionsDir: testDir,
+      sessionRef: { sessionId: sessionId!, sessionsDir: testDir },
       enableStopHooks: false,
     });
     await runner2.run('Message 2');
@@ -1262,8 +1223,7 @@ describe('AgentRunner with Session', () => {
       client,
       systemPrompt: 'Test',
       toolset,
-      sessionId: session.id,
-      sessionsDir: testDir,
+      sessionRef: { sessionId: session.id, sessionsDir: testDir },
       enableStopHooks: false,
     });
 
@@ -1300,7 +1260,7 @@ describe('AgentRunner with Session', () => {
       client,
       systemPrompt: 'Test',
       toolset,
-      sessionsDir: testDir,
+      sessionRef: { sessionsDir: testDir },
       enableStopHooks: false,
     });
 
@@ -1341,8 +1301,7 @@ describe('AgentRunner with Session', () => {
       client,
       systemPrompt: 'Test',
       toolset,
-      sessionId: session.id,
-      sessionsDir: testDir,
+      sessionRef: { sessionId: session.id, sessionsDir: testDir },
       enableStopHooks: false,
       context: {
         maxContextWindow: 200000,
@@ -1406,8 +1365,7 @@ describe('AgentRunner with Session', () => {
         client,
         systemPrompt: 'Test',
         toolset,
-        sessionId: session.id,
-        sessionsDir: testDir,
+        sessionRef: { sessionId: session.id, sessionsDir: testDir },
         enableStopHooks: false,
         context: {
           maxContextWindow: 200000,
@@ -1471,8 +1429,7 @@ describe('AgentRunner with Session', () => {
         client,
         systemPrompt: 'Test',
         toolset,
-        sessionId: session.id,
-        sessionsDir: testDir,
+        sessionRef: { sessionId: session.id, sessionsDir: testDir },
         enableStopHooks: false,
       });
 
@@ -1525,8 +1482,7 @@ describe('AgentRunner with Session', () => {
         client,
         systemPrompt: 'Test',
         toolset,
-        sessionId: session.id,
-        sessionsDir: testDir,
+        sessionRef: { sessionId: session.id, sessionsDir: testDir },
         enableStopHooks: false,
       });
 
@@ -1579,8 +1535,7 @@ describe('AgentRunner with Session', () => {
         client,
         systemPrompt: 'Test',
         toolset,
-        sessionId: session.id,
-        sessionsDir: testDir,
+        sessionRef: { sessionId: session.id, sessionsDir: testDir },
         enableStopHooks: false,
       });
 
