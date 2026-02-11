@@ -216,13 +216,8 @@ describe('initializeAgent', () => {
     } as never);
 
     expect(renderMessagePart).toHaveBeenCalledTimes(1);
-    expect(renderToolStart).toHaveBeenCalledTimes(2);
-    expect(renderToolStart).toHaveBeenNthCalledWith(1, {
-      id: 'call-1',
-      command: 'task:run',
-      depth: 0,
-    });
-    expect(renderToolStart).toHaveBeenNthCalledWith(2, {
+    expect(renderToolStart).toHaveBeenCalledTimes(1);
+    expect(renderToolStart).toHaveBeenCalledWith({
       id: 'call-2',
       command: 'echo hi',
       depth: 0,
