@@ -1,5 +1,7 @@
 # Synapse Agent
 
+![Synapse Logo](assets/logo.png)
+
 [中文文档](README.zh-CN.md)
 
 A self-growing AI agent framework built on a unified shell abstraction, with an interactive REPL, extensible tooling, and a reusable skill system.
@@ -252,6 +254,8 @@ Example:
 │   ├── unit/
 │   ├── e2e/
 │   └── fixtures/
+├── assets/
+│   └── logo.png
 ├── docs/
 ├── examples/
 ├── README.md

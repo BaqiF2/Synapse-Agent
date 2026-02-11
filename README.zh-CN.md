@@ -1,5 +1,7 @@
 # Synapse Agent
 
+![Synapse Logo](assets/logo.png)
+
 [English](README.md)
 
 基于统一 Shell 抽象的自我成长 AI 智能体框架，提供交互式 REPL、可扩展工具体系与技能系统。
@@ -251,6 +253,8 @@ bun run chat
 │   ├── unit/
 │   ├── e2e/
 │   └── fixtures/
+├── assets/
+│   └── logo.png
 ├── docs/
 ├── examples/
 ├── README.md
