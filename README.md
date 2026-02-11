@@ -76,7 +76,11 @@ LLM settings are stored in `~/.synapse/settings.json`:
     "ANTHROPIC_API_KEY": "your_api_key_here",
     "ANTHROPIC_BASE_URL": "https://api.anthropic.com"
   },
-  "model": "claude-sonnet-4-20250514"
+  "model": "claude-sonnet-4-5",
+  "skillEnhance": {
+    "autoEnhance": false,
+    "maxEnhanceContextChars": 50000
+  }
 }
 ```
 
@@ -84,7 +88,38 @@ LLM settings are stored in `~/.synapse/settings.json`:
 | --- | --- |
 | `ANTHROPIC_API_KEY` | Required API key |
 | `ANTHROPIC_BASE_URL` | Optional API endpoint |
-| `model` | Model name |
+| `model` | Model name (default: `claude-sonnet-4-5`) |
+| `skillEnhance.autoEnhance` | Enable/disable auto skill enhancement |
+| `skillEnhance.maxEnhanceContextChars` | Context size limit for enhancement analysis |
+
+> Note: Synapse Agent supports Anthropic API and Anthropic-compatible endpoints via `ANTHROPIC_BASE_URL`.  
+> The project author commonly uses MiniMax through this compatible endpoint setting.
+
+#### MiniMax (Anthropic-compatible)
+
+MiniMax can be used with Synapse Agent through an Anthropic-compatible API surface.
+In this setup:
+
+- `ANTHROPIC_API_KEY`: use your MiniMax API key
+- `ANTHROPIC_BASE_URL`: use the MiniMax-compatible endpoint
+- `model`: use a MiniMax model name (the author commonly uses `minimax-2.1`)
+
+Example:
+
+```json
+{
+  "env": {
+    "ANTHROPIC_API_KEY": "<your-minimax-api-key>",
+    "ANTHROPIC_BASE_URL": "https://api.minimaxi.chat/v1"
+  },
+  "model": "minimax-2.1"
+}
+```
+
+References:
+
+- [MiniMax API Overview](https://platform.minimaxi.com/docs/api-reference/api-overview)
+- [Anthropic API Overview](https://platform.claude.com/docs/en/api/overview)
 
 See `.env.example` for additional optional settings (logging, persistence, enhancement strategy, etc.).
 
@@ -108,13 +143,27 @@ bun run chat
 | `/exit` | Exit REPL |
 | `/clear` | Clear conversation history |
 | `/cost` | Show token/cost usage for current session |
+| `/context` | Show context usage stats |
+| `/compact` | Compact conversation history |
+| `/model` | Show current model |
 | `/tools` | List available tools |
-| `/skills` | List local skills |
-| `/sessions` | List saved sessions |
 | `/resume` | Show resumable sessions and choose one |
 | `/resume --latest` | Resume latest session |
 | `/resume <id>` | Resume by session ID |
+
+### Skill commands
+
+| Command | Description |
+| --- | --- |
+| `/skill:list` | List installed skills |
+| `/skill:info <name>` | Show skill details and versions |
+| `/skill:import <src>` | Import skills from local directory or URL |
+| `/skill:rollback <name> [version]` | Roll back a skill version |
+| `/skill:delete <name>` | Delete a skill and its version history |
 | `/skill enhance` | Show auto skill enhancement status |
+| `/skill enhance --on` | Enable auto skill enhancement |
+| `/skill enhance --off` | Disable auto skill enhancement |
+| `/skill enhance -h` | Show skill enhancement help |
 
 ### Shell commands (`!`)
 
@@ -150,15 +199,15 @@ For file discovery and content search, prefer native commands such as `find`, `r
 
 ### Session persistence and resume
 
-- Enabled by default (`SYNAPSE_PERSISTENCE_ENABLED`)
-- Sessions stored in `~/.synapse/sessions/`
+- Session files are stored in `~/.synapse/sessions/` by default
+- Session directory can be overridden with `SYNAPSE_SESSIONS_DIR`
 - Use `/resume` or `/resume --latest`
 
 ### Auto skill enhancement
 
 - `/skill enhance --on` to enable
 - `/skill enhance --off` to disable
-- `/skill enhance --conversation <path>` for manual analysis
+- Setting is persisted in `~/.synapse/settings.json` (`skillEnhance.autoEnhance`)
 
 ### Sub-agents
 
@@ -220,7 +269,9 @@ Example:
 bun run lint
 bun run typecheck
 bun run test
+bun run test:cov
 bun run test:e2e
+bun run test:cli:e2e
 ```
 
 ## Tech Stack
@@ -232,6 +283,17 @@ bun run test:e2e
 - Terminal UI: Ink + `@inkjs/ui`
 - CLI: Commander.js
 - Validation: Zod
+
+## Acknowledgements
+
+Inspired by:
+
+- [philschmid/mcp-cli](https://github.com/philschmid/mcp-cli)
+- [shareAI-lab/learn-claude-code](https://github.com/shareAI-lab/learn-claude-code)
+
+## Contact
+
+- Email: [wuwenjun19930614@gmail.com](mailto:wuwenjun19930614@gmail.com)
 
 ## License
 

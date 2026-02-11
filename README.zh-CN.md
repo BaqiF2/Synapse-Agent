@@ -76,7 +76,11 @@ LLM 配置位于 `~/.synapse/settings.json`：
     "ANTHROPIC_API_KEY": "your_api_key_here",
     "ANTHROPIC_BASE_URL": "https://api.anthropic.com"
   },
-  "model": "claude-sonnet-4-20250514"
+  "model": "claude-sonnet-4-5",
+  "skillEnhance": {
+    "autoEnhance": false,
+    "maxEnhanceContextChars": 50000
+  }
 }
 ```
 
@@ -84,7 +88,37 @@ LLM 配置位于 `~/.synapse/settings.json`：
 | --- | --- |
 | `ANTHROPIC_API_KEY` | 必填 API Key |
 | `ANTHROPIC_BASE_URL` | 可选 API 端点 |
-| `model` | 模型名称 |
+| `model` | 模型名称（默认：`claude-sonnet-4-5`） |
+| `skillEnhance.autoEnhance` | 自动技能增强开关 |
+| `skillEnhance.maxEnhanceContextChars` | 技能增强分析上下文字符上限 |
+
+> 备注：Synapse Agent 支持 Anthropic API，也支持通过 `ANTHROPIC_BASE_URL` 接入 Anthropic 兼容接口。  
+> 作者日常使用的是 MiniMax（通过兼容接口方式接入）。
+
+#### MiniMax（Anthropic 兼容）
+
+Synapse Agent 可以通过 Anthropic 兼容接口接入 MiniMax。配置方式如下：
+
+- `ANTHROPIC_API_KEY`：填写 MiniMax 的 API Key
+- `ANTHROPIC_BASE_URL`：填写 MiniMax 的兼容接口地址
+- `model`：填写 MiniMax 模型名（作者日常使用 `minimax-2.1`）
+
+示例：
+
+```json
+{
+  "env": {
+    "ANTHROPIC_API_KEY": "<your-minimax-api-key>",
+    "ANTHROPIC_BASE_URL": "https://api.minimaxi.chat/v1"
+  },
+  "model": "minimax-2.1"
+}
+```
+
+参考文档：
+
+- [MiniMax API 概览](https://platform.minimaxi.com/docs/api-reference/api-overview)
+- [Anthropic API 概览](https://platform.claude.com/docs/en/api/overview)
 
 更多可选项见 `.env.example`（日志、持久化、增强策略等）。
 
@@ -108,13 +142,27 @@ bun run chat
 | `/exit` | 退出 REPL |
 | `/clear` | 清空对话历史 |
 | `/cost` | 查看当前会话 token/费用统计 |
+| `/context` | 查看上下文使用统计 |
+| `/compact` | 压缩对话历史 |
+| `/model` | 查看当前模型 |
 | `/tools` | 列出可用工具 |
-| `/skills` | 列出本地技能 |
-| `/sessions` | 列出已保存会话 |
 | `/resume` | 列出可恢复会话并选择恢复 |
 | `/resume --latest` | 恢复最近会话 |
 | `/resume <id>` | 按会话 ID 恢复 |
+
+### 技能命令
+
+| 命令 | 说明 |
+| --- | --- |
+| `/skill:list` | 列出已安装技能 |
+| `/skill:info <name>` | 查看技能详情与版本 |
+| `/skill:import <src>` | 从本地目录或 URL 导入技能 |
+| `/skill:rollback <name> [version]` | 回滚技能版本 |
+| `/skill:delete <name>` | 删除技能及其版本历史 |
 | `/skill enhance` | 查看自动技能增强状态 |
+| `/skill enhance --on` | 开启自动技能增强 |
+| `/skill enhance --off` | 关闭自动技能增强 |
+| `/skill enhance -h` | 查看自动技能增强帮助 |
 
 ### Shell 命令（以 `!` 开头）
 
@@ -150,15 +198,15 @@ bun run chat
 
 ### 会话持久化与恢复
 
-- 默认启用持久化（`SYNAPSE_PERSISTENCE_ENABLED`）
-- 会话存储于 `~/.synapse/sessions/`
+- 会话默认存储于 `~/.synapse/sessions/`
+- 可通过 `SYNAPSE_SESSIONS_DIR` 覆盖会话目录
 - 使用 `/resume` 或 `/resume --latest`
 
 ### 自动技能增强
 
 - `/skill enhance --on` 开启
 - `/skill enhance --off` 关闭
-- `/skill enhance --conversation <path>` 手动分析对话
+- 配置会持久化到 `~/.synapse/settings.json`（`skillEnhance.autoEnhance`）
 
 ### 子智能体
 
@@ -220,7 +268,9 @@ bun run chat
 bun run lint
 bun run typecheck
 bun run test
+bun run test:cov
 bun run test:e2e
+bun run test:cli:e2e
 ```
 
 ## 技术栈
@@ -232,6 +282,17 @@ bun run test:e2e
 - 终端 UI：Ink + `@inkjs/ui`
 - CLI：Commander.js
 - 验证：Zod
+
+## 灵感来源
+
+感谢以下项目带来的灵感：
+
+- [philschmid/mcp-cli](https://github.com/philschmid/mcp-cli)
+- [shareAI-lab/learn-claude-code](https://github.com/shareAI-lab/learn-claude-code)
+
+## 联系方式
+
+- Google 邮箱：[wenjun19930614@gmail.com](mailto:wenjun19930614@gmail.com)
 
 ## 许可证
 
