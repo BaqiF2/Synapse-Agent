@@ -1,39 +1,5 @@
 /**
- * 文件功能说明：
- * - 该文件位于 `src/sandbox/sandbox-config.ts`，主要负责 沙箱、配置 相关实现。
- * - 模块归属 沙箱 领域，为上层流程提供可复用能力。
- *
- * 核心导出列表：
- * - `getDefaultSandboxConfigPath`
- * - `validateSandboxConfig`
- * - `buildPolicy`
- * - `loadSandboxConfig`
- * - `addPermanentWhitelist`
- * - `LoadSandboxConfigOptions`
- * - `PersistWhitelistOptions`
- * - `BuildPolicyOptions`
- * - `SandboxUserConfig`
- * - `DEFAULT_SANDBOX_CONFIG`
- * - `DEFAULT_SANDBOX_CONFIG_PATH`
- * - `SandboxPolicySchema`
- * - `SandboxConfigSchema`
- * - `SandboxUserConfigSchema`
- *
- * 作用说明：
- * - `getDefaultSandboxConfigPath`：用于读取并返回目标数据。
- * - `validateSandboxConfig`：提供该模块的核心能力。
- * - `buildPolicy`：用于构建并产出目标内容。
- * - `loadSandboxConfig`：用于加载外部资源或配置。
- * - `addPermanentWhitelist`：提供该模块的核心能力。
- * - `LoadSandboxConfigOptions`：定义模块交互的数据结构契约。
- * - `PersistWhitelistOptions`：定义模块交互的数据结构契约。
- * - `BuildPolicyOptions`：定义模块交互的数据结构契约。
- * - `SandboxUserConfig`：声明类型别名，约束输入输出类型。
- * - `DEFAULT_SANDBOX_CONFIG`：提供可复用的常量配置。
- * - `DEFAULT_SANDBOX_CONFIG_PATH`：提供可复用的常量配置。
- * - `SandboxPolicySchema`：提供可复用的模块级变量/常量。
- * - `SandboxConfigSchema`：提供可复用的模块级变量/常量。
- * - `SandboxUserConfigSchema`：提供可复用的模块级变量/常量。
+ * 沙盒配置加载与合并
  */
 
 import * as fs from 'node:fs';
@@ -76,9 +42,6 @@ export const DEFAULT_SANDBOX_CONFIG: SandboxConfig = {
   providerOptions: {},
 };
 
-/**
- * 方法说明：读取并返回 getDefaultSandboxConfigPath 对应的数据。
- */
 export function getDefaultSandboxConfigPath(): string {
   return path.join(getSynapseHome(), 'sandbox.json');
 }
@@ -142,9 +105,6 @@ export interface BuildPolicyOptions {
   homeDir?: string;
 }
 
-/**
- * 方法说明：执行 cloneDefaultConfig 相关逻辑。
- */
 function cloneDefaultConfig(): SandboxConfig {
   return {
     enabled: DEFAULT_SANDBOX_CONFIG.enabled,
@@ -162,11 +122,6 @@ function cloneDefaultConfig(): SandboxConfig {
   };
 }
 
-/**
- * 方法说明：执行 appendUnique 相关逻辑。
- * @param base 输入参数。
- * @param additions 集合数据。
- */
 function appendUnique(base: string[], additions: readonly string[] = []): string[] {
   const merged = [...base];
   const seen = new Set(base);
@@ -182,11 +137,6 @@ function appendUnique(base: string[], additions: readonly string[] = []): string
   return merged;
 }
 
-/**
- * 方法说明：解析输入并生成 parsePartialConfig 对应结构。
- * @param config 配置参数。
- * @param sourceLabel 输入参数。
- */
 function parsePartialConfig(config: unknown, sourceLabel: string): SandboxUserConfig {
   if (config === null || config === undefined) {
     return {};
@@ -203,10 +153,6 @@ function parsePartialConfig(config: unknown, sourceLabel: string): SandboxUserCo
   return {};
 }
 
-/**
- * 方法说明：执行 readUserConfigFile 相关逻辑。
- * @param configPath 目标路径或文件信息。
- */
 function readUserConfigFile(configPath: string): SandboxUserConfig {
   if (!fs.existsSync(configPath)) {
     return {};
@@ -225,11 +171,6 @@ function readUserConfigFile(configPath: string): SandboxUserConfig {
   }
 }
 
-/**
- * 方法说明：执行 mergeConfig 相关逻辑。
- * @param base 输入参数。
- * @param patch 输入参数。
- */
 function mergeConfig(base: SandboxConfig, patch: SandboxUserConfig): SandboxConfig {
   return {
     enabled: patch.enabled ?? base.enabled,
@@ -256,12 +197,6 @@ function mergeConfig(base: SandboxConfig, patch: SandboxUserConfig): SandboxConf
   };
 }
 
-/**
- * 方法说明：执行 expandPathToken 相关逻辑。
- * @param token 输入参数。
- * @param env 输入参数。
- * @param homeDir 输入参数。
- */
 function expandPathToken(token: string, env: NodeJS.ProcessEnv, homeDir: string): string {
   let value = token;
 
@@ -279,27 +214,14 @@ function expandPathToken(token: string, env: NodeJS.ProcessEnv, homeDir: string)
   return value;
 }
 
-/**
- * 方法说明：执行 dedupe 相关逻辑。
- * @param items 集合数据。
- */
 function dedupe(items: string[]): string[] {
   return [...new Set(items)];
 }
 
-/**
- * 方法说明：校验 validateSandboxConfig 相关输入。
- * @param config 配置参数。
- */
 export function validateSandboxConfig(config: unknown) {
   return SandboxConfigSchema.safeParse(config);
 }
 
-/**
- * 方法说明：构建 buildPolicy 对应内容。
- * @param policy 输入参数。
- * @param options 配置参数。
- */
 export function buildPolicy(policy: SandboxPolicy, options: BuildPolicyOptions = {}): SandboxPolicy {
   const env = options.env ?? process.env;
   const homeDir = options.homeDir ?? env.HOME ?? os.homedir();
@@ -319,10 +241,6 @@ export function buildPolicy(policy: SandboxPolicy, options: BuildPolicyOptions =
   };
 }
 
-/**
- * 方法说明：加载 loadSandboxConfig 相关资源。
- * @param options 配置参数。
- */
 export function loadSandboxConfig(options: LoadSandboxConfigOptions = {}): SandboxConfig {
   const configPath = options.configPath ?? getDefaultSandboxConfigPath();
   const fileConfig = readUserConfigFile(configPath);
@@ -348,11 +266,6 @@ export function loadSandboxConfig(options: LoadSandboxConfigOptions = {}): Sandb
   return validation.data;
 }
 
-/**
- * 方法说明：新增 addPermanentWhitelist 对应数据。
- * @param resourcePath 目标路径或文件信息。
- * @param options 配置参数。
- */
 export function addPermanentWhitelist(
   resourcePath: string,
   options: PersistWhitelistOptions = {}

@@ -1,21 +1,12 @@
 /**
- * 文件功能说明：
- * - 该文件位于 `src/utils/logger.ts`，主要负责 日志 相关实现。
- * - 模块归属 utils 领域，为上层流程提供可复用能力。
+ * Logger - 分级日志系统
  *
- * 核心导出列表：
- * - `createLogger`
- * - `Logger`
- * - `LogEntry`
- * - `LoggerConfig`
- * - `LogLevel`
+ * 功能：提供分级日志功能（DEBUG, INFO, WARN, ERROR），支持文件输出
  *
- * 作用说明：
- * - `createLogger`：用于创建并返回新对象/实例。
- * - `Logger`：封装该领域的核心流程与状态管理。
- * - `LogEntry`：定义模块交互的数据结构契约。
- * - `LoggerConfig`：定义模块交互的数据结构契约。
- * - `LogLevel`：定义可枚举选项，统一分支语义。
+ * 核心导出：
+ * - Logger: 日志类
+ * - LogLevel: 日志级别枚举
+ * - createLogger: 创建日志器工厂函数
  */
 
 import * as fs from 'node:fs';
@@ -48,7 +39,6 @@ const LOG_LEVEL_NAMES: Record<LogLevel, string> = {
 
 /**
  * Expand ~ to home directory
- * @param filePath 目标路径或文件信息。
  */
 function expandHomePath(filePath: string): string {
   if (filePath.startsWith('~/')) {
@@ -71,7 +61,6 @@ const LOG_MAX_SIZE = parseInt(process.env.SYNAPSE_LOG_MAX_SIZE || '10485760', 10
 
 /**
  * Parse log level from string
- * @param level 输入参数。
  */
 function parseLogLevel(level: string): LogLevel {
   const upperLevel = level.toUpperCase();
@@ -133,10 +122,6 @@ export class Logger {
   private logFile: string;
   private logPath: string;
 
-  /**
-   * 方法说明：初始化 Logger 实例并设置初始状态。
-   * @param config 配置参数。
-   */
   constructor(config: LoggerConfig = {}) {
     this.level = config.level ?? LOG_LEVEL;
     this.category = config.category ?? 'default';
@@ -194,9 +179,6 @@ export class Logger {
 
   /**
    * Format log entry for output
-   * @param level 输入参数。
-   * @param message 消息内容。
-   * @param data 输入参数。
    */
   private formatEntry(level: LogLevel, message: string, data?: unknown): LogEntry {
     return {
@@ -210,7 +192,6 @@ export class Logger {
 
   /**
    * Write log entry to file
-   * @param entry 输入参数。
    */
   private writeToFile(entry: LogEntry): void {
     if (!this.logToFile) return;
@@ -226,9 +207,6 @@ export class Logger {
 
   /**
    * Log a message at the specified level
-   * @param level 输入参数。
-   * @param message 消息内容。
-   * @param data 输入参数。
    */
   private log(level: LogLevel, message: string, data?: unknown): void {
     if (level < this.level) return;
@@ -239,8 +217,6 @@ export class Logger {
 
   /**
    * Log a trace message (most verbose level)
-   * @param message 消息内容。
-   * @param data 输入参数。
    */
   trace(message: string, data?: unknown): void {
     this.log(LogLevel.TRACE, message, data);
@@ -248,8 +224,6 @@ export class Logger {
 
   /**
    * Log a debug message
-   * @param message 消息内容。
-   * @param data 输入参数。
    */
   debug(message: string, data?: unknown): void {
     this.log(LogLevel.DEBUG, message, data);
@@ -257,8 +231,6 @@ export class Logger {
 
   /**
    * Log an info message
-   * @param message 消息内容。
-   * @param data 输入参数。
    */
   info(message: string, data?: unknown): void {
     this.log(LogLevel.INFO, message, data);
@@ -266,8 +238,6 @@ export class Logger {
 
   /**
    * Log a warning message
-   * @param message 消息内容。
-   * @param data 输入参数。
    */
   warn(message: string, data?: unknown): void {
     this.log(LogLevel.WARN, message, data);
@@ -275,8 +245,6 @@ export class Logger {
 
   /**
    * Log an error message
-   * @param message 消息内容。
-   * @param data 输入参数。
    */
   error(message: string, data?: unknown): void {
     this.log(LogLevel.ERROR, message, data);

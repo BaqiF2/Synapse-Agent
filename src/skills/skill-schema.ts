@@ -1,23 +1,15 @@
 /**
- * 文件功能说明：
- * - 该文件位于 `src/skills/skill-schema.ts`，主要负责 技能、结构/校验 相关实现。
- * - 模块归属 skills 领域，为上层流程提供可复用能力。
+ * Skill Schema and Parser
  *
- * 核心导出列表：
- * - `parseSkillMd`
- * - `SkillDocParser`
- * - `SkillDomain`
- * - `SkillDoc`
- * - `SKILL_DOMAINS`
- * - `SkillDocSchema`
+ * This module defines the schema for SKILL.md files and provides
+ * parsing utilities to extract structured metadata from skill documents.
  *
- * 作用说明：
- * - `parseSkillMd`：用于解析输入并转换为结构化数据。
- * - `SkillDocParser`：封装该领域的核心流程与状态管理。
- * - `SkillDomain`：声明类型别名，约束输入输出类型。
- * - `SkillDoc`：声明类型别名，约束输入输出类型。
- * - `SKILL_DOMAINS`：提供可复用的常量配置。
- * - `SkillDocSchema`：提供可复用的模块级变量/常量。
+ * @module skill-schema
+ *
+ * Core Exports:
+ * - SkillDocSchema: Zod schema for skill document metadata
+ * - SkillDocParser: Parser for SKILL.md files
+ * - parseSkillMd: Parse a SKILL.md file into structured metadata
  */
 
 import { z } from 'zod';
@@ -245,7 +237,6 @@ export class SkillDocParser {
 
   /**
    * 提取 YAML frontmatter
-   * @param content 输入参数。
    */
   private extractFrontmatter(content: string): { bodyContent: string; frontmatter: Record<string, string | string[]> } {
     const normalized = content.replace(/^\uFEFF/, '');
@@ -281,7 +272,6 @@ export class SkillDocParser {
 
   /**
    * 解析 frontmatter 的 key/value
-   * @param frontmatterContent 输入参数。
    */
   private parseFrontmatter(frontmatterContent: string): Record<string, string | string[]> {
     const metadata: Record<string, string | string[]> = {};
@@ -339,8 +329,6 @@ export class SkillDocParser {
 
   /**
    * 将 frontmatter 映射到 SkillDoc
-   * @param result 输入参数。
-   * @param frontmatter 输入参数。
    */
   private applyFrontmatter(result: Partial<SkillDoc>, frontmatter: Record<string, string | string[]>): void {
     const domain = frontmatter.domain;
@@ -371,10 +359,6 @@ export class SkillDocParser {
     }
   }
 
-  /**
-   * 方法说明：解析输入并生成 parseFrontmatterListValue 对应结构。
-   * @param rawValue 输入参数。
-   */
   private parseFrontmatterListValue(rawValue: string): string[] {
     const inner = rawValue.slice(1, -1).trim();
     if (!inner) return [];
@@ -384,10 +368,6 @@ export class SkillDocParser {
       .filter(Boolean);
   }
 
-  /**
-   * 方法说明：执行 stripWrappingQuotes 相关逻辑。
-   * @param value 输入参数。
-   */
   private stripWrappingQuotes(value: string): string {
     const trimmed = value.trim();
     if (
@@ -401,7 +381,6 @@ export class SkillDocParser {
 
   /**
    * Normalizes a section name
-   * @param section 输入参数。
    */
   private normalizeSection(section: string): string {
     const normalized = section.toLowerCase().trim();
@@ -428,9 +407,6 @@ export class SkillDocParser {
 
   /**
    * Sets a key-value pair in the result
-   * @param result 输入参数。
-   * @param key 输入参数。
-   * @param value 输入参数。
    */
   private setKeyValue(result: Partial<SkillDoc>, key: string, value: string): void {
     switch (key) {
@@ -465,9 +441,6 @@ export class SkillDocParser {
 
   /**
    * Parses content within a section
-   * @param result 输入参数。
-   * @param section 输入参数。
-   * @param line 输入参数。
    */
   private parseSectionContent(
     result: Partial<SkillDoc>,

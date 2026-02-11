@@ -1,23 +1,15 @@
 /**
- * 文件功能说明：
- * - 该文件位于 `src/tools/converters/mcp/mcp-initializer.ts`，主要负责 MCP、初始化 相关实现。
- * - 模块归属 工具、转换器、MCP 领域，为上层流程提供可复用能力。
+ * MCP Tool Initializer
  *
- * 核心导出列表：
- * - `initializeMcpTools`
- * - `cleanupMcpTools`
- * - `refreshMcpTools`
- * - `McpServerInitResult`
- * - `McpInitResult`
- * - `McpInitOptions`
+ * This module handles the automatic discovery and installation of MCP tools
+ * at Agent startup. It coordinates the config parser, MCP client, wrapper
+ * generator, and installer to provide a unified initialization flow.
  *
- * 作用说明：
- * - `initializeMcpTools`：用于初始化运行环境或模块状态。
- * - `cleanupMcpTools`：用于清理资源并回收状态。
- * - `refreshMcpTools`：用于刷新状态并重新加载数据。
- * - `McpServerInitResult`：定义模块交互的数据结构契约。
- * - `McpInitResult`：定义模块交互的数据结构契约。
- * - `McpInitOptions`：定义模块交互的数据结构契约。
+ * @module mcp-initializer
+ *
+ * Core Exports:
+ * - initializeMcpTools: Main function to discover and install MCP tools
+ * - McpInitResult: Result of the initialization process
  */
 
 import { McpConfigParser, type McpServerEntry } from './config-parser.js';
@@ -166,10 +158,6 @@ export async function initializeMcpTools(options: McpInitOptions = {}): Promise<
 
 /**
  * Process a single MCP server: connect, discover tools, generate and install wrappers
- * @param serverEntry 输入参数。
- * @param generator 输入参数。
- * @param installer 输入参数。
- * @param timeout 输入参数。
  */
 async function processServer(
   serverEntry: McpServerEntry,

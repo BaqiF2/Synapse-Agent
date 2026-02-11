@@ -1,17 +1,3 @@
-/**
- * 文件功能说明：
- * - 该文件位于 `src/sandbox/sandbox-manager.ts`，主要负责 沙箱、管理 相关实现。
- * - 模块归属 沙箱 领域，为上层流程提供可复用能力。
- *
- * 核心导出列表：
- * - `SandboxManager`
- * - `SandboxManagerOptions`
- *
- * 作用说明：
- * - `SandboxManager`：封装该领域的核心流程与状态管理。
- * - `SandboxManagerOptions`：定义模块交互的数据结构契约。
- */
-
 import { BashSession } from '../tools/bash-session.ts';
 import { createLogger } from '../utils/logger.ts';
 import { buildPolicy as expandPolicyPaths } from './sandbox-config.ts';
@@ -36,19 +22,11 @@ class UnsandboxedBackend implements SandboxBackend {
   readonly id: string;
   private readonly session: UnsandboxedSession;
 
-  /**
-   * 方法说明：初始化 UnsandboxedBackend 实例并设置初始状态。
-   * @param createSession 输入参数。
-   */
   constructor(createSession?: () => UnsandboxedSession) {
     this.id = `unsandboxed-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     this.session = createSession ? createSession() : new BashSession();
   }
 
-  /**
-   * 方法说明：执行 execute 相关主流程。
-   * @param command 输入参数。
-   */
   async execute(command: string): Promise<ExecuteResult> {
     const result = await this.session.execute(command);
     return {
@@ -59,9 +37,6 @@ class UnsandboxedBackend implements SandboxBackend {
     };
   }
 
-  /**
-   * 方法说明：执行 dispose 相关逻辑。
-   */
   async dispose(): Promise<void> {
     if (typeof this.session.kill === 'function') {
       await this.session.kill();
@@ -76,10 +51,6 @@ export interface SandboxManagerOptions {
   createUnsandboxedBackend?: (cwd: string) => SandboxBackend;
 }
 
-/**
- * 方法说明：执行 dedupe 相关逻辑。
- * @param paths 目标路径或文件信息。
- */
 function dedupe(paths: string[]): string[] {
   return [...new Set(paths)];
 }
@@ -91,11 +62,6 @@ export class SandboxManager {
   private activeSandbox: SandboxBackend | null = null;
   private readonly runtimeWhitelist = new Set<string>();
 
-  /**
-   * 方法说明：初始化 SandboxManager 实例并设置初始状态。
-   * @param config 配置参数。
-   * @param options 配置参数。
-   */
   constructor(
     private readonly config: SandboxConfig,
     options: SandboxManagerOptions = {}
@@ -105,10 +71,6 @@ export class SandboxManager {
       options.createUnsandboxedBackend ?? (() => new UnsandboxedBackend());
   }
 
-  /**
-   * 方法说明：读取并返回 getSandbox 对应的数据。
-   * @param cwd 输入参数。
-   */
   async getSandbox(cwd: string): Promise<SandboxBackend> {
     if (!this.config.enabled) {
       if (!this.activeSandbox) {
@@ -132,11 +94,6 @@ export class SandboxManager {
     return this.activeSandbox;
   }
 
-  /**
-   * 方法说明：新增 addRuntimeWhitelist 对应数据。
-   * @param resourcePath 目标路径或文件信息。
-   * @param cwd 输入参数。
-   */
   async addRuntimeWhitelist(resourcePath: string, cwd: string): Promise<void> {
     this.runtimeWhitelist.add(resourcePath);
     if (!this.config.enabled) {
@@ -145,11 +102,6 @@ export class SandboxManager {
     await this.rebuildSandbox(cwd);
   }
 
-  /**
-   * 方法说明：执行 executeUnsandboxed 相关主流程。
-   * @param command 输入参数。
-   * @param cwd 输入参数。
-   */
   async executeUnsandboxed(command: string, cwd: string): Promise<ExecuteResult> {
     const backend = this.createUnsandboxedBackend(cwd);
     try {
@@ -159,11 +111,6 @@ export class SandboxManager {
     }
   }
 
-  /**
-   * 方法说明：执行 execute 相关主流程。
-   * @param command 输入参数。
-   * @param cwd 输入参数。
-   */
   async execute(command: string, cwd: string): Promise<ExecuteResult> {
     const backend = await this.getSandbox(cwd);
     try {
@@ -185,9 +132,6 @@ export class SandboxManager {
     }
   }
 
-  /**
-   * 方法说明：执行 shutdown 相关逻辑。
-   */
   async shutdown(): Promise<void> {
     if (!this.activeSandbox) {
       return;
@@ -205,10 +149,6 @@ export class SandboxManager {
     await provider.destroy(active.id);
   }
 
-  /**
-   * 方法说明：构建 buildPolicy 对应内容。
-   * @param cwd 输入参数。
-   */
   buildPolicy(cwd: string): SandboxPolicy {
     const tempDir = process.env.TMPDIR || '/tmp';
     const rawPolicy: SandboxPolicy = {
@@ -229,10 +169,6 @@ export class SandboxManager {
     return expandPolicyPaths(rawPolicy);
   }
 
-  /**
-   * 方法说明：执行 rebuildSandbox 相关逻辑。
-   * @param cwd 输入参数。
-   */
   private async rebuildSandbox(cwd: string): Promise<void> {
     if (this.activeSandbox) {
       const active = this.activeSandbox;
@@ -254,9 +190,6 @@ export class SandboxManager {
     });
   }
 
-  /**
-   * 方法说明：执行 resolveProvider 相关逻辑。
-   */
   private resolveProvider(): SandboxProvider {
     if (!this.provider) {
       this.provider = this.getProviderByType(this.config.provider);

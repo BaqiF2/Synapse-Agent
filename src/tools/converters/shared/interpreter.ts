@@ -1,15 +1,12 @@
 /**
- * 文件功能说明：
- * - 该文件位于 `src/tools/converters/shared/interpreter.ts`，主要负责 解释器 相关实现。
- * - 模块归属 工具、转换器、shared 领域，为上层流程提供可复用能力。
+ * Script Interpreter Resolver (脚本解释器映射)
  *
- * 核心导出列表：
- * - `getInterpreter`
- * - `getInterpreterForPath`
+ * 功能：根据脚本文件扩展名选择合适的解释器命令。
+ * 统一 skill-tool-handler 和 skill wrapper-generator 中的解释器映射逻辑。
  *
- * 作用说明：
- * - `getInterpreter`：用于读取并返回目标数据。
- * - `getInterpreterForPath`：用于读取并返回目标数据。
+ * 核心导出：
+ * - getInterpreter: 根据文件扩展名返回解释器命令
+ * - getInterpreterForPath: 根据完整文件路径返回解释器命令
  */
 
 import * as path from 'node:path';

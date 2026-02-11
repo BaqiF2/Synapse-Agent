@@ -1,35 +1,16 @@
 /**
- * 文件功能说明：
- * - 该文件位于 `src/tools/converters/skill/skill-structure.ts`，主要负责 技能、结构 相关实现。
- * - 模块归属 工具、转换器、技能 领域，为上层流程提供可复用能力。
+ * Skill Structure Definition
  *
- * 核心导出列表：
- * - `SkillStructure`
- * - `SkillEntry`
- * - `SupportedExtension`
- * - `ScriptParam`
- * - `ScriptMetadata`
- * - `SkillDomain`
- * - `SkillMetadata`
- * - `SUPPORTED_EXTENSIONS`
- * - `ScriptParamSchema`
- * - `ScriptMetadataSchema`
- * - `SKILL_DOMAINS`
- * - `SkillMetadataSchema`
+ * This module defines the structure and schema for Synapse skills.
+ * Skills are organized in directories with a SKILL.md document and
+ * executable scripts in a scripts/ subdirectory.
  *
- * 作用说明：
- * - `SkillStructure`：封装该领域的核心流程与状态管理。
- * - `SkillEntry`：定义模块交互的数据结构契约。
- * - `SupportedExtension`：声明类型别名，约束输入输出类型。
- * - `ScriptParam`：声明类型别名，约束输入输出类型。
- * - `ScriptMetadata`：声明类型别名，约束输入输出类型。
- * - `SkillDomain`：声明类型别名，约束输入输出类型。
- * - `SkillMetadata`：声明类型别名，约束输入输出类型。
- * - `SUPPORTED_EXTENSIONS`：提供可复用的常量配置。
- * - `ScriptParamSchema`：提供可复用的模块级变量/常量。
- * - `ScriptMetadataSchema`：提供可复用的模块级变量/常量。
- * - `SKILL_DOMAINS`：提供可复用的常量配置。
- * - `SkillMetadataSchema`：提供可复用的模块级变量/常量。
+ * @module skill-structure
+ *
+ * Core Exports:
+ * - SkillMetadataSchema: Zod schema for skill metadata
+ * - ScriptMetadataSchema: Zod schema for script metadata
+ * - SkillStructure: Class for managing skill directory structure
  */
 
 import { z } from 'zod';
@@ -168,7 +149,6 @@ export class SkillStructure {
 
   /**
    * Gets the path for a specific skill
-   * @param skillName 输入参数。
    */
   public getSkillPath(skillName: string): string {
     return path.join(this.skillsDir, skillName);
@@ -176,7 +156,6 @@ export class SkillStructure {
 
   /**
    * Gets the SKILL.md path for a skill
-   * @param skillName 输入参数。
    */
   public getSkillMdPath(skillName: string): string {
     return path.join(this.getSkillPath(skillName), SKILL_MD_FILE);
@@ -184,7 +163,6 @@ export class SkillStructure {
 
   /**
    * Gets the scripts directory path for a skill
-   * @param skillName 输入参数。
    */
   public getScriptsDir(skillName: string): string {
     return path.join(this.getSkillPath(skillName), SCRIPTS_DIR);
@@ -192,7 +170,6 @@ export class SkillStructure {
 
   /**
    * Checks if a skill exists
-   * @param skillName 输入参数。
    */
   public skillExists(skillName: string): boolean {
     const skillPath = this.getSkillPath(skillName);
@@ -244,7 +221,6 @@ export class SkillStructure {
 
   /**
    * Lists all scripts in a skill
-   * @param skillName 输入参数。
    */
   public listScripts(skillName: string): string[] {
     const scriptsDir = this.getScriptsDir(skillName);
@@ -286,8 +262,6 @@ export class SkillStructure {
 
   /**
    * Generates SKILL.md content
-   * @param skillName 输入参数。
-   * @param metadata 输入参数。
    */
   private generateSkillMd(skillName: string, metadata?: Partial<SkillMetadata>): string {
     const title = metadata?.title || skillName;
@@ -328,9 +302,6 @@ List any external dependencies here.
 
   /**
    * Creates an example script in a skill
-   * @param skillName 输入参数。
-   * @param scriptName 输入参数。
-   * @param extension 输入参数。
    */
   public createExampleScript(
     skillName: string,
@@ -369,10 +340,6 @@ List any external dependencies here.
     return scriptPath;
   }
 
-  /**
-   * 方法说明：执行 generatePythonScript 相关逻辑。
-   * @param name 输入参数。
-   */
   private generatePythonScript(name: string): string {
     return `#!/usr/bin/env python3
 """
@@ -414,10 +381,6 @@ if __name__ == "__main__":
 `;
   }
 
-  /**
-   * 方法说明：执行 generateShellScript 相关逻辑。
-   * @param name 输入参数。
-   */
   private generateShellScript(name: string): string {
     return `#!/bin/bash
 # ${name} - A Synapse skill script
@@ -464,10 +427,6 @@ echo "Processed: $INPUT with option: $OPTION"
 `;
   }
 
-  /**
-   * 方法说明：执行 generateTypeScriptScript 相关逻辑。
-   * @param name 输入参数。
-   */
   private generateTypeScriptScript(name: string): string {
     return `#!/usr/bin/env bun
 /**
@@ -510,10 +469,6 @@ console.log(\`Processed: \${input} with option: \${option}\`);
 `;
   }
 
-  /**
-   * 方法说明：执行 generateJavaScriptScript 相关逻辑。
-   * @param name 输入参数。
-   */
   private generateJavaScriptScript(name: string): string {
     return `#!/usr/bin/env node
 /**

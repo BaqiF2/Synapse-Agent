@@ -1,39 +1,25 @@
 /**
- * 文件功能说明：
- * - 该文件位于 `src/types/message.ts`，主要负责 消息 相关实现。
- * - 模块归属 类型 领域，为上层流程提供可复用能力。
+ * 消息相关类型定义
  *
- * 核心导出列表：
- * - `TextPart`
- * - `ThinkingPart`
- * - `ImageUrlPart`
- * - `ToolCall`
- * - `ToolResult`
- * - `Message`
- * - `ThinkPart`
- * - `ToolCallPart`
- * - `ToolCallDeltaPart`
- * - `MergeableToolCallPart`
- * - `Role`
- * - `ContentPart`
- * - `StreamedMessagePart`
- * - `MergeablePart`
+ * 从 providers/message.ts 和 providers/anthropic/anthropic-types.ts 提取的核心消息类型，
+ * 消除 providers ↔ tools 之间的循环依赖。
  *
- * 作用说明：
- * - `TextPart`：定义模块交互的数据结构契约。
- * - `ThinkingPart`：定义模块交互的数据结构契约。
- * - `ImageUrlPart`：定义模块交互的数据结构契约。
- * - `ToolCall`：定义模块交互的数据结构契约。
- * - `ToolResult`：定义模块交互的数据结构契约。
- * - `Message`：定义模块交互的数据结构契约。
- * - `ThinkPart`：定义模块交互的数据结构契约。
- * - `ToolCallPart`：定义模块交互的数据结构契约。
- * - `ToolCallDeltaPart`：定义模块交互的数据结构契约。
- * - `MergeableToolCallPart`：定义模块交互的数据结构契约。
- * - `Role`：声明类型别名，约束输入输出类型。
- * - `ContentPart`：声明类型别名，约束输入输出类型。
- * - `StreamedMessagePart`：声明类型别名，约束输入输出类型。
- * - `MergeablePart`：声明类型别名，约束输入输出类型。
+ * 核心导出：
+ * - Role: 消息发送者角色
+ * - TextPart: 文本内容部分
+ * - ThinkingPart: 思维内容部分（Message 级别）
+ * - ImageUrlPart: 图片 URL 内容部分
+ * - ContentPart: 内容部分联合类型
+ * - ToolCall: 工具调用请求
+ * - ToolResult: 工具执行结果
+ * - Message: 完整消息结构
+ * - StreamTextPart: 流式文本部分
+ * - ThinkPart: 流式思维部分
+ * - ToolCallPart: 流式工具调用部分
+ * - ToolCallDeltaPart: 流式工具调用增量部分
+ * - StreamedMessagePart: 流式消息部分联合类型
+ * - MergeableToolCallPart: 可合并的工具调用部分
+ * - MergeablePart: 可合并部分联合类型
  */
 
 import type { ToolReturnValue } from './tool.ts';

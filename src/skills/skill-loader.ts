@@ -1,17 +1,16 @@
 /**
- * 文件功能说明：
- * - 该文件位于 `src/skills/skill-loader.ts`，主要负责 技能、loader 相关实现。
- * - 模块归属 skills 领域，为上层流程提供可复用能力。
+ * Skill Loader
  *
- * 核心导出列表：
- * - `SkillLoader`
- * - `SkillLevel1`
- * - `SkillLevel2`
+ * This module provides progressive skill loading with multiple levels:
+ * - Level 1: Load basic metadata from index (fast, minimal data)
+ * - Level 2: Load full SKILL.md document (complete skill information)
  *
- * 作用说明：
- * - `SkillLoader`：封装该领域的核心流程与状态管理。
- * - `SkillLevel1`：定义模块交互的数据结构契约。
- * - `SkillLevel2`：定义模块交互的数据结构契约。
+ * @module skill-loader
+ *
+ * Core Exports:
+ * - SkillLoader: Progressive skill loader with caching
+ * - SkillLevel1: Basic skill metadata (from index)
+ * - SkillLevel2: Complete skill data (from SKILL.md)
  */
 
 import * as os from 'node:os';
@@ -295,7 +294,6 @@ export class SkillLoader {
 
   /**
    * Converts an index entry to Level 1 data
-   * @param entry 输入参数。
    */
   private indexEntryToLevel1(entry: SkillIndexEntry): SkillLevel1 {
     return {
@@ -312,8 +310,6 @@ export class SkillLoader {
 
   /**
    * Converts a skill document to Level 2 data
-   * @param doc 输入参数。
-   * @param level1 输入参数。
    */
   private skillDocToLevel2(doc: SkillDoc, level1: SkillLevel1): SkillLevel2 {
     return {
@@ -335,8 +331,6 @@ export class SkillLoader {
 
   /**
    * Gets an entry from cache if valid
-   * @param cache 输入参数。
-   * @param key 输入参数。
    */
   private getFromCache<T>(cache: Map<string, CacheEntry<T>>, key: string): T | null {
     const entry = cache.get(key);
@@ -355,9 +349,6 @@ export class SkillLoader {
 
   /**
    * Sets an entry in cache
-   * @param cache 输入参数。
-   * @param key 输入参数。
-   * @param data 输入参数。
    */
   private setInCache<T>(cache: Map<string, CacheEntry<T>>, key: string, data: T): void {
     cache.set(key, {

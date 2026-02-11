@@ -1,23 +1,14 @@
 /**
- * 文件功能说明：
- * - 该文件位于 `src/skills/indexer.ts`，主要负责 indexer 相关实现。
- * - 模块归属 skills 领域，为上层流程提供可复用能力。
+ * Skill Indexer
  *
- * 核心导出列表：
- * - `SkillIndexer`
- * - `SkillIndexEntry`
- * - `SkillIndex`
- * - `SkillIndexEntrySchema`
- * - `SkillIndexSchema`
- * - `SkillIndexUpdater`
+ * 扫描 skills 目录并生成 index.json 索引文件，支持快速技能发现。
+ * 包含增量更新、添加、删除等操作（原 SkillIndexUpdater 已合并至此）。
  *
- * 作用说明：
- * - `SkillIndexer`：封装该领域的核心流程与状态管理。
- * - `SkillIndexEntry`：声明类型别名，约束输入输出类型。
- * - `SkillIndex`：声明类型别名，约束输入输出类型。
- * - `SkillIndexEntrySchema`：提供可复用的模块级变量/常量。
- * - `SkillIndexSchema`：提供可复用的模块级变量/常量。
- * - `SkillIndexUpdater`：聚合并对外暴露其它模块的能力。
+ * 核心导出：
+ * - SkillIndexer: 技能索引扫描与管理
+ * - SkillIndexUpdater: SkillIndexer 的向后兼容别名
+ * - SkillIndex: 索引数据结构
+ * - SkillIndexEntry: 单条技能索引条目
  */
 
 import * as fs from 'node:fs';

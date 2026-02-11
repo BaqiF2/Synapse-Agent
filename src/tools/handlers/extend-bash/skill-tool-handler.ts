@@ -1,13 +1,11 @@
 /**
- * 文件功能说明：
- * - 该文件位于 `src/tools/handlers/extend-bash/skill-tool-handler.ts`，主要负责 技能、工具、处理器 相关实现。
- * - 模块归属 工具、处理器、extend、Bash 领域，为上层流程提供可复用能力。
+ * Skill Tool Command Handler
  *
- * 核心导出列表：
- * - `SkillToolHandler`
+ * 处理 skill:<skill>:<tool> 格式的技能工具执行命令。
+ * 负责技能脚本查找、解释器选择和脚本执行。
  *
- * 作用说明：
- * - `SkillToolHandler`：封装该领域的核心流程与状态管理。
+ * 核心导出：
+ * - SkillToolHandler: 技能工具命令处理器，实现 extend Shell command 的 Skill 路由
  */
 
 import type { CommandResult } from '../native-command-handler.ts';
@@ -22,7 +20,6 @@ const SCRIPT_MAX_BUFFER = 10 * 1024 * 1024;
 
 /**
  * 创建错误结果的辅助函数
- * @param message 消息内容。
  */
 function errorResult(message: string): CommandResult {
   return { stdout: '', stderr: message, exitCode: 1 };
@@ -59,9 +56,6 @@ export class SkillToolHandler {
 
   /**
    * 处理 -h / --help 请求
-   * @param skillName 输入参数。
-   * @param toolName 输入参数。
-   * @param args 集合数据。
    */
   private async handleHelp(
     skillName: string,
@@ -91,9 +85,6 @@ export class SkillToolHandler {
 
   /**
    * 查找匹配的技能脚本并执行
-   * @param skillName 输入参数。
-   * @param toolName 输入参数。
-   * @param args 集合数据。
    */
   private async findAndExecuteScript(
     skillName: string,
@@ -128,8 +119,6 @@ export class SkillToolHandler {
 
   /**
    * 使用合适的解释器执行脚本
-   * @param scriptPath 目标路径或文件信息。
-   * @param args 集合数据。
    */
   private async executeScript(scriptPath: string, args: string[]): Promise<CommandResult> {
     const interpreter = getInterpreterForPath(scriptPath);

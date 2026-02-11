@@ -1,19 +1,13 @@
 /**
- * 文件功能说明：
- * - 该文件位于 `src/utils/env.ts`，主要负责 环境变量 相关实现。
- * - 模块归属 utils 领域，为上层流程提供可复用能力。
+ * 环境变量解析工具
  *
- * 核心导出列表：
- * - `parseEnvInt`
- * - `parseEnvPositiveInt`
- * - `parseEnvScanRatio`
- * - `parseEnvOptionalString`
+ * 功能：提供统一的环境变量解析方法，支持类型转换和默认值
  *
- * 作用说明：
- * - `parseEnvInt`：用于解析输入并转换为结构化数据。
- * - `parseEnvPositiveInt`：用于解析输入并转换为结构化数据。
- * - `parseEnvScanRatio`：用于解析输入并转换为结构化数据。
- * - `parseEnvOptionalString`：用于解析输入并转换为结构化数据。
+ * 核心导出：
+ * - parseEnvInt(): 解析整数环境变量
+ * - parseEnvPositiveInt(): 解析正整数环境变量
+ * - parseEnvScanRatio(): 解析 0~1 范围的浮点数环境变量
+ * - parseEnvOptionalString(): 解析可选字符串环境变量
  */
 
 /**

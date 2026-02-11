@@ -1,19 +1,12 @@
 /**
- * 文件功能说明：
- * - 该文件位于 `src/tools/constants.ts`，主要负责 常量 相关实现。
- * - 模块归属 工具 领域，为上层流程提供可复用能力。
+ * Shell Command Constants
  *
- * 核心导出列表：
- * - `extractBaseCommand`
- * - `isSimpleCommand`
- * - `SimpleCommand`
- * - `SIMPLE_COMMAND_WHITELIST`
+ * 功能：定义 Shell 命令相关的常量和辅助函数
  *
- * 作用说明：
- * - `extractBaseCommand`：用于从输入中提取目标信息。
- * - `isSimpleCommand`：用于条件判断并返回布尔结果。
- * - `SimpleCommand`：声明类型别名，约束输入输出类型。
- * - `SIMPLE_COMMAND_WHITELIST`：提供可复用的常量配置。
+ * 核心导出：
+ * - SIMPLE_COMMAND_WHITELIST: 简单命令白名单，这些命令可直接使用无需先查帮助
+ * - extractBaseCommand: 从完整命令中提取基础命令名
+ * - isSimpleCommand: 判断命令是否在简单命令白名单中
  */
 
 /**

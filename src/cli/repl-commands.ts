@@ -1,23 +1,16 @@
- /**
- * 文件功能说明：
- * - 该文件位于 `src/cli/repl-commands.ts`，主要负责 REPL、commands 相关实现。
- * - 模块归属 CLI 领域，为上层流程提供可复用能力。
+/**
+ * REPL 命令处理器
  *
- * 核心导出列表：
- * - `handleSigint`
- * - `executeShellCommand`
- * - `handleSpecialCommand`
- * - `ReplState`
- * - `SigintHandlerOptions`
- * - `SpecialCommandOptions`
+ * 功能：处理 REPL 中的特殊命令（/ 前缀）、Shell 命令（! 前缀）、
+ *       技能增强命令和会话恢复交互。
  *
- * 作用说明：
- * - `handleSigint`：提供该模块的核心能力。
- * - `executeShellCommand`：用于执行核心流程。
- * - `handleSpecialCommand`：提供该模块的核心能力。
- * - `ReplState`：定义模块交互的数据结构契约。
- * - `SigintHandlerOptions`：定义模块交互的数据结构契约。
- * - `SpecialCommandOptions`：定义模块交互的数据结构契约。
+ * 核心导出：
+ * - executeShellCommand: 执行 Shell 命令
+ * - handleSpecialCommand: 处理 / 前缀的特殊命令
+ * - handleSigint: 处理 Ctrl+C 信号
+ * - formatStreamText: 格式化流式输出文本
+ * - ReplState: REPL 状态接口
+ * - SigintHandlerOptions: SIGINT 处理选项接口
  */
 
 import type * as readline from 'node:readline';
@@ -29,6 +22,7 @@ import { Session, type SessionInfo } from '../agent/session.ts';
 import { formatCostOutput } from '../agent/session-usage.ts';
 import { extractText } from '../providers/message.ts';
 import { SettingsManager } from '../config/settings-manager.ts';
+import { SKILL_ENHANCE_PROGRESS_TEXT } from '../hooks/skill-enhance-constants.ts';
 import {
   showHelp,
   showContextStats,
@@ -40,6 +34,8 @@ import {
 
 // ===== 常量 =====
 
+const BRIGHT_PROGRESS_START = '\x1b[1;93m';
+const BRIGHT_PROGRESS_END = '\x1b[0m';
 const ORIGINAL_USER_REQUEST_MARKER = 'Original user request:';
 const SESSION_PREVIEW_MAX_LENGTH = 50;
 
@@ -66,17 +62,12 @@ export interface SpecialCommandOptions {
 
 // ===== 内部工具函数 =====
 
-/**
- * 方法说明：读取并返回 getErrorMessage 对应的数据。
- * @param error 错误对象。
- */
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'Unknown error';
 }
 
 /**
  * 格式化相对时间
- * @param dateString 输入参数。
  */
 function formatRelativeTime(dateString: string): string {
   const date = new Date(dateString);
@@ -94,7 +85,6 @@ function formatRelativeTime(dateString: string): string {
 
 /**
  * 格式化会话首日日期（YYYY-MM-DD）
- * @param dateString 输入参数。
  */
 function formatFirstChatDate(dateString: string): string {
   const date = new Date(dateString);
@@ -104,19 +94,10 @@ function formatFirstChatDate(dateString: string): string {
   return date.toISOString().slice(0, 10);
 }
 
-/**
- * 方法说明：标准化 normalizeSingleLine 相关数据。
- * @param text 输入参数。
- */
 function normalizeSingleLine(text: string): string {
   return text.replace(/\s+/g, ' ').trim();
 }
 
-/**
- * 方法说明：执行 truncatePreview 相关逻辑。
- * @param text 输入参数。
- * @param maxLength 输入参数。
- */
 function truncatePreview(text: string, maxLength: number = SESSION_PREVIEW_MAX_LENGTH): string {
   if (text.length <= maxLength) {
     return text;
@@ -124,10 +105,6 @@ function truncatePreview(text: string, maxLength: number = SESSION_PREVIEW_MAX_L
   return `${text.slice(0, maxLength - 3)}...`;
 }
 
-/**
- * 方法说明：执行 extractOriginalUserRequest 相关逻辑。
- * @param rawText 输入参数。
- */
 function extractOriginalUserRequest(rawText: string): string {
   const markerIndex = rawText.lastIndexOf(ORIGINAL_USER_REQUEST_MARKER);
   if (markerIndex === -1) {
@@ -141,10 +118,6 @@ function extractOriginalUserRequest(rawText: string): string {
   return extracted || rawText;
 }
 
-/**
- * 方法说明：执行 sanitizeTitleFallback 相关逻辑。
- * @param title 输入参数。
- */
 function sanitizeTitleFallback(title?: string): string {
   const normalized = normalizeSingleLine(title || '');
   if (!normalized) {
@@ -158,10 +131,6 @@ function sanitizeTitleFallback(title?: string): string {
   return truncatePreview(normalized);
 }
 
-/**
- * 方法说明：执行 resolveSessionPreview 相关逻辑。
- * @param session 输入参数。
- */
 async function resolveSessionPreview(session: SessionInfo): Promise<string> {
   const fallback = sanitizeTitleFallback(session.title);
 
@@ -190,10 +159,6 @@ async function resolveSessionPreview(session: SessionInfo): Promise<string> {
   }
 }
 
-/**
- * 方法说明：构建 buildSessionPreviewMap 对应内容。
- * @param sessions 集合数据。
- */
 async function buildSessionPreviewMap(sessions: SessionInfo[]): Promise<Map<string, string>> {
   const previewEntries = await Promise.all(
     sessions.map(async (session) => [session.id, await resolveSessionPreview(session)] as const)
@@ -202,11 +167,6 @@ async function buildSessionPreviewMap(sessions: SessionInfo[]): Promise<Map<stri
   return new Map(previewEntries);
 }
 
-/**
- * 方法说明：执行 resolveSessionIdFromSelection 相关逻辑。
- * @param selection 输入参数。
- * @param sessions 集合数据。
- */
 function resolveSessionIdFromSelection(
   selection: string,
   sessions: SessionInfo[]
@@ -224,11 +184,6 @@ function resolveSessionIdFromSelection(
   return matchedSession?.id;
 }
 
-/**
- * 方法说明：执行 filterResumableSessions 相关逻辑。
- * @param sessions 集合数据。
- * @param currentSessionId 目标标识。
- */
 function filterResumableSessions(
   sessions: SessionInfo[],
   currentSessionId: string | null
@@ -240,10 +195,16 @@ function filterResumableSessions(
 
 // ===== 导出函数 =====
 
-/**
- * 方法说明：执行 handleSigint 相关逻辑。
- * @param options 配置参数。
- */
+export function formatStreamText(text: string): string {
+  if (
+    text.includes(SKILL_ENHANCE_PROGRESS_TEXT) &&
+    (process.stdout as { isTTY?: boolean }).isTTY
+  ) {
+    return `${BRIGHT_PROGRESS_START}${text}${BRIGHT_PROGRESS_END}`;
+  }
+  return text;
+}
+
 export function handleSigint(options: SigintHandlerOptions): void {
   const { state, promptUser, interruptCurrentTurn, clearCurrentInput } = options;
 
@@ -448,11 +409,6 @@ export async function handleSpecialCommand(
   }
 }
 
-/**
- * 方法说明：执行 handleSlashSkillCommand 相关逻辑。
- * @param command 输入参数。
- * @param agentRunner 输入参数。
- */
 async function handleSlashSkillCommand(command: string, agentRunner?: AgentRunner | null): Promise<boolean> {
   if (!agentRunner) {
     console.log(chalk.yellow('\nSkill slash commands unavailable in this context.\n'));
@@ -472,8 +428,6 @@ async function handleSlashSkillCommand(command: string, agentRunner?: AgentRunne
 
 /**
  * Handle /skill enhance commands
- * @param args 集合数据。
- * @param _agentRunner 输入参数。
  */
 function handleSkillEnhanceCommand(args: string[], _agentRunner?: AgentRunner | null): void {
   const subcommand = args[0]?.toLowerCase();
@@ -535,10 +489,6 @@ function handleSkillEnhanceCommand(args: string[], _agentRunner?: AgentRunner | 
 
 /**
  * Handle /resume command
- * @param args 集合数据。
- * @param rl 输入参数。
- * @param onSessionSelected 输入参数。
- * @param currentSessionId 目标标识。
  */
 async function handleResumeCommand(
   args: string[],
@@ -546,9 +496,6 @@ async function handleResumeCommand(
   onSessionSelected: ResumeSessionHandler,
   currentSessionId: string | null
 ): Promise<void> {
-  /**
-   * 方法说明：加载 loadResumableSessions 相关资源。
-   */
   async function loadResumableSessions(): Promise<SessionInfo[]> {
     const sessions = await Session.list();
     return filterResumableSessions(sessions, currentSessionId);

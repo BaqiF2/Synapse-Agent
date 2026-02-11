@@ -1,19 +1,14 @@
 /**
- * 文件功能说明：
- * - 该文件位于 `src/agent/auto-enhance-trigger.ts`，主要负责 自动、增强、触发 相关实现。
- * - 模块归属 Agent 领域，为上层流程提供可复用能力。
+ * Auto Enhance Trigger
  *
- * 核心导出列表：
- * - `AutoEnhanceTrigger`
- * - `TaskContext`
- * - `TriggerDecision`
- * - `AutoEnhanceTriggerOptions`
+ * Provides settings management for skill auto-enhancement feature.
+ * The actual enhancement decision is now made by the Agent autonomously
+ * via the `skill enhance` command.
  *
- * 作用说明：
- * - `AutoEnhanceTrigger`：封装该领域的核心流程与状态管理。
- * - `TaskContext`：定义模块交互的数据结构契约。
- * - `TriggerDecision`：定义模块交互的数据结构契约。
- * - `AutoEnhanceTriggerOptions`：定义模块交互的数据结构契约。
+ * @module auto-enhance-trigger
+ *
+ * Core Exports:
+ * - AutoEnhanceTrigger: Settings manager for auto-enhance feature
  */
 
 import * as path from 'node:path';
@@ -32,11 +27,6 @@ const DEFAULT_SYNAPSE_DIR = path.join(os.homedir(), '.synapse');
 const DEFAULT_MIN_UNIQUE_TOOLS_THRESHOLD = 2;
 const CLARIFICATION_KEYWORDS = ['clarif', 'mean', 'actually', 'instead'];
 
-/**
- * 方法说明：解析输入并生成 parseThreshold 对应结构。
- * @param value 输入参数。
- * @param fallback 输入参数。
- */
 function parseThreshold(value: string | undefined, fallback: number): number {
   const parsed = parseInt(value ?? '', 10);
   if (!Number.isFinite(parsed) || parsed <= 0) {
@@ -144,9 +134,6 @@ export class AutoEnhanceTrigger {
 
   /**
    * Create a trigger decision result
-   * @param shouldTrigger 输入参数。
-   * @param reason 输入参数。
-   * @param suggestedAction 输入参数。
    */
   private createDecision(
     shouldTrigger: boolean,

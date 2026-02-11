@@ -1,25 +1,17 @@
 /**
- * 文件功能说明：
- * - 该文件位于 `src/config/settings-schema.ts`，主要负责 设置、结构/校验 相关实现。
- * - 模块归属 配置 领域，为上层流程提供可复用能力。
+ * Settings Schema
  *
- * 核心导出列表：
- * - `SkillEnhanceSettings`
- * - `LlmEnvSettings`
- * - `SynapseSettings`
- * - `SkillEnhanceSettingsSchema`
- * - `LlmEnvSettingsSchema`
- * - `SynapseSettingsSchema`
- * - `DEFAULT_SETTINGS`
+ * Defines the schema and types for Synapse Agent settings.
+ * Settings are persisted to ~/.synapse/settings.json.
  *
- * 作用说明：
- * - `SkillEnhanceSettings`：声明类型别名，约束输入输出类型。
- * - `LlmEnvSettings`：声明类型别名，约束输入输出类型。
- * - `SynapseSettings`：声明类型别名，约束输入输出类型。
- * - `SkillEnhanceSettingsSchema`：提供可复用的模块级变量/常量。
- * - `LlmEnvSettingsSchema`：提供可复用的模块级变量/常量。
- * - `SynapseSettingsSchema`：提供可复用的模块级变量/常量。
- * - `DEFAULT_SETTINGS`：提供可复用的常量配置。
+ * @module settings-schema
+ *
+ * Core Exports:
+ * - SynapseSettingsSchema: Zod schema for settings validation
+ * - SkillEnhanceSettingsSchema: Zod schema for skill enhance settings
+ * - DEFAULT_SETTINGS: Default settings values
+ * - SynapseSettings: TypeScript type for settings
+ * - SkillEnhanceSettings: TypeScript type for skill enhance settings
  */
 
 import { z } from 'zod';

@@ -1,15 +1,13 @@
 /**
- * 文件功能说明：
- * - 该文件位于 `src/tools/toolset.ts`，主要负责 toolset 相关实现。
- * - 模块归属 工具 领域，为上层流程提供可复用能力。
+ * Toolset Interface
  *
- * 核心导出列表：
- * - `CallableToolset`
- * - `Toolset`
+ * Defines the interface for tool execution in the agent system.
+ * Uses CallableTool as the base unit for tool registration and dispatch.
  *
- * 作用说明：
- * - `CallableToolset`：封装该领域的核心流程与状态管理。
- * - `Toolset`：定义模块交互的数据结构契约。
+ * Core Exports:
+ * - Toolset: Interface for tool collections
+ * - ToolResult: Tool execution result type (re-exported from message.ts)
+ * - CallableToolset: Toolset implementation backed by CallableTool instances
  */
 
 import type { LLMTool } from '../types/tool.ts';
@@ -42,10 +40,6 @@ export class CallableToolset implements Toolset {
   readonly tools: LLMTool[];
   private toolMap: Map<string, CallableTool<unknown>>;
 
-  /**
-   * 方法说明：初始化 CallableToolset 实例并设置初始状态。
-   * @param callableTools 集合数据。
-   */
   constructor(callableTools: CallableTool<unknown>[]) {
     this.toolMap = new Map();
     this.tools = [];
@@ -56,10 +50,6 @@ export class CallableToolset implements Toolset {
     }
   }
 
-  /**
-   * 方法说明：执行 handle 相关逻辑。
-   * @param toolCall 输入参数。
-   */
   handle(toolCall: ToolCall): CancelablePromise<ToolResult> {
     const tool = this.toolMap.get(toolCall.name);
 
@@ -109,10 +99,6 @@ export class CallableToolset implements Toolset {
     return resultPromise;
   }
 
-  /**
-   * 方法说明：读取并返回 getTool 对应的数据。
-   * @param name 输入参数。
-   */
   getTool(name: string): CallableTool<unknown> | undefined {
     return this.toolMap.get(name);
   }
