@@ -28,7 +28,7 @@ const DEFAULT_BLACKLIST = [
 ];
 
 export const DEFAULT_SANDBOX_CONFIG: SandboxConfig = {
-  enabled: true,
+  enabled: false,
   provider: 'local',
   policy: {
     filesystem: {
