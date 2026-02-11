@@ -1,11 +1,15 @@
 /**
- * Stop Hook Registry
+ * 文件功能说明：
+ * - 该文件位于 `src/hooks/stop-hook-registry.ts`，主要负责 停止、Hook、registry 相关实现。
+ * - 模块归属 Hook 领域，为上层流程提供可复用能力。
  *
- * 功能：管理 Stop Hook 的注册和执行，提供注册表模式解耦 Hook 的实现与执行
+ * 核心导出列表：
+ * - `StopHookRegistry`
+ * - `stopHookRegistry`
  *
- * 核心导出：
- * - StopHookRegistry: Hook 注册表类，管理 Hook 的注册、查询和 LIFO 顺序执行
- * - stopHookRegistry: 全局单例实例
+ * 作用说明：
+ * - `StopHookRegistry`：封装该领域的核心流程与状态管理。
+ * - `stopHookRegistry`：提供可复用的模块级变量/常量。
  */
 
 import type { StopHook, StopHookContext, HookResult } from './types.ts';

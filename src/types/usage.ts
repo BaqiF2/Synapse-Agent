@@ -1,12 +1,15 @@
 /**
- * Token 和 Session 用量类型定义
+ * 文件功能说明：
+ * - 该文件位于 `src/types/usage.ts`，主要负责 用量 相关实现。
+ * - 模块归属 类型 领域，为上层流程提供可复用能力。
  *
- * 从 providers/anthropic/anthropic-types.ts 和 agent/session-usage.ts 提取的用量类型，
- * 消除跨层依赖。
+ * 核心导出列表：
+ * - `TokenUsage`
+ * - `SessionUsage`
  *
- * 核心导出：
- * - TokenUsage: Token 用量统计
- * - SessionUsage: 会话用量统计
+ * 作用说明：
+ * - `TokenUsage`：定义模块交互的数据结构契约。
+ * - `SessionUsage`：定义模块交互的数据结构契约。
  */
 
 /**

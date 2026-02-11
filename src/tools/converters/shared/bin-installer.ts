@@ -1,14 +1,21 @@
 /**
- * Bin Installer (公共基类)
+ * 文件功能说明：
+ * - 该文件位于 `src/tools/converters/shared/bin-installer.ts`，主要负责 bin、安装 相关实现。
+ * - 模块归属 工具、转换器、shared 领域，为上层流程提供可复用能力。
  *
- * 功能：管理 ~/.synapse/bin/ 目录中的可执行脚本安装、移除和查询。
- * 统一 MCP installer 和 Skill wrapper-generator 中的重复逻辑。
+ * 核心导出列表：
+ * - `BinInstaller`
+ * - `InstallResult`
+ * - `InstallableScript`
+ * - `DEFAULT_BIN_DIR`
+ * - `EXECUTABLE_MODE`
  *
- * 核心导出：
- * - BinInstaller: 提供 install / remove / removeByPrefix / ensureBinDir 等通用操作
- * - InstallResult: 安装操作结果
- * - EXECUTABLE_MODE: 可执行文件权限常量 (0o755)
- * - DEFAULT_BIN_DIR: 默认 bin 目录相对路径
+ * 作用说明：
+ * - `BinInstaller`：封装该领域的核心流程与状态管理。
+ * - `InstallResult`：定义模块交互的数据结构契约。
+ * - `InstallableScript`：定义模块交互的数据结构契约。
+ * - `DEFAULT_BIN_DIR`：提供可复用的常量配置。
+ * - `EXECUTABLE_MODE`：提供可复用的常量配置。
  */
 
 import * as fs from 'node:fs';
@@ -48,6 +55,10 @@ export interface InstallableScript {
 export class BinInstaller {
   private readonly binDir: string;
 
+  /**
+   * 方法说明：初始化 BinInstaller 实例并设置初始状态。
+   * @param homeDir 输入参数。
+   */
   constructor(homeDir: string = os.homedir()) {
     this.binDir = path.join(homeDir, DEFAULT_BIN_DIR);
   }
@@ -68,6 +79,7 @@ export class BinInstaller {
    * 安装单个脚本到 bin 目录
    *
    * 写入脚本内容并设置可执行权限。
+   * @param script 输入参数。
    */
   install(script: InstallableScript): InstallResult {
     try {
@@ -86,7 +98,9 @@ export class BinInstaller {
     }
   }
 
-  /** 批量安装脚本 */
+  /** 批量安装脚本
+   * @param scripts 集合数据。
+   */
   installAll(scripts: InstallableScript[]): InstallResult[] {
     return scripts.map((s) => this.install(s));
   }
@@ -95,6 +109,7 @@ export class BinInstaller {
    * 按命令名称移除已安装的脚本
    *
    * @returns true 表示移除成功，false 表示文件不存在
+   * @param commandName 输入参数。
    */
   remove(commandName: string): boolean {
     const scriptPath = path.join(this.binDir, commandName);
@@ -134,7 +149,9 @@ export class BinInstaller {
     return fs.readdirSync(this.binDir);
   }
 
-  /** 获取文件完整路径 */
+  /** 获取文件完整路径
+   * @param fileName 目标路径或文件信息。
+   */
   getFilePath(fileName: string): string {
     return path.join(this.binDir, fileName);
   }

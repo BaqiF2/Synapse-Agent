@@ -1,13 +1,31 @@
 /**
- * Sub Agent 类型定义
+ * 文件功能说明：
+ * - 该文件位于 `src/sub-agents/sub-agent-types.ts`，主要负责 sub、Agent、类型 相关实现。
+ * - 模块归属 sub、agents 领域，为上层流程提供可复用能力。
  *
- * 功能：定义 Sub Agent 相关的类型和接口
+ * 核心导出列表：
+ * - `isSkillAction`
+ * - `isSubAgentType`
+ * - `ToolPermissions`
+ * - `SubAgentConfig`
+ * - `SubAgentType`
+ * - `SkillAction`
+ * - `TaskCommandParams`
+ * - `SUB_AGENT_TYPES`
+ * - `SKILL_ACTIONS`
+ * - `TaskCommandParamsSchema`
  *
- * 核心导出：
- * - SubAgentType: Sub Agent 类型枚举
- * - SubAgentConfig: Sub Agent 配置接口
- * - TaskCommandParams: Task 命令参数接口
- * - ToolPermissions: 工具权限配置接口
+ * 作用说明：
+ * - `isSkillAction`：用于条件判断并返回布尔结果。
+ * - `isSubAgentType`：用于条件判断并返回布尔结果。
+ * - `ToolPermissions`：定义模块交互的数据结构契约。
+ * - `SubAgentConfig`：定义模块交互的数据结构契约。
+ * - `SubAgentType`：声明类型别名，约束输入输出类型。
+ * - `SkillAction`：声明类型别名，约束输入输出类型。
+ * - `TaskCommandParams`：声明类型别名，约束输入输出类型。
+ * - `SUB_AGENT_TYPES`：提供可复用的常量配置。
+ * - `SKILL_ACTIONS`：提供可复用的常量配置。
+ * - `TaskCommandParamsSchema`：提供可复用的模块级变量/常量。
  */
 
 import { z } from 'zod';
@@ -34,6 +52,7 @@ export const SKILL_ACTIONS = ['search', 'enhance'] as const;
 
 /**
  * 检查是否为有效的 Skill Action
+ * @param value 输入参数。
  */
 export function isSkillAction(value: string): value is SkillAction {
   return (SKILL_ACTIONS as readonly string[]).includes(value);
@@ -82,6 +101,7 @@ export type TaskCommandParams = z.infer<typeof TaskCommandParamsSchema>;
 
 /**
  * 检查是否为有效的 Sub Agent 类型
+ * @param value 输入参数。
  */
 export function isSubAgentType(value: string): value is SubAgentType {
   return (SUB_AGENT_TYPES as readonly string[]).includes(value);

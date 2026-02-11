@@ -1,22 +1,89 @@
 /**
- * Skills Module
+ * 文件功能说明：
+ * - 该文件位于 `src/skills/index.ts`，主要负责 索引 相关实现。
+ * - 模块归属 skills 领域，为上层流程提供可复用能力。
  *
- * This module provides the core skill system functionality including
- * skill schema parsing, indexing, searching, loading, and enhancement.
+ * 核心导出列表：
+ * - `SkillDocParser`
+ * - `SkillDocSchema`
+ * - `parseSkillMd`
+ * - `SKILL_DOMAINS`
+ * - `SkillDoc`
+ * - `SkillDomain`
+ * - `SkillIndexer`
+ * - `SkillIndexSchema`
+ * - `SkillIndexEntrySchema`
+ * - `SkillIndex`
+ * - `SkillIndexEntry`
+ * - `SkillLoader`
+ * - `SkillLevel1`
+ * - `SkillLevel2`
+ * - `SkillMerger`
+ * - `SkillManager`
+ * - `MAX_VERSIONS_DEFAULT`
+ * - `IMPORT_TIMEOUT_DEFAULT`
+ * - `getConfiguredMaxVersions`
+ * - `getConfiguredImportTimeout`
+ * - `SkillManagerOptions`
+ * - `ConversationReader`
+ * - `ConversationTurn`
+ * - `ConversationSummary`
+ * - `ToolCall`
+ * - `ToolResult`
+ * - `SkillGenerator`
+ * - `SkillSpec`
+ * - `ScriptDef`
+ * - `GenerationResult`
+ * - `SkillEnhancer`
+ * - `ConversationAnalysis`
+ * - `EnhanceDecision`
+ * - `EnhanceResult`
+ * - `SkillEnhancerOptions`
+ * - `SkillIndexUpdater`
+ * - `MetaSkillInstaller`
+ * - `getDefaultResourceDir`
+ * - `InstallResult`
  *
- * @module skills
- *
- * Core Exports:
- * - SkillDocParser: Parses SKILL.md files
- * - SkillDocSchema: Zod schema for skill metadata
- * - parseSkillMd: Parse a SKILL.md file
- * - SkillIndexer: Scans skills and generates index
- * - SkillIndex: Index data structure
- * - SkillLoader: Progressive skill loader with caching
- * - ConversationReader: Reads conversation history
- * - SkillGenerator: Creates and updates skills
- * - SkillEnhancer: Analyzes conversations and generates skills
- * - MetaSkillInstaller: Copies bundled meta skills to user directory
+ * 作用说明：
+ * - `SkillDocParser`：聚合并对外暴露其它模块的能力。
+ * - `SkillDocSchema`：聚合并对外暴露其它模块的能力。
+ * - `parseSkillMd`：聚合并对外暴露其它模块的能力。
+ * - `SKILL_DOMAINS`：聚合并对外暴露其它模块的能力。
+ * - `SkillDoc`：聚合并对外暴露其它模块的能力。
+ * - `SkillDomain`：聚合并对外暴露其它模块的能力。
+ * - `SkillIndexer`：聚合并对外暴露其它模块的能力。
+ * - `SkillIndexSchema`：聚合并对外暴露其它模块的能力。
+ * - `SkillIndexEntrySchema`：聚合并对外暴露其它模块的能力。
+ * - `SkillIndex`：聚合并对外暴露其它模块的能力。
+ * - `SkillIndexEntry`：聚合并对外暴露其它模块的能力。
+ * - `SkillLoader`：聚合并对外暴露其它模块的能力。
+ * - `SkillLevel1`：聚合并对外暴露其它模块的能力。
+ * - `SkillLevel2`：聚合并对外暴露其它模块的能力。
+ * - `SkillMerger`：聚合并对外暴露其它模块的能力。
+ * - `SkillManager`：聚合并对外暴露其它模块的能力。
+ * - `MAX_VERSIONS_DEFAULT`：聚合并对外暴露其它模块的能力。
+ * - `IMPORT_TIMEOUT_DEFAULT`：聚合并对外暴露其它模块的能力。
+ * - `getConfiguredMaxVersions`：聚合并对外暴露其它模块的能力。
+ * - `getConfiguredImportTimeout`：聚合并对外暴露其它模块的能力。
+ * - `SkillManagerOptions`：聚合并对外暴露其它模块的能力。
+ * - `ConversationReader`：聚合并对外暴露其它模块的能力。
+ * - `ConversationTurn`：聚合并对外暴露其它模块的能力。
+ * - `ConversationSummary`：聚合并对外暴露其它模块的能力。
+ * - `ToolCall`：聚合并对外暴露其它模块的能力。
+ * - `ToolResult`：聚合并对外暴露其它模块的能力。
+ * - `SkillGenerator`：聚合并对外暴露其它模块的能力。
+ * - `SkillSpec`：聚合并对外暴露其它模块的能力。
+ * - `ScriptDef`：聚合并对外暴露其它模块的能力。
+ * - `GenerationResult`：聚合并对外暴露其它模块的能力。
+ * - `SkillEnhancer`：聚合并对外暴露其它模块的能力。
+ * - `ConversationAnalysis`：聚合并对外暴露其它模块的能力。
+ * - `EnhanceDecision`：聚合并对外暴露其它模块的能力。
+ * - `EnhanceResult`：聚合并对外暴露其它模块的能力。
+ * - `SkillEnhancerOptions`：聚合并对外暴露其它模块的能力。
+ * - `SkillIndexUpdater`：聚合并对外暴露其它模块的能力。
+ * - `MetaSkillInstaller`：聚合并对外暴露其它模块的能力。
+ * - `getDefaultResourceDir`：聚合并对外暴露其它模块的能力。
+ * - `InstallResult`：聚合并对外暴露其它模块的能力。
  */
 
 export {

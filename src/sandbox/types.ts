@@ -1,5 +1,27 @@
 /**
- * 沙盒协议层核心类型定义
+ * 文件功能说明：
+ * - 该文件位于 `src/sandbox/types.ts`，主要负责 类型 相关实现。
+ * - 模块归属 沙箱 领域，为上层流程提供可复用能力。
+ *
+ * 核心导出列表：
+ * - `ExecuteResult`
+ * - `SandboxBackend`
+ * - `SandboxPolicy`
+ * - `SandboxCreateOptions`
+ * - `SandboxInfo`
+ * - `SandboxProvider`
+ * - `SandboxConfig`
+ * - `SandboxProviderFactory`
+ *
+ * 作用说明：
+ * - `ExecuteResult`：定义模块交互的数据结构契约。
+ * - `SandboxBackend`：定义模块交互的数据结构契约。
+ * - `SandboxPolicy`：定义模块交互的数据结构契约。
+ * - `SandboxCreateOptions`：定义模块交互的数据结构契约。
+ * - `SandboxInfo`：定义模块交互的数据结构契约。
+ * - `SandboxProvider`：定义模块交互的数据结构契约。
+ * - `SandboxConfig`：定义模块交互的数据结构契约。
+ * - `SandboxProviderFactory`：声明类型别名，约束输入输出类型。
  */
 
 /** 沙盒执行结果 */

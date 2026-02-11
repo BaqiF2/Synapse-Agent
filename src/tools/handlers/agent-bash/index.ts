@@ -1,13 +1,29 @@
 /**
- * Agent Shell Command 处理器索引
+ * 文件功能说明：
+ * - 该文件位于 `src/tools/handlers/agent-bash/index.ts`，主要负责 索引 相关实现。
+ * - 模块归属 工具、处理器、Agent、Bash 领域，为上层流程提供可复用能力。
  *
- * 功能：导出所有 Agent Shell Command Layer 2 工具处理器
+ * 核心导出列表：
+ * - `ReadHandler`
+ * - `parseReadCommand`
+ * - `WriteHandler`
+ * - `parseWriteCommand`
+ * - `EditHandler`
+ * - `parseEditCommand`
+ * - `BashWrapperHandler`
+ * - `parseBashCommand`
+ * - `TodoWriteHandler`
  *
- * 核心导出：
- * - ReadHandler: 文件读取处理器
- * - WriteHandler: 文件写入处理器
- * - EditHandler: 文件编辑处理器
- * - BashWrapperHandler: Bash 命令包装器处理器
+ * 作用说明：
+ * - `ReadHandler`：聚合并对外暴露其它模块的能力。
+ * - `parseReadCommand`：聚合并对外暴露其它模块的能力。
+ * - `WriteHandler`：聚合并对外暴露其它模块的能力。
+ * - `parseWriteCommand`：聚合并对外暴露其它模块的能力。
+ * - `EditHandler`：聚合并对外暴露其它模块的能力。
+ * - `parseEditCommand`：聚合并对外暴露其它模块的能力。
+ * - `BashWrapperHandler`：聚合并对外暴露其它模块的能力。
+ * - `parseBashCommand`：聚合并对外暴露其它模块的能力。
+ * - `TodoWriteHandler`：聚合并对外暴露其它模块的能力。
  */
 
 export { ReadHandler, parseReadCommand } from './read.ts';

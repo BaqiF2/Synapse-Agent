@@ -1,14 +1,19 @@
 /**
- * Session 用量统计
+ * 文件功能说明：
+ * - 该文件位于 `src/agent/session-usage.ts`，主要负责 会话、用量 相关实现。
+ * - 模块归属 Agent 领域，为上层流程提供可复用能力。
  *
- * 功能：跟踪会话的 Token 用量、费用计算和格式化输出。
- * rounds 数组保留最近 MAX_ROUNDS_KEPT 轮，旧数据已合并到 total 字段。
+ * 核心导出列表：
+ * - `createEmptySessionUsage`
+ * - `accumulateUsage`
+ * - `resetSessionUsage`
+ * - `formatCostOutput`
  *
- * 核心导出：
- * - createEmptySessionUsage: 创建空的会话用量
- * - accumulateUsage: 累积一轮 Token 用量
- * - resetSessionUsage: 重置会话用量
- * - formatCostOutput: 格式化用量输出
+ * 作用说明：
+ * - `createEmptySessionUsage`：用于创建并返回新对象/实例。
+ * - `accumulateUsage`：提供该模块的核心能力。
+ * - `resetSessionUsage`：提供该模块的核心能力。
+ * - `formatCostOutput`：用于格式化输出内容。
  */
 
 import type { TokenUsage } from '../types/usage.ts';
@@ -22,6 +27,10 @@ import type { SessionUsage } from '../types/usage.ts';
 /** rounds 数组保留的最大轮数，超出部分的数据已合并到 total 字段 */
 const MAX_ROUNDS_KEPT = parseEnvInt(process.env.SYNAPSE_MAX_ROUNDS_KEPT, 50);
 
+/**
+ * 方法说明：创建并返回 createEmptySessionUsage 对应结果。
+ * @param model 输入参数。
+ */
 export function createEmptySessionUsage(model: string): SessionUsage {
   return {
     totalInputOther: 0,
@@ -34,6 +43,12 @@ export function createEmptySessionUsage(model: string): SessionUsage {
   };
 }
 
+/**
+ * 方法说明：执行 accumulateUsage 相关逻辑。
+ * @param sessionUsage 输入参数。
+ * @param usage 输入参数。
+ * @param pricingConfig 配置参数。
+ */
 export function accumulateUsage(
   sessionUsage: SessionUsage,
   usage: TokenUsage,
@@ -69,14 +84,26 @@ export function accumulateUsage(
   };
 }
 
+/**
+ * 方法说明：执行 resetSessionUsage 相关逻辑。
+ * @param sessionUsage 输入参数。
+ */
 export function resetSessionUsage(sessionUsage: SessionUsage): SessionUsage {
   return createEmptySessionUsage(sessionUsage.model);
 }
 
+/**
+ * 方法说明：格式化 formatNumber 相关输出。
+ * @param value 输入参数。
+ */
 function formatNumber(value: number): string {
   return new Intl.NumberFormat('en-US').format(value);
 }
 
+/**
+ * 方法说明：读取并返回 getCostDisplay 对应的数据。
+ * @param usage 输入参数。
+ */
 function getCostDisplay(usage: SessionUsage): string {
   if (usage.totalCost !== null) {
     return `$${usage.totalCost.toFixed(2)}`;
@@ -89,6 +116,10 @@ function getCostDisplay(usage: SessionUsage): string {
   return 'N/A';
 }
 
+/**
+ * 方法说明：读取并返回 getCacheSummary 对应的数据。
+ * @param usage 输入参数。
+ */
 function getCacheSummary(usage: SessionUsage): string {
   const totalInput = usage.totalInputOther + usage.totalCacheRead + usage.totalCacheCreation;
   const cacheHitRate = totalInput > 0 ? Math.round((usage.totalCacheRead / totalInput) * 100) : 0;
@@ -97,6 +128,10 @@ function getCacheSummary(usage: SessionUsage): string {
   return `${cacheRead} read / ${cacheWrite} write (${cacheHitRate}% hit)`;
 }
 
+/**
+ * 方法说明：格式化 formatCostOutput 相关输出。
+ * @param usage 输入参数。
+ */
 export function formatCostOutput(usage: SessionUsage): string {
   const totalInput = usage.totalInputOther + usage.totalCacheRead + usage.totalCacheCreation;
   const inputDisplay = formatNumber(totalInput);

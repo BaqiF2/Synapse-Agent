@@ -1,11 +1,23 @@
 /**
- * Sub Agent Manager
+ * 文件功能说明：
+ * - 该文件位于 `src/sub-agents/sub-agent-manager.ts`，主要负责 sub、Agent、管理 相关实现。
+ * - 模块归属 sub、agents 领域，为上层流程提供可复用能力。
  *
- * 功能：管理 Sub Agent 的执行（创建 AgentRunner、配置工具权限、转发回调）
+ * 核心导出列表：
+ * - `SubAgentManager`
+ * - `SubAgentManagerOptions`
+ * - `SubAgentExecuteOptions`
+ * - `OnSubAgentToolCall`
+ * - `OnSubAgentToolResult`
+ * - `OnSubAgentComplete`
  *
- * 核心导出：
- * - SubAgentManager: Sub Agent 管理器类，每次 execute() 创建一次性 AgentRunner
- * - SubAgentManagerOptions: 管理器配置选项
+ * 作用说明：
+ * - `SubAgentManager`：封装该领域的核心流程与状态管理。
+ * - `SubAgentManagerOptions`：定义模块交互的数据结构契约。
+ * - `SubAgentExecuteOptions`：定义模块交互的数据结构契约。
+ * - `OnSubAgentToolCall`：声明类型别名，约束输入输出类型。
+ * - `OnSubAgentToolResult`：声明类型别名，约束输入输出类型。
+ * - `OnSubAgentComplete`：声明类型别名，约束输入输出类型。
  */
 
 import { createLogger } from '../utils/logger.ts';
@@ -22,6 +34,9 @@ import { getConfig } from './configs/index.ts';
 import type { ToolCall, ToolResult } from '../providers/message.ts';
 
 const logger = createLogger('sub-agent-manager');
+/**
+ * 方法说明：执行 NOOP_CLEANUP 相关逻辑。
+ */
 const NOOP_CLEANUP = (): void => {};
 
 /**
@@ -97,6 +112,10 @@ export class SubAgentManager {
   /** 全局计数器，用于生成唯一的 SubAgent ID */
   private subAgentCounter = 0;
 
+  /**
+   * 方法说明：初始化 SubAgentManager 实例并设置初始状态。
+   * @param options 配置参数。
+   */
   constructor(options: SubAgentManagerOptions) {
     this.client = options.client;
     this.bashTool = options.bashTool;
@@ -113,6 +132,7 @@ export class SubAgentManager {
    * @param type - Sub Agent 类型
    * @param params - 任务参数（包含可选的 action）
    * @returns 执行结果
+   * @param options 配置参数。
    */
   async execute(
     type: SubAgentType,
@@ -200,6 +220,11 @@ export class SubAgentManager {
 
   /**
    * 创建带有回调的 AgentRunner
+   * @param type 输入参数。
+   * @param subAgentId 目标标识。
+   * @param description 输入参数。
+   * @param action 输入参数。
+   * @param onToolCount 数量或限制参数。
    */
   private createAgentWithCallbacks(
     type: SubAgentType,
@@ -246,7 +271,6 @@ export class SubAgentManager {
       toolset,
       maxIterations: config.maxIterations ?? this.maxIterations,
       enableStopHooks: false,
-      enableSkillSearchInstruction: false,
       onToolCall,
       onToolResult,
       onUsage: this.onUsage,
@@ -280,6 +304,9 @@ export class SubAgentManager {
     }
 
     const isolatedBashTool = this.bashTool.createIsolatedCopy();
+    /**
+     * 方法说明：执行 cleanup 相关逻辑。
+     */
     const cleanup = () => isolatedBashTool.cleanup();
 
     // 无排除项：直接使用隔离 BashTool

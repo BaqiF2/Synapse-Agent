@@ -1,7 +1,13 @@
 /**
- * Project version utilities
+ * 文件功能说明：
+ * - 该文件位于 `src/config/version.ts`，主要负责 版本 相关实现。
+ * - 模块归属 配置 领域，为上层流程提供可复用能力。
  *
- * Reads version from package.json so CLI and runtime share a single source.
+ * 核心导出列表：
+ * - `getProjectVersion`
+ *
+ * 作用说明：
+ * - `getProjectVersion`：用于读取并返回目标数据。
  */
 
 import * as fs from 'node:fs';
@@ -15,6 +21,9 @@ const PACKAGE_JSON_PATH = path.resolve(
   '../../package.json'
 );
 
+/**
+ * 方法说明：读取并返回 getProjectVersion 对应的数据。
+ */
 export function getProjectVersion(): string {
   if (cachedVersion) {
     return cachedVersion;

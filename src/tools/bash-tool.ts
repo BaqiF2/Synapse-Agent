@@ -1,13 +1,15 @@
 /**
- * Bash Tool Implementation
+ * 文件功能说明：
+ * - 该文件位于 `src/tools/bash-tool.ts`，主要负责 Bash、工具 相关实现。
+ * - 模块归属 工具 领域，为上层流程提供可复用能力。
  *
- * CallableTool subclass for the unified Bash tool. Routes commands through
- * BashRouter (three-layer architecture) and returns structured ToolReturnValue.
+ * 核心导出列表：
+ * - `BashTool`
+ * - `BashToolOptions`
  *
- * Core Exports:
- * - BashTool: The Bash tool implementation
- * - BashToolParams: Zod-validated parameter type
- * - BashToolOptions: Construction options
+ * 作用说明：
+ * - `BashTool`：封装该领域的核心流程与状态管理。
+ * - `BashToolOptions`：定义模块交互的数据结构契约。
  */
 
 import path from 'node:path';
@@ -57,10 +59,19 @@ const BASH_TOOL_MISUSE_MESSAGE =
   'CORRECTION: pass only the actual command string in `command`, then retry. ' +
   'Examples: Bash(command="read ./README.md"), Bash(command="ls -la").';
 
+/**
+ * 方法说明：执行 appendSelfDescription 相关逻辑。
+ * @param output 输入参数。
+ * @param helpHint 输入参数。
+ */
 function appendSelfDescription(output: string, helpHint: string): string {
   return `${output}\n\n${helpHint.trim()}`;
 }
 
+/**
+ * 方法说明：判断 isBashToolMisuse 对应条件是否成立。
+ * @param command 输入参数。
+ */
 function isBashToolMisuse(command: string): boolean {
   return BASH_TOOL_MISUSE_REGEX.test(command.trim());
 }
@@ -102,6 +113,10 @@ export class BashTool extends CallableTool<BashToolParams> {
   private router: BashRouter;
   private readonly sandboxManager: SandboxManager;
 
+  /**
+   * 方法说明：初始化 BashTool 实例并设置初始状态。
+   * @param options 配置参数。
+   */
   constructor(options: BashToolOptions = {}) {
     super();
     this.optionsSnapshot = { ...options };
@@ -122,6 +137,10 @@ export class BashTool extends CallableTool<BashToolParams> {
     this.router.setToolExecutor(this);
   }
 
+  /**
+   * 方法说明：执行 execute 相关主流程。
+   * @param params 集合数据。
+   */
   protected execute(params: BashToolParams): CancelablePromise<ToolReturnValue> {
     const { command, restart } = params;
 
@@ -222,6 +241,9 @@ export class BashTool extends CallableTool<BashToolParams> {
     return resultPromise;
   }
 
+  /**
+   * 方法说明：执行 restartSessionSafely 相关逻辑。
+   */
   private async restartSessionSafely(): Promise<void> {
     try {
       await this.session.restart();
@@ -244,6 +266,9 @@ export class BashTool extends CallableTool<BashToolParams> {
     return this.session;
   }
 
+  /**
+   * 方法说明：读取并返回 getSandboxManager 对应的数据。
+   */
   getSandboxManager(): SandboxManager {
     return this.sandboxManager;
   }
@@ -255,19 +280,37 @@ export class BashTool extends CallableTool<BashToolParams> {
     await this.session.restart();
   }
 
+  /**
+   * 方法说明：执行 executeUnsandboxed 相关主流程。
+   * @param command 输入参数。
+   * @param cwd 输入参数。
+   */
   async executeUnsandboxed(command: string, cwd: string = process.cwd()): Promise<ExecuteResult> {
     return this.sandboxManager.executeUnsandboxed(command, cwd);
   }
 
+  /**
+   * 方法说明：执行 allowSession 相关逻辑。
+   * @param resourcePath 目标路径或文件信息。
+   * @param cwd 输入参数。
+   */
   async allowSession(resourcePath: string, cwd: string = process.cwd()): Promise<void> {
     await this.sandboxManager.addRuntimeWhitelist(resourcePath, cwd);
   }
 
+  /**
+   * 方法说明：执行 allowPermanent 相关逻辑。
+   * @param resourcePath 目标路径或文件信息。
+   * @param cwd 输入参数。
+   */
   async allowPermanent(resourcePath: string, cwd: string = process.cwd()): Promise<void> {
     addPermanentWhitelist(resourcePath);
     await this.allowSession(resourcePath, cwd);
   }
 
+  /**
+   * 方法说明：执行 dispose 相关逻辑。
+   */
   async dispose(): Promise<void> {
     await this.sandboxManager.shutdown();
     this.router.shutdown();
@@ -283,6 +326,7 @@ export class BashTool extends CallableTool<BashToolParams> {
 
   /**
    * Create a new BashTool instance with an isolated BashSession.
+   * @param overrides 集合数据。
    */
   createIsolatedCopy(overrides: Partial<BashToolOptions> = {}): BashTool {
     const baseOptions: BashToolOptions = { ...this.optionsSnapshot };

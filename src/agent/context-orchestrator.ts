@@ -1,17 +1,23 @@
 /**
- * Context Orchestrator
+ * 文件功能说明：
+ * - 该文件位于 `src/agent/context-orchestrator.ts`，主要负责 上下文、编排 相关实现。
+ * - 模块归属 Agent 领域，为上层流程提供可复用能力。
  *
- * 功能：协调上下文 offload 和 compact 操作，管理上下文生命周期。
- * 从 AgentRunner 中提取的上下文管理编排逻辑。
- * 包含 compact 冷却期机制，避免连续步骤中反复尝试 compact。
+ * 核心导出列表：
+ * - `ContextOrchestrator`
+ * - `AgentRunnerContextOptions`
+ * - `ContextStats`
+ * - `OffloadEventPayload`
+ * - `CompactEventPayload`
+ * - `ContextOrchestratorOptions`
  *
- * 核心导出：
- * - ContextOrchestrator: 上下文编排器，协调 offload 和 compact 操作
- * - ContextOrchestratorOptions: 编排器配置选项
- * - AgentRunnerContextOptions: 上下文管理配置接口（供外部使用）
- * - ContextStats: 上下文统计信息接口
- * - OffloadEventPayload: offload 事件负载类型
- * - CompactEventPayload: compact 事件负载类型
+ * 作用说明：
+ * - `ContextOrchestrator`：封装该领域的核心流程与状态管理。
+ * - `AgentRunnerContextOptions`：定义模块交互的数据结构契约。
+ * - `ContextStats`：定义模块交互的数据结构契约。
+ * - `OffloadEventPayload`：定义模块交互的数据结构契约。
+ * - `CompactEventPayload`：定义模块交互的数据结构契约。
+ * - `ContextOrchestratorOptions`：定义模块交互的数据结构契约。
  */
 
 import type { LLMClient } from '../providers/llm-client.ts';
@@ -113,6 +119,10 @@ export class ContextOrchestrator {
   /** 上次 compact 尝试时的步骤编号（-Infinity 表示从未尝试） */
   private lastCompactAttemptStep = -Infinity;
 
+  /**
+   * 方法说明：初始化 ContextOrchestrator 实例并设置初始状态。
+   * @param options 配置参数。
+   */
   constructor(options: ContextOrchestratorOptions) {
     const context = options.context ?? {};
     this.client = options.client;
@@ -131,6 +141,8 @@ export class ContextOrchestrator {
 
   /**
    * 获取上下文统计信息
+   * @param history 输入参数。
+   * @param offloadedFileCount 目标路径或文件信息。
    */
   getContextStats(
     history: readonly Message[],
@@ -153,6 +165,8 @@ export class ContextOrchestrator {
 
   /**
    * 强制执行 compact 操作
+   * @param history 输入参数。
+   * @param offloadSessionDir 输入参数。
    */
   async forceCompact(
     history: Message[],
@@ -189,6 +203,8 @@ export class ContextOrchestrator {
    * 如果上下文超过阈值，执行 offload 和可选的 compact
    *
    * @returns offload 结果（如果发生了 offload/compact），null 表示无操作
+   * @param history 输入参数。
+   * @param offloadSessionDir 输入参数。
    */
   async offloadIfNeeded(
     history: Message[],
@@ -250,6 +266,7 @@ export class ContextOrchestrator {
 
   /**
    * 构建 offload 事件负载
+   * @param result 输入参数。
    */
   buildOffloadPayload(result: OffloadResult): OffloadEventPayload {
     return {
@@ -260,6 +277,7 @@ export class ContextOrchestrator {
 
   /**
    * 构建 compact 事件负载
+   * @param result 输入参数。
    */
   buildCompactPayload(result: CompactResult): CompactEventPayload {
     return {
@@ -272,6 +290,10 @@ export class ContextOrchestrator {
 
   // --- Private ---
 
+  /**
+   * 方法说明：执行 ensureContextManager 相关逻辑。
+   * @param offloadSessionDir 输入参数。
+   */
   private ensureContextManager(offloadSessionDir: string): ContextManager | null {
     if (!offloadSessionDir) {
       return null;
@@ -289,6 +311,10 @@ export class ContextOrchestrator {
     return this.contextManager;
   }
 
+  /**
+   * 方法说明：执行 ensureContextCompactor 相关逻辑。
+   * @param offloadSessionDir 输入参数。
+   */
   private ensureContextCompactor(offloadSessionDir: string): ContextCompactor | null {
     if (!offloadSessionDir) {
       return null;

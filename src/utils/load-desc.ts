@@ -1,10 +1,13 @@
 /**
- * Prompt Description Loader
+ * 文件功能说明：
+ * - 该文件位于 `src/utils/load-desc.ts`，主要负责 加载、desc 相关实现。
+ * - 模块归属 utils 领域，为上层流程提供可复用能力。
  *
- * Loads tool/prompt descriptions from markdown files with optional template variable substitution.
+ * 核心导出列表：
+ * - `loadDesc`
  *
- * Core Exports:
- * - loadDesc: Loads a markdown file and optionally replaces template variables
+ * 作用说明：
+ * - `loadDesc`：用于加载外部资源或配置。
  */
 
 import { readFileSync } from 'node:fs';

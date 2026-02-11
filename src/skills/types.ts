@@ -1,3 +1,29 @@
+/**
+ * 文件功能说明：
+ * - 该文件位于 `src/skills/types.ts`，主要负责 类型 相关实现。
+ * - 模块归属 skills 领域，为上层流程提供可复用能力。
+ *
+ * 核心导出列表：
+ * - `VersionInfo`
+ * - `SkillMeta`
+ * - `ConflictInfo`
+ * - `SimilarInfo`
+ * - `MergeCandidate`
+ * - `ImportResult`
+ * - `MergeIntoOption`
+ * - `ImportOptions`
+ *
+ * 作用说明：
+ * - `VersionInfo`：定义模块交互的数据结构契约。
+ * - `SkillMeta`：定义模块交互的数据结构契约。
+ * - `ConflictInfo`：定义模块交互的数据结构契约。
+ * - `SimilarInfo`：定义模块交互的数据结构契约。
+ * - `MergeCandidate`：定义模块交互的数据结构契约。
+ * - `ImportResult`：定义模块交互的数据结构契约。
+ * - `MergeIntoOption`：定义模块交互的数据结构契约。
+ * - `ImportOptions`：定义模块交互的数据结构契约。
+ */
+
 import type { SkillIndexEntry } from './indexer.js';
 
 /**
