@@ -1,25 +1,3 @@
-/**
- * 文件功能说明：
- * - 该文件位于 `src/skills/skill-manager.ts`，主要负责 技能、管理 相关实现。
- * - 模块归属 skills 领域，为上层流程提供可复用能力。
- *
- * 核心导出列表：
- * - `getConfiguredMaxVersions`
- * - `getConfiguredImportTimeout`
- * - `SkillManager`
- * - `SkillManagerOptions`
- * - `MAX_VERSIONS_DEFAULT`
- * - `IMPORT_TIMEOUT_DEFAULT`
- *
- * 作用说明：
- * - `getConfiguredMaxVersions`：用于读取并返回目标数据。
- * - `getConfiguredImportTimeout`：用于读取并返回目标数据。
- * - `SkillManager`：封装该领域的核心流程与状态管理。
- * - `SkillManagerOptions`：定义模块交互的数据结构契约。
- * - `MAX_VERSIONS_DEFAULT`：提供可复用的常量配置。
- * - `IMPORT_TIMEOUT_DEFAULT`：提供可复用的常量配置。
- */
-
 import * as crypto from 'node:crypto';
 import * as fs from 'node:fs';
 import { promises as fsp } from 'node:fs';
@@ -47,16 +25,10 @@ const execAsync = promisify(exec);
 export const MAX_VERSIONS_DEFAULT = 20;
 export const IMPORT_TIMEOUT_DEFAULT = 60000;
 
-/**
- * 方法说明：读取并返回 getConfiguredMaxVersions 对应的数据。
- */
 export function getConfiguredMaxVersions(): number {
   return parseEnvPositiveInt(process.env.SYNAPSE_SKILL_MAX_VERSIONS, MAX_VERSIONS_DEFAULT);
 }
 
-/**
- * 方法说明：读取并返回 getConfiguredImportTimeout 对应的数据。
- */
 export function getConfiguredImportTimeout(): number {
   return parseEnvPositiveInt(process.env.SYNAPSE_SKILL_IMPORT_TIMEOUT, IMPORT_TIMEOUT_DEFAULT);
 }
@@ -97,13 +69,6 @@ export class SkillManager {
   private readonly execCommand: (command: string, options: { timeout: number }) => Promise<unknown>;
   private readonly createTempDir: () => Promise<string>;
 
-  /**
-   * 方法说明：初始化 SkillManager 实例并设置初始状态。
-   * @param skillsDir 输入参数。
-   * @param indexer 索引位置。
-   * @param merger 输入参数。
-   * @param options 配置参数。
-   */
   constructor(
     private skillsDir: string,
     private indexer: SkillIndexer,
@@ -148,7 +113,6 @@ export class SkillManager {
 
   /**
    * 获取单个技能详情
-   * @param name 输入参数。
    */
   async info(name: string): Promise<SkillMeta | null> {
     const skillDir = path.join(this.skillsDir, name);
@@ -176,8 +140,6 @@ export class SkillManager {
 
   /**
    * 导入技能（本地目录或远程 URL）
-   * @param source 输入参数。
-   * @param options 配置参数。
    */
   async import(source: string, options: ImportOptions = {}): Promise<ImportResult> {
     if (this.isHttpSource(source)) {
@@ -188,7 +150,6 @@ export class SkillManager {
 
   /**
    * 创建版本快照
-   * @param name 输入参数。
    */
   async createVersion(name: string): Promise<string> {
     const skillDir = path.join(this.skillsDir, name);
@@ -209,8 +170,6 @@ export class SkillManager {
 
   /**
    * 回滚到指定版本
-   * @param name 输入参数。
-   * @param version 输入参数。
    */
   async rollback(name: string, version: string): Promise<void> {
     const skillDir = path.join(this.skillsDir, name);
@@ -234,7 +193,6 @@ export class SkillManager {
 
   /**
    * 获取版本列表（按版本号降序）
-   * @param name 输入参数。
    */
   async getVersions(name: string): Promise<VersionInfo[]> {
     const versionsDir = path.join(this.skillsDir, name, 'versions');
@@ -261,7 +219,6 @@ export class SkillManager {
 
   /**
    * 删除技能（含版本历史）
-   * @param name 输入参数。
    */
   async delete(name: string): Promise<void> {
     const skillDir = path.join(this.skillsDir, name);
@@ -273,11 +230,6 @@ export class SkillManager {
     this.indexer.removeSkill(name);
   }
 
-  /**
-   * 方法说明：执行 importFromDirectory 相关逻辑。
-   * @param dirPath 目标路径或文件信息。
-   * @param options 配置参数。
-   */
   private async importFromDirectory(dirPath: string, options: ImportOptions = {}): Promise<ImportResult> {
     await this.ensureSkillsDir();
 
@@ -356,11 +308,6 @@ export class SkillManager {
     return result;
   }
 
-  /**
-   * 方法说明：执行 importFromUrl 相关逻辑。
-   * @param url 输入参数。
-   * @param options 配置参数。
-   */
   private async importFromUrl(url: string, options: ImportOptions = {}): Promise<ImportResult> {
     const tempDir = await this.createTempDir();
     await fsp.mkdir(tempDir, { recursive: true });
@@ -387,10 +334,6 @@ export class SkillManager {
     }
   }
 
-  /**
-   * 方法说明：执行 collectImportCandidates 相关逻辑。
-   * @param dirPath 目标路径或文件信息。
-   */
   private async collectImportCandidates(dirPath: string): Promise<ImportCandidate[]> {
     const sourceStat = await this.safeStat(dirPath);
     if (!sourceStat) {
@@ -424,10 +367,6 @@ export class SkillManager {
     return this.toSkillCandidates(dirPath, visibleDirectories);
   }
 
-  /**
-   * 方法说明：解析输入并生成 parseRemoteImportSource 对应结构。
-   * @param url 输入参数。
-   */
   private parseRemoteImportSource(url: string): RemoteImportSource {
     const githubTreeMatch = url.match(/^https?:\/\/github\.com\/([^/]+)\/([^/]+)\/tree\/([^/]+)(?:\/(.+))?\/?$/);
     if (!githubTreeMatch) {
@@ -447,11 +386,6 @@ export class SkillManager {
     };
   }
 
-  /**
-   * 方法说明：执行 resolveImportSourceDir 相关逻辑。
-   * @param baseDir 输入参数。
-   * @param importSubPath 目标路径或文件信息。
-   */
   private async resolveImportSourceDir(baseDir: string, importSubPath?: string): Promise<string> {
     if (!importSubPath) {
       return baseDir;
@@ -474,10 +408,6 @@ export class SkillManager {
     return resolvedPath;
   }
 
-  /**
-   * 方法说明：执行 generateVersionNumber 相关逻辑。
-   * @param name 输入参数。
-   */
   private async generateVersionNumber(name: string): Promise<string> {
     const today = this.now().toISOString().split('T')[0] ?? '';
     const versions = await this.getVersions(name);
@@ -485,10 +415,6 @@ export class SkillManager {
     return `${today}-${String(sequence).padStart(3, '0')}`;
   }
 
-  /**
-   * 方法说明：执行 cleanOldVersions 相关逻辑。
-   * @param name 输入参数。
-   */
   private async cleanOldVersions(name: string): Promise<void> {
     const versions = await this.getVersions(name);
     if (versions.length <= this.maxVersions) return;
@@ -501,8 +427,6 @@ export class SkillManager {
 
   /**
    * 复制技能快照，排除 versions 目录
-   * @param src 输入参数。
-   * @param dest 输入参数。
    */
   private async copySkillSnapshot(src: string, dest: string): Promise<void> {
     await fsp.mkdir(dest, { recursive: true });
@@ -521,10 +445,6 @@ export class SkillManager {
     }
   }
 
-  /**
-   * 方法说明：判断 hashDirectory 对应条件是否成立。
-   * @param dirPath 目标路径或文件信息。
-   */
   private async hashDirectory(dirPath: string): Promise<string | null> {
     const files = await this.listFilesRecursive(dirPath, new Set(['versions']));
     if (files.length === 0) {
@@ -543,11 +463,6 @@ export class SkillManager {
     return hash.digest('hex');
   }
 
-  /**
-   * 方法说明：执行 anyVersionMatches 相关逻辑。
-   * @param versions 集合数据。
-   * @param targetHash 输入参数。
-   */
   private async anyVersionMatches(versions: VersionInfo[], targetHash: string): Promise<boolean> {
     for (const version of versions) {
       const hash = await this.hashDirectory(version.dirPath);
@@ -558,11 +473,6 @@ export class SkillManager {
     return false;
   }
 
-  /**
-   * 方法说明：执行 restoreFromVersion 相关逻辑。
-   * @param skillDir 输入参数。
-   * @param versionDir 输入参数。
-   */
   private async restoreFromVersion(skillDir: string, versionDir: string): Promise<void> {
     const entries = await fsp.readdir(skillDir, { withFileTypes: true });
     for (const entry of entries) {
@@ -573,11 +483,6 @@ export class SkillManager {
     await this.copySkillSnapshot(versionDir, skillDir);
   }
 
-  /**
-   * 方法说明：执行 listFilesRecursive 相关逻辑。
-   * @param rootDir 输入参数。
-   * @param ignoredDirNames 集合数据。
-   */
   private async listFilesRecursive(rootDir: string, ignoredDirNames: Set<string>): Promise<string[]> {
     if (!fs.existsSync(rootDir)) {
       return [];
@@ -599,10 +504,6 @@ export class SkillManager {
     return result;
   }
 
-  /**
-   * 方法说明：执行 readSkillContent 相关逻辑。
-   * @param skillDir 输入参数。
-   */
   private async readSkillContent(skillDir: string): Promise<string> {
     const skillMd = path.join(skillDir, 'SKILL.md');
     if (!(await this.exists(skillMd))) {
@@ -632,10 +533,6 @@ export class SkillManager {
     return installed;
   }
 
-  /**
-   * 方法说明：创建并返回 createFallbackEntry 对应结果。
-   * @param name 输入参数。
-   */
   private createFallbackEntry(name: string): SkillIndexEntry {
     const skillPath = path.join(this.skillsDir, name);
     return {
@@ -654,11 +551,6 @@ export class SkillManager {
     };
   }
 
-  /**
-   * 方法说明：执行 toSimilarInfo 相关逻辑。
-   * @param name 输入参数。
-   * @param candidate 输入参数。
-   */
   private toSimilarInfo(name: string, candidate: MergeCandidate): SimilarInfo {
     return {
       name,
@@ -667,17 +559,10 @@ export class SkillManager {
     };
   }
 
-  /**
-   * 方法说明：执行 ensureSkillsDir 相关逻辑。
-   */
   private async ensureSkillsDir(): Promise<void> {
     await fsp.mkdir(this.skillsDir, { recursive: true });
   }
 
-  /**
-   * 方法说明：执行 exists 相关逻辑。
-   * @param targetPath 目标路径或文件信息。
-   */
   private async exists(targetPath: string): Promise<boolean> {
     try {
       await fsp.access(targetPath);
@@ -687,10 +572,6 @@ export class SkillManager {
     }
   }
 
-  /**
-   * 方法说明：执行 safeStat 相关逻辑。
-   * @param targetPath 目标路径或文件信息。
-   */
   private async safeStat(targetPath: string): Promise<fs.Stats | null> {
     try {
       return await fsp.stat(targetPath);
@@ -699,11 +580,6 @@ export class SkillManager {
     }
   }
 
-  /**
-   * 方法说明：执行 toSkillCandidates 相关逻辑。
-   * @param baseDir 输入参数。
-   * @param entries 集合数据。
-   */
   private async toSkillCandidates(baseDir: string, entries: fs.Dirent[]): Promise<ImportCandidate[]> {
     const candidates: ImportCandidate[] = [];
     for (const entry of entries) {
@@ -718,18 +594,10 @@ export class SkillManager {
     return candidates;
   }
 
-  /**
-   * 方法说明：判断 isHttpSource 对应条件是否成立。
-   * @param source 输入参数。
-   */
   private isHttpSource(source: string): boolean {
     return source.startsWith('http://') || source.startsWith('https://');
   }
 
-  /**
-   * 方法说明：判断 isTimeoutError 对应条件是否成立。
-   * @param error 错误对象。
-   */
   private isTimeoutError(error: unknown): boolean {
     if (!error || typeof error !== 'object') return false;
     if ('killed' in error && (error as { killed?: unknown }).killed === true) return true;
@@ -738,10 +606,6 @@ export class SkillManager {
   }
 }
 
-/**
- * 方法说明：执行 quoteForShell 相关逻辑。
- * @param value 输入参数。
- */
 function quoteForShell(value: string): string {
   if (/^[A-Za-z0-9_./:@-]+$/.test(value)) {
     return value;

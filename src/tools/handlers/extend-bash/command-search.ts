@@ -1,17 +1,14 @@
 /**
- * 文件功能说明：
- * - 该文件位于 `src/tools/handlers/extend-bash/command-search.ts`，主要负责 command、检索 相关实现。
- * - 模块归属 工具、处理器、extend、Bash 领域，为上层流程提供可复用能力。
+ * Command Search Handler
  *
- * 核心导出列表：
- * - `parseCommandSearchCommand`
- * - `CommandSearchHandler`
- * - `ParsedCommandSearchCommand`
+ * Implements the `command:search` command for discovering
+ * all available commands across all three layers (Native, Agent, Extend).
  *
- * 作用说明：
- * - `parseCommandSearchCommand`：用于解析输入并转换为结构化数据。
- * - `CommandSearchHandler`：封装该领域的核心流程与状态管理。
- * - `ParsedCommandSearchCommand`：定义模块交互的数据结构契约。
+ * @module command-search
+ *
+ * Core Exports:
+ * - CommandSearchHandler: Handler for command:search command
+ * - parseCommandSearchCommand: Parse command:search arguments
  */
 
 import type { CommandResult } from '../native-command-handler.ts';
@@ -62,9 +59,6 @@ export function parseCommandSearchCommand(command: string): ParsedCommandSearchC
 export class CommandSearchHandler {
   private installer: McpInstaller;
 
-  /**
-   * 方法说明：初始化 CommandSearchHandler 实例并设置初始状态。
-   */
   constructor() {
     this.installer = new McpInstaller();
   }
@@ -87,7 +81,6 @@ export class CommandSearchHandler {
 
   /**
    * Execute command search
-   * @param pattern 输入参数。
    */
   private executeSearch(pattern?: string): CommandResult {
     const options: SearchOptions = {

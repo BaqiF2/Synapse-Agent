@@ -1,21 +1,15 @@
 /**
- * 文件功能说明：
- * - 该文件位于 `src/types/events.ts`，主要负责 事件 相关实现。
- * - 模块归属 类型 领域，为上层流程提供可复用能力。
+ * 事件类型定义
  *
- * 核心导出列表：
- * - `ToolCallEvent`
- * - `ToolResultEvent`
- * - `SubAgentEvent`
- * - `SubAgentToolCallEvent`
- * - `SubAgentCompleteEvent`
+ * 从 cli/terminal-renderer-types.ts 提取的事件类型，
+ * 消除 tools/ 和 sub-agents/ 对 cli/ 的跨层依赖。
  *
- * 作用说明：
- * - `ToolCallEvent`：定义模块交互的数据结构契约。
- * - `ToolResultEvent`：定义模块交互的数据结构契约。
- * - `SubAgentEvent`：定义模块交互的数据结构契约。
- * - `SubAgentToolCallEvent`：定义模块交互的数据结构契约。
- * - `SubAgentCompleteEvent`：定义模块交互的数据结构契约。
+ * 核心导出：
+ * - ToolCallEvent: 工具调用开始事件
+ * - ToolResultEvent: 工具调用完成事件
+ * - SubAgentEvent: SubAgent 生命周期事件
+ * - SubAgentToolCallEvent: SubAgent 内部工具调用事件
+ * - SubAgentCompleteEvent: SubAgent 完成事件
  */
 
 import type { SubAgentType } from '../sub-agents/sub-agent-types.ts';
@@ -28,6 +22,8 @@ export interface ToolCallEvent {
   id: string;
   /** Command being executed */
   command: string;
+  /** Whether to render this tool call in terminal output (default: true) */
+  shouldRender?: boolean;
   /** Parent SubAgent ID (for nested calls) */
   parentId?: string;
   /** Nesting depth (0 = top-level, 1 = inside SubAgent) */

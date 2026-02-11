@@ -1,19 +1,10 @@
 /**
- * 文件功能说明：
- * - 该文件位于 `src/tools/handlers/index.ts`，主要负责 索引 相关实现。
- * - 模块归属 工具、处理器 领域，为上层流程提供可复用能力。
+ * Tool Handlers Module
  *
- * 核心导出列表：
- * - `SkillCommandHandler`
- * - `SkillCommandHandlerOptions`
- * - `NativeShellCommandHandler`
- * - `CommandResult`
+ * 功能：导出所有命令处理器
  *
- * 作用说明：
- * - `SkillCommandHandler`：聚合并对外暴露其它模块的能力。
- * - `SkillCommandHandlerOptions`：聚合并对外暴露其它模块的能力。
- * - `NativeShellCommandHandler`：聚合并对外暴露其它模块的能力。
- * - `CommandResult`：聚合并对外暴露其它模块的能力。
+ * 核心导出：
+ * - SkillCommandHandler: 技能加载命令处理器
  */
 
 export {

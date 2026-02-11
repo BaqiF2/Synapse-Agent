@@ -1,69 +1,17 @@
 /**
- * 文件功能说明：
- * - 该文件位于 `src/tools/converters/mcp/index.ts`，主要负责 索引 相关实现。
- * - 模块归属 工具、转换器、MCP 领域，为上层流程提供可复用能力。
+ * MCP Converters Module
  *
- * 核心导出列表：
- * - `McpConfigParser`
- * - `McpServerConfigSchema`
- * - `McpConfigFileSchema`
- * - `McpServerConfig`
- * - `CommandServerConfig`
- * - `UrlServerConfig`
- * - `McpConfigFile`
- * - `McpServerEntry`
- * - `McpParseResult`
- * - `McpClient`
- * - `McpClientManager`
- * - `ConnectionState`
- * - `McpConnectionOptions`
- * - `McpToolInfo`
- * - `McpConnectionResult`
- * - `McpWrapperGenerator`
- * - `WrapperGeneratorOptions`
- * - `GeneratedWrapper`
- * - `McpInstaller`
- * - `InstalledTool`
- * - `InstallResult`
- * - `SearchOptions`
- * - `SearchResult`
- * - `initializeMcpTools`
- * - `cleanupMcpTools`
- * - `refreshMcpTools`
- * - `McpInitResult`
- * - `McpServerInitResult`
- * - `McpInitOptions`
+ * This module provides tools for discovering, connecting to, and converting
+ * MCP (Model Context Protocol) servers into Bash-compatible commands.
  *
- * 作用说明：
- * - `McpConfigParser`：聚合并对外暴露其它模块的能力。
- * - `McpServerConfigSchema`：聚合并对外暴露其它模块的能力。
- * - `McpConfigFileSchema`：聚合并对外暴露其它模块的能力。
- * - `McpServerConfig`：聚合并对外暴露其它模块的能力。
- * - `CommandServerConfig`：聚合并对外暴露其它模块的能力。
- * - `UrlServerConfig`：聚合并对外暴露其它模块的能力。
- * - `McpConfigFile`：聚合并对外暴露其它模块的能力。
- * - `McpServerEntry`：聚合并对外暴露其它模块的能力。
- * - `McpParseResult`：聚合并对外暴露其它模块的能力。
- * - `McpClient`：聚合并对外暴露其它模块的能力。
- * - `McpClientManager`：聚合并对外暴露其它模块的能力。
- * - `ConnectionState`：聚合并对外暴露其它模块的能力。
- * - `McpConnectionOptions`：聚合并对外暴露其它模块的能力。
- * - `McpToolInfo`：聚合并对外暴露其它模块的能力。
- * - `McpConnectionResult`：聚合并对外暴露其它模块的能力。
- * - `McpWrapperGenerator`：聚合并对外暴露其它模块的能力。
- * - `WrapperGeneratorOptions`：聚合并对外暴露其它模块的能力。
- * - `GeneratedWrapper`：聚合并对外暴露其它模块的能力。
- * - `McpInstaller`：聚合并对外暴露其它模块的能力。
- * - `InstalledTool`：聚合并对外暴露其它模块的能力。
- * - `InstallResult`：聚合并对外暴露其它模块的能力。
- * - `SearchOptions`：聚合并对外暴露其它模块的能力。
- * - `SearchResult`：聚合并对外暴露其它模块的能力。
- * - `initializeMcpTools`：聚合并对外暴露其它模块的能力。
- * - `cleanupMcpTools`：聚合并对外暴露其它模块的能力。
- * - `refreshMcpTools`：聚合并对外暴露其它模块的能力。
- * - `McpInitResult`：聚合并对外暴露其它模块的能力。
- * - `McpServerInitResult`：聚合并对外暴露其它模块的能力。
- * - `McpInitOptions`：聚合并对外暴露其它模块的能力。
+ * @module mcp
+ *
+ * Core Exports:
+ * - McpConfigParser: Parses mcp_servers.json configuration files
+ * - McpClient: Connects to individual MCP servers
+ * - McpClientManager: Manages multiple MCP server connections
+ * - McpWrapperGenerator: Generates Bash wrapper scripts for MCP tools
+ * - McpInstaller: Installs wrapper scripts to ~/.synapse/bin/
  */
 
 export {

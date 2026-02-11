@@ -1,19 +1,13 @@
 /**
- * 文件功能说明：
- * - 该文件位于 `src/tools/bash-router.ts`，主要负责 Bash、路由 相关实现。
- * - 模块归属 工具 领域，为上层流程提供可复用能力。
+ * Bash Command Router
  *
- * 核心导出列表：
- * - `BashRouter`
- * - `BashRouterOptions`
- * - `BashRouterCommandResult`
- * - `CommandType`
+ * 功能：解析 Bash 命令并路由到三层处理器（Native Shell / Agent Shell / Extend Shell）。
+ * 使用注册表模式统一管理命令处理器，通过 Map<prefix, handler> 实现路由。
  *
- * 作用说明：
- * - `BashRouter`：封装该领域的核心流程与状态管理。
- * - `BashRouterOptions`：定义模块交互的数据结构契约。
- * - `BashRouterCommandResult`：声明类型别名，约束输入输出类型。
- * - `CommandType`：定义可枚举选项，统一分支语义。
+ * 核心导出：
+ * - BashRouter: 命令路由器，识别命令类型并分发到对应 handler
+ * - CommandType: 命令类型枚举
+ * - BashRouterOptions: 路由器配置选项
  */
 
 import * as path from 'node:path';
@@ -78,28 +72,15 @@ interface HandlerEntry {
 }
 
 // 辅助函数
-/**
- * 方法说明：执行 matchesExact 相关逻辑。
- * @param trimmed 输入参数。
- * @param cmd 输入参数。
- */
 function matchesExact(trimmed: string, cmd: string): boolean {
   return trimmed === cmd || trimmed.startsWith(cmd + ' ');
 }
 
-/**
- * 方法说明：判断 isSkillToolCommand 对应条件是否成立。
- * @param value 输入参数。
- */
 function isSkillToolCommand(value: string): boolean {
   const commandToken = value.trim().split(/\s+/, 1)[0] ?? '';
   return commandToken.startsWith('skill:') && commandToken.split(':').length >= 3;
 }
 
-/**
- * 方法说明：标准化 normalizeSlashSkillCommand 相关数据。
- * @param command 输入参数。
- */
 function normalizeSlashSkillCommand(command: string): string {
   const trimmedStart = command.trimStart();
   if (!trimmedStart.startsWith('/skill:')) {
@@ -110,10 +91,6 @@ function normalizeSlashSkillCommand(command: string): string {
   return `${leadingWhitespace}${trimmedStart.slice(1)}`;
 }
 
-/**
- * 方法说明：执行 errorResult 相关逻辑。
- * @param message 消息内容。
- */
 function errorResult(message: string): CommandResult {
   return { stdout: '', stderr: message, exitCode: 1 };
 }
@@ -129,11 +106,6 @@ export class BashRouter {
   /** 命令前缀 → 处理器注册表 */
   private readonly handlerRegistry = new Map<string, HandlerEntry>();
 
-  /**
-   * 方法说明：初始化 BashRouter 实例并设置初始状态。
-   * @param session 输入参数。
-   * @param options 配置参数。
-   */
   constructor(private session: BashSession, options: BashRouterOptions = {}) {
     this.options = { synapseDir: DEFAULT_SYNAPSE_DIR, ...options };
     this.nativeHandler = new NativeShellCommandHandler(session);
@@ -141,10 +113,7 @@ export class BashRouter {
     this.registerBuiltinHandlers();
   }
 
-  /** 路由并执行命令
-   * @param command 输入参数。
-   * @param restart 输入参数。
-   */
+  /** 路由并执行命令 */
   route(command: string, restart: boolean = false): CancelablePromise<BashRouterCommandResult> {
     if (restart) {
       return this.routeWithRestart(command);
@@ -168,9 +137,7 @@ export class BashRouter {
     return 'cancel' in result ? result as CancelablePromise<CommandResult> : asCancelablePromise(result);
   }
 
-  /** 识别命令类型（public，供测试使用）
-   * @param command 输入参数。
-   */
+  /** 识别命令类型（public，供测试使用） */
   identifyCommandType(command: string): CommandType {
     const trimmed = normalizeSlashSkillCommand(command).trim();
 
@@ -186,13 +153,7 @@ export class BashRouter {
     return CommandType.NATIVE_SHELL_COMMAND;
   }
 
-  /** 注册命令处理器
-   * @param prefix 输入参数。
-   * @param type 输入参数。
-   * @param handler 回调处理函数。
-   * @param matchMode 输入参数。
-   * @param factory 输入参数。
-   */
+  /** 注册命令处理器 */
   registerHandler(
     prefix: string,
     type: CommandType,
@@ -203,9 +164,7 @@ export class BashRouter {
     this.handlerRegistry.set(prefix, { type, handler, factory, matchMode });
   }
 
-  /** 设置 BashTool 实例（延迟绑定，避免循环依赖）
-   * @param executor 输入参数。
-   */
+  /** 设置 BashTool 实例（延迟绑定，避免循环依赖） */
   setToolExecutor(executor: BashTool): void {
     this.options.toolExecutor = executor;
 
@@ -234,9 +193,6 @@ export class BashRouter {
     }
   }
 
-  /**
-   * 方法说明：读取并返回 getSandboxManager 对应的数据。
-   */
   getSandboxManager(): SandboxManager | undefined {
     return this.options.sandboxManager;
   }
@@ -265,9 +221,7 @@ export class BashRouter {
     this.registerHandler('skill-tool:', CommandType.EXTEND_SHELL_COMMAND, new SkillToolHandler(), 'prefix');
   }
 
-  /** 在注册表中查找匹配的处理器条目
-   * @param trimmed 输入参数。
-   */
+  /** 在注册表中查找匹配的处理器条目 */
   private findHandler(trimmed: string): HandlerEntry | null {
     // skill: 命令需要特殊处理：
     // 1. skill:name:tool（三段式）-> Extend Shell SkillToolHandler
@@ -290,9 +244,7 @@ export class BashRouter {
     return null;
   }
 
-  /** 解析处理器：直接返回或通过工厂惰性创建
-   * @param entry 输入参数。
-   */
+  /** 解析处理器：直接返回或通过工厂惰性创建 */
   private resolveHandler(entry: HandlerEntry): CommandHandler | null {
     if (entry.handler) return entry.handler;
 
@@ -304,9 +256,7 @@ export class BashRouter {
     return null;
   }
 
-  /** 带 session 重启的路由
-   * @param command 输入参数。
-   */
+  /** 带 session 重启的路由 */
   private routeWithRestart(command: string): CancelablePromise<BashRouterCommandResult> {
     let cancelled = false;
     let routedPromise: CancelablePromise<BashRouterCommandResult> | null = null;
@@ -327,10 +277,6 @@ export class BashRouter {
     );
   }
 
-  /**
-   * 方法说明：执行 executeNativeCommand 相关主流程。
-   * @param command 输入参数。
-   */
   private async executeNativeCommand(command: string): Promise<BashRouterCommandResult> {
     const sandboxManager = this.options.sandboxManager;
     if (!sandboxManager) {

@@ -1,19 +1,14 @@
 /**
- * 文件功能说明：
- * - 该文件位于 `src/hooks/skill-enhance-meta-loader.ts`，主要负责 技能、增强、元、loader 相关实现。
- * - 模块归属 Hook 领域，为上层流程提供可复用能力。
+ * Skill Enhance Meta-Skill 加载器
  *
- * 核心导出列表：
- * - `getMetaSkillDir`
- * - `loadMetaSkills`
- * - `buildEnhancePrompt`
- * - `MetaSkillContent`
+ * 功能：从用户目录加载 meta-skill 内容（skill-creator 和 skill-enhance），
+ *       并基于模板和 meta-skill 内容构建增强 prompt。
  *
- * 作用说明：
- * - `getMetaSkillDir`：用于读取并返回目标数据。
- * - `loadMetaSkills`：用于加载外部资源或配置。
- * - `buildEnhancePrompt`：用于构建并产出目标内容。
- * - `MetaSkillContent`：定义模块交互的数据结构契约。
+ * 核心导出：
+ * - MetaSkillContent: meta-skill 内容容器接口
+ * - loadMetaSkills: 加载所有必需的 meta-skill 文件
+ * - buildEnhancePrompt: 基于会话历史和 meta-skill 构建增强 prompt
+ * - getMetaSkillDir: 获取 meta-skill 目录路径
  */
 
 import * as path from 'node:path';

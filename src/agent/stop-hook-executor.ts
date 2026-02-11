@@ -1,13 +1,10 @@
 /**
- * 文件功能说明：
- * - 该文件位于 `src/agent/stop-hook-executor.ts`，主要负责 停止、Hook、executor 相关实现。
- * - 模块归属 Agent 领域，为上层流程提供可复用能力。
+ * Stop Hook Executor
  *
- * 核心导出列表：
- * - `StopHookExecutor`
+ * 功能：封装 Stop Hook 的加载与执行逻辑，从 AgentRunner 中提取的 hook 执行管理。
  *
- * 作用说明：
- * - `StopHookExecutor`：封装该领域的核心流程与状态管理。
+ * 核心导出：
+ * - StopHookExecutor: Stop Hook 执行器，管理 hook 的加载、执行和结果拼接
  */
 
 import type { OnMessagePart } from '../providers/generate.ts';
@@ -22,9 +19,6 @@ const logger = createLogger('stop-hook-executor');
 
 let stopHooksLoadPromise: Promise<void> | null = null;
 
-/**
- * 方法说明：执行 ensureStopHooksLoaded 相关逻辑。
- */
 async function ensureStopHooksLoaded(): Promise<void> {
   if (!stopHooksLoadPromise) {
     stopHooksLoadPromise = loadStopHooks();
@@ -42,10 +36,6 @@ export class StopHookExecutor {
   private readonly enabled: boolean;
   private readonly onMessagePart?: OnMessagePart;
 
-  /**
-   * 方法说明：初始化 StopHookExecutor 实例并设置初始状态。
-   * @param options 配置参数。
-   */
   constructor(options: { enabled: boolean; onMessagePart?: OnMessagePart }) {
     this.enabled = options.enabled;
     this.onMessagePart = options.onMessagePart;
@@ -69,8 +59,6 @@ export class StopHookExecutor {
 
   /**
    * 执行 stop hooks 并将结果追加到最终响应
-   * @param finalResponse 输入参数。
-   * @param context 上下文对象。
    */
   async executeAndAppend(
     finalResponse: string,
@@ -89,11 +77,6 @@ export class StopHookExecutor {
 
   // --- Private ---
 
-  /**
-   * 方法说明：执行 appendHookMessages 相关逻辑。
-   * @param finalResponse 输入参数。
-   * @param hookResults 集合数据。
-   */
   private appendHookMessages(finalResponse: string, hookResults: HookResult[]): string {
     const hookMessages = hookResults
       .map((result) => result.message)
@@ -108,10 +91,6 @@ export class StopHookExecutor {
     return finalResponse;
   }
 
-  /**
-   * 方法说明：执行 emitProgress 相关逻辑。
-   * @param message 消息内容。
-   */
   private async emitProgress(message: string): Promise<void> {
     const text = message.trim();
     if (!text || !this.onMessagePart) {

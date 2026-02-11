@@ -1,23 +1,15 @@
 /**
- * 文件功能说明：
- * - 该文件位于 `src/tools/callable-tool.ts`，主要负责 可调用、工具 相关实现。
- * - 模块归属 工具 领域，为上层流程提供可复用能力。
+ * Callable Tool Base Class
  *
- * 核心导出列表：
- * - `asCancelablePromise`
- * - `ToolOk`
- * - `ToolError`
- * - `ToolValidateError`
- * - `CallableTool`
- * - `CancelablePromise`
+ * Provides a generic, type-safe base class for defining tools with typed parameters
+ * and structured return values. Inspired by the CallableTool2 pattern from kosong.
  *
- * 作用说明：
- * - `asCancelablePromise`：提供该模块的核心能力。
- * - `ToolOk`：用于进行类型或结构转换。
- * - `ToolError`：用于进行类型或结构转换。
- * - `ToolValidateError`：用于进行类型或结构转换。
- * - `CallableTool`：封装该领域的核心流程与状态管理。
- * - `CancelablePromise`：声明类型别名，约束输入输出类型。
+ * Core Exports:
+ * - CallableTool: Abstract base class for tools with typed params via Zod
+ * - ToolReturnValue: Structured return value for tool execution
+ * - ToolOk: Convenience class for successful tool results
+ * - ToolError: Convenience class for failed tool results
+ * - ToolValidateError: Convenience class for parameter validation errors
  */
 
 import type { LLMTool } from '../types/tool.ts';
@@ -30,16 +22,8 @@ import type { ToolReturnValue } from '../types/tool.ts';
 
 export type CancelablePromise<T> = Promise<T> & { cancel: () => void };
 
-/**
- * 方法说明：执行 NOOP_CANCEL 相关逻辑。
- */
 const NOOP_CANCEL = (): void => {};
 
-/**
- * 方法说明：执行 asCancelablePromise 相关逻辑。
- * @param promise 输入参数。
- * @param cancel 输入参数。
- */
 export function asCancelablePromise<T>(
   promise: Promise<T>,
   cancel?: () => void
@@ -52,7 +36,6 @@ export function asCancelablePromise<T>(
 
 /**
  * Create a successful ToolReturnValue.
- * @param opts 配置参数。
  */
 export function ToolOk(opts: {
   output: string;
@@ -71,7 +54,6 @@ export function ToolOk(opts: {
 
 /**
  * Create a failed ToolReturnValue.
- * @param opts 配置参数。
  */
 export function ToolError(opts: {
   message: string;
@@ -90,7 +72,6 @@ export function ToolError(opts: {
 
 /**
  * Create a ToolReturnValue for parameter validation failures.
- * @param detail 输入参数。
  */
 export function ToolValidateError(detail: string): ToolReturnValue {
   return ToolError({

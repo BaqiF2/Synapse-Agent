@@ -1,13 +1,10 @@
 /**
- * 文件功能说明：
- * - 该文件位于 `src/cli/index.ts`，主要负责 索引 相关实现。
- * - 模块归属 CLI 领域，为上层流程提供可复用能力。
+ * CLI 入口文件
  *
- * 核心导出列表：
- * - `main`
+ * 功能：定义命令行接口，处理命令参数和选项
  *
- * 作用说明：
- * - `main`：提供该模块的核心能力。
+ * 核心导出：
+ * - main(): 主函数，启动 CLI 应用
  */
 
 import { Command } from 'commander';
@@ -35,9 +32,7 @@ export async function main() {
   await program.parseAsync(process.argv);
 }
 
-/**
- * 入口
- */
+// Run if executed directly
 if (import.meta.main) {
   main().catch((error) => {
     console.error('Fatal error:', error);

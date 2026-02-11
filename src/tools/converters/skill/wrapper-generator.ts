@@ -1,17 +1,14 @@
 /**
- * 文件功能说明：
- * - 该文件位于 `src/tools/converters/skill/wrapper-generator.ts`，主要负责 封装、generator 相关实现。
- * - 模块归属 工具、转换器、技能 领域，为上层流程提供可复用能力。
+ * Skill Wrapper Generator
  *
- * 核心导出列表：
- * - `SkillWrapperGenerator`
- * - `GeneratedSkillWrapper`
- * - `SkillInstallResult`
+ * 功能：为 Skill 脚本生成可执行的 Bash wrapper 脚本，
+ * 提供 CLI 参数解析、帮助信息和脚本调用。
+ * 通过共享模块 BinInstaller/HelpGenerator/interpreter 消除重复逻辑。
  *
- * 作用说明：
- * - `SkillWrapperGenerator`：封装该领域的核心流程与状态管理。
- * - `GeneratedSkillWrapper`：定义模块交互的数据结构契约。
- * - `SkillInstallResult`：声明类型别名，约束输入输出类型。
+ * 核心导出：
+ * - SkillWrapperGenerator: 生成并安装 Skill wrapper 脚本
+ * - GeneratedSkillWrapper: 生成的 wrapper 元数据
+ * - SkillInstallResult: 安装结果（重导出自 shared/bin-installer）
  */
 
 import * as os from 'node:os';
@@ -49,34 +46,21 @@ export class SkillWrapperGenerator {
   private readonly parser: DocstringParser;
   private readonly structure: SkillStructure;
 
-  /**
-   * 方法说明：初始化 SkillWrapperGenerator 实例并设置初始状态。
-   * @param homeDir 输入参数。
-   */
   constructor(homeDir: string = os.homedir()) {
     this.bin = new BinInstaller(homeDir);
     this.parser = new DocstringParser();
     this.structure = new SkillStructure(homeDir);
   }
 
-  /**
-   * 方法说明：读取并返回 getBinDir 对应的数据。
-   */
   public getBinDir(): string {
     return this.bin.getBinDir();
   }
 
-  /**
-   * 方法说明：执行 ensureBinDir 相关逻辑。
-   */
   public ensureBinDir(): void {
     this.bin.ensureBinDir();
   }
 
-  /** 为单个脚本生成 wrapper
-   * @param skillName 输入参数。
-   * @param scriptPath 目标路径或文件信息。
-   */
+  /** 为单个脚本生成 wrapper */
   public generateWrapper(skillName: string, scriptPath: string): GeneratedSkillWrapper | null {
     const metadata = this.parser.parseFile(scriptPath);
     if (!metadata) return null;
@@ -88,9 +72,7 @@ export class SkillWrapperGenerator {
     return { commandName, skillName, toolName: metadata.name, wrapperPath, scriptPath, content, description: metadata.description };
   }
 
-  /** 为 Skill 中所有脚本生成 wrapper
-   * @param skillName 输入参数。
-   */
+  /** 为 Skill 中所有脚本生成 wrapper */
   public generateWrappersForSkill(skillName: string): GeneratedSkillWrapper[] {
     const scripts = this.structure.listScripts(skillName);
     const wrappers: GeneratedSkillWrapper[] = [];
@@ -112,9 +94,7 @@ export class SkillWrapperGenerator {
     return result;
   }
 
-  /** 安装单个 wrapper
-   * @param wrapper 输入参数。
-   */
+  /** 安装单个 wrapper */
   public install(wrapper: GeneratedSkillWrapper): SkillInstallResult {
     return this.bin.install({
       commandName: wrapper.commandName,
@@ -123,32 +103,24 @@ export class SkillWrapperGenerator {
     });
   }
 
-  /** 批量安装 wrapper
-   * @param wrappers 集合数据。
-   */
+  /** 批量安装 wrapper */
   public installAll(wrappers: GeneratedSkillWrapper[]): SkillInstallResult[] {
     return wrappers.map((w) => this.install(w));
   }
 
-  /** 移除指定命令名称的 wrapper
-   * @param commandName 输入参数。
-   */
+  /** 移除指定命令名称的 wrapper */
   public remove(commandName: string): boolean {
     return this.bin.remove(commandName);
   }
 
-  /** 移除某 Skill 的所有 wrapper
-   * @param skillName 输入参数。
-   */
+  /** 移除某 Skill 的所有 wrapper */
   public removeBySkill(skillName: string): number {
     return this.bin.removeByPrefix(`skill:${skillName}:`);
   }
 
   // -- 私有方法 --
 
-  /** 将 ScriptParam 转为 HelpParam
-   * @param params 集合数据。
-   */
+  /** 将 ScriptParam 转为 HelpParam */
   private toHelpParams(params: ScriptParam[]): HelpParam[] {
     return params.map((p) => ({
       name: p.name,
@@ -159,10 +131,7 @@ export class SkillWrapperGenerator {
     }));
   }
 
-  /** 生成 wrapper 脚本内容
-   * @param skillName 输入参数。
-   * @param metadata 输入参数。
-   */
+  /** 生成 wrapper 脚本内容 */
   private generateScriptContent(skillName: string, metadata: ScriptMetadata): string {
     const params = metadata.params || [];
     const helpParams = this.toHelpParams(params);

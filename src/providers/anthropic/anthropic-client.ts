@@ -1,25 +1,15 @@
 /**
- * 文件功能说明：
- * - 该文件位于 `src/providers/anthropic/anthropic-client.ts`，主要负责 Anthropic、client 相关实现。
- * - 模块归属 Provider、Anthropic 领域，为上层流程提供可复用能力。
+ * Anthropic LLM Client
  *
- * 核心导出列表：
- * - `toAnthropicMessages`
- * - `toAnthropicMessage`
- * - `AnthropicClient`
- * - `GenerationKwargs`
- * - `GenerateOptions`
- * - `LlmSettings`
- * - `AnthropicClientOptions`
+ * Wrapper for Anthropic API with support for streaming, prompt caching,
+ * extended thinking, and token usage tracking.
  *
- * 作用说明：
- * - `toAnthropicMessages`：用于进行类型或结构转换。
- * - `toAnthropicMessage`：用于进行类型或结构转换。
- * - `AnthropicClient`：封装该领域的核心流程与状态管理。
- * - `GenerationKwargs`：定义模块交互的数据结构契约。
- * - `GenerateOptions`：定义模块交互的数据结构契约。
- * - `LlmSettings`：定义模块交互的数据结构契约。
- * - `AnthropicClientOptions`：定义模块交互的数据结构契约。
+ * Core Exports:
+ * - AnthropicClient: Main client class for Anthropic API
+ * - AnthropicClientOptions: 构造选项接口
+ * - LlmSettings: LLM 配置参数接口
+ * - GenerationKwargs: Generation parameters interface
+ * - toAnthropicMessage(s): Convert internal Message to Anthropic wire format
  */
 
 import Anthropic from '@anthropic-ai/sdk';
@@ -96,10 +86,6 @@ export class AnthropicClient implements LLMClient {
   private readonly client: Anthropic;
   private readonly config: ClientConfig;
 
-  /**
-   * 方法说明：初始化 AnthropicClient 实例并设置初始状态。
-   * @param options 配置参数。
-   */
   constructor(options: AnthropicClientOptions) {
     const { apiKey, baseURL, model } = options.settings;
 
@@ -124,8 +110,6 @@ export class AnthropicClient implements LLMClient {
 
   /**
    * Private constructor for creating copies with updated config
-   * @param client 输入参数。
-   * @param config 配置参数。
    */
   private static fromConfig(client: Anthropic, config: ClientConfig): AnthropicClient {
     const instance = Object.create(AnthropicClient.prototype) as AnthropicClient;
@@ -134,16 +118,10 @@ export class AnthropicClient implements LLMClient {
     return instance;
   }
 
-  /**
-   * 方法说明：执行 modelName 相关逻辑。
-   */
   get modelName(): string {
     return this.config.model;
   }
 
-  /**
-   * 方法说明：执行 thinkingEffort 相关逻辑。
-   */
   get thinkingEffort(): ThinkingEffort | null {
     const thinking = this.config.generationKwargs.thinking;
     if (!thinking) return null;
@@ -156,7 +134,6 @@ export class AnthropicClient implements LLMClient {
 
   /**
    * Create a new client with thinking configured
-   * @param effort 输入参数。
    */
   withThinking(effort: ThinkingEffort): AnthropicClient {
     const thinkingConfig = this.mapThinkingEffort(effort);
@@ -165,7 +142,6 @@ export class AnthropicClient implements LLMClient {
 
   /**
    * Create a new client with updated generation kwargs
-   * @param kwargs 集合数据。
    */
   withGenerationKwargs(kwargs: Partial<GenerationKwargs>): AnthropicClient {
     const newConfig: ClientConfig = {
@@ -177,7 +153,6 @@ export class AnthropicClient implements LLMClient {
 
   /**
    * Create a new client with updated model
-   * @param model 输入参数。
    */
   withModel(model: string): AnthropicClient {
     const normalizedModel = model.trim();
@@ -192,10 +167,6 @@ export class AnthropicClient implements LLMClient {
     return AnthropicClient.fromConfig(this.client, newConfig);
   }
 
-  /**
-   * 方法说明：执行 mapThinkingEffort 相关逻辑。
-   * @param effort 输入参数。
-   */
   private mapThinkingEffort(effort: ThinkingEffort): Anthropic.ThinkingConfigParam {
     switch (effort) {
       case 'off':
@@ -211,10 +182,6 @@ export class AnthropicClient implements LLMClient {
 
   /**
    * Generate a response from the LLM
-   * @param systemPrompt 输入参数。
-   * @param messages 消息内容。
-   * @param tools 集合数据。
-   * @param options 配置参数。
    */
   async generate(
     systemPrompt: string,
@@ -240,6 +207,7 @@ export class AnthropicClient implements LLMClient {
       const processedMessages = this.injectMessageCacheControl(anthropicMessages);
 
       // Inject cache_control into last tool
+      // LLMTool 与 Anthropic.Tool 结构兼容，直接传递给 SDK
       const processedTools = this.injectToolsCacheControl(tools) as Anthropic.Tool[];
 
       // Build request parameters
@@ -276,7 +244,6 @@ export class AnthropicClient implements LLMClient {
 
   /**
    * Inject cache_control into the last content block of the last message
-   * @param messages 消息内容。
    */
   private injectMessageCacheControl(
     messages: Anthropic.MessageParam[]
@@ -322,7 +289,6 @@ export class AnthropicClient implements LLMClient {
 
   /**
    * Inject cache_control into the last tool
-   * @param tools 集合数据。
    */
   private injectToolsCacheControl(tools: LLMTool[]): LLMTool[] {
     if (tools.length === 0) return tools;
@@ -338,7 +304,6 @@ export class AnthropicClient implements LLMClient {
 
   /**
    * Convert Anthropic errors to unified error types
-   * @param error 错误对象。
    */
   private convertError(error: unknown): ChatProviderError {
     if (error instanceof Anthropic.APIConnectionError) {
@@ -356,18 +321,10 @@ export class AnthropicClient implements LLMClient {
   }
 }
 
-/**
- * 方法说明：执行 toAnthropicMessages 相关逻辑。
- * @param messages 消息内容。
- */
 export function toAnthropicMessages(messages: readonly Message[]): Anthropic.MessageParam[] {
   return messages.map((message) => toAnthropicMessage(message));
 }
 
-/**
- * 方法说明：执行 toAnthropicMessage 相关逻辑。
- * @param message 消息内容。
- */
 export function toAnthropicMessage(message: Message): Anthropic.MessageParam {
   if (message.role === 'system') {
     const text = extractTextFromParts(message.content, '\n');
@@ -413,11 +370,6 @@ export function toAnthropicMessage(message: Message): Anthropic.MessageParam {
   return { role: message.role, content: contentBlocks };
 }
 
-/**
- * 方法说明：执行 extractTextFromParts 相关逻辑。
- * @param parts 集合数据。
- * @param separator 输入参数。
- */
 function extractTextFromParts(parts: ContentPart[], separator: string = ''): string {
   return parts
     .filter((part): part is { type: 'text'; text: string } => part.type === 'text')
@@ -425,10 +377,6 @@ function extractTextFromParts(parts: ContentPart[], separator: string = ''): str
     .join(separator);
 }
 
-/**
- * 方法说明：执行 convertContentParts 相关逻辑。
- * @param parts 集合数据。
- */
 function convertContentParts(parts: ContentPart[]): Anthropic.ContentBlockParam[] {
   const blocks: Anthropic.ContentBlockParam[] = [];
   for (const part of parts) {
@@ -438,10 +386,6 @@ function convertContentParts(parts: ContentPart[]): Anthropic.ContentBlockParam[
   return blocks;
 }
 
-/**
- * 方法说明：执行 convertContentPart 相关逻辑。
- * @param part 输入参数。
- */
 function convertContentPart(part: ContentPart): Anthropic.ContentBlockParam | null {
   switch (part.type) {
     case 'text':
@@ -460,10 +404,6 @@ function convertContentPart(part: ContentPart): Anthropic.ContentBlockParam | nu
   }
 }
 
-/**
- * 方法说明：执行 convertToolCall 相关逻辑。
- * @param call 输入参数。
- */
 function convertToolCall(call: ToolCall): Anthropic.ToolUseBlockParam {
   logger.trace('Converting ToolCall to Anthropic format', {
     toolId: call.id,
@@ -478,11 +418,6 @@ function convertToolCall(call: ToolCall): Anthropic.ToolUseBlockParam {
   };
 }
 
-/**
- * 方法说明：执行 fallbackToEmptyToolInput 相关逻辑。
- * @param message 消息内容。
- * @param context 上下文对象。
- */
 function fallbackToEmptyToolInput(
   message: string,
   context: Record<string, unknown>
@@ -491,10 +426,6 @@ function fallbackToEmptyToolInput(
   return {};
 }
 
-/**
- * 方法说明：解析输入并生成 parseToolInput 对应结构。
- * @param argumentsJson 输入参数。
- */
 function parseToolInput(argumentsJson: string): Record<string, unknown> {
   // 关键调试点：记录输入的参数 JSON
   logger.trace('Parsing tool input arguments', {
@@ -537,10 +468,6 @@ function parseToolInput(argumentsJson: string): Record<string, unknown> {
   return parsed as Record<string, unknown>;
 }
 
-/**
- * 方法说明：执行 convertToolResultContent 相关逻辑。
- * @param parts 集合数据。
- */
 function convertToolResultContent(
   parts: ContentPart[]
 ): string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam> {
@@ -570,10 +497,6 @@ function convertToolResultContent(
   return hasNonText ? blocks : text;
 }
 
-/**
- * 方法说明：执行 convertImageUrlPart 相关逻辑。
- * @param part 输入参数。
- */
 function convertImageUrlPart(part: ImageUrlPart): Anthropic.ImageBlockParam {
   const url = part.imageUrl.url;
 

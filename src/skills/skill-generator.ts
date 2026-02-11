@@ -1,19 +1,13 @@
 /**
- * 文件功能说明：
- * - 该文件位于 `src/skills/skill-generator.ts`，主要负责 技能、generator 相关实现。
- * - 模块归属 skills 领域，为上层流程提供可复用能力。
+ * Skill Generator
  *
- * 核心导出列表：
- * - `SkillGenerator`
- * - `ScriptDef`
- * - `SkillSpec`
- * - `GenerationResult`
+ * Generates and updates SKILL.md files for skill enhancement.
  *
- * 作用说明：
- * - `SkillGenerator`：封装该领域的核心流程与状态管理。
- * - `ScriptDef`：定义模块交互的数据结构契约。
- * - `SkillSpec`：定义模块交互的数据结构契约。
- * - `GenerationResult`：定义模块交互的数据结构契约。
+ * @module skill-generator
+ *
+ * Core Exports:
+ * - SkillGenerator: Class for generating skills
+ * - SkillSpec: Skill specification type
  */
 
 import * as fs from 'node:fs';
@@ -67,7 +61,6 @@ const YAML_SPECIAL_CHARS = /[:#'"{}[\]|>&*!?@`]/;
 
 /**
  * 包裹 YAML 值：当值包含特殊字符时用双引号包裹，内部双引号转义
- * @param value 输入参数。
  */
 function yamlSafeValue(value: string): string {
   if (!YAML_SPECIAL_CHARS.test(value)) {
@@ -295,8 +288,6 @@ export class SkillGenerator {
 
   /**
    * Parse existing SKILL.md to extract specification
-   * @param content 输入参数。
-   * @param name 输入参数。
    */
   private parseSkillMd(content: string, name: string): SkillSpec {
     const spec: SkillSpec = {

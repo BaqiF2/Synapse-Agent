@@ -1,15 +1,11 @@
 /**
- * 文件功能说明：
- * - 该文件位于 `src/tools/handlers/agent-bash/write.ts`，主要负责 写入 相关实现。
- * - 模块归属 工具、处理器、Agent、Bash 领域，为上层流程提供可复用能力。
+ * Write 工具 - Agent Shell Command Layer 2
  *
- * 核心导出列表：
- * - `parseWriteCommand`
- * - `WriteHandler`
+ * 功能：写入文件内容，支持自动创建父目录
  *
- * 作用说明：
- * - `parseWriteCommand`：用于解析输入并转换为结构化数据。
- * - `WriteHandler`：封装该领域的核心流程与状态管理。
+ * 核心导出：
+ * - WriteHandler: 文件写入处理器类
+ * - parseWriteCommand: 解析 write 命令参数的函数
  */
 
 import * as fs from 'node:fs';
@@ -29,7 +25,6 @@ interface WriteArgs {
 /**
  * 解析 write 命令参数
  * Syntax: write <file_path> <content>
- * @param command 输入参数。
  */
 export function parseWriteCommand(command: string): WriteArgs {
   const trimmed = command.trim();
@@ -83,9 +78,7 @@ export function parseWriteCommand(command: string): WriteArgs {
   return { filePath, content };
 }
 
-/** 处理转义序列
- * @param content 输入参数。
- */
+/** 处理转义序列 */
 function processEscapeSequences(content: string): string {
   return content
     .replace(/\\n/g, '\n')
@@ -102,10 +95,6 @@ export class WriteHandler extends BaseAgentHandler {
   protected readonly usage = USAGE;
   protected readonly helpFilePath = path.join(import.meta.dirname, 'write.md');
 
-  /**
-   * 方法说明：执行 executeCommand 相关主流程。
-   * @param command 输入参数。
-   */
   protected async executeCommand(command: string): Promise<CommandResult> {
     try {
       const args = parseWriteCommand(command);
@@ -116,10 +105,6 @@ export class WriteHandler extends BaseAgentHandler {
     }
   }
 
-  /**
-   * 方法说明：执行 writeFile 相关逻辑。
-   * @param args 集合数据。
-   */
   private writeFile(args: WriteArgs): string {
     const absolutePath = this.resolveFilePath(args.filePath);
     const parentDir = path.dirname(absolutePath);

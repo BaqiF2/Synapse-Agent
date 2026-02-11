@@ -1,15 +1,15 @@
 /**
- * 文件功能说明：
- * - 该文件位于 `src/tools/converters/skill/docstring-parser.ts`，主要负责 文档字符串、解析 相关实现。
- * - 模块归属 工具、转换器、技能 领域，为上层流程提供可复用能力。
+ * Script Docstring Parser
  *
- * 核心导出列表：
- * - `parseDocstring`
- * - `DocstringParser`
+ * This module parses docstrings from script files to extract metadata
+ * including description, parameters, return values, and examples.
+ * Supports Python, Shell, TypeScript, and JavaScript scripts.
  *
- * 作用说明：
- * - `parseDocstring`：用于解析输入并转换为结构化数据。
- * - `DocstringParser`：封装该领域的核心流程与状态管理。
+ * @module docstring-parser
+ *
+ * Core Exports:
+ * - DocstringParser: Parses script docstrings into structured metadata
+ * - parseDocstring: Convenience function for parsing
  */
 
 import * as fs from 'node:fs';
@@ -78,8 +78,6 @@ export class DocstringParser {
 
   /**
    * Extracts docstring based on file extension
-   * @param content 输入参数。
-   * @param ext 输入参数。
    */
   private extractDocstring(content: string, ext: SupportedExtension): RawDocstring {
     switch (ext) {
@@ -97,7 +95,6 @@ export class DocstringParser {
 
   /**
    * Parses Python triple-quoted docstring
-   * @param content 输入参数。
    */
   private parsePythonDocstring(content: string): RawDocstring {
     const result: RawDocstring = { description: '', params: [], examples: [] };
@@ -202,7 +199,6 @@ export class DocstringParser {
 
   /**
    * Parses Shell comment-based docstring
-   * @param content 输入参数。
    */
   private parseShellDocstring(content: string): RawDocstring {
     const result: RawDocstring = { description: '', params: [], examples: [] };
@@ -321,7 +317,6 @@ export class DocstringParser {
 
   /**
    * Parses JSDoc-style docstring (TypeScript/JavaScript)
-   * @param content 输入参数。
    */
   private parseJSDocstring(content: string): RawDocstring {
     const result: RawDocstring = { description: '', params: [], examples: [] };
@@ -406,7 +401,6 @@ export class DocstringParser {
 
   /**
    * Parses parameter type string to extract type, required flag, and default
-   * @param typeStr 输入参数。
    */
   private parseParamType(typeStr: string): { type: string; required: boolean; defaultValue?: string } {
     let type = typeStr.trim();
@@ -435,7 +429,6 @@ export class DocstringParser {
 
   /**
    * Normalizes type string to standard type
-   * @param type 输入参数。
    */
   private normalizeType(type: string): ScriptParam['type'] {
     const lower = type.toLowerCase();
@@ -451,7 +444,6 @@ export class DocstringParser {
 
   /**
    * Parses default value string to appropriate type
-   * @param value 输入参数。
    */
   private parseDefaultValue(value: string): unknown {
     // Try to parse as JSON
@@ -466,7 +458,6 @@ export class DocstringParser {
 
 /**
  * Convenience function to parse a script file
- * @param scriptPath 目标路径或文件信息。
  */
 export function parseDocstring(scriptPath: string): ScriptMetadata | null {
   const parser = new DocstringParser();

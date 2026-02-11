@@ -1,17 +1,12 @@
 /**
- * 文件功能说明：
- * - 该文件位于 `src/hooks/types.ts`，主要负责 类型 相关实现。
- * - 模块归属 Hook 领域，为上层流程提供可复用能力。
+ * Stop Hooks 类型定义
  *
- * 核心导出列表：
- * - `StopHookContext`
- * - `HookResult`
- * - `StopHook`
+ * 功能：定义 Stop Hooks 系统所需的所有类型接口
  *
- * 作用说明：
- * - `StopHookContext`：定义模块交互的数据结构契约。
- * - `HookResult`：定义模块交互的数据结构契约。
- * - `StopHook`：声明类型别名，约束输入输出类型。
+ * 核心导出：
+ * - StopHookContext: 钩子执行时的上下文信息
+ * - HookResult: 钩子执行结果
+ * - StopHook: 钩子函数类型
  */
 
 import type { Message } from '../providers/message.ts';

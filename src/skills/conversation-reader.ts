@@ -1,21 +1,15 @@
 /**
- * 文件功能说明：
- * - 该文件位于 `src/skills/conversation-reader.ts`，主要负责 conversation、reader 相关实现。
- * - 模块归属 skills 领域，为上层流程提供可复用能力。
+ * Conversation Reader
  *
- * 核心导出列表：
- * - `ConversationReader`
- * - `ToolCall`
- * - `ToolResult`
- * - `ConversationTurn`
- * - `ConversationSummary`
+ * Reads and parses conversation history files for skill enhancement analysis.
  *
- * 作用说明：
- * - `ConversationReader`：封装该领域的核心流程与状态管理。
- * - `ToolCall`：定义模块交互的数据结构契约。
- * - `ToolResult`：定义模块交互的数据结构契约。
- * - `ConversationTurn`：定义模块交互的数据结构契约。
- * - `ConversationSummary`：定义模块交互的数据结构契约。
+ * @module conversation-reader
+ *
+ * Core Exports:
+ * - ConversationReader: Class for reading conversation history
+ * - ConversationTurn: Parsed conversation turn type
+ * - ConversationSummary: Summary statistics type
+ * - compact(): Method to compact conversation turns for skill enhancement
  */
 
 import * as fs from 'node:fs';
@@ -150,7 +144,6 @@ export class ConversationReader {
 
   /**
    * Parse a single JSONL line into a conversation turn
-   * @param line 输入参数。
    */
   private parseLine(line: string): ConversationTurn | null {
     try {

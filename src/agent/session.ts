@@ -1,25 +1,15 @@
 /**
- * 文件功能说明：
- * - 该文件位于 `src/agent/session.ts`，主要负责 会话 相关实现。
- * - 模块归属 Agent 领域，为上层流程提供可复用能力。
+ * Session 管理
  *
- * 核心导出列表：
- * - `Session`
- * - `SessionCreateOptions`
- * - `SessionInfo`
- * - `SessionsIndex`
- * - `TITLE_MAX_LENGTH`
- * - `SessionInfoSchema`
- * - `SessionsIndexSchema`
+ * 功能：管理会话生命周期、消息持久化、会话恢复。
+ *       所有 I/O 操作使用 fs.promises 实现真正异步，
+ *       索引写入通过内部队列序列化防止并发冲突。
  *
- * 作用说明：
- * - `Session`：封装该领域的核心流程与状态管理（含 resolve find-or-create 工厂方法）。
- * - `SessionCreateOptions`：定义模块交互的数据结构契约。
- * - `SessionInfo`：声明类型别名，约束输入输出类型。
- * - `SessionsIndex`：声明类型别名，约束输入输出类型。
- * - `TITLE_MAX_LENGTH`：提供可复用的常量配置。
- * - `SessionInfoSchema`：提供可复用的模块级变量/常量。
- * - `SessionsIndexSchema`：提供可复用的模块级变量/常量。
+ * 核心导出：
+ * - Session: 会话管理类
+ * - SessionInfo: 会话元信息类型
+ * - SessionsIndex: 会话索引类型
+ * - TITLE_MAX_LENGTH: 标题最大长度常量
  */
 
 import * as fs from 'node:fs';
@@ -135,10 +125,6 @@ function createEmptyIndex(): SessionsIndex {
   };
 }
 
-/**
- * 方法说明：执行 toJsonl 相关逻辑。
- * @param messages 消息内容。
- */
 function toJsonl(messages: readonly Message[]): string {
   if (messages.length === 0) {
     return '';
@@ -151,7 +137,6 @@ function toJsonl(messages: readonly Message[]): string {
  * 解析 JSONL 内容为消息数组
  *
  * 逐行 try-catch，损坏的行会被跳过并记录警告
- * @param content 输入参数。
  */
 function parseJsonl(content: string): Message[] {
   const lines = content.trim().split('\n').filter((line) => line.length > 0);
@@ -190,12 +175,6 @@ export class Session {
   /** 索引写入队列，确保并发 updateIndex 调用顺序执行 */
   private _indexWriteQueue: Promise<void> = Promise.resolve();
 
-  /**
-   * 方法说明：初始化 Session 实例并设置初始状态。
-   * @param id 目标标识。
-   * @param sessionsDir 输入参数。
-   * @param model 输入参数。
-   */
   private constructor(id: string, sessionsDir: string, model: string = DEFAULT_SESSION_MODEL) {
     this._id = id;
     this._sessionsDir = sessionsDir;
@@ -208,51 +187,30 @@ export class Session {
   // 属性访问器
   // ════════════════════════════════════════════════════════════════════
 
-  /**
-   * 方法说明：执行 id 相关逻辑。
-   */
   get id(): string {
     return this._id;
   }
 
-  /**
-   * 方法说明：执行 title 相关逻辑。
-   */
   get title(): string | undefined {
     return this._title;
   }
 
-  /**
-   * 方法说明：执行 historyPath 相关逻辑。
-   */
   get historyPath(): string {
     return this._historyPath;
   }
 
-  /**
-   * 方法说明：执行 offloadSessionDir 相关逻辑。
-   */
   get offloadSessionDir(): string {
     return path.join(this._sessionsDir, this._id);
   }
 
-  /**
-   * 方法说明：执行 offloadDirPath 相关逻辑。
-   */
   get offloadDirPath(): string {
     return path.join(this.offloadSessionDir, 'offloaded');
   }
 
-  /**
-   * 方法说明：执行 messageCount 相关逻辑。
-   */
   get messageCount(): number {
     return this._messageCount;
   }
 
-  /**
-   * 方法说明：读取并返回 getUsage 对应的数据。
-   */
   getUsage(): SessionUsage {
     return structuredClone(this._usage);
   }
@@ -263,7 +221,6 @@ export class Session {
 
   /**
    * 创建新会话
-   * @param options 配置参数。
    */
   static async create(options: SessionCreateOptions = {}): Promise<Session> {
     const sessionsDir = options.sessionsDir ?? DEFAULT_SESSIONS_DIR;
@@ -282,8 +239,6 @@ export class Session {
 
   /**
    * 查找指定会话
-   * @param sessionId 目标标识。
-   * @param options 配置参数。
    */
   static async find(
     sessionId: string,
@@ -316,7 +271,6 @@ export class Session {
 
   /**
    * 列出所有会话
-   * @param options 配置参数。
    */
   static async list(options: { sessionsDir?: string } = {}): Promise<SessionInfo[]> {
     const sessionsDir = options.sessionsDir ?? DEFAULT_SESSIONS_DIR;
@@ -333,28 +287,7 @@ export class Session {
   }
 
   /**
-   * 按 sessionId 查找会话，找不到则创建新会话；无 sessionId 时直接创建。
-   * 统一封装 find-or-create 语义，供上层编排调用。
-   * @param options 配置参数。
-   */
-  static async resolve(options: SessionCreateOptions = {}): Promise<Session> {
-    const { sessionId, sessionsDir, model } = options;
-
-    if (sessionId) {
-      const found = await Session.find(sessionId, { sessionsDir, model });
-      if (found) {
-        logger.info(`Resumed session: ${sessionId}`);
-        return found;
-      }
-      logger.warn(`Session not found: ${sessionId}, creating new one`);
-    }
-
-    return Session.create({ sessionsDir, model });
-  }
-
-  /**
    * 继续最近的会话
-   * @param options 配置参数。
    */
   static async continue(options: { sessionsDir?: string } = {}): Promise<Session | null> {
     const sessions = await Session.list(options);
@@ -374,7 +307,6 @@ export class Session {
 
   /**
    * 追加消息到历史文件
-   * @param message 消息内容。
    */
   async appendMessage(message: Message | Message[]): Promise<void> {
     const messages = Array.isArray(message) ? message : [message];
@@ -396,6 +328,7 @@ export class Session {
     // 更新索引
     await this.updateIndex();
 
+    logger.debug(`Appended ${messages.length} message(s) to session ${this._id}`);
   }
 
   /**
@@ -424,7 +357,6 @@ export class Session {
 
   /**
    * 重写会话历史（完整替换 JSONL 文件）
-   * @param messages 消息内容。
    */
   async rewriteHistory(messages: Message[]): Promise<void> {
     const content = toJsonl(messages);
@@ -447,9 +379,6 @@ export class Session {
     await this.updateIndex();
   }
 
-  /**
-   * 方法说明：执行 countOffloadedFiles 相关逻辑。
-   */
   countOffloadedFiles(): number {
     if (!fs.existsSync(this.offloadDirPath)) {
       return 0;
@@ -463,11 +392,6 @@ export class Session {
     }
   }
 
-  /**
-   * 方法说明：更新 updateUsage 相关状态。
-   * @param usage 输入参数。
-   * @param model 输入参数。
-   */
   async updateUsage(usage: TokenUsage, model?: string): Promise<void> {
     if (model && model !== this._usage.model) {
       this._usage = {
@@ -501,7 +425,6 @@ export class Session {
 
   /**
    * 清空会话历史（保留文件，清空内容）
-   * @param options 配置参数。
    */
   async clear(options?: { resetUsage?: boolean }): Promise<void> {
     const resetUsage = options?.resetUsage ?? true;
@@ -587,7 +510,6 @@ export class Session {
 
   /**
    * 异步保存会话索引
-   * @param index 索引位置。
    */
   private async saveIndex(index: SessionsIndex): Promise<void> {
     index.updatedAt = new Date().toISOString();
@@ -596,7 +518,6 @@ export class Session {
 
   /**
    * 删除会话文件
-   * @param sessionId 目标标识。
    */
   private deleteSessionFile(sessionId: string): void {
     const filePath = path.join(this._sessionsDir, `${sessionId}.jsonl`);
@@ -618,7 +539,6 @@ export class Session {
 
   /**
    * 从消息中提取标题
-   * @param message 消息内容。
    */
   private extractTitle(message: Message): string {
     const text = message.content

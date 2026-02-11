@@ -61,35 +61,6 @@ describe('TerminalRenderer', () => {
     expect(console.log).toHaveBeenCalled();
   });
 
-  it('should render streamed text through terminal renderer', () => {
-    const renderer = new TerminalRenderer();
-
-    renderer.renderMessagePart({ type: 'text', text: 'hello world' });
-
-    expect(process.stdout.write).toHaveBeenCalledWith('hello world');
-  });
-
-  it('should render hook output through terminal renderer', () => {
-    const renderer = new TerminalRenderer();
-
-    renderer.renderHookOutput('[Skill] Done', true);
-
-    const writes = (process.stdout.write as unknown as { mock: { calls: unknown[][] } }).mock.calls;
-    const output = stripAnsi(writes.map((call) => String(call[0] ?? '')).join(''));
-    expect(output).toBe('\n[Skill] Done');
-  });
-
-  it('should render turn end newline only when shouldRender is true', () => {
-    const renderer = new TerminalRenderer();
-
-    renderer.renderTurnEnd(true);
-    renderer.renderTurnEnd(false);
-
-    const writes = (process.stdout.write as unknown as { mock: { calls: unknown[][] } }).mock.calls;
-    const output = writes.map((call) => String(call[0] ?? '')).join('');
-    expect(output).toBe('\n');
-  });
-
   it('should show skill enhance analysis message for task:skill:enhance', () => {
     const renderer = new TerminalRenderer();
 
@@ -144,13 +115,14 @@ describe('TerminalRenderer', () => {
     renderer.renderToolEnd({ id: 'misuse-1', success: false, output: '' });
   });
 
-  it('should not render TodoWrite command in tool start/end', () => {
+  it('should not render tool start/end when shouldRender is false', () => {
     const renderer = new TerminalRenderer();
 
     renderer.renderToolStart({
       id: '5',
-      command: '  TodoWrite \'{"todos":[]}\'',
+      command: 'TodoWrite \'{"todos":[]}\'',
       depth: 0,
+      shouldRender: false,
     });
     renderer.renderToolEnd({ id: '5', success: true, output: 'ok' });
 

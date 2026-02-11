@@ -1,13 +1,10 @@
 /**
- * 文件功能说明：
- * - 该文件位于 `src/cli/terminal-renderer.ts`，主要负责 terminal、渲染 相关实现。
- * - 模块归属 CLI 领域，为上层流程提供可复用能力。
+ * Terminal Renderer
  *
- * 核心导出列表：
- * - `TerminalRenderer`
+ * Renders tool calls and SubAgent calls with tree structure.
  *
- * 作用说明：
- * - `TerminalRenderer`：封装该领域的核心流程与状态管理。
+ * Core Exports:
+ * - TerminalRenderer: Main renderer class
  */
 
 import chalk from 'chalk';
@@ -22,12 +19,8 @@ import {
   TREE_SYMBOLS,
 } from './terminal-renderer-types.ts';
 import type { SubAgentType } from '../sub-agents/sub-agent-types.ts';
-import type { OnMessagePart } from '../providers/generate.ts';
 import { SKILL_ENHANCE_PROGRESS_TEXT, isSkillEnhanceCommand } from '../hooks/skill-enhance-constants.ts';
 import { parseEnvInt } from '../utils/env.ts';
-import { formatStreamText } from './repl-display.ts';
-
-type MessagePart = Parameters<OnMessagePart>[0];
 
 const MAX_OUTPUT_LINES = parseEnvInt(process.env.SYNAPSE_MAX_OUTPUT_LINES, 5);
 /** SubAgent 渲染时最多显示的最近工具数 */
@@ -36,7 +29,6 @@ const MAX_RECENT_TOOLS = parseEnvInt(process.env.SYNAPSE_MAX_RECENT_TOOLS, 5);
 const MAX_COMMAND_DISPLAY_LENGTH = 40;
 /** 当模型把 Bash 工具名当作命令时的统一展示文案 */
 const INVALID_BASH_TOOL_MISUSE_DISPLAY = '[invalid command: tool name Bash]';
-const TODO_WRITE_COMMAND_PREFIX = 'TodoWrite';
 /** Task 描述摘要最大长度（超出后截断） */
 const TASK_DESCRIPTION_SUMMARY_LIMIT = parseEnvInt(
   process.env.SYNAPSE_TOOL_RESULT_SUMMARY_LIMIT,
@@ -111,9 +103,6 @@ export class TerminalRenderer {
   /** 并行输出场景下最近一次输出工具行的 SubAgent ID */
   private lastConcurrentOutputSubAgentId: string | null = null;
 
-  /**
-   * 方法说明：初始化 TerminalRenderer 实例并设置初始状态。
-   */
   constructor() {
     this.treeBuilder = new TreeBuilder();
     this.activeCalls = new Map();
@@ -123,45 +112,10 @@ export class TerminalRenderer {
   }
 
   /**
-   * 渲染流式消息片段（当前仅处理文本片段）。
-   * @param part 输入参数。
-   */
-  renderMessagePart(part: MessagePart): void {
-    if (part.type !== 'text' || !part.text.trim()) {
-      return;
-    }
-    process.stdout.write(formatStreamText(part.text));
-  }
-
-  /**
-   * 渲染 hook 输出内容。
-   * @param output 输入参数。
-   * @param shouldRender 输入参数。
-   */
-  renderHookOutput(output: string | null, shouldRender: boolean): void {
-    if (!shouldRender || !output) {
-      return;
-    }
-    process.stdout.write(chalk.cyan(`\n${output}`));
-  }
-
-  /**
-   * 渲染 Agent 回合结束后的换行。
-   * @param shouldRender 输入参数。
-   */
-  renderTurnEnd(shouldRender: boolean): void {
-    if (!shouldRender) {
-      return;
-    }
-    process.stdout.write('\n');
-  }
-
-  /**
    * Render tool call start (pending state)
-   * @param event 输入参数。
    */
   renderToolStart(event: ToolCallEvent): void {
-    if (event.command.trimStart().startsWith(TODO_WRITE_COMMAND_PREFIX)) {
+    if (event.shouldRender === false) {
       return;
     }
 
@@ -195,7 +149,6 @@ export class TerminalRenderer {
 
   /**
    * Render tool call end (success/failure state)
-   * @param event 输入参数。
    */
   renderToolEnd(event: ToolResultEvent): void {
     const call = this.activeCalls.get(event.id);
@@ -245,7 +198,6 @@ export class TerminalRenderer {
 
   /**
    * Render SubAgent start
-   * @param event 输入参数。
    */
   renderSubAgentStart(event: SubAgentEvent): void {
     this.activeSubAgents.set(event.id, event);
@@ -258,7 +210,6 @@ export class TerminalRenderer {
 
   /**
    * Render SubAgent end
-   * @param id 目标标识。
    */
   renderSubAgentEnd(id: string): void {
     const agent = this.activeSubAgents.get(id);
@@ -393,7 +344,6 @@ export class TerminalRenderer {
 
   /**
    * 获取 SubAgent 状态（用于测试）
-   * @param subAgentId 目标标识。
    */
   getSubAgentState(subAgentId: string): ActiveSubAgentState | undefined {
     return this.activeSubAgentStates.get(subAgentId);
@@ -405,7 +355,6 @@ export class TerminalRenderer {
 
   /**
    * 根据工具 ID 查找对应的 SubAgent 状态
-   * @param toolId 目标标识。
    */
   private findSubAgentStateByToolId(toolId: string): ActiveSubAgentState | undefined {
     for (const [, state] of this.activeSubAgentStates) {
@@ -418,7 +367,6 @@ export class TerminalRenderer {
 
   /**
    * 检查是否可以渲染指定的 SubAgent
-   * @param subAgentId 目标标识。
    */
   private canRenderSubAgent(subAgentId: string): boolean {
     // 如果没有正在渲染的 SubAgent，可以直接渲染
@@ -467,8 +415,6 @@ export class TerminalRenderer {
 
   /**
    * 实际渲染 SubAgent 工具开始
-   * @param state 状态对象。
-   * @param event 输入参数。
    */
   private doRenderSubAgentToolStart(state: ActiveSubAgentState, event: SubAgentToolCallEvent): void {
     const isFirstTool = state.toolCount === 1;
@@ -553,17 +499,12 @@ export class TerminalRenderer {
     this.lastConcurrentOutputSubAgentId = state.id;
   }
 
-  /**
-   * 方法说明：判断 hasConcurrentSubAgents 对应条件是否成立。
-   */
   private hasConcurrentSubAgents(): boolean {
     return this.activeSubAgentStates.size > 1;
   }
 
   /**
    * 实际渲染 SubAgent 工具结束
-   * @param state 状态对象。
-   * @param event 输入参数。
    */
   private doRenderSubAgentToolEnd(state: ActiveSubAgentState, event: ToolResultEvent): void {
     const toolState = state.toolStates.get(event.id);
@@ -602,8 +543,6 @@ export class TerminalRenderer {
 
   /**
    * 实际渲染 SubAgent 完成
-   * @param state 状态对象。
-   * @param event 输入参数。
    */
   private doRenderSubAgentComplete(state: ActiveSubAgentState, event: SubAgentCompleteEvent): void {
     // 从 recentToolIds 获取最后一个工具的状态
@@ -644,7 +583,6 @@ export class TerminalRenderer {
 
   /**
    * 构建 SubAgent Task 行
-   * @param state 状态对象。
    */
   private buildSubAgentTaskLine(state: ActiveSubAgentState): string {
     const prefix = chalk.gray('◐');
@@ -653,10 +591,6 @@ export class TerminalRenderer {
     return `${prefix} ${taskName}${toolCount}`;
   }
 
-  /**
-   * 方法说明：执行 ensureTaskLineRendered 相关逻辑。
-   * @param state 状态对象。
-   */
   private ensureTaskLineRendered(state: ActiveSubAgentState): void {
     if (state.taskLineRendered) {
       return;
@@ -674,27 +608,15 @@ export class TerminalRenderer {
     state.taskLineRendered = true;
   }
 
-  /**
-   * 方法说明：构建 buildSubAgentTaskLabel 对应内容。
-   * @param state 状态对象。
-   */
   private buildSubAgentTaskLabel(state: ActiveSubAgentState): string {
     return `Task(${state.type}: ${this.truncateTaskDescription(state.description)})`;
   }
 
-  /**
-   * 方法说明：构建 buildOmittedToolsLine 对应内容。
-   * @param omittedCount 数量或限制参数。
-   */
   private buildOmittedToolsLine(omittedCount: number): string {
     const suffix = omittedCount > 1 ? 's' : '';
     return chalk.gray(`  ⋮ ... (${omittedCount} earlier tool${suffix})`);
   }
 
-  /**
-   * 方法说明：读取并返回 getToolDotColor 对应的数据。
-   * @param success 集合数据。
-   */
   private getToolDotColor(success: boolean | undefined): (text: string) => string {
     if (success === undefined) {
       return chalk.gray;
@@ -702,10 +624,6 @@ export class TerminalRenderer {
     return success ? chalk.green : chalk.red;
   }
 
-  /**
-   * 方法说明：执行 closeOpenToolLine 相关逻辑。
-   * @param state 状态对象。
-   */
   private closeOpenToolLine(state: ActiveSubAgentState): void {
     this.stopCurrentToolAnimation(state.id);
     if (!state.lineOpen) {
@@ -716,10 +634,6 @@ export class TerminalRenderer {
     state.renderedLines++;
   }
 
-  /**
-   * 方法说明：执行 truncateTaskDescription 相关逻辑。
-   * @param description 输入参数。
-   */
   private truncateTaskDescription(description: string): string {
     if (description.length <= TASK_DESCRIPTION_SUMMARY_LIMIT) {
       return description;
@@ -732,9 +646,6 @@ export class TerminalRenderer {
 
   /**
    * 构建 SubAgent 工具行
-   * @param command 输入参数。
-   * @param isLast 输入参数。
-   * @param dotColor 输入参数。
    */
   private buildSubAgentToolLine(
     command: string,
@@ -750,7 +661,6 @@ export class TerminalRenderer {
   /**
    * 输出工具错误信息
    * @returns 输出的行数
-   * @param output 输入参数。
    */
   private outputToolError(output: string): number {
     const lines = output.split('\n');
@@ -768,7 +678,6 @@ export class TerminalRenderer {
 
   /**
    * 停止指定 key 的动画
-   * @param key 输入参数。
    */
   private stopAnimation(key: string): void {
     const interval = this.activeAnimations.get(key);
@@ -779,7 +688,6 @@ export class TerminalRenderer {
 
   /**
    * 停止 SubAgent 动画
-   * @param subAgentId 目标标识。
    */
   private stopSubAgentAnimation(subAgentId: string): void {
     this.stopAnimation(`subagent-${subAgentId}`);
@@ -787,9 +695,6 @@ export class TerminalRenderer {
 
   /**
    * 启动子工具动画（当前执行的工具行闪烁）
-   * @param subAgentId 目标标识。
-   * @param toolId 目标标识。
-   * @param command 输入参数。
    */
   private startToolAnimation(subAgentId: string, toolId: string, command: string): void {
     if (!process.stdout.isTTY) {
@@ -819,7 +724,6 @@ export class TerminalRenderer {
 
   /**
    * 停止当前子工具动画
-   * @param subAgentId 目标标识。
    */
   private stopCurrentToolAnimation(subAgentId: string): void {
     this.stopAnimation(`tool-${subAgentId}`);
@@ -827,8 +731,6 @@ export class TerminalRenderer {
 
   /**
    * Check if this is the last call at the given depth
-   * @param excludeId 目标标识。
-   * @param depth 输入参数。
    */
   private isLastCallAtDepth(excludeId: string, depth: number): boolean {
     for (const [id, call] of this.activeCalls) {
@@ -841,8 +743,6 @@ export class TerminalRenderer {
 
   /**
    * Store command with call for later retrieval
-   * @param id 目标标识。
-   * @param command 输入参数。
    */
   storeCommand(id: string, command: string): void {
     const call = this.activeCalls.get(id);
@@ -853,17 +753,12 @@ export class TerminalRenderer {
 
   /**
    * Get stored command for a call
-   * @param id 目标标识。
    */
   getStoredCommand(id: string): string | undefined {
     const call = this.activeCalls.get(id);
     return call?.command;
   }
 
-  /**
-   * 方法说明：构建 buildToolLine 对应内容。
-   * @param options 配置参数。
-   */
   private buildToolLine(options: {
     depth: number;
     isLast: boolean;
@@ -876,10 +771,6 @@ export class TerminalRenderer {
     return `${prefix}${toolName}`;
   }
 
-  /**
-   * 方法说明：格式化 formatCommandDisplay 相关输出。
-   * @param command 输入参数。
-   */
   private formatCommandDisplay(command: string): string {
     if (this.isBashToolMisuseCommand(command)) {
       return INVALID_BASH_TOOL_MISUSE_DISPLAY;
@@ -893,21 +784,11 @@ export class TerminalRenderer {
     return `${command.slice(0, MAX_COMMAND_DISPLAY_LENGTH)}...`;
   }
 
-  /**
-   * 方法说明：判断 isBashToolMisuseCommand 对应条件是否成立。
-   * @param command 输入参数。
-   */
   private isBashToolMisuseCommand(command: string): boolean {
     const trimmed = command.trim();
     return /^Bash(?:\s|\(|$)/.test(trimmed);
   }
 
-  /**
-   * 方法说明：读取并返回 getToolPrefix 对应的数据。
-   * @param depth 输入参数。
-   * @param isLast 输入参数。
-   * @param dotColor 输入参数。
-   */
   private getToolPrefix(
     depth: number,
     isLast: boolean,
@@ -919,10 +800,6 @@ export class TerminalRenderer {
     return this.treeBuilder.getPrefix(depth, isLast);
   }
 
-  /**
-   * 方法说明：执行 startProgressAnimation 相关逻辑。
-   * @param id 目标标识。
-   */
   private startProgressAnimation(id: string): void {
     const call = this.activeCalls.get(id);
     if (!call) {
@@ -962,18 +839,10 @@ export class TerminalRenderer {
     this.activeAnimations.set(id, interval);
   }
 
-  /**
-   * 方法说明：执行 stopProgressAnimation 相关逻辑。
-   * @param id 目标标识。
-   */
   private stopProgressAnimation(id: string): void {
     this.stopAnimation(id);
   }
 
-  /**
-   * 方法说明：执行 finalizeOpenLines 相关逻辑。
-   * @param excludeId 目标标识。
-   */
   private finalizeOpenLines(excludeId?: string): void {
     for (const [id, call] of this.activeCalls) {
       if (excludeId && id === excludeId) {
@@ -987,11 +856,6 @@ export class TerminalRenderer {
     }
   }
 
-  /**
-   * 方法说明：执行 renderLineInPlace 相关逻辑。
-   * @param line 输入参数。
-   * @param rows 集合数据。
-   */
   private renderLineInPlace(line: string, rows: number): void {
     if (rows <= 1) {
       // 使用 \x1b[K 清除从光标到行尾的旧内容，避免新内容较短时残留旧字符
@@ -1014,10 +878,6 @@ export class TerminalRenderer {
     process.stdout.write(line);
   }
 
-  /**
-   * 方法说明：读取并返回 getLineRows 对应的数据。
-   * @param line 输入参数。
-   */
   private getLineRows(line: string): number {
     const columns = process.stdout.columns;
     if (!columns || columns <= 0) {
@@ -1027,10 +887,6 @@ export class TerminalRenderer {
     return Math.max(1, Math.ceil(visibleLength / columns));
   }
 
-  /**
-   * 方法说明：执行 stripAnsi 相关逻辑。
-   * @param text 输入参数。
-   */
   private stripAnsi(text: string): string {
     return text.replace(/\x1b\[[0-9;]*m/g, '');
   }

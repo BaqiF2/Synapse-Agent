@@ -1,21 +1,15 @@
 /**
- * 文件功能说明：
- * - 该文件位于 `src/tools/converters/skill/auto-updater.ts`，主要负责 自动、updater 相关实现。
- * - 模块归属 工具、转换器、技能 领域，为上层流程提供可复用能力。
+ * Skill Auto Updater
  *
- * 核心导出列表：
- * - `SkillAutoUpdater`
- * - `UpdateEvent`
- * - `AutoUpdaterConfig`
- * - `UpdateEventType`
- * - `UpdateEventHandler`
+ * This module integrates the SkillWatcher with SkillWrapperGenerator to
+ * automatically update tool wrappers when skill scripts change.
  *
- * 作用说明：
- * - `SkillAutoUpdater`：封装该领域的核心流程与状态管理。
- * - `UpdateEvent`：定义模块交互的数据结构契约。
- * - `AutoUpdaterConfig`：定义模块交互的数据结构契约。
- * - `UpdateEventType`：声明类型别名，约束输入输出类型。
- * - `UpdateEventHandler`：声明类型别名，约束输入输出类型。
+ * @module auto-updater
+ *
+ * Core Exports:
+ * - SkillAutoUpdater: Automatic tool wrapper management based on file changes
+ * - UpdateEvent: Event emitted when a wrapper is updated
+ * - AutoUpdaterConfig: Configuration options
  */
 
 import * as os from 'node:os';
@@ -259,7 +253,6 @@ export class SkillAutoUpdater {
 
   /**
    * Handles a script add event
-   * @param watchEvent 输入参数。
    */
   private async handleScriptAdd(watchEvent: WatchEvent): Promise<void> {
     if (this.verbose) {
@@ -296,7 +289,6 @@ export class SkillAutoUpdater {
 
   /**
    * Handles a script change event
-   * @param watchEvent 输入参数。
    */
   private async handleScriptChange(watchEvent: WatchEvent): Promise<void> {
     if (this.verbose) {
@@ -333,7 +325,6 @@ export class SkillAutoUpdater {
 
   /**
    * Handles a script unlink event
-   * @param watchEvent 输入参数。
    */
   private async handleScriptUnlink(watchEvent: WatchEvent): Promise<void> {
     if (this.verbose) {
@@ -357,12 +348,6 @@ export class SkillAutoUpdater {
 
   /**
    * Creates an update event
-   * @param type 输入参数。
-   * @param commandName 输入参数。
-   * @param skillName 输入参数。
-   * @param scriptName 输入参数。
-   * @param wrapperPath 目标路径或文件信息。
-   * @param error 错误对象。
    */
   private createUpdateEvent(
     type: UpdateEventType,
@@ -385,7 +370,6 @@ export class SkillAutoUpdater {
 
   /**
    * Notifies update handlers
-   * @param event 输入参数。
    */
   private async notifyUpdate(event: UpdateEvent): Promise<void> {
     if (this.verbose) {
@@ -405,7 +389,6 @@ export class SkillAutoUpdater {
 
   /**
    * Handles an error
-   * @param error 错误对象。
    */
   private handleError(error: Error): void {
     if (this.verbose) {

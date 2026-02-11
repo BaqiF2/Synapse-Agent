@@ -1,15 +1,11 @@
 /**
- * 文件功能说明：
- * - 该文件位于 `src/tools/handlers/agent-bash/read.ts`，主要负责 读取 相关实现。
- * - 模块归属 工具、处理器、Agent、Bash 领域，为上层流程提供可复用能力。
+ * Read 工具 - Agent Shell Command Layer 2
  *
- * 核心导出列表：
- * - `parseReadCommand`
- * - `ReadHandler`
+ * 功能：读取文件内容，支持行偏移和行数限制
  *
- * 作用说明：
- * - `parseReadCommand`：用于解析输入并转换为结构化数据。
- * - `ReadHandler`：封装该领域的核心流程与状态管理。
+ * 核心导出：
+ * - ReadHandler: 文件读取处理器类
+ * - parseReadCommand: 解析 read 命令参数的函数
  */
 
 import * as fs from 'node:fs';
@@ -32,7 +28,6 @@ interface ReadArgs {
 /**
  * 解析 read 命令参数
  * Syntax: read <file_path> [--offset N] [--limit N]
- * @param command 输入参数。
  */
 export function parseReadCommand(command: string): ReadArgs {
   const parts = parseCommandArgs(command.trim());
@@ -82,10 +77,6 @@ export class ReadHandler extends BaseAgentHandler {
   protected readonly usage = USAGE;
   protected readonly helpFilePath = path.join(import.meta.dirname, 'read.md');
 
-  /**
-   * 方法说明：执行 executeCommand 相关主流程。
-   * @param command 输入参数。
-   */
   protected async executeCommand(command: string): Promise<CommandResult> {
     try {
       const args = parseReadCommand(command);
@@ -96,10 +87,6 @@ export class ReadHandler extends BaseAgentHandler {
     }
   }
 
-  /**
-   * 方法说明：执行 readFile 相关逻辑。
-   * @param args 集合数据。
-   */
   private readFile(args: ReadArgs): string {
     const absolutePath = this.resolveFilePath(args.filePath);
 

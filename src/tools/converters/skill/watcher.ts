@@ -1,23 +1,17 @@
 /**
- * 文件功能说明：
- * - 该文件位于 `src/tools/converters/skill/watcher.ts`，主要负责 监听 相关实现。
- * - 模块归属 工具、转换器、技能 领域，为上层流程提供可复用能力。
+ * Skill Watcher
  *
- * 核心导出列表：
- * - `SkillWatcher`
- * - `WatchEvent`
- * - `WatcherConfig`
- * - `ProcessResult`
- * - `WatchEventType`
- * - `WatchEventHandler`
+ * This module provides file system watching for the Skills directory.
+ * It automatically detects changes (add/modify/delete) to skill scripts
+ * and triggers wrapper regeneration.
  *
- * 作用说明：
- * - `SkillWatcher`：封装该领域的核心流程与状态管理。
- * - `WatchEvent`：定义模块交互的数据结构契约。
- * - `WatcherConfig`：定义模块交互的数据结构契约。
- * - `ProcessResult`：定义模块交互的数据结构契约。
- * - `WatchEventType`：声明类型别名，约束输入输出类型。
- * - `WatchEventHandler`：声明类型别名，约束输入输出类型。
+ * @module watcher
+ *
+ * Core Exports:
+ * - SkillWatcher: Watches ~/.synapse/skills/ for changes
+ * - WatchEvent: Event emitted when a change is detected
+ * - WatcherConfig: Configuration options for the watcher
+ * - ProcessResult: Result of processing a script
  */
 
 import * as chokidar from 'chokidar';
@@ -351,8 +345,6 @@ export class SkillWatcher {
 
   /**
    * Handles a file system event
-   * @param type 输入参数。
-   * @param filePath 目标路径或文件信息。
    */
   private handleEvent(type: WatchEventType, filePath: string): void {
     const parsed = this.parseScriptPath(filePath);
@@ -372,7 +364,6 @@ export class SkillWatcher {
 
   /**
    * Debounces an event to avoid excessive processing
-   * @param event 输入参数。
    */
   private debounceEvent(event: WatchEvent): void {
     const key = `${event.type}:${event.scriptPath}`;
@@ -394,7 +385,6 @@ export class SkillWatcher {
 
   /**
    * Processes an event after debouncing
-   * @param event 输入参数。
    */
   private async processEvent(event: WatchEvent): Promise<void> {
     const handlers = this.getHandlersForType(event.type);
@@ -411,7 +401,6 @@ export class SkillWatcher {
 
   /**
    * Gets handlers for a specific event type
-   * @param type 输入参数。
    */
   private getHandlersForType(type: WatchEventType): WatchEventHandler[] {
     switch (type) {
@@ -426,7 +415,6 @@ export class SkillWatcher {
 
   /**
    * Handles an error
-   * @param error 错误对象。
    */
   private handleError(error: unknown): void {
     const err = error instanceof Error ? error : new Error(String(error));

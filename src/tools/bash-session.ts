@@ -1,15 +1,11 @@
 /**
- * 文件功能说明：
- * - 该文件位于 `src/tools/bash-session.ts`，主要负责 Bash、会话 相关实现。
- * - 模块归属 工具 领域，为上层流程提供可复用能力。
+ * Bash 会话管理
  *
- * 核心导出列表：
- * - `BashSession`
- * - `BashSessionOptions`
+ * 功能：管理持久的 Bash 进程，保持环境变量和工作目录状态。
+ * 使用事件驱动模式替代轮询，监听 stdout data 事件检测命令完成。
  *
- * 作用说明：
- * - `BashSession`：封装该领域的核心流程与状态管理。
- * - `BashSessionOptions`：定义模块交互的数据结构契约。
+ * 核心导出：
+ * - BashSession: Bash 会话管理类
  */
 
 import { spawn, type ChildProcess, type SpawnOptionsWithoutStdio } from 'node:child_process';
@@ -60,10 +56,6 @@ export class BashSession {
     options: SpawnOptionsWithoutStdio & { stdio: ['pipe', 'pipe', 'pipe'] }
   ) => ChildProcess;
 
-  /**
-   * 方法说明：初始化 BashSession 实例并设置初始状态。
-   * @param options 配置参数。
-   */
   constructor(options: BashSessionOptions = {}) {
     this.shellCommand = options.shellCommand ?? '/bin/bash';
     this.spawnProcess = options.spawnProcess ?? ((command, args, spawnOptions) => {
@@ -115,9 +107,6 @@ export class BashSession {
     this.isReady = true;
   }
 
-  /**
-   * 方法说明：执行 spawnShellProcess 相关逻辑。
-   */
   private spawnShellProcess(): ChildProcess {
     const tokens = tokenizeShellCommand(this.shellCommand);
     const command = tokens[0];
@@ -138,7 +127,6 @@ export class BashSession {
    * 在会话中执行命令
    *
    * 包含执行锁防止并发调用。
-   * @param command 输入参数。
    */
   async execute(command: string): Promise<CommandResult> {
     if (!this.process || !this.isReady) {
@@ -225,7 +213,6 @@ export class BashSession {
 
   /**
    * Reject 挂起的 Promise 并清理定时器
-   * @param error 错误对象。
    */
   private rejectPending(error: Error): void {
     if (!this.pendingExecution) return;
@@ -282,10 +269,6 @@ export class BashSession {
   }
 }
 
-/**
- * 方法说明：执行 tokenizeShellCommand 相关逻辑。
- * @param command 输入参数。
- */
 function tokenizeShellCommand(command: string): string[] {
   const trimmed = command.trim();
   if (!trimmed) {

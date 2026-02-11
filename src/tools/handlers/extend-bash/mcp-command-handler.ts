@@ -1,13 +1,11 @@
 /**
- * 文件功能说明：
- * - 该文件位于 `src/tools/handlers/extend-bash/mcp-command-handler.ts`，主要负责 MCP、command、处理器 相关实现。
- * - 模块归属 工具、处理器、extend、Bash 领域，为上层流程提供可复用能力。
+ * MCP Command Handler
  *
- * 核心导出列表：
- * - `McpCommandHandler`
+ * 处理 mcp:<server>:<tool> 格式的 MCP 工具调用命令。
+ * 负责参数解析、MCP 服务器连接、工具调用和结果格式化。
  *
- * 作用说明：
- * - `McpCommandHandler`：封装该领域的核心流程与状态管理。
+ * 核心导出：
+ * - McpCommandHandler: MCP 命令处理器，实现 extend Shell command 的 MCP 路由
  */
 
 import type { CommandResult } from '../native-command-handler.ts';
@@ -18,7 +16,6 @@ const MCP_FORMAT_ERROR = 'Invalid MCP command format. Expected: mcp:<server>:<to
 
 /**
  * 创建错误结果的辅助函数
- * @param message 消息内容。
  */
 function errorResult(message: string): CommandResult {
   return { stdout: '', stderr: message, exitCode: 1 };
@@ -33,10 +30,6 @@ interface ParsedMcpArgs {
   helpFlag: string | null;
 }
 
-/**
- * 方法说明：解析输入并生成 parseMcpArgs 对应结构。
- * @param args 集合数据。
- */
 function parseMcpArgs(args: string[]): ParsedMcpArgs {
   const positionalArgs: string[] = [];
   const namedArgs: Record<string, string> = {};
@@ -69,9 +62,6 @@ function parseMcpArgs(args: string[]): ParsedMcpArgs {
 export class McpCommandHandler {
   private mcpInstaller: McpInstaller;
 
-  /**
-   * 方法说明：初始化 McpCommandHandler 实例并设置初始状态。
-   */
   constructor() {
     this.mcpInstaller = new McpInstaller();
   }
@@ -101,10 +91,6 @@ export class McpCommandHandler {
 
   /**
    * 处理 -h / --help 请求
-   * @param command 输入参数。
-   * @param serverName 输入参数。
-   * @param toolName 输入参数。
-   * @param helpFlag 输入参数。
    */
   private async handleHelp(
     command: string,
@@ -131,10 +117,6 @@ export class McpCommandHandler {
 
   /**
    * 连接 MCP 服务器并调用指定工具
-   * @param serverName 输入参数。
-   * @param toolName 输入参数。
-   * @param positionalArgs 集合数据。
-   * @param namedArgs 集合数据。
    */
   private async callMcpTool(
     serverName: string,
@@ -171,11 +153,6 @@ export class McpCommandHandler {
 
   /**
    * 在已连接的 MCP 服务器上调用工具
-   * @param client 输入参数。
-   * @param serverName 输入参数。
-   * @param toolName 输入参数。
-   * @param positionalArgs 集合数据。
-   * @param namedArgs 集合数据。
    */
   private async invokeToolOnServer(
     client: McpClient,

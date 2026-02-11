@@ -1,13 +1,15 @@
 /**
- * 文件功能说明：
- * - 该文件位于 `src/config/settings-manager.ts`，主要负责 设置、管理 相关实现。
- * - 模块归属 配置 领域，为上层流程提供可复用能力。
+ * Settings Manager
  *
- * 核心导出列表：
- * - `SettingsManager`
+ * Manages persistent settings for Synapse Agent.
+ * Settings are stored in ~/.synapse/settings.json.
+ * 提供 getInstance() 单例访问默认实例，避免重复实例化。
  *
- * 作用说明：
- * - `SettingsManager`：封装该领域的核心流程与状态管理。
+ * @module settings-manager
+ *
+ * Core Exports:
+ * - SettingsManager: Class for reading and writing settings
+ * - SettingsManager.getInstance(): 获取默认单例实例
  */
 
 import * as fs from 'node:fs';
@@ -172,7 +174,6 @@ export class SettingsManager {
 
   /**
    * Save settings to file
-   * @param settings 集合数据。
    */
   private save(settings: SynapseSettings): void {
     this.ensureDirectory();

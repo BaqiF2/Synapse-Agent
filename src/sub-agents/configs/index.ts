@@ -1,23 +1,13 @@
 /**
- * 文件功能说明：
- * - 该文件位于 `src/sub-agents/configs/index.ts`，主要负责 索引 相关实现。
- * - 模块归属 sub、agents、configs 领域，为上层流程提供可复用能力。
+ * Sub Agent 配置索引
  *
- * 核心导出列表：
- * - `getConfig`
- * - `createSkillConfig`
- * - `createSkillSearchConfig`
- * - `createSkillEnhanceConfig`
- * - `exploreConfig`
- * - `generalConfig`
+ * 功能：导出所有 Sub Agent 配置
  *
- * 作用说明：
- * - `getConfig`：用于读取并返回目标数据。
- * - `createSkillConfig`：聚合并对外暴露其它模块的能力。
- * - `createSkillSearchConfig`：聚合并对外暴露其它模块的能力。
- * - `createSkillEnhanceConfig`：聚合并对外暴露其它模块的能力。
- * - `exploreConfig`：聚合并对外暴露其它模块的能力。
- * - `generalConfig`：聚合并对外暴露其它模块的能力。
+ * 核心导出：
+ * - getConfig: 获取指定类型的配置（skill 类型支持 action 参数）
+ * - createSkillConfig, createSkillSearchConfig, createSkillEnhanceConfig: skill 配置工厂函数
+ * - exploreConfig: explore 类型配置
+ * - generalConfig: general 类型配置
  */
 
 import type { SubAgentConfig, SubAgentType, SkillAction } from '../sub-agent-types.ts';

@@ -1,21 +1,13 @@
 /**
- * 文件功能说明：
- * - 该文件位于 `src/tools/tool-failure.ts`，主要负责 工具、失败 相关实现。
- * - 模块归属 工具 领域，为上层流程提供可复用能力。
+ * Tool failure utilities
  *
- * 核心导出列表：
- * - `classifyToolFailure`
- * - `shouldAttachToolSelfDescription`
- * - `shouldCountToolFailure`
- * - `ToolFailureCategory`
- * - `TOOL_FAILURE_CATEGORIES`
+ * 功能：统一工具失败分类、失败计数规则和提示判定逻辑
  *
- * 作用说明：
- * - `classifyToolFailure`：提供该模块的核心能力。
- * - `shouldAttachToolSelfDescription`：提供该模块的核心能力。
- * - `shouldCountToolFailure`：提供该模块的核心能力。
- * - `ToolFailureCategory`：声明类型别名，约束输入输出类型。
- * - `TOOL_FAILURE_CATEGORIES`：提供可复用的常量配置。
+ * 核心导出：
+ * - TOOL_FAILURE_CATEGORIES: 工具失败类别常量
+ * - classifyToolFailure: 基于 stderr 文本识别失败类型
+ * - shouldAttachToolSelfDescription: 判断是否追加工具自描述提示
+ * - shouldCountToolFailure: 判断是否计入连续失败次数
  */
 
 export const TOOL_FAILURE_CATEGORIES = {
@@ -41,18 +33,12 @@ const COUNTABLE_FAILURE_CATEGORIES = new Set<ToolFailureCategory>([
   TOOL_FAILURE_CATEGORIES.invalidUsage,
 ]);
 
-/**
- * 方法说明：执行 includesAnyKeyword 相关逻辑。
- * @param text 输入参数。
- * @param keywords 集合数据。
- */
 function includesAnyKeyword(text: string, keywords: readonly string[]): boolean {
   return keywords.some((keyword) => text.includes(keyword));
 }
 
 /**
  * 基于 stderr 文本识别失败类型
- * @param stderr 输入参数。
  */
 export function classifyToolFailure(stderr: string): ToolFailureCategory {
   const normalized = stderr.toLowerCase();
@@ -70,7 +56,6 @@ export function classifyToolFailure(stderr: string): ToolFailureCategory {
 
 /**
  * 是否应追加自描述提示（执行期错误不追加）
- * @param category 输入参数。
  */
 export function shouldAttachToolSelfDescription(category: ToolFailureCategory): boolean {
   return category !== TOOL_FAILURE_CATEGORIES.executionError;
@@ -80,8 +65,6 @@ export function shouldAttachToolSelfDescription(category: ToolFailureCategory): 
  * 是否计入连续失败次数
  *
  * 优先使用结构化 category；如果缺失则回退到文本启发式判断。
- * @param category 输入参数。
- * @param hintText 输入参数。
  */
 export function shouldCountToolFailure(category: unknown, hintText: string): boolean {
   if (typeof category === 'string') {

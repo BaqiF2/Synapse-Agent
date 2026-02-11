@@ -1,21 +1,14 @@
 /**
- * 文件功能说明：
- * - 该文件位于 `src/skills/skill-enhancer.ts`，主要负责 技能、enhancer 相关实现。
- * - 模块归属 skills 领域，为上层流程提供可复用能力。
+ * Skill Enhancer
  *
- * 核心导出列表：
- * - `SkillEnhancer`
- * - `ConversationAnalysis`
- * - `EnhanceDecision`
- * - `EnhanceResult`
- * - `SkillEnhancerOptions`
+ * Analyzes conversation history and generates or enhances skills.
  *
- * 作用说明：
- * - `SkillEnhancer`：封装该领域的核心流程与状态管理。
- * - `ConversationAnalysis`：定义模块交互的数据结构契约。
- * - `EnhanceDecision`：定义模块交互的数据结构契约。
- * - `EnhanceResult`：定义模块交互的数据结构契约。
- * - `SkillEnhancerOptions`：定义模块交互的数据结构契约。
+ * @module skill-enhancer
+ *
+ * Core Exports:
+ * - SkillEnhancer: Main skill enhancement class
+ * - EnhanceDecision: Enhancement decision type
+ * - ConversationAnalysis: Analysis result type
  */
 
 import * as path from 'node:path';
@@ -263,8 +256,6 @@ export class SkillEnhancer {
 
   /**
    * Create a new skill from analysis
-   * @param analysis 集合数据。
-   * @param skillName 输入参数。
    */
   private createNewSkill(analysis: ConversationAnalysis, skillName: string): EnhanceResult {
     const spec = this.generateSkillSpec(analysis, skillName);
@@ -284,8 +275,6 @@ export class SkillEnhancer {
 
   /**
    * Enhance an existing skill
-   * @param analysis 集合数据。
-   * @param skillName 输入参数。
    */
   private enhanceExistingSkill(analysis: ConversationAnalysis, skillName: string): EnhanceResult {
     const updates = this.generateUpdates(analysis);
@@ -305,7 +294,6 @@ export class SkillEnhancer {
 
   /**
    * Detect repeating patterns in tool sequence
-   * @param sequence 输入参数。
    */
   private detectPattern(sequence: string[]): boolean {
     if (sequence.length < 4) return false;
@@ -330,7 +318,6 @@ export class SkillEnhancer {
 
   /**
    * Find matching existing skill
-   * @param analysis 集合数据。
    */
   private findMatchingSkill(analysis: ConversationAnalysis): string | null {
     const { summary } = analysis;
@@ -358,7 +345,6 @@ export class SkillEnhancer {
 
   /**
    * Suggest skill name from analysis
-   * @param analysis 集合数据。
    */
   private suggestSkillName(analysis: ConversationAnalysis): string {
     const { turns } = analysis;
@@ -391,7 +377,6 @@ export class SkillEnhancer {
 
   /**
    * Generate quick start section
-   * @param toolSequence 输入参数。
    */
   private generateQuickStart(toolSequence: string[]): string {
     const uniqueTools = [...new Set(toolSequence)];
@@ -407,7 +392,6 @@ export class SkillEnhancer {
 
   /**
    * Generate execution steps from turns
-   * @param turns 集合数据。
    */
   private generateExecutionSteps(turns: ConversationTurn[]): string[] {
     const steps: string[] = [];
@@ -425,7 +409,6 @@ export class SkillEnhancer {
 
   /**
    * Generate best practices from analysis
-   * @param analysis 集合数据。
    */
   private generateBestPractices(analysis: ConversationAnalysis): string[] {
     const practices: string[] = [];
@@ -443,7 +426,6 @@ export class SkillEnhancer {
 
   /**
    * Generate updates for existing skill
-   * @param analysis 集合数据。
    */
   private generateUpdates(analysis: ConversationAnalysis): Partial<SkillSpec> {
     return {

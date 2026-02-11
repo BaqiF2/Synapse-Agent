@@ -1,21 +1,18 @@
 /**
- * 文件功能说明：
- * - 该文件位于 `src/config/paths.ts`，主要负责 路径 相关实现。
- * - 模块归属 配置 领域，为上层流程提供可复用能力。
+ * Synapse 路径常量
  *
- * 核心导出列表：
- * - `getSynapseHome`
- * - `getSynapseSkillsDir`
- * - `getSynapseSessionsDir`
- * - `getSynapseBinDir`
- * - `getSynapseLogDir`
+ * 功能：集中定义 ~/.synapse/ 下的目录路径常量，
+ *       消除各模块中重复的路径构造逻辑。所有路径均支持环境变量覆盖。
  *
- * 作用说明：
- * - `getSynapseHome`：用于读取并返回目标数据。
- * - `getSynapseSkillsDir`：用于读取并返回目标数据。
- * - `getSynapseSessionsDir`：用于读取并返回目标数据。
- * - `getSynapseBinDir`：用于读取并返回目标数据。
- * - `getSynapseLogDir`：用于读取并返回目标数据。
+ * 核心导出：
+ * - SYNAPSE_HOME: Synapse 主目录（~/.synapse）
+ * - SYNAPSE_SKILLS_DIR: 技能目录（~/.synapse/skills）
+ * - SYNAPSE_SESSIONS_DIR: 会话目录（~/.synapse/sessions）
+ * - SYNAPSE_BIN_DIR: 可执行脚本目录（~/.synapse/bin）
+ * - SYNAPSE_LOG_DIR: 日志目录（~/.synapse/logs）
+ * - getSynapseHome: 动态获取 SYNAPSE_HOME（支持运行时 homedir 变更）
+ * - getSynapseSkillsDir: 动态获取技能目录
+ * - getSynapseSessionsDir: 动态获取会话目录
  */
 
 import * as path from 'node:path';

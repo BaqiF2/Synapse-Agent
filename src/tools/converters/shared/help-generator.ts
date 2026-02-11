@@ -1,19 +1,13 @@
 /**
- * 文件功能说明：
- * - 该文件位于 `src/tools/converters/shared/help-generator.ts`，主要负责 帮助、generator 相关实现。
- * - 模块归属 工具、转换器、shared 领域，为上层流程提供可复用能力。
+ * Help Generator (公共帮助文本生成器)
  *
- * 核心导出列表：
- * - `generateBriefHelp`
- * - `generateDetailedHelp`
- * - `HelpParam`
- * - `HelpOptions`
+ * 功能：生成统一格式的命令帮助文本（-h 简要帮助 和 --help 详细帮助）。
+ * 统一 MCP wrapper-generator 和 Skill wrapper-generator 中的帮助生成逻辑。
  *
- * 作用说明：
- * - `generateBriefHelp`：提供该模块的核心能力。
- * - `generateDetailedHelp`：提供该模块的核心能力。
- * - `HelpParam`：定义模块交互的数据结构契约。
- * - `HelpOptions`：定义模块交互的数据结构契约。
+ * 核心导出：
+ * - generateBriefHelp: 生成简要帮助文本（-h）
+ * - generateDetailedHelp: 生成详细帮助文本（--help）
+ * - HelpParam: 帮助文本中的参数描述
  */
 
 /** 帮助文本中的参数描述 */
@@ -42,7 +36,6 @@ export interface HelpOptions {
  * 生成简要帮助文本（-h）
  *
  * 格式：Usage 行 + 描述 + 提示使用 --help
- * @param options 配置参数。
  */
 export function generateBriefHelp(options: HelpOptions): string {
   const { commandName, description, params } = options;
@@ -69,7 +62,6 @@ export function generateBriefHelp(options: HelpOptions): string {
  * 生成详细帮助文本（--help）
  *
  * 包含：标题、描述、用法、参数、选项、示例、特殊选项
- * @param options 配置参数。
  */
 export function generateDetailedHelp(options: HelpOptions): string {
   const { commandName, description, params, examples = [] } = options;
