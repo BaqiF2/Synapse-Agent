@@ -32,7 +32,7 @@ describe('sandbox-config', () => {
   it('无用户配置文件时加载默认配置', () => {
     const config = loadSandboxConfig({ configPath });
 
-    expect(config.enabled).toBe(false);
+    expect(config.enabled).toBe(true);
     expect(config.provider).toBe('local');
     expect(config.policy.filesystem.blacklist).toContain('~/.ssh');
     expect(config.policy.filesystem.blacklist).toContain('~/.aws');
