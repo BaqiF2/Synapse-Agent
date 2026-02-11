@@ -1,23 +1,31 @@
 # Synapse Agent
 
-基于统一 Shell 抽象的自我成长 AI 智能体框架，提供交互式 REPL、可扩展工具体系与技能系统。
+[中文文档](README.zh-CN.md)
 
-## 功能亮点
+A self-growing AI agent framework built on a unified shell abstraction, with an interactive REPL, extensible tooling, and a reusable skill system.
 
-- **统一 Shell 抽象**: 三层工具体系（原生命令 / Agent Shell / 扩展工具），LLM 只需学习一个 Bash 工具
-- **交互式 REPL**: 支持流式输出、工具执行状态展示与特殊命令
-- **MCP 与技能扩展**: 可接入外部 MCP 工具与可复用技能脚本
-- **会话持久化与恢复**: 支持历史会话管理与恢复
-- **自动技能增强**: 完成任务后可自动沉淀技能供后续复用
-- **子智能体支持**: 支持 explore、general、skill 等专用子智能体
+## Open Source Docs
 
-## 核心架构
+- [Contributing Guide](CONTRIBUTING.md)
+- [Code of Conduct](CODE_OF_CONDUCT.md)
+- [Changelog](CHANGELOG.md)
 
-```
+## Highlights
+
+- **Unified Shell Abstraction**: three tool layers (Native Commands / Agent Shell / Extension Tools), so the LLM mainly learns one Bash-style interface
+- **Interactive REPL**: streaming output, tool execution status, and slash commands
+- **MCP and Skill Extensions**: integrate external MCP tools and reusable local skills
+- **Session Persistence and Resume**: manage and restore historical sessions
+- **Auto Skill Enhancement**: distill reusable skills from completed tasks
+- **Sub-Agents**: built-in `explore`, `general`, and `skill` sub-agents
+
+## Core Architecture
+
+```text
 ┌─────────────────────────────────────────────────────────┐
 │                      AgentRunner                        │
 │  ┌─────────────────────────────────────────────────┐   │
-│  │               三层工具路由 (BashRouter)          │   │
+│  │           Three-Layer Routing (BashRouter)      │   │
 │  │  ┌─────────┬─────────────────┬──────────────┐   │   │
 │  │  │ Layer 1 │     Layer 2     │   Layer 3    │   │   │
 │  │  │ Native  │   Agent Shell   │  Extension   │   │   │
@@ -27,39 +35,40 @@
 └─────────────────────────────────────────────────────────┘
 ```
 
-## 安装与配置
+## Install and Setup
 
-### 本地安装
+### Local setup
 
 ```bash
 bun install
 cp .env.example .env
 ```
 
-### 全局安装（可在任意路径使用 `synapse` 命令）
+### Global install (use `synapse` anywhere)
 
 ```bash
-# 1. 安装依赖
+# 1) Install dependencies
 bun install
 
-# 2. 创建全局链接
+# 2) Create global link
 bun link
 
-# 3. 确保 ~/.bun/bin 在 PATH 中（添加到 ~/.zshrc 或 ~/.bashrc）
+# 3) Ensure ~/.bun/bin is in PATH (e.g. ~/.zshrc or ~/.bashrc)
 export PATH="$HOME/.bun/bin:$PATH"
 
-# 4. 重新加载配置
-source ~/.zshrc  # 或 source ~/.bashrc
+# 4) Reload shell config
+source ~/.zshrc  # or source ~/.bashrc
 ```
 
-> 如果 `bun link` 报错 `package.json missing "name"`，先执行：
-> ```bash
-> echo '{"name": "bun-global"}' > ~/.bun/install/global/package.json
-> ```
+If `bun link` fails with `package.json missing "name"`, run:
 
-### LLM 配置
+```bash
+echo '{"name": "bun-global"}' > ~/.bun/install/global/package.json
+```
 
-LLM 配置位于 `~/.synapse/settings.json`：
+### LLM settings
+
+LLM settings are stored in `~/.synapse/settings.json`:
 
 ```json
 {
@@ -71,100 +80,100 @@ LLM 配置位于 `~/.synapse/settings.json`：
 }
 ```
 
-| 配置项 | 说明 |
-|--------|------|
-| `ANTHROPIC_API_KEY` | 必填，API Key |
-| `ANTHROPIC_BASE_URL` | API 端点（可选） |
-| `model` | 模型名称 |
+| Key | Description |
+| --- | --- |
+| `ANTHROPIC_API_KEY` | Required API key |
+| `ANTHROPIC_BASE_URL` | Optional API endpoint |
+| `model` | Model name |
 
-> 其他可选项见 `.env.example`，用于日志、持久化与增强策略等。
+See `.env.example` for additional optional settings (logging, persistence, enhancement strategy, etc.).
 
-## 快速开始
+## Quick Start
 
 ```bash
-# 全局安装后，任意路径启动
+# After global install
 synapse chat
 
-# 或在项目目录内使用
+# Or from project directory
 bun run chat
 ```
 
-## REPL 命令
+## REPL Commands
 
-### 特殊命令（以 / 开头）
+### Slash commands (`/`)
 
-| 命令 | 说明 |
-|------|------|
-| `/help` | 显示帮助信息 |
-| `/exit` | 退出 REPL |
-| `/clear` | 清空对话历史 |
-| `/cost` | 查看当前会话 token/费用统计 |
-| `/tools` | 列出可用工具 |
-| `/skills` | 列出本地技能 |
-| `/sessions` | 列出已保存会话 |
-| `/resume` | 列出可恢复会话并选择恢复 |
-| `/resume --latest` | 恢复最近的可恢复会话 |
-| `/resume <id>` | 按会话 ID 恢复会话 |
-| `/skill enhance` | 查看技能自动增强状态 |
+| Command | Description |
+| --- | --- |
+| `/help` | Show help |
+| `/exit` | Exit REPL |
+| `/clear` | Clear conversation history |
+| `/cost` | Show token/cost usage for current session |
+| `/tools` | List available tools |
+| `/skills` | List local skills |
+| `/sessions` | List saved sessions |
+| `/resume` | Show resumable sessions and choose one |
+| `/resume --latest` | Resume latest session |
+| `/resume <id>` | Resume by session ID |
+| `/skill enhance` | Show auto skill enhancement status |
 
-### Shell 命令（以 ! 开头）
+### Shell commands (`!`)
 
 ```bash
 !ls -la
 !git status
 ```
 
-## 工具体系
+## Tooling Model
 
-### Layer 2: Agent Shell 工具
+### Layer 2: Agent Shell
 
-| 命令 | 说明 |
-|------|------|
-| `read <file>` | 读取文件（支持偏移量和行数限制） |
-| `write <file>` | 创建/覆写文件 |
-| `edit <file>` | 基于正则的文本替换编辑 |
-| `bash <cmd>` | 执行原生 Shell 命令 |
+| Command | Description |
+| --- | --- |
+| `read <file>` | Read file (supports offset and line limits) |
+| `write <file>` | Create/overwrite file |
+| `edit <file>` | Regex-based text replacement |
+| `bash <cmd>` | Execute native shell command |
 
-> 文件查找与内容搜索请使用原生命令（如 `find` / `rg` / `grep`）。
+For file discovery and content search, prefer native commands such as `find`, `rg`, and `grep`.
 
-### Layer 3: 扩展工具
+### Layer 3: Extension Tools
 
-| 命令 | 说明 |
-|------|------|
-| `tools search` | 搜索可用工具（支持 `--type=mcp\|skill`） |
-| `skill search` | 语义搜索技能 |
-| `mcp:*` | 调用 MCP 工具 |
-| `skill:*` | 调用技能脚本 |
-| `task:*` | 子智能体任务 |
+| Command | Description |
+| --- | --- |
+| `tools search` | Search tools (supports `--type=mcp\|skill`) |
+| `skill search` | Semantic skill search |
+| `mcp:*` | Invoke MCP tools |
+| `skill:*` | Invoke skill scripts |
+| `task:*` | Run sub-agent tasks |
 
-## 进阶功能
+## Advanced Features
 
-### 会话持久化与恢复
+### Session persistence and resume
 
-- 默认启用持久化（`SYNAPSE_PERSISTENCE_ENABLED`）
-- 会话存储于 `~/.synapse/sessions/`
-- 使用 `/resume` 查看可恢复会话，`/resume --latest` 恢复最近会话
+- Enabled by default (`SYNAPSE_PERSISTENCE_ENABLED`)
+- Sessions stored in `~/.synapse/sessions/`
+- Use `/resume` or `/resume --latest`
 
-### 自动技能增强
+### Auto skill enhancement
 
-- `/skill enhance --on` 开启
-- `/skill enhance --off` 关闭
-- `/skill enhance --conversation <path>` 手动分析对话
+- `/skill enhance --on` to enable
+- `/skill enhance --off` to disable
+- `/skill enhance --conversation <path>` for manual analysis
 
-### 子智能体
+### Sub-agents
 
-- `explore`: 代码库探索专用
-- `general`: 通用任务处理
-- `skill`: 技能生成专用
+- `explore`: repository exploration
+- `general`: general task handling
+- `skill`: skill generation
 
-## MCP 配置
+## MCP Configuration
 
-MCP 配置文件默认读取位置：
+Default lookup paths:
 
 - `./mcp_servers.json`
 - `~/.synapse/mcp/mcp_servers.json`
 
-示例：
+Example:
 
 ```json
 {
@@ -177,87 +186,53 @@ MCP 配置文件默认读取位置：
 }
 ```
 
-## 项目结构
+## Project Structure
 
-```
-├── src/                     # 源代码目录
-│   ├── agent/              # Agent 循环与会话管理
-│   ├── cli/                # 命令行接口和 REPL
-│   ├── config/             # 配置管理
-│   ├── providers/          # LLM 提供者接口
-│   ├── tools/              # 工具系统（三层架构核心）
-│   │   ├── handlers/       # 命令处理器
-│   │   └── converters/     # MCP/Skill 转换器
-│   ├── skills/             # 技能系统
-│   ├── sub-agents/         # 子智能体管理
-│   ├── utils/              # 工具函数库
-│   └── resource/           # 资源文件
-│
-├── tests/                   # 测试目录
-│   ├── unit/               # 单元测试
-│   ├── e2e/                # 端到端测试
-│   └── fixtures/           # 测试夹具
-│
-├── docs/                    # 项目文档
-│   ├── api/                # API 文档
-│   ├── guides/             # 使用指南
-│   ├── references/         # 参考资料
-│   └── skills/             # 技能文档
-│
-├── skills/                  # 可复用技能库
-│   ├── builtin/            # 内置技能
-│   └── custom/             # 自定义技能
-│
-├── examples/                # 示例项目
-│   ├── basic/              # 基础示例
-│   ├── advanced/           # 高级示例
-│   └── integrations/       # 集成示例
-│
-├── config/                  # 配置文件
-│   ├── .env.example        # 环境变量示例
-│   ├── mcp_servers.json    # MCP 服务器配置
-│   └── package.json        # 项目配置
-│
-├── README.md                # 项目说明文档
-├── CLAUDE.md               # AI 助手提示文档
-├── CONTRIBUTING.md         # 贡献指南
-├── LICENSE                 # 开源许可证
-└── CHANGELOG.md            # 更新日志
+```text
+├── src/
+│   ├── agent/
+│   ├── cli/
+│   ├── config/
+│   ├── providers/
+│   ├── tools/
+│   ├── skills/
+│   ├── sub-agents/
+│   ├── utils/
+│   └── resource/
+├── tests/
+│   ├── unit/
+│   ├── e2e/
+│   └── fixtures/
+├── docs/
+├── examples/
+├── README.md
+├── README.zh-CN.md
+├── CLAUDE.md
+├── CONTRIBUTING.md
+├── CODE_OF_CONDUCT.md
+├── LICENSE
+└── CHANGELOG.md
 ```
 
-## 文档导航
-
-| 文档 | 用途 | 推荐时机 |
-|------|------|----------|
-| **README.md** | 项目介绍、快速开始 | 初次了解项目 |
-| **CLAUDE.md** | 开发指导、架构说明 | 参与开发时 |
-| **docs/** | 详细技术文档 | 深入使用时 |
-| **examples/** | 示例项目 | 学习实践时 |
-| **CHANGELOG.md** | 版本更新记录 | 版本升级时 |
-
-## 开发命令
+## Development Commands
 
 ```bash
-# 运行所有测试
-bun run test
-
-# 仅运行 E2E 测试
-bun run test:e2e
-
-# 类型检查
+bun run lint
 bun run typecheck
+bun run test
+bun run test:e2e
 ```
 
-## 技术栈
+## Tech Stack
 
-- **运行时**: Bun
-- **语言**: TypeScript
-- **LLM SDK**: @anthropic-ai/sdk
-- **MCP**: @modelcontextprotocol/sdk
-- **终端 UI**: Ink + @inkjs/ui
-- **CLI**: Commander.js
-- **验证**: Zod
+- Runtime: Bun
+- Language: TypeScript
+- LLM SDK: `@anthropic-ai/sdk`
+- MCP: `@modelcontextprotocol/sdk`
+- Terminal UI: Ink + `@inkjs/ui`
+- CLI: Commander.js
+- Validation: Zod
 
-## 许可证
+## License
 
 MIT
