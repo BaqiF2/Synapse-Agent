@@ -1,14 +1,23 @@
 /**
- * Generate Function
+ * 文件功能说明：
+ * - 该文件位于 `src/providers/generate.ts`，主要负责 生成 相关实现。
+ * - 模块归属 Provider 领域，为上层流程提供可复用能力。
  *
- * Single LLM call with streaming support and message merging.
- * Reference: kosong/_generate.py
+ * 核心导出列表：
+ * - `generate`
+ * - `GenerateOptions`
+ * - `GenerateResult`
+ * - `OnMessagePart`
+ * - `OnToolCall`
+ * - `OnUsage`
  *
- * Core Exports:
- * - generate: Async function for single LLM generation
- * - GenerateResult: Result type containing message and usage
- * - OnMessagePart: Callback type for raw message parts
- * - OnToolCall: Callback type for complete tool calls
+ * 作用说明：
+ * - `generate`：提供该模块的核心能力。
+ * - `GenerateOptions`：定义模块交互的数据结构契约。
+ * - `GenerateResult`：定义模块交互的数据结构契约。
+ * - `OnMessagePart`：声明类型别名，约束输入输出类型。
+ * - `OnToolCall`：声明类型别名，约束输入输出类型。
+ * - `OnUsage`：声明类型别名，约束输入输出类型。
  */
 
 import type { LLMTool } from '../types/tool.ts';
@@ -88,6 +97,20 @@ export async function generate(
   const message: Message = { role: 'assistant', content: [] };
   let pendingPart: MergeablePart | null = null;
 
+  /** flush 已完成的 tool call，校验 JSON 完整性后触发回调。 */
+  const flushToolCall = async (part: MergeablePart): Promise<void> => {
+    if (!isToolCallPart(part) || !onToolCall) return;
+
+    const raw = part._argumentsJson || '{}';
+    try {
+      JSON.parse(raw);
+    } catch {
+      // 流被截断导致 JSON 不完整，跳过此 tool call
+      return;
+    }
+    await onToolCall({ id: part.id, name: part.name, arguments: raw });
+  };
+
   // Process stream
   for await (const part of stream) {
     throwIfAborted(signal);
@@ -106,18 +129,8 @@ export async function generate(
 
     // Try to merge
     if (!mergePart(pendingPart, mergeablePart)) {
-      // Cannot merge, flush pending part
       appendToMessage(message, pendingPart);
-
-      // Trigger onToolCall for complete tool calls
-      if (isToolCallPart(pendingPart) && onToolCall) {
-        await onToolCall({
-          id: pendingPart.id,
-          name: pendingPart.name,
-          arguments: pendingPart._argumentsJson || '{}',
-        });
-      }
-
+      await flushToolCall(pendingPart);
       pendingPart = mergeablePart;
     }
   }
@@ -126,14 +139,7 @@ export async function generate(
   if (pendingPart !== null) {
     throwIfAborted(signal);
     appendToMessage(message, pendingPart);
-
-    if (isToolCallPart(pendingPart) && onToolCall) {
-      await onToolCall({
-        id: pendingPart.id,
-        name: pendingPart.name,
-        arguments: pendingPart._argumentsJson || '{}',
-      });
-    }
+    await flushToolCall(pendingPart);
   }
 
   // Check for empty response

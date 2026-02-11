@@ -1,13 +1,19 @@
 /**
- * Command Utilities - Agent Shell Command Layer 2
+ * 文件功能说明：
+ * - 该文件位于 `src/tools/handlers/agent-bash/command-utils.ts`，主要负责 command、utils 相关实现。
+ * - 模块归属 工具、处理器、Agent、Bash 领域，为上层流程提供可复用能力。
  *
- * 通用命令参数解析工具，供所有命令处理器共享。
+ * 核心导出列表：
+ * - `parseCommandArgs`
+ * - `toCommandErrorResult`
+ * - `parseColonCommand`
+ * - `ColonCommandParts`
  *
- * Core Exports:
- * - parseCommandArgs: 支持引号和转义字符的统一命令分词函数
- * - toCommandErrorResult: 将未知错误标准化为 CommandResult
- * - ColonCommandParts: 冒号分隔命令的解析结果接口
- * - parseColonCommand: 解析冒号分隔的命令格式
+ * 作用说明：
+ * - `parseCommandArgs`：用于解析输入并转换为结构化数据。
+ * - `toCommandErrorResult`：用于进行类型或结构转换。
+ * - `parseColonCommand`：用于解析输入并转换为结构化数据。
+ * - `ColonCommandParts`：定义模块交互的数据结构契约。
  */
 
 import type { CommandResult } from '../native-command-handler.ts';
@@ -84,6 +90,7 @@ export function parseCommandArgs(command: string): string[] {
 
 /**
  * Normalize unknown errors to a CommandResult
+ * @param error 错误对象。
  */
 export function toCommandErrorResult(error: unknown): CommandResult {
   const message = error instanceof Error ? error.message : 'Unknown error';

@@ -1,14 +1,17 @@
 /**
- * 固定底部渲染器 - 管理终端底部固定区域的 Todo 列表显示
+ * 文件功能说明：
+ * - 该文件位于 `src/cli/fixed-bottom-renderer.ts`，主要负责 fixed、bottom、渲染 相关实现。
+ * - 模块归属 CLI 领域，为上层流程提供可复用能力。
  *
- * 功能：使用 ANSI 滚动区域控制实现 Todo 列表固定在终端底部，
- *       不随日志滚动。支持任务溢出截断、非 TTY 降级、resize 处理。
- *       采用无边框着色设计，使用左侧 ▌ 着色块标识任务区域。
+ * 核心导出列表：
+ * - `FixedBottomRenderer`
+ * - `FixedBottomRendererOptions`
+ * - `FixedBottomState`
  *
- * 核心导出：
- * - FixedBottomRenderer: 固定底部区域管理器
- * - FixedBottomRendererOptions: 配置选项接口
- * - FixedBottomState: 渲染器状态接口
+ * 作用说明：
+ * - `FixedBottomRenderer`：封装该领域的核心流程与状态管理。
+ * - `FixedBottomRendererOptions`：定义模块交互的数据结构契约。
+ * - `FixedBottomState`：定义模块交互的数据结构契约。
  */
 
 import chalk from 'chalk';
@@ -109,6 +112,10 @@ export class FixedBottomRenderer {
   private todoUnsubscribe?: () => void;
   private resizeHandler?: () => void;
 
+  /**
+   * 方法说明：初始化 FixedBottomRenderer 实例并设置初始状态。
+   * @param options 配置参数。
+   */
   constructor(options?: FixedBottomRendererOptions) {
     this.config = {
       maxHeight: options?.maxHeight ?? DEFAULT_MAX_HEIGHT,
@@ -146,6 +153,7 @@ export class FixedBottomRenderer {
   /**
    * 绑定 TodoStore，监听变更并渲染
    * @returns 取消订阅函数
+   * @param store 输入参数。
    */
   attachTodoStore(store: Pick<TodoStore, 'onChange'>): () => void {
     if (this.todoUnsubscribe) {
@@ -256,11 +264,18 @@ export class FixedBottomRenderer {
   // 私有方法
   // ═══════════════════════════════════════════════════════════════════
 
+  /**
+   * 方法说明：设置 setupResizeHandler 相关状态或配置。
+   */
   private setupResizeHandler(): void {
     this.resizeHandler = () => this.handleResize();
     process.stdout.on('resize', this.resizeHandler);
   }
 
+  /**
+   * 方法说明：执行 handleTodoChange 相关逻辑。
+   * @param todoState 状态对象。
+   */
   private handleTodoChange(todoState: TodoState): void {
     this.state.todoItems = [...todoState.items];
 
@@ -293,6 +308,9 @@ export class FixedBottomRenderer {
     this.state.fixedHeight = 0;
   }
 
+  /**
+   * 方法说明：执行 resetScrollRegion 相关逻辑。
+   */
   private resetScrollRegion(): void {
     process.stdout.write(ANSI.RESET_SCROLL_REGION);
   }
@@ -389,6 +407,7 @@ export class FixedBottomRenderer {
 
   /**
    * 构建任务行文本
+   * @param items 集合数据。
    */
   private buildTaskLines(items: TodoItem[]): string[] {
     return items.map((item) => {
@@ -407,6 +426,8 @@ export class FixedBottomRenderer {
   /**
    * 构建无边框着色块任务显示区
    * 使用左侧 ▌ 着色块替代传统边框
+   * @param lines 集合数据。
+   * @param overflowCount 数量或限制参数。
    */
   private buildTaskBlock(lines: string[], overflowCount: number): string {
     const marker = chalk.cyan(MARKER_CHAR);

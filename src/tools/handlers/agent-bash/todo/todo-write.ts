@@ -1,5 +1,13 @@
 /**
- * TodoWrite 工具 - Agent Shell Command Layer 2
+ * 文件功能说明：
+ * - 该文件位于 `src/tools/handlers/agent-bash/todo/todo-write.ts`，主要负责 待办、写入 相关实现。
+ * - 模块归属 工具、处理器、Agent、Bash、待办 领域，为上层流程提供可复用能力。
+ *
+ * 核心导出列表：
+ * - `TodoWriteHandler`
+ *
+ * 作用说明：
+ * - `TodoWriteHandler`：封装该领域的核心流程与状态管理。
  */
 
 import * as path from 'node:path';
@@ -16,6 +24,10 @@ interface ParsedArgs {
   jsonText: string;
 }
 
+/**
+ * 方法说明：执行 extractJsonFromArgs 相关逻辑。
+ * @param command 输入参数。
+ */
 function extractJsonFromArgs(command: string): ParsedArgs | null {
   const trimmed = command.trim();
   if (!trimmed.startsWith('TodoWrite')) return null;
@@ -34,6 +46,10 @@ function extractJsonFromArgs(command: string): ParsedArgs | null {
   return { jsonText };
 }
 
+/**
+ * 方法说明：格式化 formatZodError 相关输出。
+ * @param error 错误对象。
+ */
 function formatZodError(error: unknown): string {
   if (!error || typeof error !== 'object' || !('issues' in error)) {
     return 'Validation failed';
@@ -61,6 +77,10 @@ function formatZodError(error: unknown): string {
   return ['Error: Validation failed', ...lines].join('\n');
 }
 
+/**
+ * 方法说明：构建 buildSummary 对应内容。
+ * @param items 集合数据。
+ */
 function buildSummary(items: TodoItem[]): string {
   const counts = items.reduce(
     (acc, item) => {
@@ -78,6 +98,10 @@ export class TodoWriteHandler extends BaseAgentHandler {
   protected readonly usage = USAGE;
   protected readonly helpFilePath = path.join(import.meta.dirname, 'todo-write.md');
 
+  /**
+   * 方法说明：执行 executeCommand 相关主流程。
+   * @param command 输入参数。
+   */
   protected async executeCommand(command: string): Promise<CommandResult> {
     try {
       const parsed = extractJsonFromArgs(command);

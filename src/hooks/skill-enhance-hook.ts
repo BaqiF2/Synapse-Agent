@@ -1,18 +1,15 @@
 /**
- * Skill Enhance Hook
+ * 文件功能说明：
+ * - 该文件位于 `src/hooks/skill-enhance-hook.ts`，主要负责 技能、增强、Hook 相关实现。
+ * - 模块归属 Hook 领域，为上层流程提供可复用能力。
  *
- * 功能：在 Agent 对话正常结束时自动分析对话历史并建议技能增强。
- *       结果解析逻辑见 skill-enhance-result-parser.ts，
- *       meta-skill 加载逻辑见 skill-enhance-meta-loader.ts。
+ * 核心导出列表：
+ * - `skillEnhanceHook`
+ * - `HOOK_NAME`
  *
- * 核心导出：
- * - skillEnhanceHook: 技能增强分析的主 hook 函数
- * - HOOK_NAME: Hook 注册名称常量
- *
- * 环境变量：
- * - SYNAPSE_SESSIONS_DIR: 会话文件目录（默认: ~/.synapse/sessions）
- * - SYNAPSE_MAX_ENHANCE_CONTEXT_CHARS: 最大上下文字符数（默认: 50000）
- * - SYNAPSE_SKILL_SUBAGENT_TIMEOUT: Sub-agent 执行超时时间（默认: 300000ms）
+ * 作用说明：
+ * - `skillEnhanceHook`：提供该模块的核心能力。
+ * - `HOOK_NAME`：提供可复用的常量配置。
  */
 
 import * as path from 'node:path';
@@ -100,6 +97,12 @@ async function executeWithTimeout(
   return Promise.race([executionPromise, timeoutPromise]);
 }
 
+/**
+ * 方法说明：执行 executeAndNormalize 相关主流程。
+ * @param subAgentManager 输入参数。
+ * @param prompt 输入参数。
+ * @param timeoutMs 集合数据。
+ */
 async function executeAndNormalize(
   subAgentManager: SubAgentManager,
   prompt: string,

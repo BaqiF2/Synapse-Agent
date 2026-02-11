@@ -1,11 +1,15 @@
 /**
- * Restricted Bash Tool
+ * 文件功能说明：
+ * - 该文件位于 `src/tools/restricted-bash-tool.ts`，主要负责 受限、Bash、工具 相关实现。
+ * - 模块归属 工具 领域，为上层流程提供可复用能力。
  *
- * 功能：装饰器模式实现的受限 Bash 工具，根据 ToolPermissions 配置过滤命令
+ * 核心导出列表：
+ * - `isCommandBlocked`
+ * - `RestrictedBashTool`
  *
- * 核心导出：
- * - RestrictedBashTool: 受限 Bash 工具类，包装 BashTool 并在执行前检查权限
- * - isCommandBlocked: 检查命令是否被权限配置阻止
+ * 作用说明：
+ * - `isCommandBlocked`：用于条件判断并返回布尔结果。
+ * - `RestrictedBashTool`：封装该领域的核心流程与状态管理。
  */
 
 import {
@@ -58,6 +62,8 @@ export function isCommandBlocked(command: string, excludePatterns: string[]): bo
 
 /**
  * 获取被阻止命令的友好错误信息
+ * @param command 输入参数。
+ * @param agentType 输入参数。
  */
 function getBlockedCommandMessage(command: string, agentType?: string): string {
   const baseCommand = extractBaseCommand(command);
@@ -109,6 +115,10 @@ export class RestrictedBashTool extends CallableTool<BashToolParams> {
     this.description = delegate.description;
   }
 
+  /**
+   * 方法说明：执行 execute 相关主流程。
+   * @param params 集合数据。
+   */
   protected execute(params: BashToolParams): CancelablePromise<ToolReturnValue> {
     const { command } = params;
 

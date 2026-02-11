@@ -1,10 +1,13 @@
 /**
- * Anthropic Streamed Message
+ * 文件功能说明：
+ * - 该文件位于 `src/providers/anthropic/anthropic-streamed-message.ts`，主要负责 Anthropic、streamed、消息 相关实现。
+ * - 模块归属 Provider、Anthropic 领域，为上层流程提供可复用能力。
  *
- * Handles both streaming and non-streaming responses from Anthropic API.
+ * 核心导出列表：
+ * - `AnthropicStreamedMessage`
  *
- * Core Exports:
- * - AnthropicStreamedMessage: Wrapper class for Anthropic responses
+ * 作用说明：
+ * - `AnthropicStreamedMessage`：封装该领域的核心流程与状态管理。
  */
 
 import type Anthropic from '@anthropic-ai/sdk';
@@ -33,18 +36,31 @@ export class AnthropicStreamedMessage implements LLMStreamedMessage {
     inputCacheCreation: 0,
   };
 
+  /**
+   * 方法说明：初始化 AnthropicStreamedMessage 实例并设置初始状态。
+   * @param response 输入参数。
+   */
   constructor(response: AnthropicResponse) {
     this.response = response;
   }
 
+  /**
+   * 方法说明：执行 id 相关逻辑。
+   */
   get id(): string | null {
     return this._id;
   }
 
+  /**
+   * 方法说明：执行 usage 相关逻辑。
+   */
   get usage(): TokenUsage {
     return this._usage;
   }
 
+  /**
+   * 方法说明：执行 [Symbol.asyncIterator] 相关逻辑。
+   */
   async *[Symbol.asyncIterator](): AsyncGenerator<StreamedMessagePart> {
     if (this.isStreamResponse(this.response)) {
       yield* this.handleStreamResponse(this.response);
@@ -53,6 +69,10 @@ export class AnthropicStreamedMessage implements LLMStreamedMessage {
     }
   }
 
+  /**
+   * 方法说明：判断 isStreamResponse 对应条件是否成立。
+   * @param r 输入参数。
+   */
   private isStreamResponse(r: AnthropicResponse): r is StreamResponse {
     // Check if it's an async iterable but not a Message (which also has Symbol.asyncIterator in some cases)
     return (
@@ -62,6 +82,10 @@ export class AnthropicStreamedMessage implements LLMStreamedMessage {
     );
   }
 
+  /**
+   * 方法说明：执行 handleNonStreamResponse 相关逻辑。
+   * @param response 输入参数。
+   */
   private async *handleNonStreamResponse(
     response: Anthropic.Message
   ): AsyncGenerator<StreamedMessagePart> {
@@ -74,6 +98,10 @@ export class AnthropicStreamedMessage implements LLMStreamedMessage {
     }
   }
 
+  /**
+   * 方法说明：执行 convertContentBlock 相关逻辑。
+   * @param block 输入参数。
+   */
   private convertContentBlock(block: Anthropic.ContentBlock): StreamedMessagePart | null {
     switch (block.type) {
       case 'text':
@@ -96,6 +124,10 @@ export class AnthropicStreamedMessage implements LLMStreamedMessage {
     }
   }
 
+  /**
+   * 方法说明：更新 updateUsageFromMessage 相关状态。
+   * @param usage 输入参数。
+   */
   private updateUsageFromMessage(usage: Anthropic.Usage): void {
     this._usage = {
       inputOther: usage.input_tokens,
@@ -105,6 +137,10 @@ export class AnthropicStreamedMessage implements LLMStreamedMessage {
     };
   }
 
+  /**
+   * 方法说明：执行 handleStreamResponse 相关逻辑。
+   * @param stream 输入参数。
+   */
   private async *handleStreamResponse(
     stream: StreamResponse
   ): AsyncGenerator<StreamedMessagePart> {
@@ -120,6 +156,10 @@ export class AnthropicStreamedMessage implements LLMStreamedMessage {
     }
   }
 
+  /**
+   * 方法说明：执行 processStreamEvent 相关逻辑。
+   * @param event 输入参数。
+   */
   private processStreamEvent(
     event: Anthropic.RawMessageStreamEvent
   ): StreamedMessagePart | null {
@@ -146,6 +186,10 @@ export class AnthropicStreamedMessage implements LLMStreamedMessage {
     }
   }
 
+  /**
+   * 方法说明：执行 handleBlockStart 相关逻辑。
+   * @param block 输入参数。
+   */
   private handleBlockStart(
     block: Anthropic.RawContentBlockStartEvent['content_block']
   ): StreamedMessagePart | null {
@@ -163,6 +207,10 @@ export class AnthropicStreamedMessage implements LLMStreamedMessage {
     }
   }
 
+  /**
+   * 方法说明：执行 handleBlockDelta 相关逻辑。
+   * @param delta 输入参数。
+   */
   private handleBlockDelta(
     delta: Anthropic.RawContentBlockDeltaEvent['delta']
   ): StreamedMessagePart | null {
@@ -191,6 +239,10 @@ export class AnthropicStreamedMessage implements LLMStreamedMessage {
     }
   }
 
+  /**
+   * 方法说明：更新 updateUsageFromDelta 相关状态。
+   * @param delta 输入参数。
+   */
   private updateUsageFromDelta(delta: Anthropic.MessageDeltaUsage): void {
     if (delta.output_tokens !== undefined) {
       this._usage.output = delta.output_tokens;

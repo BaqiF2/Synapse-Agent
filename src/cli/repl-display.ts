@@ -1,16 +1,25 @@
 /**
- * REPL 显示函数
+ * 文件功能说明：
+ * - 该文件位于 `src/cli/repl-display.ts`，主要负责 REPL、显示 相关实现。
+ * - 模块归属 CLI 领域，为上层流程提供可复用能力。
  *
- * 功能：提供 REPL 界面的各种信息显示功能，包括帮助、工具列表、
- *       技能列表、上下文统计和技能增强帮助。
+ * 核心导出列表：
+ * - `formatStreamText`
+ * - `printSectionHeader`
+ * - `showHelp`
+ * - `showContextStats`
+ * - `showToolsList`
+ * - `showSkillsList`
+ * - `showSkillEnhanceHelp`
  *
- * 核心导出：
- * - printSectionHeader: 打印带分隔线的标题
- * - showHelp: 显示帮助信息
- * - showContextStats: 显示上下文用量统计
- * - showToolsList: 显示可用工具列表
- * - showSkillsList: 显示可用技能列表
- * - showSkillEnhanceHelp: 显示技能增强帮助
+ * 作用说明：
+ * - `formatStreamText`：用于格式化输出内容。
+ * - `printSectionHeader`：提供该模块的核心能力。
+ * - `showHelp`：提供该模块的核心能力。
+ * - `showContextStats`：提供该模块的核心能力。
+ * - `showToolsList`：提供该模块的核心能力。
+ * - `showSkillsList`：提供该模块的核心能力。
+ * - `showSkillEnhanceHelp`：提供该模块的核心能力。
  */
 
 import * as fs from 'node:fs';
@@ -20,13 +29,25 @@ import chalk from 'chalk';
 import { McpInstaller } from '../tools/converters/mcp/index.ts';
 import { getSynapseSkillsDir } from '../config/paths.ts';
 import type { ContextStats } from '../agent/agent-runner.ts';
+import { SKILL_ENHANCE_PROGRESS_TEXT } from '../hooks/skill-enhance-constants.ts';
+
+const BRIGHT_PROGRESS_START = '\x1b[1;93m';
+const BRIGHT_PROGRESS_END = '\x1b[0m';
 
 // ===== 内部工具函数 =====
 
+/**
+ * 方法说明：读取并返回 getErrorMessage 对应的数据。
+ * @param error 错误对象。
+ */
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'Unknown error';
 }
 
+/**
+ * 方法说明：执行 stripWrappingQuotes 相关逻辑。
+ * @param value 输入参数。
+ */
 function stripWrappingQuotes(value: string): string {
   if (
     (value.startsWith('"') && value.endsWith('"')) ||
@@ -37,6 +58,10 @@ function stripWrappingQuotes(value: string): string {
   return value;
 }
 
+/**
+ * 方法说明：执行 extractSkillDescription 相关逻辑。
+ * @param content 输入参数。
+ */
 function extractSkillDescription(content: string): string | null {
   const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
   if (frontmatterMatch?.[1]) {
@@ -58,6 +83,11 @@ function extractSkillDescription(content: string): string | null {
   return markdownDesc ? markdownDesc.trim() : null;
 }
 
+/**
+ * 方法说明：执行 calculateContextPercentage 相关逻辑。
+ * @param numerator 输入参数。
+ * @param denominator 输入参数。
+ */
 function calculateContextPercentage(numerator: number, denominator: number): number {
   if (denominator <= 0) {
     return 0;
@@ -65,6 +95,10 @@ function calculateContextPercentage(numerator: number, denominator: number): num
   return (numerator / denominator) * 100;
 }
 
+/**
+ * 方法说明：构建 buildContextProgressBar 对应内容。
+ * @param percentage 输入参数。
+ */
 function buildContextProgressBar(percentage: number): string {
   const totalSlots = 20;
   const safePercentage = Math.min(Math.max(percentage, 0), 100);
@@ -75,12 +109,33 @@ function buildContextProgressBar(percentage: number): string {
 
 // ===== 导出的显示函数 =====
 
+/**
+ * 方法说明：格式化 formatStreamText 相关输出。
+ * @param text 输入参数。
+ */
+export function formatStreamText(text: string): string {
+  if (
+    text.includes(SKILL_ENHANCE_PROGRESS_TEXT) &&
+    (process.stdout as { isTTY?: boolean }).isTTY
+  ) {
+    return `${BRIGHT_PROGRESS_START}${text}${BRIGHT_PROGRESS_END}`;
+  }
+  return text;
+}
+
+/**
+ * 方法说明：执行 printSectionHeader 相关逻辑。
+ * @param title 输入参数。
+ */
 export function printSectionHeader(title: string): void {
   console.log();
   console.log(chalk.cyan.bold(title));
   console.log(chalk.cyan('═'.repeat(50)));
 }
 
+/**
+ * 方法说明：执行 showHelp 相关逻辑。
+ */
 export function showHelp(): void {
   printSectionHeader('Synapse Agent - Help');
   console.log();
@@ -119,6 +174,10 @@ export function showHelp(): void {
   console.log();
 }
 
+/**
+ * 方法说明：执行 showContextStats 相关逻辑。
+ * @param stats 集合数据。
+ */
 export function showContextStats(stats: ContextStats): void {
   const usagePercentage = calculateContextPercentage(stats.currentTokens, stats.maxTokens);
   const thresholdPercentage = calculateContextPercentage(stats.offloadThreshold, stats.maxTokens);
@@ -144,6 +203,9 @@ export function showContextStats(stats: ContextStats): void {
   console.log();
 }
 
+/**
+ * 方法说明：执行 showToolsList 相关逻辑。
+ */
 export function showToolsList(): void {
   printSectionHeader('Available Tools');
   console.log();
@@ -156,6 +218,9 @@ export function showToolsList(): void {
   console.log();
 }
 
+/**
+ * 方法说明：执行 showSkillsList 相关逻辑。
+ */
 export function showSkillsList(): void {
   printSectionHeader('Available Skills');
 
@@ -227,6 +292,9 @@ export function showSkillsList(): void {
   }
 }
 
+/**
+ * 方法说明：执行 showSkillEnhanceHelp 相关逻辑。
+ */
 export function showSkillEnhanceHelp(): void {
   printSectionHeader('Skill Enhance - Help');
   console.log();

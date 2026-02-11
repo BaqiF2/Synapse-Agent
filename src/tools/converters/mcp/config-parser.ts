@@ -1,16 +1,29 @@
 /**
- * MCP Configuration Parser
+ * 文件功能说明：
+ * - 该文件位于 `src/tools/converters/mcp/config-parser.ts`，主要负责 配置、解析 相关实现。
+ * - 模块归属 工具、转换器、MCP 领域，为上层流程提供可复用能力。
  *
- * This module parses MCP server configuration files (mcp_servers.json) to extract
- * server definitions for both local command-based and remote URL-based servers.
+ * 核心导出列表：
+ * - `McpConfigParser`
+ * - `McpServerEntry`
+ * - `McpParseResult`
+ * - `McpServerConfig`
+ * - `CommandServerConfig`
+ * - `UrlServerConfig`
+ * - `McpConfigFile`
+ * - `McpServerConfigSchema`
+ * - `McpConfigFileSchema`
  *
- * @module config-parser
- *
- * Core Exports:
- * - McpServerConfigSchema: Zod schema for validating MCP server configuration
- * - McpConfigParser: Class that handles configuration file discovery and parsing
- * - McpServerConfig: Type definition for a single MCP server configuration
- * - McpConfigFile: Type definition for the complete configuration file
+ * 作用说明：
+ * - `McpConfigParser`：封装该领域的核心流程与状态管理。
+ * - `McpServerEntry`：定义模块交互的数据结构契约。
+ * - `McpParseResult`：定义模块交互的数据结构契约。
+ * - `McpServerConfig`：声明类型别名，约束输入输出类型。
+ * - `CommandServerConfig`：声明类型别名，约束输入输出类型。
+ * - `UrlServerConfig`：声明类型别名，约束输入输出类型。
+ * - `McpConfigFile`：声明类型别名，约束输入输出类型。
+ * - `McpServerConfigSchema`：提供可复用的模块级变量/常量。
+ * - `McpConfigFileSchema`：提供可复用的模块级变量/常量。
  */
 
 import { z } from 'zod';
@@ -145,6 +158,7 @@ export class McpConfigParser {
 
   /**
    * Checks if a configuration file exists at the given path
+   * @param filePath 目标路径或文件信息。
    */
   private fileExists(filePath: string): boolean {
     try {
@@ -189,6 +203,7 @@ export class McpConfigParser {
 
   /**
    * Determines if a server configuration is command-based
+   * @param config 配置参数。
    */
   private isCommandConfig(config: McpServerConfig): config is CommandServerConfig {
     return 'command' in config;
@@ -196,6 +211,7 @@ export class McpConfigParser {
 
   /**
    * Determines if a server configuration is URL-based
+   * @param config 配置参数。
    */
   private isUrlConfig(config: McpServerConfig): config is UrlServerConfig {
     return 'url' in config;

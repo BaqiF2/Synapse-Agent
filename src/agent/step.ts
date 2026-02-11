@@ -1,15 +1,21 @@
 /**
- * Step Function
+ * 文件功能说明：
+ * - 该文件位于 `src/agent/step.ts`，主要负责 步骤 相关实现。
+ * - 模块归属 Agent 领域，为上层流程提供可复用能力。
  *
- * One agent "step": generate response + execute tools.
- * Reference: kosong/__init__.py step()
+ * 核心导出列表：
+ * - `step`
+ * - `StepOptions`
+ * - `StepResult`
+ * - `OnToolCall`
+ * - `OnToolResult`
  *
- * Core Exports:
- * - step: Async function for one agent step
- * - StepResult: Result type with message and tool results
- * - StepOptions: Options for step execution
- * - OnToolCall: Callback type for tool calls
- * - OnToolResult: Callback type for tool results
+ * 作用说明：
+ * - `step`：提供该模块的核心能力。
+ * - `StepOptions`：定义模块交互的数据结构契约。
+ * - `StepResult`：定义模块交互的数据结构契约。
+ * - `OnToolCall`：声明类型别名，约束输入输出类型。
+ * - `OnToolResult`：声明类型别名，约束输入输出类型。
  */
 
 import type { LLMClient } from '../providers/llm-client.ts';
@@ -26,6 +32,9 @@ const logger = createLogger('step');
 const TASK_COMMAND_PREFIX = 'task:';
 const BASH_TOOL_NAME = 'Bash';
 const DEFAULT_MAX_PARALLEL_TASKS = 5;
+/**
+ * 方法说明：执行 NOOP 相关逻辑。
+ */
 const NOOP = (): void => {};
 
 type ToolResultTask = {
@@ -38,6 +47,11 @@ type ToolCallGroup = {
   toolCalls: ToolCall[];
 };
 
+/**
+ * 方法说明：执行 toToolErrorResult 相关逻辑。
+ * @param toolCallId 目标标识。
+ * @param error 错误对象。
+ */
 function toToolErrorResult(toolCallId: string, error: unknown): ToolResult {
   const message = error instanceof Error ? error.message : 'Unknown error';
   return {
@@ -49,6 +63,10 @@ function toToolErrorResult(toolCallId: string, error: unknown): ToolResult {
   };
 }
 
+/**
+ * 方法说明：解析输入并生成 parseBashCommand 对应结构。
+ * @param toolCall 输入参数。
+ */
 function parseBashCommand(toolCall: ToolCall): string | null {
   if (toolCall.name !== BASH_TOOL_NAME) {
     return null;
@@ -62,11 +80,19 @@ function parseBashCommand(toolCall: ToolCall): string | null {
   }
 }
 
+/**
+ * 方法说明：判断 isTaskToolCall 对应条件是否成立。
+ * @param toolCall 输入参数。
+ */
 function isTaskToolCall(toolCall: ToolCall): boolean {
   const command = parseBashCommand(toolCall);
   return command?.trimStart().startsWith(TASK_COMMAND_PREFIX) ?? false;
 }
 
+/**
+ * 方法说明：执行 groupToolCallsByOrder 相关逻辑。
+ * @param toolCalls 集合数据。
+ */
 function groupToolCallsByOrder(toolCalls: readonly ToolCall[]): ToolCallGroup[] {
   const groups: ToolCallGroup[] = [];
   let cursor = 0;
@@ -105,10 +131,18 @@ function groupToolCallsByOrder(toolCalls: readonly ToolCall[]): ToolCallGroup[] 
   return groups;
 }
 
+/**
+ * 方法说明：读取并返回 getMaxParallelTaskLimit 对应的数据。
+ */
 function getMaxParallelTaskLimit(): number {
   return parseEnvPositiveInt(process.env.SYNAPSE_MAX_PARALLEL_TASKS, DEFAULT_MAX_PARALLEL_TASKS);
 }
 
+/**
+ * 方法说明：创建并返回 createToolResultTask 对应结果。
+ * @param toolset 输入参数。
+ * @param toolCall 输入参数。
+ */
 function createToolResultTask(toolset: Toolset, toolCall: ToolCall): ToolResultTask {
   let rawResult: CancelablePromise<ToolResult>;
   try {
@@ -127,6 +161,12 @@ function createToolResultTask(toolset: Toolset, toolCall: ToolCall): ToolResultT
   return { promise, cancel };
 }
 
+/**
+ * 方法说明：执行 notifyToolResult 相关逻辑。
+ * @param promise 输入参数。
+ * @param onToolResult 输入参数。
+ * @param isCancelled 输入参数。
+ */
 function notifyToolResult(
   promise: Promise<ToolResult>,
   onToolResult: OnToolResult | undefined,
@@ -152,6 +192,11 @@ function notifyToolResult(
     });
 }
 
+/**
+ * 方法说明：执行 waitForSettledResults 相关逻辑。
+ * @param toolCalls 集合数据。
+ * @param tasks 集合数据。
+ */
 async function waitForSettledResults(
   toolCalls: readonly ToolCall[],
   tasks: readonly ToolResultTask[]
@@ -167,6 +212,12 @@ async function waitForSettledResults(
   });
 }
 
+/**
+ * 方法说明：执行 guardWithAbort 相关逻辑。
+ * @param signal 取消信号。
+ * @param task 输入参数。
+ * @param onAbort 输入参数。
+ */
 async function guardWithAbort<T>(
   signal: AbortSignal | undefined,
   task: Promise<T>,
@@ -182,6 +233,9 @@ async function guardWithAbort<T>(
   }
 
   return await new Promise<T>((resolve, reject) => {
+    /**
+     * 方法说明：执行 abort 相关逻辑。
+     */
     const abort = () => {
       onAbort();
       reject(createAbortError());
@@ -259,21 +313,23 @@ export async function step(
   const startedTasks: Map<string, ToolResultTask> = new Map();
   let isCancelled = false;
 
+  /** 取消指定任务集合，不修改 isCancelled 标志。 */
   const cancelTasks = (tasks: Iterable<ToolResultTask>): void => {
     for (const task of tasks) {
       task.cancel();
     }
   };
 
+  /** 标记已取消并取消指定任务集合。 */
   const markCancelledAndCancelTasks = (tasks: Iterable<ToolResultTask>): void => {
     isCancelled = true;
     cancelTasks(tasks);
   };
 
-  const cancelStartedTasks = () => {
-    markCancelledAndCancelTasks(startedTasks.values());
-  };
-
+  /**
+   * 方法说明：执行 startToolTask 相关逻辑。
+   * @param toolCall 输入参数。
+   */
   const startToolTask = (toolCall: ToolCall): ToolResultTask => {
     const existing = startedTasks.get(toolCall.id);
     if (existing) {
@@ -287,6 +343,10 @@ export async function step(
     return task;
   };
 
+  /**
+   * 方法说明：执行 executeTaskBatch 相关主流程。
+   * @param batch 输入参数。
+   */
   const executeTaskBatch = async (batch: readonly ToolCall[]): Promise<ToolResult[]> => {
     const maxParallelTasks = getMaxParallelTaskLimit();
     const results: ToolResult[] = [];
@@ -305,6 +365,9 @@ export async function step(
     return results;
   };
 
+  /**
+   * 方法说明：执行 executeGroupedToolCalls 相关主流程。
+   */
   const executeGroupedToolCalls = async (): Promise<ToolResult[]> => {
     const groups = groupToolCallsByOrder(toolCalls);
     const results: ToolResult[] = [];
@@ -336,6 +399,10 @@ export async function step(
   };
 
   // Tool call callback - register call and defer execution until toolResults()
+  /**
+   * 方法说明：执行 handleToolCall 相关逻辑。
+   * @param toolCall 输入参数。
+   */
   const handleToolCall = (toolCall: ToolCall) => {
     logger.debug('Tool call received', { id: toolCall.id, name: toolCall.name });
     toolCalls.push(toolCall);
@@ -360,7 +427,7 @@ export async function step(
       signal,
     });
   } catch (error) {
-    cancelStartedTasks();
+    markCancelledAndCancelTasks(startedTasks.values());
     if (isAbortError(error) || signal?.aborted) {
       throw createAbortError();
     }
@@ -376,6 +443,9 @@ export async function step(
     usage: result.usage,
     toolCalls,
 
+    /**
+     * 方法说明：执行 toolResults 相关逻辑。
+     */
     async toolResults(): Promise<ToolResult[]> {
       if (toolCalls.length === 0) {
         return [];

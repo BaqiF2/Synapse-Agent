@@ -1,10 +1,13 @@
 /**
- * Tree Builder
+ * 文件功能说明：
+ * - 该文件位于 `src/cli/tree-builder.ts`，主要负责 树结构、构建 相关实现。
+ * - 模块归属 CLI 领域，为上层流程提供可复用能力。
  *
- * Generates tree-structured prefixes for terminal output.
+ * 核心导出列表：
+ * - `TreeBuilder`
  *
- * Core Exports:
- * - TreeBuilder: Class for building tree structure prefixes
+ * 作用说明：
+ * - `TreeBuilder`：封装该领域的核心流程与状态管理。
  */
 
 import chalk from 'chalk';

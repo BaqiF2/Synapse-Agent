@@ -1,15 +1,13 @@
 /**
- * Terminal Renderer Types
+ * 文件功能说明：
+ * - 该文件位于 `src/cli/terminal-renderer-types.ts`，主要负责 terminal、渲染、类型 相关实现。
+ * - 模块归属 CLI 领域，为上层流程提供可复用能力。
  *
- * 事件类型定义已迁移至 src/types/events.ts，此文件保留常量并 re-export 类型。
+ * 核心导出列表：
+ * - `TREE_SYMBOLS`
  *
- * Core Exports:
- * - ToolCallEvent: Event when tool starts
- * - ToolResultEvent: Event when tool completes
- * - SubAgentEvent: Event for SubAgent lifecycle
- * - SubAgentToolCallEvent: Event for SubAgent internal tool call
- * - SubAgentCompleteEvent: Event when SubAgent completes
- * - TREE_SYMBOLS: Unicode tree symbols
+ * 作用说明：
+ * - `TREE_SYMBOLS`：提供可复用的常量配置。
  */
 
 // 从共享类型层 re-export 事件类型

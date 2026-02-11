@@ -1,7 +1,13 @@
 /**
- * Stop Hooks Loader
+ * 文件功能说明：
+ * - 该文件位于 `src/hooks/load-stop-hooks.ts`，主要负责 加载、停止、Hook 相关实现。
+ * - 模块归属 Hook 领域，为上层流程提供可复用能力。
  *
- * 功能：集中加载所有需要的 Stop Hooks（通过模块副作用完成注册）
+ * 核心导出列表：
+ * - `loadStopHooks`
+ *
+ * 作用说明：
+ * - `loadStopHooks`：用于加载外部资源或配置。
  */
 
 export async function loadStopHooks(): Promise<void> {

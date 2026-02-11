@@ -1,11 +1,19 @@
 /**
- * Task Command Handler
+ * 文件功能说明：
+ * - 该文件位于 `src/tools/handlers/task-command-handler.ts`，主要负责 任务、command、处理器 相关实现。
+ * - 模块归属 工具、处理器 领域，为上层流程提供可复用能力。
  *
- * 功能：解析和执行 task:* 命令，路由到对应的 Sub Agent
+ * 核心导出列表：
+ * - `parseTaskCommand`
+ * - `TaskCommandHandler`
+ * - `ParsedTaskCommand`
+ * - `TaskCommandHandlerOptions`
  *
- * 核心导出：
- * - TaskCommandHandler: Task 命令处理器类
- * - parseTaskCommand: 命令解析函数
+ * 作用说明：
+ * - `parseTaskCommand`：用于解析输入并转换为结构化数据。
+ * - `TaskCommandHandler`：封装该领域的核心流程与状态管理。
+ * - `ParsedTaskCommand`：定义模块交互的数据结构契约。
+ * - `TaskCommandHandlerOptions`：声明类型别名，约束输入输出类型。
  */
 
 import type { CommandResult } from './native-command-handler.ts';
@@ -49,6 +57,7 @@ export interface ParsedTaskCommand {
  * - task:skill:search --prompt "..." --description "..."
  * - task:explore --prompt "..." --description "..."
  * - task:general --prompt "..." --description "..."
+ * @param command 输入参数。
  */
 export function parseTaskCommand(command: string): ParsedTaskCommand {
   const result: ParsedTaskCommand = {
@@ -112,12 +121,17 @@ export type TaskCommandHandlerOptions = SubAgentManagerOptions;
 export class TaskCommandHandler {
   private manager: SubAgentManager;
 
+  /**
+   * 方法说明：初始化 TaskCommandHandler 实例并设置初始状态。
+   * @param options 配置参数。
+   */
   constructor(options: TaskCommandHandlerOptions) {
     this.manager = new SubAgentManager(options);
   }
 
   /**
    * 执行 Task 命令
+   * @param command 输入参数。
    */
   execute(command: string): CancelablePromise<CommandResult> {
     const controller = new AbortController();
@@ -127,6 +141,11 @@ export class TaskCommandHandler {
     );
   }
 
+  /**
+   * 方法说明：执行 executeInternal 相关主流程。
+   * @param command 输入参数。
+   * @param signal 取消信号。
+   */
   private async executeInternal(command: string, signal: AbortSignal): Promise<CommandResult> {
     try {
       const parsed = parseTaskCommand(command);
@@ -187,6 +206,7 @@ export class TaskCommandHandler {
 
   /**
    * 显示帮助信息
+   * @param _type 输入参数。
    */
   private showHelp(_type: SubAgentType | null): CommandResult {
     const generalHelp = `task - Launch specialized sub-agents for complex tasks

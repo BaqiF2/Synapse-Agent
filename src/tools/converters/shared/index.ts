@@ -1,12 +1,33 @@
 /**
- * Shared Converters Module
+ * 文件功能说明：
+ * - 该文件位于 `src/tools/converters/shared/index.ts`，主要负责 索引 相关实现。
+ * - 模块归属 工具、转换器、shared 领域，为上层流程提供可复用能力。
  *
- * 功能：提供 MCP 和 Skill converter 共用的公共工具类和函数。
+ * 核心导出列表：
+ * - `BinInstaller`
+ * - `DEFAULT_BIN_DIR`
+ * - `EXECUTABLE_MODE`
+ * - `InstallResult`
+ * - `InstallableScript`
+ * - `generateBriefHelp`
+ * - `generateDetailedHelp`
+ * - `HelpParam`
+ * - `HelpOptions`
+ * - `getInterpreter`
+ * - `getInterpreterForPath`
  *
- * 核心导出：
- * - BinInstaller: bin 目录脚本安装管理
- * - generateBriefHelp / generateDetailedHelp: 帮助文本生成
- * - getInterpreter / getInterpreterForPath: 脚本解释器映射
+ * 作用说明：
+ * - `BinInstaller`：聚合并对外暴露其它模块的能力。
+ * - `DEFAULT_BIN_DIR`：聚合并对外暴露其它模块的能力。
+ * - `EXECUTABLE_MODE`：聚合并对外暴露其它模块的能力。
+ * - `InstallResult`：聚合并对外暴露其它模块的能力。
+ * - `InstallableScript`：聚合并对外暴露其它模块的能力。
+ * - `generateBriefHelp`：聚合并对外暴露其它模块的能力。
+ * - `generateDetailedHelp`：聚合并对外暴露其它模块的能力。
+ * - `HelpParam`：聚合并对外暴露其它模块的能力。
+ * - `HelpOptions`：聚合并对外暴露其它模块的能力。
+ * - `getInterpreter`：聚合并对外暴露其它模块的能力。
+ * - `getInterpreterForPath`：聚合并对外暴露其它模块的能力。
  */
 
 export {

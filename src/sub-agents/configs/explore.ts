@@ -1,10 +1,13 @@
 /**
- * Explore Sub Agent 配置
+ * 文件功能说明：
+ * - 该文件位于 `src/sub-agents/configs/explore.ts`，主要负责 探索 相关实现。
+ * - 模块归属 sub、agents、configs 领域，为上层流程提供可复用能力。
  *
- * 功能：定义 Explore 类型 Sub Agent 的配置
+ * 核心导出列表：
+ * - `exploreConfig`
  *
- * 核心导出：
- * - exploreConfig: Explore Sub Agent 配置对象
+ * 作用说明：
+ * - `exploreConfig`：提供可复用的模块级变量/常量。
  */
 
 import type { SubAgentConfig } from '../sub-agent-types.ts';

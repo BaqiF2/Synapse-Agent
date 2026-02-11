@@ -1,15 +1,23 @@
 /**
- * Skill Sub Agent 动态配置
+ * 文件功能说明：
+ * - 该文件位于 `src/sub-agents/configs/skill.ts`，主要负责 技能 相关实现。
+ * - 模块归属 sub、agents、configs 领域，为上层流程提供可复用能力。
  *
- * 功能：为 skill:search 和 skill:enhance 创建不同权限的 SubAgent 配置
+ * 核心导出列表：
+ * - `loadAllSkillMetadata`
+ * - `buildSearchSystemPrompt`
+ * - `buildEnhanceSystemPrompt`
+ * - `createSkillSearchConfig`
+ * - `createSkillEnhanceConfig`
+ * - `createSkillConfig`
  *
- * 核心导出：
- * - createSkillSearchConfig: 创建 skill:search 配置（纯文本推理，无工具权限）
- * - createSkillEnhanceConfig: 创建 skill:enhance 配置（允许文件操作 + bash）
- * - createSkillConfig: 根据 action 创建对应配置（兼容旧接口）
- * - loadAllSkillMetadata: 加载所有技能的元数据（name, description）
- * - buildSearchSystemPrompt: 构建 search 模式的 systemPrompt
- * - buildEnhanceSystemPrompt: 构建 enhance 模式的 systemPrompt
+ * 作用说明：
+ * - `loadAllSkillMetadata`：用于加载外部资源或配置。
+ * - `buildSearchSystemPrompt`：用于构建并产出目标内容。
+ * - `buildEnhanceSystemPrompt`：用于构建并产出目标内容。
+ * - `createSkillSearchConfig`：用于创建并返回新对象/实例。
+ * - `createSkillEnhanceConfig`：用于创建并返回新对象/实例。
+ * - `createSkillConfig`：用于创建并返回新对象/实例。
  */
 
 import * as path from 'node:path';
@@ -54,6 +62,7 @@ export function loadAllSkillMetadata(): SkillMetadata[] {
 
 /**
  * 将技能元数据格式化为编号列表
+ * @param metadata 输入参数。
  */
 function formatSkillList(metadata: SkillMetadata[]): string {
   return metadata

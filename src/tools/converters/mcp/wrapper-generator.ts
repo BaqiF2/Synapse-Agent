@@ -1,14 +1,17 @@
 /**
- * MCP Wrapper Generator
+ * 文件功能说明：
+ * - 该文件位于 `src/tools/converters/mcp/wrapper-generator.ts`，主要负责 封装、generator 相关实现。
+ * - 模块归属 工具、转换器、MCP 领域，为上层流程提供可复用能力。
  *
- * 功能：为 MCP 工具生成可执行的 Bash wrapper 脚本，
- * 提供 CLI 参数解析、帮助信息和 MCP 工具调用。
- * 通过共享模块 HelpGenerator 消除帮助文本生成的重复逻辑。
+ * 核心导出列表：
+ * - `McpWrapperGenerator`
+ * - `WrapperGeneratorOptions`
+ * - `GeneratedWrapper`
  *
- * 核心导出：
- * - McpWrapperGenerator: 生成 MCP wrapper 脚本
- * - WrapperGeneratorOptions: 生成器配置选项
- * - GeneratedWrapper: 生成的 wrapper 元数据
+ * 作用说明：
+ * - `McpWrapperGenerator`：封装该领域的核心流程与状态管理。
+ * - `WrapperGeneratorOptions`：定义模块交互的数据结构契约。
+ * - `GeneratedWrapper`：定义模块交互的数据结构契约。
  */
 
 import type { McpToolInfo } from './mcp-client.js';
@@ -58,6 +61,10 @@ const DEFAULT_BIN_DIR = '~/.synapse/bin';
 export class McpWrapperGenerator {
   private options: Required<WrapperGeneratorOptions>;
 
+  /**
+   * 方法说明：初始化 McpWrapperGenerator 实例并设置初始状态。
+   * @param options 配置参数。
+   */
   constructor(options: WrapperGeneratorOptions = {}) {
     this.options = {
       binDir: options.binDir ?? DEFAULT_BIN_DIR,
@@ -65,7 +72,10 @@ export class McpWrapperGenerator {
     };
   }
 
-  /** 为单个工具生成 wrapper */
+  /** 为单个工具生成 wrapper
+   * @param serverName 输入参数。
+   * @param tool 输入参数。
+   */
   public generateWrapper(serverName: string, tool: McpToolInfo): GeneratedWrapper {
     const commandName = `mcp:${serverName}:${tool.name}`;
     const content = this.generateScriptContent(serverName, tool);
@@ -75,14 +85,19 @@ export class McpWrapperGenerator {
     return { commandName, serverName, toolName: tool.name, scriptPath, content, description: tool.description };
   }
 
-  /** 为服务器所有工具批量生成 wrapper */
+  /** 为服务器所有工具批量生成 wrapper
+   * @param serverName 输入参数。
+   * @param tools 集合数据。
+   */
   public generateWrappers(serverName: string, tools: McpToolInfo[]): GeneratedWrapper[] {
     return tools.map((tool) => this.generateWrapper(serverName, tool));
   }
 
   // -- 私有方法 --
 
-  /** 从 JSON Schema 提取参数信息并转为 HelpParam */
+  /** 从 JSON Schema 提取参数信息并转为 HelpParam
+   * @param schema 输入参数。
+   */
   private extractParams(schema: ToolInputSchema): HelpParam[] {
     const properties = schema.properties || {};
     const required = new Set(schema.required || []);
@@ -108,7 +123,10 @@ export class McpWrapperGenerator {
     return params;
   }
 
-  /** 生成 wrapper 脚本内容 */
+  /** 生成 wrapper 脚本内容
+   * @param serverName 输入参数。
+   * @param tool 输入参数。
+   */
   private generateScriptContent(serverName: string, tool: McpToolInfo): string {
     const params = this.extractParams(tool.inputSchema as ToolInputSchema);
     const commandName = `mcp:${serverName}:${tool.name}`;

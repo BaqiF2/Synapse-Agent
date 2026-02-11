@@ -1,15 +1,23 @@
 /**
- * Skill Tool Initializer
+ * 文件功能说明：
+ * - 该文件位于 `src/tools/converters/skill/skill-initializer.ts`，主要负责 技能、初始化 相关实现。
+ * - 模块归属 工具、转换器、技能 领域，为上层流程提供可复用能力。
  *
- * This module handles the automatic discovery and installation of Skill tools
- * at Agent startup. It coordinates the SkillStructure, DocstringParser,
- * SkillWrapperGenerator, and install functions to provide a unified initialization flow.
+ * 核心导出列表：
+ * - `initializeSkillTools`
+ * - `cleanupSkillTools`
+ * - `refreshSkillTools`
+ * - `SkillInitResult`
+ * - `SkillsInitResult`
+ * - `SkillInitOptions`
  *
- * @module skill-initializer
- *
- * Core Exports:
- * - initializeSkillTools: Main function to discover and install Skill tools
- * - SkillInitResult: Result of the initialization process
+ * 作用说明：
+ * - `initializeSkillTools`：用于初始化运行环境或模块状态。
+ * - `cleanupSkillTools`：用于清理资源并回收状态。
+ * - `refreshSkillTools`：用于刷新状态并重新加载数据。
+ * - `SkillInitResult`：定义模块交互的数据结构契约。
+ * - `SkillsInitResult`：定义模块交互的数据结构契约。
+ * - `SkillInitOptions`：定义模块交互的数据结构契约。
  */
 
 import * as fs from 'node:fs';
@@ -23,6 +31,7 @@ const logger = createLogger('skill-init');
 
 /**
  * Extract error message from unknown error
+ * @param error 错误对象。
  */
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -30,6 +39,8 @@ function getErrorMessage(error: unknown): string {
 
 /**
  * Clean up orphaned skill tools that no longer have corresponding skill directories
+ * @param binDir 输入参数。
+ * @param activeSkills 集合数据。
  */
 function cleanupOrphanedTools(binDir: string, activeSkills: SkillEntry[]): void {
   if (!fs.existsSync(binDir)) {
@@ -102,6 +113,7 @@ export interface SkillInitOptions {
  *
  * @param options - Initialization options
  * @returns Initialization result
+ * @param _options 配置参数。
  */
 export async function initializeSkillTools(_options: SkillInitOptions = {}): Promise<SkillsInitResult> {
   const result: SkillsInitResult = {
@@ -179,6 +191,8 @@ export async function initializeSkillTools(_options: SkillInitOptions = {}): Pro
 
 /**
  * Process a single skill: discover scripts, generate and install wrappers
+ * @param skill 输入参数。
+ * @param generator 输入参数。
  */
 function processSkill(skill: SkillEntry, generator: SkillWrapperGenerator): SkillInitResult {
   const result: SkillInitResult = {
