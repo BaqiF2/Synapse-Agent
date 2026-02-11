@@ -147,29 +147,25 @@
 **When** 渲染 Task 行  
 **Then** 描述应截断并以 `...` 结尾
 
-## Feature: FixedBottomRenderer 体验稳定性
+## Feature: TodoWrite 普通滚动输出稳定性
 
-### Scenario: 非 TTY 或终端过小时应降级为普通日志渲染
-**Given** `isTTY=false` 或终端高度小于 `minTerminalHeight`  
-**When** Todo 列表发生更新  
-**Then** 渲染应走 fallback 分支  
-**And** 不应写入滚动区域 ANSI 控制序列
+### Scenario: TodoWrite 应通过常规工具流显示
+**Given** Agent 触发 `TodoWrite` 工具调用  
+**When** 工具开始与结束事件被渲染  
+**Then** 输出中应出现该工具调用轨迹  
+**And** 输出应包含工具结果摘要
 
-### Scenario: Todo 超量时应按状态优先级截断并提示剩余数量
-**Given** Todo 数量超过可见上限且状态混合  
-**When** 渲染固定底部区域  
-**Then** `in_progress` 应优先展示  
-**And** 输出应包含 `...and N more`
+### Scenario: 非 TTY 下 TodoWrite 结果应保持可读
+**Given** `process.stdout.isTTY=false`  
+**When** 渲染 `TodoWrite` 工具调用结果  
+**Then** 应输出可读静态文本  
+**And** 不应依赖 `cursorTo/moveCursor/clearLine`
 
-### Scenario: Todo 清空后应隐藏固定区域并清理残留
-**Given** 固定区域已渲染过任务  
-**When** Todo 更新为空数组  
-**Then** 应清理固定区域内容并将 `fixedHeight` 归零
-
-### Scenario: `dispose` 时应恢复终端滚动区域
-**Given** FixedBottomRenderer 已启用固定区  
-**When** 调用 `dispose()`  
-**Then** 输出应包含 ANSI reset scroll region (`\x1b[r`)
+### Scenario: 多次 TodoWrite 更新应按时间顺序滚动展示
+**Given** 连续触发多次 `TodoWrite` 调用  
+**When** 每次调用完成并输出结果  
+**Then** 终端应按发生顺序追加输出  
+**And** 不应存在固定底部 Todo 区域
 
 ## 备注
 - 本分片聚焦“高并发输出 + 沙箱重建 + 终端降级”下的可用性与可恢复性。  

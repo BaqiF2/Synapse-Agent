@@ -144,7 +144,7 @@ describe('TerminalRenderer', () => {
     renderer.renderToolEnd({ id: 'misuse-1', success: false, output: '' });
   });
 
-  it('should not render TodoWrite command in tool start/end', () => {
+  it('should render TodoWrite command in normal tool stream', () => {
     const renderer = new TerminalRenderer();
 
     renderer.renderToolStart({
@@ -152,9 +152,21 @@ describe('TerminalRenderer', () => {
       command: '  TodoWrite \'{"todos":[]}\'',
       depth: 0,
     });
-    renderer.renderToolEnd({ id: '5', success: true, output: 'ok' });
+    renderer.renderToolEnd({
+      id: '5',
+      success: true,
+      output:
+        'Todo list updated: 1 completed, 1 in_progress, 4 pending\nTasks:\n- [x] Analyze code\n- [>] Writing tests\n- [ ] Update docs\n- [ ] Final check',
+    });
 
-    expect(process.stdout.write).not.toHaveBeenCalled();
-    expect(console.log).not.toHaveBeenCalled();
+    const writes = (process.stdout.write as unknown as { mock: { calls: unknown[][] } }).mock.calls;
+    const output = stripAnsi(writes.map((call) => String(call[0] ?? '')).join(''));
+    expect(output).toContain('TodoWrite');
+    const logs = (console.log as unknown as { mock: { calls: unknown[][] } }).mock.calls
+      .map((call) => stripAnsi(String(call[0] ?? '')))
+      .join('\n');
+    expect(logs).toContain('Tasks:');
+    expect(logs).toContain('- [x] Analyze code');
+    expect(logs).toContain('- [ ] Final check');
   });
 });

@@ -3,10 +3,8 @@ import chalk from 'chalk';
 
 import type { AgentRunner } from '../agent/agent-runner.ts';
 import { Session } from '../agent/session.ts';
-import { FixedBottomRenderer } from './fixed-bottom-renderer.ts';
 import { extractHookOutput } from './hook-output.ts';
 import { TerminalRenderer } from './terminal-renderer.ts';
-import { todoStore } from '../tools/handlers/agent-bash/todo/todo-store.ts';
 import {
   executeShellCommand,
   handleSpecialCommand,
@@ -252,19 +250,11 @@ function createSpecialCommandOptions(options: {
 function createShutdown(options: {
   runtimeState: ReplRuntimeState;
   rl: readline.Interface;
-  fixedBottomRenderer: FixedBottomRenderer;
   interruptCurrentTurn: () => void;
   handleLine: (input: string) => Promise<void>;
   onProcessSigint: () => void;
 }): () => void {
-  const {
-    runtimeState,
-    rl,
-    fixedBottomRenderer,
-    interruptCurrentTurn,
-    handleLine,
-    onProcessSigint,
-  } = options;
+  const { runtimeState, rl, interruptCurrentTurn, handleLine, onProcessSigint } = options;
 
   let disposed = false;
   return () => {
@@ -276,22 +266,18 @@ function createShutdown(options: {
     interruptCurrentTurn();
     rl.off('line', handleLine);
     rl.off('SIGINT', onProcessSigint);
-    fixedBottomRenderer.dispose();
   };
 }
 
 export async function startRepl(): Promise<void> {
   let session: Session;
   let rlForCleanup: readline.Interface | null = null;
-  let fixedBottomRenderer: FixedBottomRenderer | null = null;
 
   try {
     session = await Session.create();
     await initializeMcp();
     await initializeSkills();
 
-    fixedBottomRenderer = new FixedBottomRenderer();
-    fixedBottomRenderer.attachTodoStore(todoStore);
     const terminalRenderer = new TerminalRenderer();
 
     const runtimeState: ReplRuntimeState = { phase: 'idle', activeTurn: null };
@@ -362,7 +348,6 @@ export async function startRepl(): Promise<void> {
     const shutdown = createShutdown({
       runtimeState,
       rl,
-      fixedBottomRenderer,
       interruptCurrentTurn,
       handleLine,
       onProcessSigint,
@@ -378,7 +363,6 @@ export async function startRepl(): Promise<void> {
     output.promptUser();
   } catch (error) {
     const message = getErrorMessage(error);
-    fixedBottomRenderer?.dispose();
     rlForCleanup?.close();
     console.error(chalk.red(`Failed to start REPL: ${message}`));
     cliLogger.error('Failed to start REPL startup', { error: message });

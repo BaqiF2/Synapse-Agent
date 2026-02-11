@@ -93,6 +93,26 @@ function buildSummary(items: TodoItem[]): string {
   return `Todo list updated: ${counts.completed} completed, ${counts.in_progress} in_progress, ${counts.pending} pending`;
 }
 
+function formatTaskLine(item: TodoItem): string {
+  switch (item.status) {
+    case 'completed':
+      return `- [x] ${item.content}`;
+    case 'in_progress':
+      return `- [>] ${item.activeForm}`;
+    case 'pending':
+    default:
+      return `- [ ] ${item.content}`;
+  }
+}
+
+function buildOutput(items: TodoItem[]): string {
+  const summary = buildSummary(items);
+  if (items.length === 0) {
+    return `${summary}\nTasks: (none)`;
+  }
+  return [summary, 'Tasks:', ...items.map(formatTaskLine)].join('\n');
+}
+
 export class TodoWriteHandler extends BaseAgentHandler {
   protected readonly commandName = 'TodoWrite';
   protected readonly usage = USAGE;
@@ -125,7 +145,7 @@ export class TodoWriteHandler extends BaseAgentHandler {
       const { todos } = result.data;
       todoStore.update(todos);
 
-      return { stdout: buildSummary(todos), stderr: '', exitCode: 0 };
+      return { stdout: buildOutput(todos), stderr: '', exitCode: 0 };
     } catch (error) {
       return toCommandErrorResult(error);
     }

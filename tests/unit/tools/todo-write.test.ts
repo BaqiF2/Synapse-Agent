@@ -94,6 +94,19 @@ describe('TodoWriteHandler', () => {
     expect(todoStore.get().items).toHaveLength(0);
   });
 
+  it('成功更新后应返回任务列表内容', async () => {
+    const result = await handler.execute(
+      "TodoWrite '{\"todos\":[{\"content\":\"Analyze code\",\"activeForm\":\"Analyzing code\",\"status\":\"completed\"},{\"content\":\"Write tests\",\"activeForm\":\"Writing tests\",\"status\":\"in_progress\"},{\"content\":\"Update docs\",\"activeForm\":\"Updating docs\",\"status\":\"pending\"}]}'"
+    );
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain('Todo list updated: 1 completed, 1 in_progress, 1 pending');
+    expect(result.stdout).toContain('Tasks:');
+    expect(result.stdout).toContain('- [x] Analyze code');
+    expect(result.stdout).toContain('- [>] Writing tests');
+    expect(result.stdout).toContain('- [ ] Update docs');
+  });
+
   it('todos 数组长度上限可被环境变量覆盖', async () => {
     setEnv('SYNAPSE_TODO_MAX_ITEMS', '2');
     const payload = {
