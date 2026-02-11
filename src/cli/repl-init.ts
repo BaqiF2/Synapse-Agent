@@ -157,9 +157,6 @@ function createMainAgentCallbacks(context: CallbackContext): Pick<
     }),
     onToolCall: withRenderGuard(context.shouldRenderTurn, (toolCall) => {
       const command = resolveToolCallCommand(toolCall);
-      if (command.startsWith('task:')) {
-        return;
-      }
       context.renderer.renderToolStart({
         id: toolCall.id,
         command,
