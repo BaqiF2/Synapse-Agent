@@ -19,9 +19,9 @@ import type {
 } from '../types.ts';
 import { AuthenticationError, RateLimitError } from '../../common/errors.ts';
 import { toOpenAIParams, mapOpenAIFinishReason } from './openai-mapper.ts';
-import { createLogger } from '../../utils/logger.ts';
+import { createLogger } from '../../common/index.ts';
 
-const logger = createLogger('openai-provider');
+const logger = createLogger({ name: 'openai-provider' });
 
 /** OpenAIProvider 构造选项 */
 export interface OpenAIProviderOptions {

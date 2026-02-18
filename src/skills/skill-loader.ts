@@ -288,15 +288,14 @@ export class SkillLoader {
     provider: LLMProvider,
   ): ProviderSearchResult {
     if (isEmbeddingProvider(provider)) {
-      // Provider 支持 embedding，使用语义搜索
-      // 注意：当前实现仍使用文本匹配作为同步 fallback，
+      // Provider 支持 embedding，但当前实现仍使用文本匹配作为同步 fallback，
       // 因为 embedding 是异步操作，完整的异步语义搜索将在后续迭代中实现
-      loaderLogger.info('Provider supports embedding, using embedding-aware search', {
+      loaderLogger.info('Provider supports embedding, but using text search as sync fallback', {
         provider: provider.name,
       });
       return {
         results: this.multiWordTextSearch(query),
-        fallbackUsed: false,
+        fallbackUsed: true,
       };
     }
 

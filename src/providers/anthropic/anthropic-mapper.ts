@@ -199,7 +199,7 @@ export function fromAnthropicResponse(
 }
 
 /** 映射 Anthropic 停止原因到统一格式 */
-function mapStopReason(
+export function mapStopReason(
   reason: string | null,
 ): 'end_turn' | 'tool_use' | 'max_tokens' {
   switch (reason) {

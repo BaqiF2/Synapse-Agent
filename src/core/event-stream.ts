@@ -19,6 +19,10 @@ export interface EventStreamOptions {
 /**
  * 异步可迭代的事件流。
  * 实现 AsyncIterable<AgentEvent> 协议，同时通过 .result 获取最终结果。
+ *
+ * 注意：此实现仅支持单个消费者。如果多个消费者同时迭代，
+ * 后注册的等待回调会覆盖先注册的，导致前一个消费者挂起。
+ * 这是设计意图 —— 每个 EventStream 实例对应一个 Agent 执行上下文。
  */
 export class EventStream implements AsyncIterable<AgentEvent> {
   private readonly _events: AgentEvent[] = [];

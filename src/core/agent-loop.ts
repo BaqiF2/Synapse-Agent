@@ -249,7 +249,10 @@ async function callProvider(
   };
 
   const llmStream = provider.generate(params);
-  // 消费流（即使我们主要使用 .result）
+  // 必须消费迭代器，否则 async function* 生成器不会执行，.result 永远不会 resolve
+  for await (const _chunk of llmStream) {
+    // 消费所有 chunk，确保生成器完整执行
+  }
   const response = await (llmStream as { result: Promise<LLMResponse> }).result;
   return response;
 }

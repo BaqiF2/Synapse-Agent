@@ -21,10 +21,11 @@ import { AuthenticationError, RateLimitError } from '../../common/errors.ts';
 import {
   toAnthropicParams,
   mapAnthropicStreamEvent,
+  mapStopReason,
 } from './anthropic-mapper.ts';
-import { createLogger } from '../../utils/logger.ts';
+import { createLogger } from '../../common/index.ts';
 
-const logger = createLogger('anthropic-provider');
+const logger = createLogger({ name: 'anthropic-provider' });
 
 /** AnthropicProvider 构造选项 */
 export interface AnthropicProviderOptions {
@@ -209,20 +210,6 @@ export class AnthropicProvider implements LLMProvider {
       return error;
     }
     return new Error(String(error));
-  }
-}
-
-/** 映射 Anthropic 停止原因到统一格式 */
-function mapStopReason(
-  reason: string | null,
-): 'end_turn' | 'tool_use' | 'max_tokens' {
-  switch (reason) {
-    case 'tool_use':
-      return 'tool_use';
-    case 'max_tokens':
-      return 'max_tokens';
-    default:
-      return 'end_turn';
   }
 }
 

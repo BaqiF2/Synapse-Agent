@@ -88,16 +88,13 @@ export class GoogleProvider implements LLMProvider {
 
             if (candidate.content?.parts) {
               for (const part of candidate.content.parts) {
-                if (part.text !== undefined) {
+                if (part.thought === true && part.text !== undefined) {
+                  // thinking 部分（Google 用 thought=true 标记），仅发送 thinking_delta
+                  yield { type: 'thinking_delta', content: part.text };
+                } else if (part.text !== undefined) {
                   textBuffer += part.text;
                   hasText = true;
                   yield { type: 'text_delta', text: part.text };
-                }
-
-                if (part.thought === true && part.text !== undefined) {
-                  // 这是 thinking 部分（Google 用 thought=true 标记）
-                  // 注意：上面已经 yield 过 text_delta 了，这里补发 thinking_delta
-                  yield { type: 'thinking_delta', content: part.text };
                 }
 
                 if (part.functionCall) {
