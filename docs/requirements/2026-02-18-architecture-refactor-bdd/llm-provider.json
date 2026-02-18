@@ -3,7 +3,7 @@
     "category": "functional",
     "feature": "统一 LLM Provider 接口",
     "description": "Provider 无关的 LLMProvider 接口，支持 Anthropic/OpenAI/Google 三家",
-    "overallPass": false,
+    "overallPass": true,
     "bdd": [
       {
         "scenario": "Anthropic Provider 生成文本响应",
@@ -23,7 +23,7 @@
             "LLMResponse.usage 包含 inputTokens 和 outputTokens"
           ]
         },
-        "passes": false
+        "passes": true
       },
       {
         "scenario": "OpenAI Provider 生成文本响应",
@@ -42,7 +42,7 @@
             "LLMResponse 格式与 Anthropic Provider 返回的结构一致"
           ]
         },
-        "passes": false
+        "passes": true
       },
       {
         "scenario": "Google Provider 生成文本响应",
@@ -61,7 +61,7 @@
             "LLMResponse 格式与 Anthropic/OpenAI Provider 返回的结构一致"
           ]
         },
-        "passes": false
+        "passes": true
       },
       {
         "scenario": "Provider 统一处理工具调用",
@@ -82,7 +82,7 @@
             "格式与 Provider 无关（统一标准格式）"
           ]
         },
-        "passes": false
+        "passes": true
       },
       {
         "scenario": "Provider 统一处理思考块",
@@ -100,7 +100,7 @@
             "LLMResponse.content 中包含 thinking 类型的 ContentBlock"
           ]
         },
-        "passes": false
+        "passes": true
       },
       {
         "scenario": "运行时切换 Provider",
@@ -120,7 +120,7 @@
             "不需要修改 Agent 代码"
           ]
         },
-        "passes": false
+        "passes": true
       },
       {
         "scenario": "API Key 无效时抛出 AuthenticationError",
@@ -137,7 +137,7 @@
             "错误信息包含 Provider 名称"
           ]
         },
-        "passes": false
+        "passes": true
       },
       {
         "scenario": "速率限制时抛出 RateLimitError",
@@ -154,7 +154,7 @@
             "错误信息包含重试等待时间"
           ]
         },
-        "passes": false
+        "passes": true
       },
       {
         "scenario": "不支持思考模式的 Provider 忽略 thinking 参数",
@@ -172,7 +172,7 @@
             "不报错，不包含 thinking 类型的内容"
           ]
         },
-        "passes": false
+        "passes": true
       },
       {
         "scenario": "空工具列表正常调用",
@@ -190,7 +190,7 @@
             "不传递 tools 参数给底层 API"
           ]
         },
-        "passes": false
+        "passes": true
       }
     ]
   }

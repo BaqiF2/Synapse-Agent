@@ -3,7 +3,7 @@
     "category": "functional",
     "feature": "SubAgent 同步重构",
     "description": "SubAgent 系统适配新的 Agent Core 接口和事件系统",
-    "overallPass": false,
+    "overallPass": true,
     "bdd": [
       {
         "scenario": "SubAgent 使用 Agent Core 接口创建",
@@ -22,7 +22,7 @@
             "SubAgent 使用标准 AgentConfig 创建"
           ]
         },
-        "passes": false
+        "passes": true
       },
       {
         "scenario": "SubAgent 产生独立的 EventStream",
@@ -41,7 +41,7 @@
             "父 Agent 可以迭代该事件流并转发事件"
           ]
         },
-        "passes": false
+        "passes": true
       },
       {
         "scenario": "SubAgent 工具权限隔离",
@@ -58,7 +58,7 @@
             "SubAgent 不能使用 write、edit 等写入工具"
           ]
         },
-        "passes": false
+        "passes": true
       },
       {
         "scenario": "SubAgent 生命周期独立",
@@ -76,7 +76,7 @@
             "父 Agent 继续正常运行"
           ]
         },
-        "passes": false
+        "passes": true
       },
       {
         "scenario": "SubAgent 超时中止",
@@ -95,7 +95,7 @@
             "父 Agent 正常继续运行"
           ]
         },
-        "passes": false
+        "passes": true
       }
     ]
   }

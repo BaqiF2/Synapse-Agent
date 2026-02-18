@@ -3,7 +3,7 @@
     "category": "functional",
     "feature": "EventStream 事件系统",
     "description": "Agent Core 采用 EventStream 异步迭代器模式，定义细粒度事件类型，解耦 UI 层",
-    "overallPass": false,
+    "overallPass": true,
     "bdd": [
       {
         "scenario": "Agent 运行产生完整事件序列",
@@ -24,7 +24,7 @@
             "EventStream.result 返回最终文本响应"
           ]
         },
-        "passes": false
+        "passes": true
       },
       {
         "scenario": "工具调用产生 tool_start 和 tool_end 事件",
@@ -43,7 +43,7 @@
             "tool_end 事件包含 toolName、toolId、output、isError: false、duration > 0"
           ]
         },
-        "passes": false
+        "passes": true
       },
       {
         "scenario": "EventStream 支持 async iteration",
@@ -60,7 +60,7 @@
             "迭代完成后循环正常退出"
           ]
         },
-        "passes": false
+        "passes": true
       },
       {
         "scenario": "EventStream.result 获取最终结果",
@@ -78,7 +78,7 @@
             "可以不迭代事件而直接获取结果"
           ]
         },
-        "passes": false
+        "passes": true
       },
       {
         "scenario": "EventStream 支持 AbortSignal 中止",
@@ -98,7 +98,7 @@
             "EventStream.result 返回中止前的部分结果或拒绝"
           ]
         },
-        "passes": false
+        "passes": true
       },
       {
         "scenario": "Agent Loop 不持有 UI 引用",
@@ -116,7 +116,7 @@
             "不存在 console.log 等直接输出语句（应通过事件系统）"
           ]
         },
-        "passes": false
+        "passes": true
       },
       {
         "scenario": "LLM 错误产生可恢复 error 事件",
@@ -134,7 +134,7 @@
             "Agent Loop 根据配置决定重试或终止"
           ]
         },
-        "passes": false
+        "passes": true
       },
       {
         "scenario": "连续工具失败触发不可恢复错误",
@@ -154,7 +154,7 @@
             "agent_end 事件包含失败原因"
           ]
         },
-        "passes": false
+        "passes": true
       },
       {
         "scenario": "上下文管理触发 context_management 事件",
@@ -172,7 +172,7 @@
             "事件包含 action ('offload' 或 'compact') 和 details"
           ]
         },
-        "passes": false
+        "passes": true
       },
       {
         "scenario": "thinking 事件在扩展思考模式下产生",
@@ -188,7 +188,7 @@
             "EventStream 产生 thinking 事件，包含思考内容"
           ]
         },
-        "passes": false
+        "passes": true
       }
     ]
   }

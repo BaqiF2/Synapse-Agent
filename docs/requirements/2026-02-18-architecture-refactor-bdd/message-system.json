@@ -3,7 +3,7 @@
     "category": "functional",
     "feature": "两层消息系统",
     "description": "领域消息层 + LLM 消息层 + convertToLlm() 显式转换",
-    "overallPass": false,
+    "overallPass": true,
     "bdd": [
       {
         "scenario": "创建领域消息包含完整元数据",
@@ -22,7 +22,7 @@
             "消息创建后不可变（修改会报错或生成新实例）"
           ]
         },
-        "passes": false
+        "passes": true
       },
       {
         "scenario": "convertToLlm 转换标准消息",
@@ -40,7 +40,7 @@
             "不包含 id、timestamp、metadata 字段"
           ]
         },
-        "passes": false
+        "passes": true
       },
       {
         "scenario": "convertToLlm 过滤领域专属消息类型",
@@ -57,7 +57,7 @@
             "其他标准类型的 block 正常保留"
           ]
         },
-        "passes": false
+        "passes": true
       },
       {
         "scenario": "convertToLlm 将 context_summary 转换为文本",
@@ -74,7 +74,7 @@
             "text 内容包含摘要信息"
           ]
         },
-        "passes": false
+        "passes": true
       },
       {
         "scenario": "convertToLlm 支持 filterTypes 选项",
@@ -91,7 +91,7 @@
             "其他类型的 block 正常保留"
           ]
         },
-        "passes": false
+        "passes": true
       },
       {
         "scenario": "convertToLlm 支持 maxMessages 选项",
@@ -107,7 +107,7 @@
             "返回最近 5 条消息对应的 LLMMessage"
           ]
         },
-        "passes": false
+        "passes": true
       },
       {
         "scenario": "convertToLlm 处理空消息列表",
@@ -123,7 +123,7 @@
             "返回空数组 []"
           ]
         },
-        "passes": false
+        "passes": true
       },
       {
         "scenario": "convertToLlm 忽略未知 ContentBlock 类型",
@@ -141,7 +141,7 @@
             "其他 block 正常转换"
           ]
         },
-        "passes": false
+        "passes": true
       },
       {
         "scenario": "convertToLlm 是纯函数",
@@ -158,7 +158,7 @@
             "原始 DomainMessage 数组未被修改"
           ]
         },
-        "passes": false
+        "passes": true
       },
       {
         "scenario": "声明合并扩展新的 ContentBlock 类型",
@@ -176,7 +176,7 @@
             "convertToLlm 将其过滤或按注册规则转换"
           ]
         },
-        "passes": false
+        "passes": true
       }
     ]
   }

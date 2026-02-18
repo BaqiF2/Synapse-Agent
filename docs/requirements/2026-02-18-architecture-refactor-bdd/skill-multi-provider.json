@@ -3,7 +3,7 @@
     "category": "functional",
     "feature": "技能系统多 Provider 适配",
     "description": "SkillGenerator/SkillEnhancer 通过统一 LLMProvider 接口工作",
-    "overallPass": false,
+    "overallPass": true,
     "bdd": [
       {
         "scenario": "SkillGenerator 使用 LLMProvider 接口",
@@ -22,7 +22,7 @@
             "成功生成技能定义"
           ]
         },
-        "passes": false
+        "passes": true
       },
       {
         "scenario": "SkillEnhancer 使用 LLMProvider 接口",
@@ -41,7 +41,7 @@
             "返回增强后的技能"
           ]
         },
-        "passes": false
+        "passes": true
       },
       {
         "scenario": "Provider 不支持 embedding 时降级",
@@ -59,7 +59,7 @@
             "搜索功能正常可用（精度可能降低）"
           ]
         },
-        "passes": false
+        "passes": true
       }
     ]
   }

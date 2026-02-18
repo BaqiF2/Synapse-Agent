@@ -3,7 +3,7 @@
     "category": "functional",
     "feature": "模块导出边界",
     "description": "每个模块通过 index.ts 统一导出公共接口，禁止跨模块引用内部文件",
-    "overallPass": false,
+    "overallPass": true,
     "bdd": [
       {
         "scenario": "core 模块不依赖 cli 模块",
@@ -21,7 +21,7 @@
             "不存在从 core/ 到 sub-agents/ 的 import"
           ]
         },
-        "passes": false
+        "passes": true
       },
       {
         "scenario": "providers 模块不依赖 tools 模块",
@@ -39,7 +39,7 @@
             "不存在从 providers/ 到 cli/ 的 import"
           ]
         },
-        "passes": false
+        "passes": true
       },
       {
         "scenario": "模块间只通过 index.ts 引用",
@@ -56,7 +56,7 @@
             "不存在 import { X } from '../module/internal-file' 形式"
           ]
         },
-        "passes": false
+        "passes": true
       },
       {
         "scenario": "每个模块有 index.ts 导出文件",
@@ -72,7 +72,7 @@
             "core/、providers/、tools/、skills/、sub-agents/、cli/、config/ 均包含 index.ts"
           ]
         },
-        "passes": false
+        "passes": true
       },
       {
         "scenario": "依赖方向符合架构约束",
@@ -89,7 +89,7 @@
             "不存在循环依赖"
           ]
         },
-        "passes": false
+        "passes": true
       }
     ]
   }

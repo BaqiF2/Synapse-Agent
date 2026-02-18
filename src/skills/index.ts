@@ -40,6 +40,7 @@ export {
   SkillLoader,
   type SkillLevel1,
   type SkillLevel2,
+  type ProviderSearchResult,
 } from './skill-loader.js';
 
 // Skill Management Types
@@ -84,6 +85,7 @@ export {
   type SkillSpec,
   type ScriptDef,
   type GenerationResult,
+  type ConversationMessage,
 } from './skill-generator.js';
 
 // Skill Enhancer

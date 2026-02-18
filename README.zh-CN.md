@@ -15,27 +15,49 @@
 ## 功能亮点
 
 - **统一 Shell 抽象**：三层工具体系（原生命令 / Agent Shell / 扩展工具），LLM 主要学习一个 Bash 风格接口
+- **多 Provider LLM 支持**：统一 `LLMProvider` 接口，内置 Anthropic、OpenAI、Google 适配器 — 运行时切换无需改代码
+- **事件驱动架构**：`EventStream` 异步可迭代流解耦 Agent Core 与 UI，支持灵活的消费模式
+- **模块化单体**：`dependency-cruiser` 架构适应度函数强制模块边界 — `core`、`providers`、`tools`、`skills`、`sub-agents` 各有清晰的依赖规则
+- **可插拔操作**：`FileOperations` / `BashOperations` 接口支持切换执行环境（本地、远程、沙箱）
+- **两层消息系统**：领域消息保留完整上下文，`convertToLlm()` 纯函数显式转换用于 LLM API 调用
 - **交互式 REPL**：支持流式输出、工具执行状态展示与斜杠命令
 - **MCP 与技能扩展**：可接入外部 MCP 工具与可复用本地技能
 - **会话持久化与恢复**：支持历史会话管理与恢复
 - **自动技能增强**：任务完成后可沉淀可复用技能
-- **子智能体支持**：内置 `explore`、`general`、`skill` 子智能体
+- **子智能体支持**：内置 `explore`、`general`、`skill` 子智能体，独立 EventStream 与工具权限隔离
 
 ## 核心架构
 
 ```text
-┌─────────────────────────────────────────────────────────┐
-│                      AgentRunner                        │
-│  ┌─────────────────────────────────────────────────┐   │
-│  │               三层工具路由 (BashRouter)          │   │
-│  │  ┌─────────┬─────────────────┬──────────────┐   │   │
-│  │  │ Layer 1 │     Layer 2     │   Layer 3    │   │   │
-│  │  │ Native  │   Agent Shell   │  Extension   │   │   │
-│  │  │ ls, git │ read,write,edit │ mcp:*, skill:*│   │   │
-│  │  └─────────┴─────────────────┴──────────────┘   │   │
-│  └─────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│                         cli (REPL)                           │
+│                     消费 EventStream                         │
+├──────────┬───────────┬───────────┬───────────┬──────────────┤
+│sub-agents│  skills   │   tools   │  config   │              │
+│          │           │ BashRouter│           │              │
+│          │           │ 三层路由   │           │              │
+├──────────┴─────┬─────┴─────┬─────┴───────────┴──────────────┤
+│     core       │ providers │                                │
+│  EventStream   │ Anthropic │                                │
+│  Agent Loop    │ OpenAI    │                                │
+│  Messages      │ Google    │                                │
+├────────────────┴───────────┴────────────────────────────────┤
+│                        common                                │
+│                  logger, errors, constants                    │
+└──────────────────────────────────────────────────────────────┘
 ```
+
+### 模块依赖规则
+
+| 模块 | 允许依赖 | 说明 |
+|------|---------|------|
+| `core` | `common` | 事件系统、Agent Loop、消息转换 |
+| `providers` | `common` | LLM Provider 适配器（Anthropic/OpenAI/Google） |
+| `tools` | `core`(types), `common` | 三层工具系统、可插拔操作 |
+| `skills` | `core`, `providers`, `common` | 技能生成与增强 |
+| `sub-agents` | `core`, `providers`, `tools`, `common` | 子智能体生命周期管理 |
+| `cli` | 所有模块 | 顶层消费者 |
+| `common` | （无） | 公共工具 |
 
 ## 安装与配置
 
@@ -94,8 +116,9 @@ LLM 配置位于 `~/.synapse/settings.json`：
 | `skillEnhance.autoEnhance` | 自动技能增强开关 |
 | `skillEnhance.maxEnhanceContextChars` | 技能增强分析上下文字符上限 |
 
-> 备注：Synapse Agent 支持 Anthropic API，也支持通过 `ANTHROPIC_BASE_URL` 接入 Anthropic 兼容接口。  
-> 作者日常使用的是 MiniMax（通过兼容接口方式接入）。
+> 备注：Synapse Agent 通过统一 `LLMProvider` 接口支持多个 LLM 供应商。
+> 内置适配器：**Anthropic**、**OpenAI**、**Google**。
+> 也支持通过 `ANTHROPIC_BASE_URL` 接入 Anthropic 兼容接口（如 MiniMax）。
 
 #### MiniMax（Anthropic 兼容）
 
@@ -240,23 +263,32 @@ bun run chat
 
 ```text
 ├── src/
-│   ├── agent/
-│   ├── cli/
-│   ├── config/
-│   ├── providers/
-│   ├── tools/
-│   ├── skills/
-│   ├── sub-agents/
-│   ├── utils/
-│   └── resource/
+│   ├── core/               # Agent Core：EventStream、Agent Loop、消息系统
+│   ├── providers/           # LLM Provider 适配器（Anthropic/OpenAI/Google）
+│   │   ├── anthropic/
+│   │   ├── openai/
+│   │   └── google/
+│   ├── tools/               # 三层工具系统
+│   │   ├── operations/      # 可插拔操作（FileOps/BashOps）
+│   │   ├── handlers/        # Agent Shell 命令处理器
+│   │   └── converters/      # MCP/Skill 转换器
+│   ├── skills/              # 技能生成与增强
+│   ├── sub-agents/          # 子智能体生命周期管理
+│   ├── common/              # 日志、错误、常量
+│   ├── cli/                 # REPL 与终端 UI
+│   ├── config/              # 配置管理
+│   ├── agent/               # 旧版 Agent Runner
+│   ├── utils/               # 工具函数
+│   └── resource/            # 系统提示词
 ├── tests/
-│   ├── unit/
-│   ├── e2e/
-│   └── fixtures/
+│   ├── unit/                # 单元测试（镜像 src/ 结构）
+│   ├── integration/         # 集成测试
+│   └── e2e/                 # 端到端 CLI 测试
+├── docs/
+│   ├── architecture/        # 架构设计与 ADR
+│   └── requirements/        # PRD 与 BDD 验收标准
 ├── assets/
 │   └── logo.png
-├── docs/
-├── examples/
 ├── README.md
 ├── README.zh-CN.md
 ├── CLAUDE.md
@@ -269,23 +301,28 @@ bun run chat
 ## 开发命令
 
 ```bash
-bun run lint
-bun run typecheck
-bun run test
-bun run test:cov
-bun run test:e2e
-bun run test:cli:e2e
+bun run lint          # ESLint（Flat Config，严格模式）
+bun run typecheck     # TypeScript 严格类型检查
+bun test              # 运行所有测试
+bun test tests/unit/  # 仅运行单元测试
+bun test tests/integration/  # 仅运行集成测试
+bun run test:arch     # 架构适应度测试（dependency-cruiser）
+bun run test:cov      # 测试 + 覆盖率报告
+bun run test:e2e      # 端到端测试
+bun run validate      # 运行所有检查（lint + typecheck + tests + arch）
 ```
 
 ## 技术栈
 
-- 运行时：Bun
-- 语言：TypeScript
-- LLM SDK：`@anthropic-ai/sdk`
+- 运行时：Bun 1.3.9
+- 语言：TypeScript（严格模式）
+- LLM SDK：`@anthropic-ai/sdk`、`openai`、`@google/genai`
 - MCP：`@modelcontextprotocol/sdk`
+- 验证：Zod
+- 日志：pino + pino-pretty
 - 终端 UI：Ink + `@inkjs/ui`
 - CLI：Commander.js
-- 验证：Zod
+- 架构测试：dependency-cruiser
 
 ## 灵感来源
 

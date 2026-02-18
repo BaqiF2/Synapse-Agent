@@ -2,7 +2,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { z } from 'zod';
-import type { TokenUsage } from '../providers/anthropic/anthropic-types.ts';
+import type { TokenUsage } from '../types/usage.ts';
 import { createLogger } from '../utils/logger.ts';
 
 const logger = createLogger('pricing');

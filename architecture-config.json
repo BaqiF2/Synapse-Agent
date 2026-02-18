@@ -1,0 +1,31 @@
+{
+  "required_dirs": [
+    "src/core",
+    "src/providers",
+    "src/tools",
+    "src/tools/operations",
+    "src/skills",
+    "src/sub-agents",
+    "src/cli",
+    "src/config",
+    "src/common",
+    "docs/architecture/adr",
+    "tests/unit",
+    "tests/integration"
+  ],
+  "required_files": [
+    "src/core/index.ts",
+    "src/providers/index.ts",
+    "src/common/index.ts",
+    "docs/architecture/2026-02-18-architecture-refactor-design.md",
+    ".dependency-cruiser.cjs",
+    "tsconfig.json",
+    "eslint.config.js",
+    "package.json"
+  ],
+  "test_mirror": {
+    "src_dir": "src",
+    "test_dir": "tests/unit"
+  },
+  "modules_dir": "src"
+}

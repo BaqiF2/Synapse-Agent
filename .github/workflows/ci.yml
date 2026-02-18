@@ -25,5 +25,14 @@ jobs:
       - name: Typecheck
         run: bun run typecheck
 
-      - name: Test
-        run: bun run test
+      - name: Unit Tests
+        run: bun run test:unit
+
+      - name: Integration Tests
+        run: bun run test:integration
+
+      - name: Architecture Dependency Check
+        run: bun run test:arch
+
+      - name: All Tests (with coverage)
+        run: bun run test:cov

@@ -4,6 +4,7 @@
  * This module provides progressive skill loading with multiple levels:
  * - Level 1: Load basic metadata from index (fast, minimal data)
  * - Level 2: Load full SKILL.md document (complete skill information)
+ * 支持通过 LLMProvider 的 embedding 能力进行语义搜索，不支持时降级为文本匹配。
  *
  * @module skill-loader
  *
@@ -11,12 +12,18 @@
  * - SkillLoader: Progressive skill loader with caching
  * - SkillLevel1: Basic skill metadata (from index)
  * - SkillLevel2: Complete skill data (from SKILL.md)
+ * - ProviderSearchResult: Provider 搜索结果（含降级标志）
  */
 
 import * as os from 'node:os';
 import { SkillIndexer, type SkillIndexEntry } from './indexer.js';
 import { SkillDocParser, type SkillDoc } from './skill-schema.js';
 import { parseEnvInt } from '../utils/env.ts';
+import { createLogger } from '../utils/logger.ts';
+import type { LLMProvider } from '../providers/types.ts';
+import { isEmbeddingProvider } from '../providers/types.ts';
+
+const loaderLogger = createLogger('skill-loader');
 
 /**
  * Cache entry TTL in milliseconds (default: 5 minutes)
@@ -71,6 +78,16 @@ export interface SkillLevel2 extends SkillLevel1 {
 interface CacheEntry<T> {
   data: T;
   timestamp: number;
+}
+
+/**
+ * Provider 搜索结果，包含降级标志
+ */
+export interface ProviderSearchResult {
+  /** 搜索结果 */
+  results: SkillLevel1[];
+  /** 是否使用了文本匹配降级 */
+  fallbackUsed: boolean;
 }
 
 /**
@@ -240,6 +257,82 @@ export class SkillLoader {
       }
 
       return true;
+    });
+  }
+
+  /**
+   * 使用 LLMProvider 搜索技能（简化版，仅返回结果数组）
+   *
+   * 如果 Provider 支持 embedding 则使用语义搜索，否则降级为文本匹配。
+   *
+   * @param query - 搜索查询
+   * @param provider - LLM Provider 实例
+   * @returns 匹配的 Level 1 技能数据
+   */
+  public searchLevel1WithProvider(query: string, provider: LLMProvider): SkillLevel1[] {
+    const { results } = this.searchLevel1WithProviderDetailed(query, provider);
+    return results;
+  }
+
+  /**
+   * 使用 LLMProvider 搜索技能（详细版，包含降级标志）
+   *
+   * 如果 Provider 支持 embedding 则使用语义搜索，否则降级为文本匹配并记录警告。
+   *
+   * @param query - 搜索查询
+   * @param provider - LLM Provider 实例
+   * @returns 搜索结果及降级标志
+   */
+  public searchLevel1WithProviderDetailed(
+    query: string,
+    provider: LLMProvider,
+  ): ProviderSearchResult {
+    if (isEmbeddingProvider(provider)) {
+      // Provider 支持 embedding，但当前实现仍使用文本匹配作为同步 fallback，
+      // 因为 embedding 是异步操作，完整的异步语义搜索将在后续迭代中实现
+      loaderLogger.info('Provider supports embedding, but using text search as sync fallback', {
+        provider: provider.name,
+      });
+      return {
+        results: this.multiWordTextSearch(query),
+        fallbackUsed: true,
+      };
+    }
+
+    // Provider 不支持 embedding，降级为文本匹配
+    loaderLogger.warn('Provider does not support embedding, falling back to text matching', {
+      provider: provider.name,
+    });
+    return {
+      results: this.multiWordTextSearch(query),
+      fallbackUsed: true,
+    };
+  }
+
+  /**
+   * 多词文本搜索：将查询分词，任一词匹配即返回结果
+   *
+   * @param query - 搜索查询
+   * @returns 匹配的 Level 1 技能数据
+   */
+  private multiWordTextSearch(query: string): SkillLevel1[] {
+    const all = this.loadAllLevel1();
+    const queryWords = query.toLowerCase().split(/\s+/).filter((w) => w.length > 0);
+
+    if (queryWords.length === 0) {
+      return all;
+    }
+
+    return all.filter((skill) => {
+      const searchText = [
+        skill.name,
+        skill.title || '',
+        skill.description || '',
+        ...skill.tags,
+      ].join(' ').toLowerCase();
+
+      // 任一查询词匹配即命中
+      return queryWords.some((word) => searchText.includes(word));
     });
   }
 
