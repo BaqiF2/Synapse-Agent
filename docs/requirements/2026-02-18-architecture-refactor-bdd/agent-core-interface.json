@@ -1,0 +1,99 @@
+[
+  {
+    "category": "functional",
+    "feature": "Agent Core 接口抽象",
+    "description": "定义 AgentConfig、AgentTool 等核心接口，Agent Loop 通过接口接收依赖",
+    "overallPass": false,
+    "bdd": [
+      {
+        "scenario": "AgentConfig 通过 Zod 验证",
+        "description": "验证 AgentConfig 的必填字段校验",
+        "steps": {
+          "given": [
+            "一个缺少 provider 字段的配置对象"
+          ],
+          "when": [
+            "尝试创建 Agent 实例"
+          ],
+          "then": [
+            "抛出 Zod 验证错误，明确指出缺少 provider 字段"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "工具名冲突检测",
+        "description": "验证注册同名工具时的冲突检测",
+        "steps": {
+          "given": [
+            "两个 AgentTool 实例，name 均为 'duplicate_tool'"
+          ],
+          "when": [
+            "将两个工具传入 AgentConfig.tools"
+          ],
+          "then": [
+            "在 Agent 启动前抛出配置错误，说明工具名 'duplicate_tool' 冲突"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "AgentTool.execute 不抛异常",
+        "description": "验证工具执行错误通过 ToolResult 返回而非抛异常",
+        "steps": {
+          "given": [
+            "一个 AgentTool 实现，内部发生运行时错误"
+          ],
+          "when": [
+            "Agent Loop 调用该工具的 execute() 方法"
+          ],
+          "then": [
+            "返回 ToolResult，isError 为 true",
+            "output 包含错误信息",
+            "Agent Loop 正常继续运行"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "Agent Loop 通过接口接收所有依赖",
+        "description": "验证 Agent Loop 不直接创建 Provider 或 Tool 实例",
+        "steps": {
+          "given": [
+            "Agent Core 模块的源代码"
+          ],
+          "when": [
+            "扫描 agent-loop.ts 中的 import 和实例化语句"
+          ],
+          "then": [
+            "不存在 new AnthropicClient() 或类似的具体 Provider 实例化",
+            "不存在 new BashTool() 或类似的具体工具实例化",
+            "所有依赖通过 AgentConfig 参数传入"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "使用 Mock 依赖独立测试 Agent Loop",
+        "description": "验证 Agent Core 可通过 Mock 依赖独立测试",
+        "steps": {
+          "given": [
+            "一个 Mock LLMProvider，返回预设响应",
+            "一个 Mock AgentTool，返回预设结果",
+            "一个完整的 AgentConfig"
+          ],
+          "when": [
+            "调用 Agent Loop 处理用户消息"
+          ],
+          "then": [
+            "Agent Loop 完整运行",
+            "不需要真实 LLM API 调用",
+            "不需要真实文件系统操作",
+            "返回预期结果"
+          ]
+        },
+        "passes": false
+      }
+    ]
+  }
+]

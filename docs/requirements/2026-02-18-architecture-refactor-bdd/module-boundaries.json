@@ -1,0 +1,96 @@
+[
+  {
+    "category": "functional",
+    "feature": "模块导出边界",
+    "description": "每个模块通过 index.ts 统一导出公共接口，禁止跨模块引用内部文件",
+    "overallPass": false,
+    "bdd": [
+      {
+        "scenario": "core 模块不依赖 cli 模块",
+        "description": "验证 Agent Core 与 CLI 层的依赖方向",
+        "steps": {
+          "given": [
+            "core/ 目录下的所有 TypeScript 源文件"
+          ],
+          "when": [
+            "扫描所有 import 语句"
+          ],
+          "then": [
+            "不存在从 core/ 到 cli/ 的 import",
+            "不存在从 core/ 到 skills/ 的 import",
+            "不存在从 core/ 到 sub-agents/ 的 import"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "providers 模块不依赖 tools 模块",
+        "description": "验证 Provider 层与工具层的独立性",
+        "steps": {
+          "given": [
+            "providers/ 目录下的所有 TypeScript 源文件"
+          ],
+          "when": [
+            "扫描所有 import 语句"
+          ],
+          "then": [
+            "不存在从 providers/ 到 tools/ 的 import",
+            "不存在从 providers/ 到 skills/ 的 import",
+            "不存在从 providers/ 到 cli/ 的 import"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "模块间只通过 index.ts 引用",
+        "description": "验证模块间不存在直接引用内部文件",
+        "steps": {
+          "given": [
+            "src/ 下所有 TypeScript 源文件"
+          ],
+          "when": [
+            "扫描所有跨模块 import 语句"
+          ],
+          "then": [
+            "所有跨模块 import 的路径均指向模块根目录（即 index.ts）",
+            "不存在 import { X } from '../module/internal-file' 形式"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "每个模块有 index.ts 导出文件",
+        "description": "验证所有模块都有统一的导出入口",
+        "steps": {
+          "given": [
+            "src/ 下的一级子目录列表"
+          ],
+          "when": [
+            "检查每个目录是否包含 index.ts"
+          ],
+          "then": [
+            "core/、providers/、tools/、skills/、sub-agents/、cli/、config/ 均包含 index.ts"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "依赖方向符合架构约束",
+        "description": "验证完整的模块依赖图",
+        "steps": {
+          "given": [
+            "预定义的合法依赖规则：cli → all, sub-agents → core/providers/tools, skills → core/providers, tools → core/providers(types), providers → none, core → none, config → none"
+          ],
+          "when": [
+            "扫描所有跨模块 import 并构建依赖图"
+          ],
+          "then": [
+            "实际依赖图中不存在违反预定义规则的边",
+            "不存在循环依赖"
+          ]
+        },
+        "passes": false
+      }
+    ]
+  }
+]

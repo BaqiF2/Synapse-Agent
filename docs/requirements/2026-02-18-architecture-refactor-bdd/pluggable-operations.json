@@ -1,0 +1,170 @@
+[
+  {
+    "category": "functional",
+    "feature": "工具可插拔操作",
+    "description": "FileOperations/BashOperations 接口 + LocalOperations 默认实现",
+    "overallPass": false,
+    "bdd": [
+      {
+        "scenario": "LocalFileOperations 读取文件",
+        "description": "验证本地文件读取操作",
+        "steps": {
+          "given": [
+            "已创建 LocalFileOperations 实例",
+            "存在一个测试文件 /tmp/test.txt，内容为 'hello'"
+          ],
+          "when": [
+            "调用 fileOps.readFile('/tmp/test.txt')"
+          ],
+          "then": [
+            "返回字符串 'hello'"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "LocalFileOperations 读取不存在的文件",
+        "description": "验证文件不存在时的错误处理",
+        "steps": {
+          "given": [
+            "已创建 LocalFileOperations 实例",
+            "文件 /tmp/nonexistent.txt 不存在"
+          ],
+          "when": [
+            "调用 fileOps.readFile('/tmp/nonexistent.txt')"
+          ],
+          "then": [
+            "抛出 FileNotFoundError"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "LocalFileOperations 写入文件",
+        "description": "验证本地文件写入操作",
+        "steps": {
+          "given": [
+            "已创建 LocalFileOperations 实例"
+          ],
+          "when": [
+            "调用 fileOps.writeFile('/tmp/output.txt', 'content')"
+          ],
+          "then": [
+            "文件 /tmp/output.txt 被创建",
+            "文件内容为 'content'"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "LocalBashOperations 执行命令",
+        "description": "验证本地 Bash 命令执行",
+        "steps": {
+          "given": [
+            "已创建 LocalBashOperations 实例"
+          ],
+          "when": [
+            "调用 bashOps.execute('echo hello')"
+          ],
+          "then": [
+            "返回 ExecResult",
+            "stdout 包含 'hello'",
+            "exitCode 为 0",
+            "duration > 0"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "LocalBashOperations 命令超时",
+        "description": "验证命令超时的处理",
+        "steps": {
+          "given": [
+            "已创建 LocalBashOperations 实例"
+          ],
+          "when": [
+            "调用 bashOps.execute('sleep 10', { timeout: 100 })"
+          ],
+          "then": [
+            "抛出 TimeoutError",
+            "sleep 进程被终止"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "Agent Shell Command 使用注入的 Operations",
+        "description": "验证工具处理器通过注入的 Operations 执行操作",
+        "steps": {
+          "given": [
+            "已创建 Mock FileOperations 实例",
+            "已创建 ReadHandler，注入 Mock FileOperations"
+          ],
+          "when": [
+            "调用 ReadHandler.execute('read /path/to/file')"
+          ],
+          "then": [
+            "Mock FileOperations.readFile 被调用，参数为 '/path/to/file'",
+            "ReadHandler 返回 Mock 的文件内容"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "Native Shell Command 使用注入的 BashOperations",
+        "description": "验证原生命令通过 BashOperations 执行",
+        "steps": {
+          "given": [
+            "已创建 Mock BashOperations 实例",
+            "已配置 BashRouter 使用 Mock BashOperations"
+          ],
+          "when": [
+            "路由一条原生命令 'ls -la'"
+          ],
+          "then": [
+            "Mock BashOperations.execute 被调用，参数包含 'ls -la'",
+            "返回 Mock 的执行结果"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "BashRouter 三层路由不受 Operations 影响",
+        "description": "验证三层路由逻辑独立于 Operations 实现",
+        "steps": {
+          "given": [
+            "已配置 BashRouter，使用 Mock Operations"
+          ],
+          "when": [
+            "分别路由 'ls'（Layer 1）、'read file'（Layer 2）、'mcp:tool'（Layer 3）"
+          ],
+          "then": [
+            "'ls' 路由到 NativeShellCommandHandler",
+            "'read file' 路由到 ReadHandler",
+            "'mcp:tool' 路由到 McpCommandHandler",
+            "路由逻辑与 Operations 无关"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "Operations 实例运行中不可切换",
+        "description": "验证 Operations 在 Agent 运行期间固定",
+        "steps": {
+          "given": [
+            "已通过 AgentConfig 传入 LocalOperations",
+            "Agent Loop 正在运行"
+          ],
+          "when": [
+            "Agent Loop 执行多个工具调用"
+          ],
+          "then": [
+            "所有工具调用使用相同的 Operations 实例",
+            "Operations 实例在整个 Agent 生命周期内不变"
+          ]
+        },
+        "passes": false
+      }
+    ]
+  }
+]

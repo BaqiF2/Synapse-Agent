@@ -1,0 +1,197 @@
+[
+  {
+    "category": "functional",
+    "feature": "统一 LLM Provider 接口",
+    "description": "Provider 无关的 LLMProvider 接口，支持 Anthropic/OpenAI/Google 三家",
+    "overallPass": false,
+    "bdd": [
+      {
+        "scenario": "Anthropic Provider 生成文本响应",
+        "description": "验证 Anthropic Provider 实现能正确生成文本响应",
+        "steps": {
+          "given": [
+            "已配置 Anthropic Provider，使用有效的 API Key",
+            "已准备 GenerateParams，包含系统提示词和用户消息"
+          ],
+          "when": [
+            "调用 provider.generate(params)"
+          ],
+          "then": [
+            "返回 LLMStream，可通过 async iteration 获取流式 chunk",
+            "LLMStream.result 返回 LLMResponse",
+            "LLMResponse.content 包含至少一个 text 类型的 ContentBlock",
+            "LLMResponse.usage 包含 inputTokens 和 outputTokens"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "OpenAI Provider 生成文本响应",
+        "description": "验证 OpenAI Provider 实现能正确生成文本响应",
+        "steps": {
+          "given": [
+            "已配置 OpenAI Provider，使用有效的 API Key",
+            "已准备 GenerateParams，包含系统提示词和用户消息"
+          ],
+          "when": [
+            "调用 provider.generate(params)"
+          ],
+          "then": [
+            "返回 LLMStream，可通过 async iteration 获取流式 chunk",
+            "LLMStream.result 返回 LLMResponse",
+            "LLMResponse 格式与 Anthropic Provider 返回的结构一致"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "Google Provider 生成文本响应",
+        "description": "验证 Google Provider 实现能正确生成文本响应",
+        "steps": {
+          "given": [
+            "已配置 Google Provider，使用有效的 API Key",
+            "已准备 GenerateParams，包含系统提示词和用户消息"
+          ],
+          "when": [
+            "调用 provider.generate(params)"
+          ],
+          "then": [
+            "返回 LLMStream，可通过 async iteration 获取流式 chunk",
+            "LLMStream.result 返回 LLMResponse",
+            "LLMResponse 格式与 Anthropic/OpenAI Provider 返回的结构一致"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "Provider 统一处理工具调用",
+        "description": "验证所有 Provider 以统一格式返回工具调用请求",
+        "steps": {
+          "given": [
+            "已配置任一 Provider",
+            "已传入 LLMToolDefinition 列表",
+            "LLM 模型决定调用工具"
+          ],
+          "when": [
+            "调用 provider.generate(params)"
+          ],
+          "then": [
+            "LLMResponse.content 包含 tool_use 类型的 ContentBlock",
+            "tool_use block 包含 id、name、input 字段",
+            "stopReason 为 'tool_use'",
+            "格式与 Provider 无关（统一标准格式）"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "Provider 统一处理思考块",
+        "description": "验证支持思考模式的 Provider 统一返回 thinking 类型",
+        "steps": {
+          "given": [
+            "已配置支持思考模式的 Provider",
+            "GenerateParams 中 thinking.effort = 'high'"
+          ],
+          "when": [
+            "调用 provider.generate(params)"
+          ],
+          "then": [
+            "LLMStream 中包含 thinking_delta 类型的 chunk",
+            "LLMResponse.content 中包含 thinking 类型的 ContentBlock"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "运行时切换 Provider",
+        "description": "验证可以在运行时切换不同的 LLM Provider",
+        "steps": {
+          "given": [
+            "已创建 Anthropic Provider 实例",
+            "已创建 OpenAI Provider 实例"
+          ],
+          "when": [
+            "使用 Anthropic Provider 执行第一次 Agent 循环",
+            "切换为 OpenAI Provider 执行第二次 Agent 循环"
+          ],
+          "then": [
+            "两次循环均正常完成",
+            "返回的结果格式一致",
+            "不需要修改 Agent 代码"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "API Key 无效时抛出 AuthenticationError",
+        "description": "验证认证失败的错误处理",
+        "steps": {
+          "given": [
+            "已配置 Provider，使用无效的 API Key"
+          ],
+          "when": [
+            "调用 provider.generate(params)"
+          ],
+          "then": [
+            "抛出 AuthenticationError",
+            "错误信息包含 Provider 名称"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "速率限制时抛出 RateLimitError",
+        "description": "验证速率限制的错误处理",
+        "steps": {
+          "given": [
+            "已配置 Mock Provider，返回 429 状态码和 retry-after 头"
+          ],
+          "when": [
+            "调用 provider.generate(params)"
+          ],
+          "then": [
+            "抛出 RateLimitError",
+            "错误信息包含重试等待时间"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "不支持思考模式的 Provider 忽略 thinking 参数",
+        "description": "验证不支持思考模式的 Provider 的降级行为",
+        "steps": {
+          "given": [
+            "已配置不支持思考模式的 Provider",
+            "GenerateParams 中设置了 thinking.effort"
+          ],
+          "when": [
+            "调用 provider.generate(params)"
+          ],
+          "then": [
+            "正常返回文本响应",
+            "不报错，不包含 thinking 类型的内容"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "空工具列表正常调用",
+        "description": "验证不传递工具定义时的行为",
+        "steps": {
+          "given": [
+            "已配置任一 Provider",
+            "GenerateParams 中 tools 为空数组或 undefined"
+          ],
+          "when": [
+            "调用 provider.generate(params)"
+          ],
+          "then": [
+            "正常返回文本响应",
+            "不传递 tools 参数给底层 API"
+          ]
+        },
+        "passes": false
+      }
+    ]
+  }
+]

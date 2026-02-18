@@ -1,0 +1,102 @@
+[
+  {
+    "category": "functional",
+    "feature": "SubAgent 同步重构",
+    "description": "SubAgent 系统适配新的 Agent Core 接口和事件系统",
+    "overallPass": false,
+    "bdd": [
+      {
+        "scenario": "SubAgent 使用 Agent Core 接口创建",
+        "description": "验证 SubAgent 通过标准 Agent Core 接口创建",
+        "steps": {
+          "given": [
+            "已配置父 Agent 的 LLMProvider 和工具集",
+            "SubAgent 类型为 'explore'"
+          ],
+          "when": [
+            "创建 SubAgent 实例"
+          ],
+          "then": [
+            "SubAgent 使用与父 Agent 相同的 LLMProvider",
+            "SubAgent 的工具集是父 Agent 工具集的子集（根据 explore 权限过滤）",
+            "SubAgent 使用标准 AgentConfig 创建"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "SubAgent 产生独立的 EventStream",
+        "description": "验证 SubAgent 产生可被父 Agent 消费的事件流",
+        "steps": {
+          "given": [
+            "已创建 SubAgent 实例",
+            "Mock LLMProvider 配置为返回简单文本响应"
+          ],
+          "when": [
+            "执行 SubAgent 任务"
+          ],
+          "then": [
+            "SubAgent 返回 EventStream<AgentEvent>",
+            "事件流包含完整的 agent_start → ... → agent_end 序列",
+            "父 Agent 可以迭代该事件流并转发事件"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "SubAgent 工具权限隔离",
+        "description": "验证不同类型的 SubAgent 有不同的工具权限",
+        "steps": {
+          "given": [
+            "父 Agent 拥有 read、write、edit、bash 等工具"
+          ],
+          "when": [
+            "创建 type 为 'explore' 的 SubAgent"
+          ],
+          "then": [
+            "SubAgent 只能使用 read、glob、search、bash 等只读工具",
+            "SubAgent 不能使用 write、edit 等写入工具"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "SubAgent 生命周期独立",
+        "description": "验证 SubAgent 完成后正确清理资源",
+        "steps": {
+          "given": [
+            "已创建并运行一个 SubAgent"
+          ],
+          "when": [
+            "SubAgent 执行完成"
+          ],
+          "then": [
+            "SubAgent 的 EventStream 正常终止",
+            "SubAgent 不再持有任何资源",
+            "父 Agent 继续正常运行"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "SubAgent 超时中止",
+        "description": "验证 SubAgent 超时时的中止行为",
+        "steps": {
+          "given": [
+            "已创建 SubAgent，配置较短的超时时间",
+            "Mock LLMProvider 配置较长的响应延迟"
+          ],
+          "when": [
+            "SubAgent 执行时间超过超时限制"
+          ],
+          "then": [
+            "SubAgent 通过 AbortSignal 被中止",
+            "返回部分结果或错误信息",
+            "父 Agent 正常继续运行"
+          ]
+        },
+        "passes": false
+      }
+    ]
+  }
+]

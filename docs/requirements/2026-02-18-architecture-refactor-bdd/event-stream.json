@@ -1,0 +1,195 @@
+[
+  {
+    "category": "functional",
+    "feature": "EventStream 事件系统",
+    "description": "Agent Core 采用 EventStream 异步迭代器模式，定义细粒度事件类型，解耦 UI 层",
+    "overallPass": false,
+    "bdd": [
+      {
+        "scenario": "Agent 运行产生完整事件序列",
+        "description": "验证 Agent 从启动到结束产生正确的事件序列",
+        "steps": {
+          "given": [
+            "已配置一个 Mock LLMProvider，返回固定文本响应",
+            "已注册零个工具",
+            "已创建 AgentConfig"
+          ],
+          "when": [
+            "调用 Agent Loop 处理用户消息 'Hello'"
+          ],
+          "then": [
+            "EventStream 按顺序产生事件：agent_start → turn_start → message_start → message_delta → message_end → turn_end → agent_end",
+            "agent_start 事件包含 sessionId 和 config",
+            "agent_end 事件包含 result 和 usage",
+            "EventStream.result 返回最终文本响应"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "工具调用产生 tool_start 和 tool_end 事件",
+        "description": "验证工具执行时产生正确的工具事件",
+        "steps": {
+          "given": [
+            "已配置一个 Mock LLMProvider，首次返回工具调用请求，第二次返回文本响应",
+            "已注册一个 Mock 工具 'test_tool'，返回固定输出"
+          ],
+          "when": [
+            "调用 Agent Loop 处理用户消息"
+          ],
+          "then": [
+            "EventStream 在两次 turn 之间产生 tool_start 和 tool_end 事件",
+            "tool_start 事件包含 toolName、toolId、input",
+            "tool_end 事件包含 toolName、toolId、output、isError: false、duration > 0"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "EventStream 支持 async iteration",
+        "description": "验证 EventStream 实现了 AsyncIterable 协议",
+        "steps": {
+          "given": [
+            "已创建一个 Agent EventStream"
+          ],
+          "when": [
+            "使用 for await...of 迭代 EventStream"
+          ],
+          "then": [
+            "能够依次接收所有事件",
+            "迭代完成后循环正常退出"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "EventStream.result 获取最终结果",
+        "description": "验证 EventStream 支持通过 .result 获取最终结果",
+        "steps": {
+          "given": [
+            "已创建一个 Agent EventStream",
+            "Agent 正在运行"
+          ],
+          "when": [
+            "调用 await eventStream.result"
+          ],
+          "then": [
+            "返回 Agent 的最终文本响应",
+            "可以不迭代事件而直接获取结果"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "EventStream 支持 AbortSignal 中止",
+        "description": "验证通过 AbortSignal 可以中止正在运行的 Agent",
+        "steps": {
+          "given": [
+            "已配置一个 Mock LLMProvider，设置较长延迟",
+            "已创建 AbortController"
+          ],
+          "when": [
+            "调用 Agent Loop 并传入 abortSignal",
+            "在 Agent 运行中调用 abortController.abort()"
+          ],
+          "then": [
+            "EventStream 产生 error 事件，类型为 abort",
+            "EventStream 迭代正常终止",
+            "EventStream.result 返回中止前的部分结果或拒绝"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "Agent Loop 不持有 UI 引用",
+        "description": "验证 Agent Core 与 UI 层完全解耦",
+        "steps": {
+          "given": [
+            "Agent Core 模块的所有源文件"
+          ],
+          "when": [
+            "扫描 core/ 目录下所有 import 语句"
+          ],
+          "then": [
+            "不存在对 cli/ 模块的引用",
+            "不存在对 TerminalRenderer 或任何 UI 组件的引用",
+            "不存在 console.log 等直接输出语句（应通过事件系统）"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "LLM 错误产生可恢复 error 事件",
+        "description": "验证 LLM 调用失败时产生正确的错误事件",
+        "steps": {
+          "given": [
+            "已配置一个 Mock LLMProvider，首次调用抛出 API 错误"
+          ],
+          "when": [
+            "调用 Agent Loop 处理用户消息"
+          ],
+          "then": [
+            "EventStream 产生 error 事件",
+            "error 事件的 recoverable 字段为 true",
+            "Agent Loop 根据配置决定重试或终止"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "连续工具失败触发不可恢复错误",
+        "description": "验证连续工具失败超过阈值时终止 Agent",
+        "steps": {
+          "given": [
+            "已配置 maxConsecutiveFailures = 3",
+            "已注册一个始终失败的 Mock 工具",
+            "Mock LLMProvider 持续请求调用该工具"
+          ],
+          "when": [
+            "调用 Agent Loop 处理用户消息"
+          ],
+          "then": [
+            "在第 3 次工具失败后产生 error 事件，recoverable: false",
+            "Agent Loop 终止",
+            "agent_end 事件包含失败原因"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "上下文管理触发 context_management 事件",
+        "description": "验证上下文 offload/compact 操作产生对应事件",
+        "steps": {
+          "given": [
+            "已配置较小的 contextWindow 值",
+            "Agent 已有较长的对话历史"
+          ],
+          "when": [
+            "对话历史 token 数超过阈值时继续调用 Agent Loop"
+          ],
+          "then": [
+            "EventStream 产生 context_management 事件",
+            "事件包含 action ('offload' 或 'compact') 和 details"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "thinking 事件在扩展思考模式下产生",
+        "description": "验证扩展思考模式下产生 thinking 事件",
+        "steps": {
+          "given": [
+            "已配置 Mock LLMProvider，返回包含 thinking 块的响应"
+          ],
+          "when": [
+            "调用 Agent Loop 处理用户消息"
+          ],
+          "then": [
+            "EventStream 产生 thinking 事件，包含思考内容"
+          ]
+        },
+        "passes": false
+      }
+    ]
+  }
+]

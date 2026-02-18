@@ -1,0 +1,66 @@
+[
+  {
+    "category": "functional",
+    "feature": "技能系统多 Provider 适配",
+    "description": "SkillGenerator/SkillEnhancer 通过统一 LLMProvider 接口工作",
+    "overallPass": false,
+    "bdd": [
+      {
+        "scenario": "SkillGenerator 使用 LLMProvider 接口",
+        "description": "验证技能生成器通过统一接口工作",
+        "steps": {
+          "given": [
+            "已配置任一 LLMProvider（Mock 或真实）",
+            "已准备一段对话历史用于技能提取"
+          ],
+          "when": [
+            "调用 SkillGenerator.generate(provider, conversationHistory)"
+          ],
+          "then": [
+            "SkillGenerator 使用传入的 LLMProvider 进行 LLM 调用",
+            "不直接依赖 AnthropicClient 或任何特定 Provider",
+            "成功生成技能定义"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "SkillEnhancer 使用 LLMProvider 接口",
+        "description": "验证技能增强器通过统一接口工作",
+        "steps": {
+          "given": [
+            "已配置任一 LLMProvider",
+            "已有一个需要增强的技能"
+          ],
+          "when": [
+            "调用 SkillEnhancer.enhance(provider, skill)"
+          ],
+          "then": [
+            "SkillEnhancer 使用传入的 LLMProvider",
+            "不直接依赖 AnthropicClient",
+            "返回增强后的技能"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "Provider 不支持 embedding 时降级",
+        "description": "验证技能索引器在 Provider 不支持 embedding 时的降级行为",
+        "steps": {
+          "given": [
+            "已配置一个不支持 embedding 的 LLMProvider"
+          ],
+          "when": [
+            "调用技能搜索功能"
+          ],
+          "then": [
+            "降级为文本匹配搜索",
+            "记录一条警告日志",
+            "搜索功能正常可用（精度可能降低）"
+          ]
+        },
+        "passes": false
+      }
+    ]
+  }
+]

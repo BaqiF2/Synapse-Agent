@@ -1,0 +1,183 @@
+[
+  {
+    "category": "functional",
+    "feature": "两层消息系统",
+    "description": "领域消息层 + LLM 消息层 + convertToLlm() 显式转换",
+    "overallPass": false,
+    "bdd": [
+      {
+        "scenario": "创建领域消息包含完整元数据",
+        "description": "验证领域消息的创建和字段完整性",
+        "steps": {
+          "given": [
+            "需要创建一条用户消息"
+          ],
+          "when": [
+            "创建 DomainMessage，role 为 'user'，content 包含 text 类型 block"
+          ],
+          "then": [
+            "消息包含唯一 id",
+            "消息包含 timestamp",
+            "消息包含 role 和 content",
+            "消息创建后不可变（修改会报错或生成新实例）"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "convertToLlm 转换标准消息",
+        "description": "验证标准文本消息的转换",
+        "steps": {
+          "given": [
+            "一组 DomainMessage，包含 user 和 assistant 角色的 text 消息"
+          ],
+          "when": [
+            "调用 convertToLlm(messages)"
+          ],
+          "then": [
+            "返回 LLMMessage 数组",
+            "保留 role 和 text content",
+            "不包含 id、timestamp、metadata 字段"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "convertToLlm 过滤领域专属消息类型",
+        "description": "验证 skill_search 等领域专属消息的过滤",
+        "steps": {
+          "given": [
+            "一组 DomainMessage，其中包含 skill_search 类型的 ContentBlock"
+          ],
+          "when": [
+            "调用 convertToLlm(messages)"
+          ],
+          "then": [
+            "返回的 LLMMessage 中不包含 skill_search 类型的 block",
+            "其他标准类型的 block 正常保留"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "convertToLlm 将 context_summary 转换为文本",
+        "description": "验证上下文摘要的转换处理",
+        "steps": {
+          "given": [
+            "一组 DomainMessage，其中包含 context_summary 类型的 ContentBlock"
+          ],
+          "when": [
+            "调用 convertToLlm(messages)"
+          ],
+          "then": [
+            "context_summary 被转换为 text 类型的 block",
+            "text 内容包含摘要信息"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "convertToLlm 支持 filterTypes 选项",
+        "description": "验证自定义过滤规则",
+        "steps": {
+          "given": [
+            "一组 DomainMessage，包含多种 ContentBlock 类型"
+          ],
+          "when": [
+            "调用 convertToLlm(messages, { filterTypes: ['thinking'] })"
+          ],
+          "then": [
+            "返回的 LLMMessage 中不包含 thinking 类型的 block",
+            "其他类型的 block 正常保留"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "convertToLlm 支持 maxMessages 选项",
+        "description": "验证消息数量限制",
+        "steps": {
+          "given": [
+            "一组包含 10 条 DomainMessage"
+          ],
+          "when": [
+            "调用 convertToLlm(messages, { maxMessages: 5 })"
+          ],
+          "then": [
+            "返回最近 5 条消息对应的 LLMMessage"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "convertToLlm 处理空消息列表",
+        "description": "验证边界条件 — 空输入",
+        "steps": {
+          "given": [
+            "空的 DomainMessage 数组"
+          ],
+          "when": [
+            "调用 convertToLlm([])"
+          ],
+          "then": [
+            "返回空数组 []"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "convertToLlm 忽略未知 ContentBlock 类型",
+        "description": "验证未注册的扩展类型的处理",
+        "steps": {
+          "given": [
+            "一条 DomainMessage，包含一个 type 为 'custom_unknown' 的 ContentBlock"
+          ],
+          "when": [
+            "调用 convertToLlm(messages)"
+          ],
+          "then": [
+            "该 block 被忽略",
+            "记录一条警告日志",
+            "其他 block 正常转换"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "convertToLlm 是纯函数",
+        "description": "验证转换函数无副作用",
+        "steps": {
+          "given": [
+            "一组 DomainMessage"
+          ],
+          "when": [
+            "连续两次调用 convertToLlm(messages)"
+          ],
+          "then": [
+            "两次返回的结果深度相等",
+            "原始 DomainMessage 数组未被修改"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "声明合并扩展新的 ContentBlock 类型",
+        "description": "验证 TypeScript 声明合并的类型安全扩展",
+        "steps": {
+          "given": [
+            "在扩展模块中通过声明合并添加新的 ContentBlock 类型 'custom_event'"
+          ],
+          "when": [
+            "创建包含 'custom_event' 类型 block 的 DomainMessage"
+          ],
+          "then": [
+            "TypeScript 编译通过，无类型错误",
+            "DomainMessage 正常存储自定义类型 block",
+            "convertToLlm 将其过滤或按注册规则转换"
+          ]
+        },
+        "passes": false
+      }
+    ]
+  }
+]
