@@ -15,27 +15,49 @@ A self-growing AI agent framework built on a unified shell abstraction, with an 
 ## Highlights
 
 - **Unified Shell Abstraction**: three tool layers (Native Commands / Agent Shell / Extension Tools), so the LLM mainly learns one Bash-style interface
+- **Multi-Provider LLM Support**: unified `LLMProvider` interface with built-in Anthropic, OpenAI, and Google adapters — switch providers at runtime without code changes
+- **Event-Driven Architecture**: `EventStream` async iterable decouples Agent Core from UI, enabling flexible consumption patterns
+- **Modular Monolith**: strict module boundaries enforced by `dependency-cruiser` fitness functions — `core`, `providers`, `tools`, `skills`, `sub-agents` each with clear dependency rules
+- **Pluggable Operations**: `FileOperations` / `BashOperations` interfaces allow swapping execution environments (local, remote, sandbox)
+- **Two-Layer Message System**: domain messages preserve full context; explicit `convertToLlm()` pure-function conversion for LLM API calls
 - **Interactive REPL**: streaming output, tool execution status, and slash commands
 - **MCP and Skill Extensions**: integrate external MCP tools and reusable local skills
 - **Session Persistence and Resume**: manage and restore historical sessions
 - **Auto Skill Enhancement**: distill reusable skills from completed tasks
-- **Sub-Agents**: built-in `explore`, `general`, and `skill` sub-agents
+- **Sub-Agents**: built-in `explore`, `general`, and `skill` sub-agents with independent EventStream and tool permission isolation
 
 ## Core Architecture
 
 ```text
-┌─────────────────────────────────────────────────────────┐
-│                      AgentRunner                        │
-│  ┌─────────────────────────────────────────────────┐   │
-│  │           Three-Layer Routing (BashRouter)      │   │
-│  │  ┌─────────┬─────────────────┬──────────────┐   │   │
-│  │  │ Layer 1 │     Layer 2     │   Layer 3    │   │   │
-│  │  │ Native  │   Agent Shell   │  Extension   │   │   │
-│  │  │ ls, git │ read,write,edit │ mcp:*, skill:*│   │   │
-│  │  └─────────┴─────────────────┴──────────────┘   │   │
-│  └─────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│                         cli (REPL)                           │
+│                     consumes EventStream                     │
+├──────────┬───────────┬───────────┬───────────┬──────────────┤
+│sub-agents│  skills   │   tools   │  config   │              │
+│          │           │ BashRouter│           │              │
+│          │           │ 3-Layer   │           │              │
+├──────────┴─────┬─────┴─────┬─────┴───────────┴──────────────┤
+│     core       │ providers │                                │
+│  EventStream   │ Anthropic │                                │
+│  Agent Loop    │ OpenAI    │                                │
+│  Messages      │ Google    │                                │
+├────────────────┴───────────┴────────────────────────────────┤
+│                        common                                │
+│                  logger, errors, constants                    │
+└──────────────────────────────────────────────────────────────┘
 ```
+
+### Module Dependency Rules
+
+| Module | Allowed Dependencies | Description |
+|--------|---------------------|-------------|
+| `core` | `common` | Event system, Agent Loop, message conversion |
+| `providers` | `common` | LLMProvider adapters (Anthropic/OpenAI/Google) |
+| `tools` | `core`(types), `common` | Three-layer tool system, pluggable operations |
+| `skills` | `core`, `providers`, `common` | Skill generation and enhancement |
+| `sub-agents` | `core`, `providers`, `tools`, `common` | Sub-agent lifecycle management |
+| `cli` | all modules | Top-level consumer |
+| `common` | (none) | Shared utilities |
 
 ## Install and Setup
 
@@ -94,8 +116,9 @@ LLM settings are stored in `~/.synapse/settings.json`:
 | `skillEnhance.autoEnhance` | Enable/disable auto skill enhancement |
 | `skillEnhance.maxEnhanceContextChars` | Context size limit for enhancement analysis |
 
-> Note: Synapse Agent supports Anthropic API and Anthropic-compatible endpoints via `ANTHROPIC_BASE_URL`.  
-> The project author commonly uses MiniMax through this compatible endpoint setting.
+> Note: Synapse Agent supports multiple LLM providers through a unified `LLMProvider` interface.
+> Built-in adapters: **Anthropic**, **OpenAI**, **Google**.
+> You can also use Anthropic-compatible endpoints (e.g. MiniMax) via `ANTHROPIC_BASE_URL`.
 
 #### MiniMax (Anthropic-compatible)
 
@@ -241,23 +264,32 @@ Example:
 
 ```text
 ├── src/
-│   ├── agent/
-│   ├── cli/
-│   ├── config/
-│   ├── providers/
-│   ├── tools/
-│   ├── skills/
-│   ├── sub-agents/
-│   ├── utils/
-│   └── resource/
+│   ├── core/               # Agent Core: EventStream, Agent Loop, messages
+│   ├── providers/           # LLM Provider adapters (Anthropic/OpenAI/Google)
+│   │   ├── anthropic/
+│   │   ├── openai/
+│   │   └── google/
+│   ├── tools/               # Three-layer tool system
+│   │   ├── operations/      # Pluggable operations (FileOps/BashOps)
+│   │   ├── handlers/        # Agent Shell command handlers
+│   │   └── converters/      # MCP/Skill converters
+│   ├── skills/              # Skill generation and enhancement
+│   ├── sub-agents/          # Sub-agent lifecycle management
+│   ├── common/              # Logger, errors, constants
+│   ├── cli/                 # REPL and terminal UI
+│   ├── config/              # Configuration management
+│   ├── agent/               # Legacy agent runner
+│   ├── utils/               # Utility functions
+│   └── resource/            # System prompts
 ├── tests/
-│   ├── unit/
-│   ├── e2e/
-│   └── fixtures/
+│   ├── unit/                # Unit tests (mirrors src/ structure)
+│   ├── integration/         # Integration tests
+│   └── e2e/                 # End-to-end CLI tests
+├── docs/
+│   ├── architecture/        # Architecture design and ADRs
+│   └── requirements/        # PRD and BDD acceptance criteria
 ├── assets/
 │   └── logo.png
-├── docs/
-├── examples/
 ├── README.md
 ├── README.zh-CN.md
 ├── CLAUDE.md
@@ -270,23 +302,28 @@ Example:
 ## Development Commands
 
 ```bash
-bun run lint
-bun run typecheck
-bun run test
-bun run test:cov
-bun run test:e2e
-bun run test:cli:e2e
+bun run lint          # ESLint (Flat Config, strict mode)
+bun run typecheck     # TypeScript strict type checking
+bun test              # Run all tests
+bun test tests/unit/  # Unit tests only
+bun test tests/integration/  # Integration tests only
+bun run test:arch     # Architecture fitness tests (dependency-cruiser)
+bun run test:cov      # Tests with coverage report
+bun run test:e2e      # End-to-end tests
+bun run validate      # Run all checks (lint + typecheck + tests + arch)
 ```
 
 ## Tech Stack
 
-- Runtime: Bun
-- Language: TypeScript
-- LLM SDK: `@anthropic-ai/sdk`
+- Runtime: Bun 1.3.9
+- Language: TypeScript (strict mode)
+- LLM SDKs: `@anthropic-ai/sdk`, `openai`, `@google/genai`
 - MCP: `@modelcontextprotocol/sdk`
+- Validation: Zod
+- Logging: pino + pino-pretty
 - Terminal UI: Ink + `@inkjs/ui`
 - CLI: Commander.js
-- Validation: Zod
+- Architecture Testing: dependency-cruiser
 
 ## Acknowledgements
 

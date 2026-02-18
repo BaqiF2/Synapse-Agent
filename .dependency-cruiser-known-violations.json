@@ -1,0 +1,764 @@
+[
+  {
+    "type": "cycle",
+    "from": "src/agent/agent-runner.ts",
+    "to": "src/agent/stop-hook-executor.ts",
+    "rule": {
+      "severity": "error",
+      "name": "no-circular"
+    },
+    "cycle": [
+      {
+        "name": "src/agent/stop-hook-executor.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/hooks/index.ts",
+        "dependencyTypes": [
+          "local",
+          "type-only",
+          "import"
+        ]
+      },
+      {
+        "name": "src/hooks/skill-enhance-hook.ts",
+        "dependencyTypes": [
+          "local",
+          "export"
+        ]
+      },
+      {
+        "name": "src/sub-agents/sub-agent-manager.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/agent/agent-runner.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      }
+    ]
+  },
+  {
+    "type": "cycle",
+    "from": "src/agent/stop-hook-executor.ts",
+    "to": "src/hooks/load-stop-hooks.ts",
+    "rule": {
+      "severity": "error",
+      "name": "no-circular"
+    },
+    "cycle": [
+      {
+        "name": "src/hooks/load-stop-hooks.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/hooks/skill-enhance-hook.ts",
+        "dependencyTypes": [
+          "local",
+          "dynamic-import"
+        ]
+      },
+      {
+        "name": "src/sub-agents/sub-agent-manager.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/agent/agent-runner.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/agent/stop-hook-executor.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      }
+    ]
+  },
+  {
+    "type": "cycle",
+    "from": "src/hooks/skill-enhance-hook.ts",
+    "to": "src/tools/bash-tool.ts",
+    "rule": {
+      "severity": "error",
+      "name": "no-circular"
+    },
+    "cycle": [
+      {
+        "name": "src/tools/bash-tool.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/tools/bash-router.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/tools/handlers/skill-command-handler.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/skills/skill-manager.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/skills/skill-merger.ts",
+        "dependencyTypes": [
+          "local",
+          "type-only",
+          "import"
+        ]
+      },
+      {
+        "name": "src/sub-agents/sub-agent-manager.ts",
+        "dependencyTypes": [
+          "local",
+          "type-only",
+          "import"
+        ]
+      },
+      {
+        "name": "src/agent/agent-runner.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/agent/stop-hook-executor.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/hooks/index.ts",
+        "dependencyTypes": [
+          "local",
+          "type-only",
+          "import"
+        ]
+      },
+      {
+        "name": "src/hooks/skill-enhance-hook.ts",
+        "dependencyTypes": [
+          "local",
+          "export"
+        ]
+      }
+    ]
+  },
+  {
+    "type": "cycle",
+    "from": "src/providers/anthropic/anthropic-client.ts",
+    "to": "src/providers/anthropic/anthropic-streamed-message.ts",
+    "rule": {
+      "severity": "error",
+      "name": "no-circular"
+    },
+    "cycle": [
+      {
+        "name": "src/providers/anthropic/anthropic-streamed-message.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/providers/llm-client.ts",
+        "dependencyTypes": [
+          "local",
+          "type-only",
+          "import"
+        ]
+      },
+      {
+        "name": "src/providers/anthropic/anthropic-client.ts",
+        "dependencyTypes": [
+          "local",
+          "type-only",
+          "import"
+        ]
+      }
+    ]
+  },
+  {
+    "type": "cycle",
+    "from": "src/providers/anthropic/anthropic-client.ts",
+    "to": "src/providers/llm-client.ts",
+    "rule": {
+      "severity": "error",
+      "name": "no-circular"
+    },
+    "cycle": [
+      {
+        "name": "src/providers/llm-client.ts",
+        "dependencyTypes": [
+          "local",
+          "type-only",
+          "import"
+        ]
+      },
+      {
+        "name": "src/providers/anthropic/anthropic-client.ts",
+        "dependencyTypes": [
+          "local",
+          "type-only",
+          "import"
+        ]
+      }
+    ]
+  },
+  {
+    "type": "cycle",
+    "from": "src/sub-agents/sub-agent-manager.ts",
+    "to": "src/tools/bash-tool.ts",
+    "rule": {
+      "severity": "error",
+      "name": "no-circular"
+    },
+    "cycle": [
+      {
+        "name": "src/tools/bash-tool.ts",
+        "dependencyTypes": [
+          "local",
+          "type-only",
+          "import"
+        ]
+      },
+      {
+        "name": "src/tools/bash-router.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/tools/handlers/skill-command-handler.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/sub-agents/sub-agent-manager.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      }
+    ]
+  },
+  {
+    "type": "cycle",
+    "from": "src/sub-agents/sub-agent-manager.ts",
+    "to": "src/tools/restricted-bash-tool.ts",
+    "rule": {
+      "severity": "error",
+      "name": "no-circular"
+    },
+    "cycle": [
+      {
+        "name": "src/tools/restricted-bash-tool.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/tools/bash-tool.ts",
+        "dependencyTypes": [
+          "local",
+          "type-only",
+          "import"
+        ]
+      },
+      {
+        "name": "src/tools/bash-router.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/tools/handlers/skill-command-handler.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/sub-agents/sub-agent-manager.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      }
+    ]
+  },
+  {
+    "type": "cycle",
+    "from": "src/tools/bash-router.ts",
+    "to": "src/tools/bash-tool.ts",
+    "rule": {
+      "severity": "error",
+      "name": "no-circular"
+    },
+    "cycle": [
+      {
+        "name": "src/tools/bash-tool.ts",
+        "dependencyTypes": [
+          "local",
+          "type-only",
+          "import"
+        ]
+      },
+      {
+        "name": "src/tools/bash-router.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      }
+    ]
+  },
+  {
+    "type": "cycle",
+    "from": "src/tools/bash-router.ts",
+    "to": "src/tools/handlers/task-command-handler.ts",
+    "rule": {
+      "severity": "error",
+      "name": "no-circular"
+    },
+    "cycle": [
+      {
+        "name": "src/tools/handlers/task-command-handler.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/sub-agents/sub-agent-manager.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/agent/agent-runner.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/agent/stop-hook-executor.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/hooks/index.ts",
+        "dependencyTypes": [
+          "local",
+          "type-only",
+          "import"
+        ]
+      },
+      {
+        "name": "src/hooks/skill-enhance-hook.ts",
+        "dependencyTypes": [
+          "local",
+          "export"
+        ]
+      },
+      {
+        "name": "src/tools/bash-tool.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/tools/bash-router.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      }
+    ]
+  },
+  {
+    "type": "cycle",
+    "from": "src/tools/bash-session.ts",
+    "to": "src/tools/handlers/native-command-handler.ts",
+    "rule": {
+      "severity": "error",
+      "name": "no-circular"
+    },
+    "cycle": [
+      {
+        "name": "src/tools/handlers/native-command-handler.ts",
+        "dependencyTypes": [
+          "local",
+          "type-only",
+          "import"
+        ]
+      },
+      {
+        "name": "src/tools/bash-session.ts",
+        "dependencyTypes": [
+          "local",
+          "type-only",
+          "import"
+        ]
+      }
+    ]
+  },
+  {
+    "type": "cycle",
+    "from": "src/tools/handlers/skill-command-handler.ts",
+    "to": "src/skills/skill-merger.ts",
+    "rule": {
+      "severity": "error",
+      "name": "no-circular"
+    },
+    "cycle": [
+      {
+        "name": "src/skills/skill-merger.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/sub-agents/sub-agent-manager.ts",
+        "dependencyTypes": [
+          "local",
+          "type-only",
+          "import"
+        ]
+      },
+      {
+        "name": "src/agent/agent-runner.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/agent/stop-hook-executor.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/hooks/index.ts",
+        "dependencyTypes": [
+          "local",
+          "type-only",
+          "import"
+        ]
+      },
+      {
+        "name": "src/hooks/skill-enhance-hook.ts",
+        "dependencyTypes": [
+          "local",
+          "export"
+        ]
+      },
+      {
+        "name": "src/tools/bash-tool.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/tools/bash-router.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/tools/handlers/skill-command-handler.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      }
+    ]
+  },
+  {
+    "type": "cycle",
+    "from": "src/tools/handlers/skill-command-handler.ts",
+    "to": "src/tools/bash-tool.ts",
+    "rule": {
+      "severity": "error",
+      "name": "no-circular"
+    },
+    "cycle": [
+      {
+        "name": "src/tools/bash-tool.ts",
+        "dependencyTypes": [
+          "local",
+          "type-only",
+          "import"
+        ]
+      },
+      {
+        "name": "src/tools/bash-router.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/tools/handlers/skill-command-handler.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      }
+    ]
+  },
+  {
+    "type": "cycle",
+    "from": "src/tools/restricted-bash-tool.ts",
+    "to": "src/tools/bash-tool.ts",
+    "rule": {
+      "severity": "error",
+      "name": "no-circular"
+    },
+    "cycle": [
+      {
+        "name": "src/tools/bash-tool.ts",
+        "dependencyTypes": [
+          "local",
+          "type-only",
+          "import"
+        ]
+      },
+      {
+        "name": "src/tools/bash-router.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/tools/handlers/skill-command-handler.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/skills/skill-manager.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/skills/skill-merger.ts",
+        "dependencyTypes": [
+          "local",
+          "type-only",
+          "import"
+        ]
+      },
+      {
+        "name": "src/sub-agents/sub-agent-manager.ts",
+        "dependencyTypes": [
+          "local",
+          "type-only",
+          "import"
+        ]
+      },
+      {
+        "name": "src/tools/restricted-bash-tool.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      }
+    ]
+  },
+  {
+    "type": "dependency",
+    "from": "src/skills/skill-merger.ts",
+    "to": "src/sub-agents/sub-agent-manager.ts",
+    "rule": {
+      "severity": "error",
+      "name": "no-skills-import-sub-agents"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/sub-agents/sub-agent-manager.ts",
+    "to": "src/cli/terminal-renderer-types.ts",
+    "rule": {
+      "severity": "error",
+      "name": "no-sub-agents-import-cli"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/sub-agents/configs/skill.ts",
+    "to": "src/skills/indexer.ts",
+    "rule": {
+      "severity": "error",
+      "name": "no-sub-agents-import-skills"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/tools/bash-router.ts",
+    "to": "src/cli/terminal-renderer-types.ts",
+    "rule": {
+      "severity": "error",
+      "name": "no-tools-import-cli"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/tools/bash-tool.ts",
+    "to": "src/cli/terminal-renderer-types.ts",
+    "rule": {
+      "severity": "error",
+      "name": "no-tools-import-cli"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/tools/handlers/skill-command-handler.ts",
+    "to": "src/cli/terminal-renderer-types.ts",
+    "rule": {
+      "severity": "error",
+      "name": "no-tools-import-cli"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/tools/converters/skill/skill-initializer.ts",
+    "to": "src/skills/meta-skill-installer.ts",
+    "rule": {
+      "severity": "error",
+      "name": "no-tools-import-skills"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/tools/handlers/skill-command-handler.ts",
+    "to": "src/skills/indexer.ts",
+    "rule": {
+      "severity": "error",
+      "name": "no-tools-import-skills"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/tools/handlers/skill-command-handler.ts",
+    "to": "src/skills/skill-loader.ts",
+    "rule": {
+      "severity": "error",
+      "name": "no-tools-import-skills"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/tools/handlers/skill-command-handler.ts",
+    "to": "src/skills/skill-manager.ts",
+    "rule": {
+      "severity": "error",
+      "name": "no-tools-import-skills"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/tools/handlers/skill-command-handler.ts",
+    "to": "src/skills/skill-merger.ts",
+    "rule": {
+      "severity": "error",
+      "name": "no-tools-import-skills"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/tools/handlers/skill-command-handler.ts",
+    "to": "src/skills/types.ts",
+    "rule": {
+      "severity": "error",
+      "name": "no-tools-import-skills"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/tools/handlers/skill-command-handler.ts",
+    "to": "src/sub-agents/sub-agent-manager.ts",
+    "rule": {
+      "severity": "error",
+      "name": "no-tools-import-sub-agents"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/tools/handlers/task-command-handler.ts",
+    "to": "src/sub-agents/sub-agent-manager.ts",
+    "rule": {
+      "severity": "error",
+      "name": "no-tools-import-sub-agents"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/tools/handlers/task-command-handler.ts",
+    "to": "src/sub-agents/sub-agent-types.ts",
+    "rule": {
+      "severity": "error",
+      "name": "no-tools-import-sub-agents"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/tools/restricted-bash-tool.ts",
+    "to": "src/sub-agents/sub-agent-types.ts",
+    "rule": {
+      "severity": "error",
+      "name": "no-tools-import-sub-agents"
+    }
+  }
+]

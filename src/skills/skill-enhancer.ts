@@ -2,6 +2,7 @@
  * Skill Enhancer
  *
  * Analyzes conversation history and generates or enhances skills.
+ * 支持通过 LLMProvider 接口进行智能技能增强。
  *
  * @module skill-enhancer
  *
@@ -18,11 +19,23 @@ import { parseEnvPositiveInt } from '../utils/env.ts';
 import { ConversationReader, type ConversationTurn, type ConversationSummary } from './conversation-reader.ts';
 import { SkillGenerator, type SkillSpec } from './skill-generator.ts';
 import { SkillLoader } from './skill-loader.ts';
+import type { LLMProvider, LLMResponse } from '../providers/types.ts';
 
 const logger = createLogger('skill-enhancer');
 
 const DEFAULT_MIN_TOOL_CALLS = 3;
 const DEFAULT_MIN_UNIQUE_TOOLS = 2;
+
+/**
+ * 用于 LLM 增强技能的系统提示词
+ */
+const SKILL_ENHANCE_SYSTEM_PROMPT = `You are a skill enhancement assistant. Given an existing skill specification, improve it with better descriptions, more execution steps, and better practices.
+Return the enhanced fields as JSON with these optional fields:
+- description: improved description
+- executionSteps: improved array of step strings
+- bestPractices: improved array of best practice strings
+
+Return ONLY valid JSON, no markdown code fences or extra text.`;
 
 /**
  * Minimum tool calls to consider enhancement
@@ -252,6 +265,76 @@ export class SkillEnhancer {
     }
 
     return { action: 'none', message: 'No action taken' };
+  }
+
+  /**
+   * 通过 LLMProvider 增强已有技能
+   *
+   * @param provider - LLM Provider 实例
+   * @param skill - 需要增强的技能规格
+   * @returns 增强后的技能规格
+   */
+  async enhanceWithProvider(
+    provider: LLMProvider,
+    skill: SkillSpec,
+  ): Promise<SkillSpec> {
+    logger.info('Enhancing skill via LLMProvider', {
+      provider: provider.name,
+      skillName: skill.name,
+    });
+
+    const skillJson = JSON.stringify(skill, null, 2);
+    const messages = [
+      {
+        role: 'user' as const,
+        content: [{
+          type: 'text' as const,
+          text: `Here is the current skill specification:\n\n${skillJson}\n\nPlease enhance this skill with improved descriptions, more detailed execution steps, and better practices.`,
+        }],
+      },
+    ];
+
+    const stream = provider.generate({
+      systemPrompt: SKILL_ENHANCE_SYSTEM_PROMPT,
+      messages,
+    });
+
+    const response: LLMResponse = await stream.result;
+    const textContent = response.content.find((c) => c.type === 'text');
+
+    if (!textContent || textContent.type !== 'text') {
+      throw new Error('LLM response did not contain text content');
+    }
+
+    const enhancements = this.parseEnhancementsFromLLM(textContent.text);
+
+    // 合并增强结果到原始技能
+    return {
+      ...skill,
+      description: enhancements.description ?? skill.description,
+      executionSteps: enhancements.executionSteps ?? skill.executionSteps,
+      bestPractices: enhancements.bestPractices ?? skill.bestPractices,
+    };
+  }
+
+  /**
+   * 从 LLM 响应文本中解析增强字段
+   */
+  private parseEnhancementsFromLLM(text: string): Partial<SkillSpec> {
+    // 尝试提取 JSON（处理可能的 markdown code fences）
+    let jsonStr = text.trim();
+    const fenceMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+    if (fenceMatch && fenceMatch[1]) {
+      jsonStr = fenceMatch[1].trim();
+    }
+
+    const parsed = JSON.parse(jsonStr);
+
+    return {
+      description: typeof parsed.description === 'string' ? parsed.description : undefined,
+      executionSteps: Array.isArray(parsed.executionSteps) ? parsed.executionSteps : undefined,
+      bestPractices: Array.isArray(parsed.bestPractices) ? parsed.bestPractices : undefined,
+    };
   }
 
   /**

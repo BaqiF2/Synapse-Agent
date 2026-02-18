@@ -2,18 +2,21 @@
  * Skill Generator
  *
  * Generates and updates SKILL.md files for skill enhancement.
+ * 支持通过 LLMProvider 接口从对话历史智能生成技能。
  *
  * @module skill-generator
  *
  * Core Exports:
  * - SkillGenerator: Class for generating skills
  * - SkillSpec: Skill specification type
+ * - ConversationMessage: 对话消息类型
  */
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { createLogger } from '../utils/logger.ts';
 import { getSynapseSkillsDir } from '../config/paths.ts';
+import type { LLMProvider, LLMResponse } from '../providers/types.ts';
 
 const logger = createLogger('skill-generator');
 
@@ -21,6 +24,28 @@ const logger = createLogger('skill-generator');
  * Default skills directory
  */
 const DEFAULT_SKILLS_DIR = getSynapseSkillsDir();
+
+/**
+ * 用于 LLM 生成技能的系统提示词
+ */
+const SKILL_GENERATION_SYSTEM_PROMPT = `You are a skill extraction assistant. Analyze the conversation history and generate a skill specification in JSON format.
+The JSON must have these fields:
+- name: kebab-case skill name
+- description: brief description
+- quickStart: quick start example
+- executionSteps: array of step strings
+- bestPractices: array of best practice strings
+- examples: array of example strings
+
+Return ONLY valid JSON, no markdown code fences or extra text.`;
+
+/**
+ * 对话消息类型，用于从对话历史生成技能
+ */
+export interface ConversationMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
 
 /**
  * Script definition
@@ -284,6 +309,84 @@ export class SkillGenerator {
         error: message,
       };
     }
+  }
+
+  /**
+   * 通过 LLMProvider 从对话历史智能生成技能规格
+   *
+   * @param provider - LLM Provider 实例
+   * @param conversationHistory - 对话历史
+   * @returns 生成的技能规格
+   */
+  async generateFromConversation(
+    provider: LLMProvider,
+    conversationHistory: ConversationMessage[],
+  ): Promise<SkillSpec> {
+    // 将对话历史转换为 Provider 消息格式
+    const messages = conversationHistory.map((msg) => ({
+      role: msg.role,
+      content: [{ type: 'text' as const, text: msg.content }],
+    }));
+
+    // 添加提取指令
+    messages.push({
+      role: 'user',
+      content: [{
+        type: 'text' as const,
+        text: 'Based on the conversation above, extract a reusable skill specification as JSON.',
+      }],
+    });
+
+    logger.info('Generating skill from conversation via LLMProvider', {
+      provider: provider.name,
+      messageCount: conversationHistory.length,
+    });
+
+    const stream = provider.generate({
+      systemPrompt: SKILL_GENERATION_SYSTEM_PROMPT,
+      messages,
+    });
+
+    const response: LLMResponse = await stream.result;
+    const textContent = response.content.find((c) => c.type === 'text');
+
+    if (!textContent || textContent.type !== 'text') {
+      throw new Error('LLM response did not contain text content');
+    }
+
+    return this.parseSkillSpecFromLLM(textContent.text);
+  }
+
+  /**
+   * 从 LLM 响应文本中解析 SkillSpec
+   */
+  private parseSkillSpecFromLLM(text: string): SkillSpec {
+    // 尝试提取 JSON（处理可能的 markdown code fences）
+    let jsonStr = text.trim();
+    const fenceMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+    if (fenceMatch && fenceMatch[1]) {
+      jsonStr = fenceMatch[1].trim();
+    }
+
+    const parsed = JSON.parse(jsonStr);
+
+    // 验证必须字段
+    if (!parsed.name || typeof parsed.name !== 'string') {
+      throw new Error('Invalid skill spec: missing or invalid "name" field');
+    }
+
+    return {
+      name: parsed.name,
+      description: parsed.description || '',
+      quickStart: parsed.quickStart || '',
+      executionSteps: Array.isArray(parsed.executionSteps) ? parsed.executionSteps : [],
+      bestPractices: Array.isArray(parsed.bestPractices) ? parsed.bestPractices : [],
+      examples: Array.isArray(parsed.examples) ? parsed.examples : [],
+      domain: parsed.domain,
+      version: parsed.version,
+      author: parsed.author,
+      tags: Array.isArray(parsed.tags) ? parsed.tags : undefined,
+    };
   }
 
   /**

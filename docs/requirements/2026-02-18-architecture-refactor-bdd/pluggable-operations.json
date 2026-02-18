@@ -3,7 +3,7 @@
     "category": "functional",
     "feature": "工具可插拔操作",
     "description": "FileOperations/BashOperations 接口 + LocalOperations 默认实现",
-    "overallPass": false,
+    "overallPass": true,
     "bdd": [
       {
         "scenario": "LocalFileOperations 读取文件",
@@ -20,7 +20,7 @@
             "返回字符串 'hello'"
           ]
         },
-        "passes": false
+        "passes": true
       },
       {
         "scenario": "LocalFileOperations 读取不存在的文件",
@@ -37,7 +37,7 @@
             "抛出 FileNotFoundError"
           ]
         },
-        "passes": false
+        "passes": true
       },
       {
         "scenario": "LocalFileOperations 写入文件",
@@ -54,7 +54,7 @@
             "文件内容为 'content'"
           ]
         },
-        "passes": false
+        "passes": true
       },
       {
         "scenario": "LocalBashOperations 执行命令",
@@ -73,7 +73,7 @@
             "duration > 0"
           ]
         },
-        "passes": false
+        "passes": true
       },
       {
         "scenario": "LocalBashOperations 命令超时",
@@ -90,7 +90,7 @@
             "sleep 进程被终止"
           ]
         },
-        "passes": false
+        "passes": true
       },
       {
         "scenario": "Agent Shell Command 使用注入的 Operations",
@@ -108,7 +108,7 @@
             "ReadHandler 返回 Mock 的文件内容"
           ]
         },
-        "passes": false
+        "passes": true
       },
       {
         "scenario": "Native Shell Command 使用注入的 BashOperations",
@@ -126,7 +126,7 @@
             "返回 Mock 的执行结果"
           ]
         },
-        "passes": false
+        "passes": true
       },
       {
         "scenario": "BashRouter 三层路由不受 Operations 影响",
@@ -145,7 +145,7 @@
             "路由逻辑与 Operations 无关"
           ]
         },
-        "passes": false
+        "passes": true
       },
       {
         "scenario": "Operations 实例运行中不可切换",
@@ -163,7 +163,7 @@
             "Operations 实例在整个 Agent 生命周期内不变"
           ]
         },
-        "passes": false
+        "passes": true
       }
     ]
   }
