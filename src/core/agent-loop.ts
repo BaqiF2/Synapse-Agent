@@ -1,6 +1,6 @@
 /**
  * Agent Loop 主循环 — 核心执行引擎，协调 LLM 调用与工具执行。
- * 接收 AgentConfig（包含 provider、tools、systemPrompt 等），
+ * 接收 AgentLoopConfig（包含 provider、tools、systemPrompt、failureDetection 等），
  * 循环执行: 调用 provider.generate() → 解析 tool calls → 调用 tool.execute() → 重复。
  * 通过 EventStream 发射事件，所有依赖通过接口注入，不直接实例化任何具体 Provider 或 Tool。
  *
@@ -9,7 +9,6 @@
  */
 
 import type {
-  AgentConfig,
   AgentResult,
   AgentTool,
   ToolResult,
@@ -21,8 +20,9 @@ import type {
   LLMProviderMessage,
   LLMProviderContentBlock,
 } from './types.ts';
+import type { AgentLoopConfig } from './agent-loop-config.ts';
+import { validateAgentLoopConfig } from './agent-loop-config.ts';
 import { EventStream } from './event-stream.ts';
-import { validateAgentConfig } from './agent-config-schema.ts';
 
 // ========== 内部辅助类型 ==========
 
@@ -38,21 +38,23 @@ interface UserContentBlock {
  * 启动 Agent Loop。
  * 验证配置后，在后台启动循环，返回可迭代的 EventStream。
  *
- * @param config - Agent 运行配置（所有依赖通过此接口注入）
+ * @param config - Agent Loop 运行配置（所有依赖通过此接口注入）
  * @param userMessage - 用户消息内容块列表
+ * @param history - 可选的历史消息列表，用于恢复上下文
  * @returns EventStream，支持 for-await-of 和 .result
  */
 export function runAgentLoop(
-  config: AgentConfig,
+  config: AgentLoopConfig,
   userMessage: UserContentBlock[],
+  history?: LLMProviderMessage[],
 ): EventStream {
-  // 配置验证（包含工具名冲突检测）
-  validateAgentConfig(config);
+  // 配置验证
+  validateAgentLoopConfig(config);
 
   const stream = new EventStream();
 
   // 在后台启动循环（不阻塞返回）
-  executeLoop(config, userMessage, stream).catch((err: unknown) => {
+  executeLoop(config, userMessage, stream, history).catch((err: unknown) => {
     const error = err instanceof Error ? err : new Error(String(err));
     stream.emit({ type: 'error', error, recoverable: false });
     stream.complete({
@@ -70,9 +72,10 @@ export function runAgentLoop(
  * 每个 turn: 调用 LLM → 处理响应 → 如有 tool_use 则执行工具并继续，否则结束。
  */
 async function executeLoop(
-  config: AgentConfig,
+  config: AgentLoopConfig,
   userMessage: UserContentBlock[],
   stream: EventStream,
+  history?: LLMProviderMessage[],
 ): Promise<void> {
   const { provider, tools, systemPrompt, maxIterations, abortSignal } = config;
 
@@ -80,13 +83,17 @@ async function executeLoop(
   const toolMap = buildToolMap(tools);
   const toolDefinitions = buildToolDefinitions(tools);
 
-  // 构建初始消息历史
-  const messages: LLMProviderMessage[] = [
-    {
-      role: 'user',
-      content: userMessage.map((block) => ({ type: 'text' as const, text: block.text })),
-    },
-  ];
+  // 构建初始消息历史：如果有 history 则先加入，然后追加新用户消息
+  const messages: LLMProviderMessage[] = [];
+
+  if (history && history.length > 0) {
+    messages.push(...history);
+  }
+
+  messages.push({
+    role: 'user',
+    content: userMessage.map((block) => ({ type: 'text' as const, text: block.text })),
+  });
 
   // 生成 sessionId
   const sessionId = `session-${Date.now()}`;
@@ -95,7 +102,10 @@ async function executeLoop(
   stream.emit({
     type: 'agent_start',
     sessionId,
-    config: { maxIterations: config.maxIterations, maxConsecutiveFailures: config.maxConsecutiveFailures },
+    config: {
+      maxIterations: config.maxIterations,
+      maxConsecutiveFailures: config.failureDetection.failureThreshold,
+    },
   });
 
   let turnIndex = 0;

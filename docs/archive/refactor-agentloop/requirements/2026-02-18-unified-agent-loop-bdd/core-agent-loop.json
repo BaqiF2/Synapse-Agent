@@ -1,0 +1,146 @@
+[
+  {
+    "category": "functional",
+    "feature": "core-agent-loop",
+    "description": "核心 Agent Loop 统一实现，接受配置参数并通过 EventStream 驱动循环",
+    "overallPass": false,
+    "bdd": [
+      {
+        "scenario": "基本循环执行 — LLM 直接返回文本",
+        "description": "当 LLM 没有工具调用时，核心 loop 应正常结束并返回文本响应",
+        "steps": {
+          "given": [
+            "核心 loop 以有效的 AgentLoopConfig 配置启动",
+            "LLM provider 配置为返回纯文本响应（无工具调用）",
+            "用户消息为 'Hello'"
+          ],
+          "when": [
+            "调用 runAgentLoop(config, 'Hello')"
+          ],
+          "then": [
+            "EventStream 依次发射 agent_start, turn_start, message_start, message_delta, message_end, agent_end 事件",
+            "agent_end 事件的 result.stopReason 为 'end_turn'",
+            "agent_end 事件的 result.turnCount 为 1",
+            "agent_end 事件的 result.response 包含 LLM 的文本响应"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "工具调用循环 — 单轮工具执行后结束",
+        "description": "当 LLM 返回工具调用，执行后 LLM 返回文本，loop 正常结束",
+        "steps": {
+          "given": [
+            "核心 loop 配置了一个名为 'test_tool' 的工具",
+            "LLM 第一轮返回 test_tool 调用",
+            "test_tool 执行成功返回 'tool_output'",
+            "LLM 第二轮返回纯文本响应"
+          ],
+          "when": [
+            "调用 runAgentLoop(config, userMessage)"
+          ],
+          "then": [
+            "EventStream 发射 tool_start 事件，toolName 为 'test_tool'",
+            "EventStream 发射 tool_end 事件，output 为 'tool_output'，isError 为 false",
+            "EventStream 发射 agent_end 事件，result.turnCount 为 2",
+            "result.stopReason 为 'end_turn'"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "最大迭代退出",
+        "description": "当循环达到 maxIterations 时强制退出",
+        "steps": {
+          "given": [
+            "AgentLoopConfig.maxIterations 设置为 2",
+            "LLM 每轮都返回工具调用（不会自行停止）"
+          ],
+          "when": [
+            "调用 runAgentLoop(config, userMessage)"
+          ],
+          "then": [
+            "核心 loop 执行恰好 2 轮后退出",
+            "agent_end 事件的 result.stopReason 为 'max_iterations'",
+            "result.turnCount 为 2"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "AbortSignal 中止",
+        "description": "当 abortSignal 被触发时，核心 loop 立即停止",
+        "steps": {
+          "given": [
+            "AgentLoopConfig 包含一个 AbortController 的 signal",
+            "LLM 返回工具调用（循环会继续）"
+          ],
+          "when": [
+            "在工具执行过程中触发 abortController.abort()"
+          ],
+          "then": [
+            "核心 loop 在当前轮结束后退出",
+            "agent_end 事件的 result.stopReason 为 'aborted'"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "LLM 调用失败",
+        "description": "当 LLM provider 返回错误时，核心 loop 发射 error 事件并终止",
+        "steps": {
+          "given": [
+            "核心 loop 以有效配置启动",
+            "LLM provider 配置为抛出 NetworkError"
+          ],
+          "when": [
+            "调用 runAgentLoop(config, userMessage)"
+          ],
+          "then": [
+            "EventStream 发射 error 事件，包含错误详情",
+            "EventStream 调用 complete() 终止",
+            "不会发射 agent_end 事件"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "空工具列表 — 纯对话模式",
+        "description": "当 tools 为空数组时，核心 loop 仅进行 LLM 对话",
+        "steps": {
+          "given": [
+            "AgentLoopConfig.tools 为空数组 []",
+            "LLM 返回纯文本响应"
+          ],
+          "when": [
+            "调用 runAgentLoop(config, userMessage)"
+          ],
+          "then": [
+            "核心 loop 正常执行一轮并结束",
+            "不会发射 tool_start 或 tool_end 事件",
+            "agent_end 事件的 result.stopReason 为 'end_turn'"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "历史消息恢复",
+        "description": "传入 history 参数时，核心 loop 基于已有历史继续对话",
+        "steps": {
+          "given": [
+            "history 包含 2 条消息（一条 user，一条 assistant）",
+            "LLM 基于历史上下文返回响应"
+          ],
+          "when": [
+            "调用 runAgentLoop(config, userMessage, history)"
+          ],
+          "then": [
+            "LLM 收到的 messages 包含 history 中的 2 条消息 + 新 userMessage",
+            "核心 loop 正常执行并返回结果"
+          ]
+        },
+        "passes": false
+      }
+    ]
+  }
+]

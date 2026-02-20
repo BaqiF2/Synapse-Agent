@@ -17,7 +17,7 @@ import {
   type SubAgentOptions,
 } from '../../../src/sub-agents/sub-agent-core.ts';
 import { EventStream } from '../../../src/core/event-stream.ts';
-import { MAX_TOOL_ITERATIONS, MAX_CONSECUTIVE_TOOL_FAILURES } from '../../../src/common/constants.ts';
+import { MAX_TOOL_ITERATIONS } from '../../../src/common/constants.ts';
 import type { AgentTool, ToolResult, AgentEvent, LLMProviderLike } from '../../../src/core/types.ts';
 import type { LLMResponse } from '../../../src/providers/types.ts';
 
@@ -172,11 +172,11 @@ describe('F-006 SubAgent 同步重构', () => {
       // Then: SubAgent 使用与父 Agent 相同的 LLMProvider
       expect(config.provider).toBe(parentProvider);
 
-      // Then: SubAgent 使用标准 AgentConfig 创建
+      // Then: SubAgent 使用标准 AgentLoopConfig 创建
       expect(config.systemPrompt).toBe('You are an explorer.');
       expect(config.maxIterations).toBeGreaterThan(0);
-      expect(config.maxConsecutiveFailures).toBeGreaterThan(0);
-      expect(config.contextWindow).toBeGreaterThan(0);
+      expect(config.failureDetection).toBeDefined();
+      expect(config.failureDetection.strategy).toBe('sliding-window');
 
       // Then: SubAgent 返回 EventStream
       expect(stream).toBeInstanceOf(EventStream);
@@ -199,14 +199,16 @@ describe('F-006 SubAgent 同步重构', () => {
 
       const { config } = createSubAgent(options);
 
-      // 验证 AgentConfig 所有必填字段存在
+      // 验证 AgentLoopConfig 所有必填字段存在
       expect(config.provider).toBeDefined();
       expect(config.tools).toBeDefined();
       expect(Array.isArray(config.tools)).toBe(true);
       expect(config.systemPrompt).toBe('General agent');
       expect(typeof config.maxIterations).toBe('number');
-      expect(typeof config.maxConsecutiveFailures).toBe('number');
-      expect(typeof config.contextWindow).toBe('number');
+      expect(config.failureDetection).toBeDefined();
+      expect(config.failureDetection.strategy).toBe('sliding-window');
+      expect(typeof config.failureDetection.windowSize).toBe('number');
+      expect(typeof config.failureDetection.failureThreshold).toBe('number');
     });
   });
 

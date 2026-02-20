@@ -8,6 +8,10 @@
  * - DomainMessage / LLMMessage / convertToLlm / createDomainMessage: 两层消息系统
  * - AgentConfigSchema / validateAgentConfig: 配置验证
  * - runAgentLoop: Agent Loop 主循环
+ * - SlidingWindowFailureDetector: 滑动窗口失败检测器
+ * - TodoReminderStrategy: TodoList System Reminder 引导策略
+ * - AgentLoopConfig / validateAgentLoopConfig / freezeConfig: 统一配置体系
+ * - MessageValidator: 消息入口预验证器
  */
 
 // 事件系统
@@ -34,6 +38,8 @@ export type {
   ErrorEvent,
   UsageEvent,
   ContextManagementEvent,
+  TodoReminderEvent,
+  ContextCompactEvent,
   TokenUsage,
   LLMProviderLike,
   GenerateParams,
@@ -62,3 +68,29 @@ export { AgentConfigSchema, validateAgentConfig } from './agent-config-schema.ts
 
 // Agent Loop
 export { runAgentLoop } from './agent-loop.ts';
+
+// 滑动窗口失败检测
+export { SlidingWindowFailureDetector, NON_COUNTABLE_CATEGORIES } from './sliding-window-failure.ts';
+export type { SlidingWindowConfig, FailureCategory } from './sliding-window-failure.ts';
+
+// TodoList Reminder 引导策略
+export { TodoReminderStrategy } from './todo-reminder-strategy.ts';
+export type { TodoReminderResult, TodoReminderOptions, TodoStoreLike, TodoItemLike, TodoStateLike } from './todo-reminder-strategy.ts';
+
+// 统一配置体系
+export { validateAgentLoopConfig, freezeConfig } from './agent-loop-config.ts';
+export type {
+  AgentLoopConfig,
+  TodoStrategyConfig,
+  FailureDetectionConfig,
+  ContextManagerConfig,
+  MessageValidatorConfig,
+  AgentLoopHooks,
+} from './agent-loop-config.ts';
+
+// 消息入口预验证
+export { MessageValidator } from './message-validator.ts';
+export type {
+  MessageValidationResult,
+  MessageValidationError,
+} from './message-validator.ts';

@@ -1,0 +1,100 @@
+[
+  {
+    "category": "functional",
+    "feature": "agent-loop-config",
+    "description": "AgentLoopConfig 配置体系，通过配置参数区分主 Agent 和 SubAgent 行为",
+    "overallPass": false,
+    "bdd": [
+      {
+        "scenario": "主 Agent 完整配置",
+        "description": "主 Agent 使用包含所有可选能力的完整配置",
+        "steps": {
+          "given": [
+            "创建 AgentLoopConfig 配置，包含 todoStrategy、contextManager、messageValidator 和所有 hooks"
+          ],
+          "when": [
+            "使用该配置调用 runAgentLoop(config, userMessage)"
+          ],
+          "then": [
+            "核心 loop 启用 TodoList 引导逻辑",
+            "核心 loop 启用上下文管理（offload/compact）",
+            "核心 loop 启用消息入口预验证",
+            "每轮循环前后调用 beforeTurn 和 afterTurn hooks"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "SubAgent 精简配置",
+        "description": "SubAgent 仅使用必填字段，可选能力全部关闭",
+        "steps": {
+          "given": [
+            "创建 AgentLoopConfig 配置，仅包含 systemPrompt、tools、maxIterations、provider 和 failureDetection"
+          ],
+          "when": [
+            "使用该配置调用 runAgentLoop(config, userMessage)"
+          ],
+          "then": [
+            "核心 loop 跳过 TodoList 引导逻辑",
+            "核心 loop 跳过上下文管理",
+            "核心 loop 跳过消息入口预验证",
+            "不调用任何 hooks"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "无效配置拒绝 — staleThresholdTurns 为负数",
+        "description": "当 todoStrategy.staleThresholdTurns 为负数时，应拒绝配置",
+        "steps": {
+          "given": [
+            "创建 AgentLoopConfig，todoStrategy.staleThresholdTurns 设置为 -1"
+          ],
+          "when": [
+            "调用 runAgentLoop(config, userMessage)"
+          ],
+          "then": [
+            "抛出 ConfigValidationError",
+            "错误消息说明 staleThresholdTurns 必须 >= 0"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "无效配置拒绝 — failureThreshold 大于 windowSize",
+        "description": "当 failureThreshold 大于 windowSize 时，应拒绝配置",
+        "steps": {
+          "given": [
+            "创建 AgentLoopConfig，failureDetection.windowSize 为 5，failureThreshold 为 10"
+          ],
+          "when": [
+            "调用 runAgentLoop(config, userMessage)"
+          ],
+          "then": [
+            "抛出 ConfigValidationError",
+            "错误消息说明 failureThreshold 不能大于 windowSize"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "配置不可变性",
+        "description": "核心 loop 启动后，配置对象的修改不影响正在运行的循环",
+        "steps": {
+          "given": [
+            "创建 AgentLoopConfig 配置，maxIterations 为 10",
+            "调用 runAgentLoop 启动核心 loop"
+          ],
+          "when": [
+            "在循环运行过程中修改 config.maxIterations 为 1"
+          ],
+          "then": [
+            "核心 loop 继续使用原始 maxIterations=10 运行",
+            "外部修改不影响循环行为"
+          ]
+        },
+        "passes": false
+      }
+    ]
+  }
+]

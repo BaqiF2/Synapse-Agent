@@ -10,6 +10,7 @@ import { runAgentLoop } from '../../../src/core/agent-loop.ts';
 import { ConfigurationError } from '../../../src/common/errors.ts';
 import { MAX_TOOL_ITERATIONS, MAX_CONSECUTIVE_TOOL_FAILURES } from '../../../src/common/constants.ts';
 import type { AgentTool, ToolResult, AgentConfig, AgentEvent, LLMProviderLike } from '../../../src/core/types.ts';
+import type { AgentLoopConfig } from '../../../src/core/agent-loop-config.ts';
 import type { LLMResponse } from '../../../src/providers/types.ts';
 
 // ========== 测试辅助工厂函数 ==========
@@ -59,7 +60,7 @@ function createThrowingTool(name: string): AgentTool {
   };
 }
 
-/** 创建有效的 AgentConfig */
+/** 创建有效的 AgentConfig（用于 Zod schema 验证测试） */
 function createValidConfig(overrides?: Partial<AgentConfig>): AgentConfig {
   const defaults: AgentConfig = {
     provider: createMockProvider([{
@@ -72,6 +73,26 @@ function createValidConfig(overrides?: Partial<AgentConfig>): AgentConfig {
     maxIterations: MAX_TOOL_ITERATIONS,
     maxConsecutiveFailures: MAX_CONSECUTIVE_TOOL_FAILURES,
     contextWindow: 128000,
+  };
+  return { ...defaults, ...overrides };
+}
+
+/** 创建有效的 AgentLoopConfig（用于 runAgentLoop 测试） */
+function createLoopConfig(overrides?: Partial<AgentLoopConfig>): AgentLoopConfig {
+  const defaults: AgentLoopConfig = {
+    provider: createMockProvider([{
+      content: [{ type: 'text', text: 'Hello' }],
+      stopReason: 'end_turn',
+      usage: { inputTokens: 10, outputTokens: 5 },
+    }]),
+    tools: [],
+    systemPrompt: 'You are a helpful assistant.',
+    maxIterations: MAX_TOOL_ITERATIONS,
+    failureDetection: {
+      strategy: 'sliding-window',
+      windowSize: 10,
+      failureThreshold: MAX_CONSECUTIVE_TOOL_FAILURES,
+    },
   };
   return { ...defaults, ...overrides };
 }
@@ -176,7 +197,7 @@ describe('F-002 Agent Core Interface', () => {
         },
       ]);
 
-      const config = createValidConfig({
+      const config = createLoopConfig({
         provider,
         tools: [throwingTool],
         maxIterations: 5,
@@ -224,8 +245,8 @@ describe('F-002 Agent Core Interface', () => {
       expect(agentLoopSource).not.toMatch(/new\s+ReadTool/);
       expect(agentLoopSource).not.toMatch(/new\s+WriteTool/);
 
-      // 所有依赖通过 AgentConfig 参数传入（检查函数签名）
-      expect(agentLoopSource).toMatch(/AgentConfig/);
+      // 所有依赖通过 AgentLoopConfig 参数传入（检查函数签名）
+      expect(agentLoopSource).toMatch(/AgentLoopConfig/);
     });
 
     it('should not import from providers or tools implementation modules', async () => {
@@ -263,8 +284,8 @@ describe('F-002 Agent Core Interface', () => {
         },
       ]);
 
-      // 一个完整的 AgentConfig
-      const config = createValidConfig({
+      // 一个完整的 AgentLoopConfig
+      const config = createLoopConfig({
         provider,
         tools: [mockTool],
         maxIterations: 10,
@@ -311,7 +332,7 @@ describe('F-002 Agent Core Interface', () => {
       const provider = createMockProvider([toolUseResponse]);
 
       const maxIterations = 3;
-      const config = createValidConfig({
+      const config = createLoopConfig({
         provider,
         tools: [mockTool],
         maxIterations,
@@ -355,7 +376,7 @@ describe('F-002 Agent Core Interface', () => {
       };
 
       const mockTool = createMockTool('tool', { output: 'ok', isError: false });
-      const config = createValidConfig({
+      const config = createLoopConfig({
         provider,
         tools: [mockTool],
         maxIterations: 10,

@@ -11,13 +11,20 @@
 
 import { runAgentLoop } from '../core/agent-loop.ts';
 import type { EventStream } from '../core/event-stream.ts';
-import type { AgentConfig, AgentTool, LLMProviderLike } from '../core/types.ts';
-import { MAX_TOOL_ITERATIONS, MAX_CONSECUTIVE_TOOL_FAILURES } from '../common/constants.ts';
+import type { AgentTool, LLMProviderLike } from '../core/types.ts';
+import type { AgentLoopConfig } from '../core/agent-loop-config.ts';
+import { MAX_TOOL_ITERATIONS } from '../common/constants.ts';
 import type { SubAgentType, ToolPermissions } from './sub-agent-types.ts';
 
-/** 默认上下文窗口大小 */
-const DEFAULT_CONTEXT_WINDOW = parseInt(
-  process.env.SYNAPSE_SUB_AGENT_CONTEXT_WINDOW ?? '128000',
+/** 默认滑动窗口大小 */
+const DEFAULT_FAILURE_WINDOW_SIZE = parseInt(
+  process.env.SYNAPSE_FAILURE_WINDOW_SIZE ?? '10',
+  10,
+);
+
+/** 默认失败阈值 */
+const DEFAULT_FAILURE_THRESHOLD = parseInt(
+  process.env.SYNAPSE_FAILURE_THRESHOLD ?? '3',
   10,
 );
 
@@ -66,8 +73,8 @@ export interface SubAgentOptions {
 export interface SubAgentResult {
   /** 事件流（供父 Agent 迭代消费） */
   stream: EventStream;
-  /** 使用的 AgentConfig（可用于调试和断言） */
-  config: AgentConfig;
+  /** 使用的 AgentLoopConfig（可用于调试和断言） */
+  config: AgentLoopConfig;
 }
 
 /**
@@ -135,14 +142,17 @@ export function createSubAgent(options: SubAgentOptions): SubAgentResult {
   // 过滤工具
   const filteredTools = filterToolsByPermissions(parentTools, toolPermissions);
 
-  // 构建 AgentConfig
-  const config: AgentConfig = {
+  // 构建 AgentLoopConfig
+  const config: AgentLoopConfig = {
     provider,
     tools: filteredTools,
     systemPrompt,
     maxIterations,
-    maxConsecutiveFailures: MAX_CONSECUTIVE_TOOL_FAILURES,
-    contextWindow: DEFAULT_CONTEXT_WINDOW,
+    failureDetection: {
+      strategy: 'sliding-window',
+      windowSize: DEFAULT_FAILURE_WINDOW_SIZE,
+      failureThreshold: DEFAULT_FAILURE_THRESHOLD,
+    },
     abortSignal,
   };
 

@@ -1,0 +1,122 @@
+[
+  {
+    "category": "functional",
+    "feature": "agent-runner-wrapper",
+    "description": "AgentRunner 外层包装器，消费核心 loop 的 EventStream 并提供会话管理、权限控制等高级能力",
+    "overallPass": false,
+    "bdd": [
+      {
+        "scenario": "AgentRunner.run() 内部调用核心 loop",
+        "description": "AgentRunner.run() 不再自行实现循环，而是调用 runAgentLoop 并消费 EventStream",
+        "steps": {
+          "given": [
+            "创建 AgentRunner 实例，传入完整配置",
+            "用户输入消息 'Hello'"
+          ],
+          "when": [
+            "调用 agentRunner.run('Hello')"
+          ],
+          "then": [
+            "内部调用 runAgentLoop(config, 'Hello') 获得 EventStream",
+            "通过 for-await 消费 EventStream 中的所有事件",
+            "返回最终响应字符串"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "EventStream 事件转换为回调调用",
+        "description": "AgentRunner 将 EventStream 事件转换为现有的回调接口",
+        "steps": {
+          "given": [
+            "AgentRunner 配置了 onMessagePart、onToolCall、onToolResult、onUsage 回调",
+            "核心 loop 发射 message_delta、tool_start、tool_end、usage 事件"
+          ],
+          "when": [
+            "AgentRunner 消费 EventStream 事件"
+          ],
+          "then": [
+            "message_delta 事件触发 onMessagePart 回调",
+            "tool_start 事件触发 onToolCall 回调",
+            "tool_end 事件触发 onToolResult 回调",
+            "usage 事件触发 onUsage 回调",
+            "回调参数与当前 AgentRunner 的回调参数格式一致"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "会话持久化",
+        "description": "AgentRunner 在核心 loop 结束后持久化会话状态",
+        "steps": {
+          "given": [
+            "AgentRunner 关联了一个 Session 实例",
+            "核心 loop 执行了 3 轮对话"
+          ],
+          "when": [
+            "核心 loop 完成（agent_end 事件）"
+          ],
+          "then": [
+            "所有消息通过 Session.appendMessage() 持久化",
+            "token 使用量通过 Session 记录"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "Stop Hook 在循环结束后执行",
+        "description": "AgentRunner 在核心 loop 完成后执行 Stop Hook",
+        "steps": {
+          "given": [
+            "AgentRunner 配置了 StopHookExecutor",
+            "核心 loop 正常完成（completedNormally=true）"
+          ],
+          "when": [
+            "AgentRunner 收到 agent_end 事件"
+          ],
+          "then": [
+            "调用 StopHookExecutor.executeAndAppend()",
+            "将 hook 输出追加到最终响应"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "对外接口不变 — run() 方法签名",
+        "description": "重构后 AgentRunner.run() 的方法签名和返回值类型保持不变",
+        "steps": {
+          "given": [
+            "现有代码通过 agentRunner.run(userMessage) 调用"
+          ],
+          "when": [
+            "使用重构后的 AgentRunner"
+          ],
+          "then": [
+            "run(userMessage: string) 方法签名不变",
+            "返回 Promise<string> 类型不变",
+            "现有调用方代码无需修改"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "对外接口不变 — step() 方法签名",
+        "description": "重构后 AgentRunner.step() 的方法签名和返回值类型保持不变",
+        "steps": {
+          "given": [
+            "现有代码通过 agentRunner.step(userMessage) 调用"
+          ],
+          "when": [
+            "使用重构后的 AgentRunner"
+          ],
+          "then": [
+            "step(userMessage: string) 方法签名不变",
+            "返回类型不变",
+            "支持 sandbox 权限请求的行为不变"
+          ]
+        },
+        "passes": false
+      }
+    ]
+  }
+]

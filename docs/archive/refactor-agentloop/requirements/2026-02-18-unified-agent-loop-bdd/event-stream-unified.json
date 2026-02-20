@@ -1,0 +1,124 @@
+[
+  {
+    "category": "functional",
+    "feature": "event-stream-unified",
+    "description": "统一的 EventStream 事件模型，核心 loop 和外层包装器通过 EventStream 通信",
+    "overallPass": false,
+    "bdd": [
+      {
+        "scenario": "标准事件发射顺序",
+        "description": "验证核心 loop 按正确顺序发射 AgentEvent",
+        "steps": {
+          "given": [
+            "核心 loop 配置了一个工具",
+            "LLM 第一轮返回工具调用，第二轮返回文本"
+          ],
+          "when": [
+            "消费 EventStream 中的所有事件"
+          ],
+          "then": [
+            "事件顺序为: agent_start → turn_start → message_start → message_delta → message_end → tool_start → tool_end → turn_start → message_start → message_delta → message_end → agent_end",
+            "每个 tool_start 都有对应的 tool_end",
+            "每个 turn_start 的 turnIndex 递增"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "usage 事件在每轮 LLM 调用后发射",
+        "description": "每次 LLM 调用后都发射 usage 事件记录 token 消耗",
+        "steps": {
+          "given": [
+            "LLM provider 返回 usage 信息: inputTokens=100, outputTokens=50",
+            "核心 loop 执行 2 轮"
+          ],
+          "when": [
+            "消费 EventStream 中的 usage 事件"
+          ],
+          "then": [
+            "收到 2 个 usage 事件",
+            "每个 usage 事件包含 inputTokens 和 outputTokens"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "error 事件终止 stream",
+        "description": "发射 error 事件后 EventStream 终止",
+        "steps": {
+          "given": [
+            "核心 loop 正在运行",
+            "LLM 调用抛出异常"
+          ],
+          "when": [
+            "核心 loop 捕获到异常并发射 error 事件"
+          ],
+          "then": [
+            "EventStream 发射 error 事件",
+            "EventStream 调用 complete() 终止",
+            "消费者的 for-await 循环正常退出",
+            "不发射 agent_end 事件"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "无消费者时事件缓存",
+        "description": "当 EventStream 暂时无消费者时，事件在内部队列中缓存",
+        "steps": {
+          "given": [
+            "核心 loop 已启动并开始发射事件",
+            "尚未有消费者开始迭代 EventStream"
+          ],
+          "when": [
+            "核心 loop 发射了 3 个事件",
+            "消费者开始迭代 EventStream"
+          ],
+          "then": [
+            "消费者依次收到之前缓存的 3 个事件",
+            "事件顺序与发射顺序一致"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "todo_reminder 事件",
+        "description": "当 TodoList Reminder 被注入时，发射 todo_reminder 事件",
+        "steps": {
+          "given": [
+            "todoStrategy 已启用，staleThresholdTurns 为 10",
+            "TodoList 有未完成任务",
+            "已执行 10 轮未更新 TodoList"
+          ],
+          "when": [
+            "核心 loop 开始第 11 轮并注入 System Reminder"
+          ],
+          "then": [
+            "EventStream 发射 todo_reminder 事件",
+            "事件包含 turnsSinceUpdate 和 items 字段",
+            "items 列出所有未完成的 todo 项"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "context_compact 事件",
+        "description": "当 context compact 操作执行时，发射相应事件",
+        "steps": {
+          "given": [
+            "contextManager 已配置",
+            "消息历史 token 数超过 compact 阈值"
+          ],
+          "when": [
+            "核心 loop 触发 context compact"
+          ],
+          "then": [
+            "EventStream 发射 context_compact 事件",
+            "事件包含 beforeTokens、afterTokens 和 success 字段"
+          ]
+        },
+        "passes": false
+      }
+    ]
+  }
+]

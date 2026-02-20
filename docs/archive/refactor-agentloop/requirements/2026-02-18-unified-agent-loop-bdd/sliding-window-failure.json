@@ -1,0 +1,146 @@
+[
+  {
+    "category": "functional",
+    "feature": "sliding-window-failure",
+    "description": "滑动窗口失败检测机制，替代连续失败计数 + 即时重置",
+    "overallPass": false,
+    "bdd": [
+      {
+        "scenario": "窗口内失败达到阈值时退出",
+        "description": "当最近 N 次工具调用中失败次数达到阈值时，触发循环退出",
+        "steps": {
+          "given": [
+            "failureDetection.windowSize 为 5",
+            "failureDetection.failureThreshold 为 3",
+            "最近 5 次工具调用结果为: [成功, 失败, 失败, 成功, 失败]"
+          ],
+          "when": [
+            "第 5 次工具调用结果（失败）推入窗口"
+          ],
+          "then": [
+            "窗口内失败数为 3，达到阈值",
+            "核心 loop 触发退出",
+            "agent_end 事件的 stopReason 为 'failure_threshold'"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "振荡模式不会无限循环",
+        "description": "在 fail-succeed-fail 交替模式下，滑动窗口可以正确检测异常",
+        "steps": {
+          "given": [
+            "failureDetection.windowSize 为 4",
+            "failureDetection.failureThreshold 为 3",
+            "工具调用模式为: fail, succeed, fail, succeed, fail, succeed, fail..."
+          ],
+          "when": [
+            "执行了 8 次工具调用"
+          ],
+          "then": [
+            "任意时刻窗口 [4] 内失败数最多为 2",
+            "不触发退出（失败率未达到 3/4 的阈值）",
+            "循环继续执行但不会像旧实现那样永远无法退出"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "连续全部失败时快速退出",
+        "description": "当所有工具调用都失败时，应快速检测并退出",
+        "steps": {
+          "given": [
+            "failureDetection.windowSize 为 5",
+            "failureDetection.failureThreshold 为 3",
+            "所有工具调用都返回错误"
+          ],
+          "when": [
+            "第 3 次工具调用失败"
+          ],
+          "then": [
+            "窗口内失败数为 3（窗口尚未填满但已达阈值）",
+            "核心 loop 触发退出"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "不可计数的失败不计入窗口",
+        "description": "用户权限拒绝等非真正失败不计入滑动窗口",
+        "steps": {
+          "given": [
+            "failureDetection.windowSize 为 5",
+            "failureDetection.failureThreshold 为 3",
+            "连续 5 次工具调用都失败",
+            "其中 3 次为用户权限拒绝（failureCategory='permission_denied'）"
+          ],
+          "when": [
+            "滑动窗口计算失败数"
+          ],
+          "then": [
+            "仅 2 次真正失败计入窗口",
+            "失败数 2 < 阈值 3",
+            "核心 loop 不触发退出"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "窗口滑动 — 旧失败被移出",
+        "description": "当窗口滑动时，最早的失败记录被移出，可能降低失败率",
+        "steps": {
+          "given": [
+            "failureDetection.windowSize 为 3",
+            "failureDetection.failureThreshold 为 2",
+            "前 3 次调用: [失败, 失败, 成功] — 窗口失败数 2，达到阈值"
+          ],
+          "when": [
+            "在触发退出之前，第 4 次调用执行并成功"
+          ],
+          "then": [
+            "窗口更新为 [失败, 成功, 成功]（第一个失败被移出）",
+            "窗口内失败数降为 1",
+            "未达到阈值，循环继续"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "无工具调用不影响窗口",
+        "description": "LLM 只输出文本时，滑动窗口不更新",
+        "steps": {
+          "given": [
+            "滑动窗口当前状态为 [失败, 成功]",
+            "LLM 本轮返回纯文本响应（无工具调用）"
+          ],
+          "when": [
+            "核心 loop 处理本轮响应"
+          ],
+          "then": [
+            "滑动窗口保持 [失败, 成功] 不变",
+            "不影响失败检测结果"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "windowSize 为 1 时退化为即时退出",
+        "description": "边界条件：窗口大小为 1 且阈值为 1 时，任一失败即退出",
+        "steps": {
+          "given": [
+            "failureDetection.windowSize 为 1",
+            "failureDetection.failureThreshold 为 1"
+          ],
+          "when": [
+            "第一次工具调用失败"
+          ],
+          "then": [
+            "窗口 [失败]，失败数 1 >= 阈值 1",
+            "核心 loop 立即退出"
+          ]
+        },
+        "passes": false
+      }
+    ]
+  }
+]

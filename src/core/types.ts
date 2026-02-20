@@ -6,7 +6,7 @@
  * - AgentConfig: Agent 运行配置
  * - AgentTool: 工具抽象接口
  * - ToolResult: 工具执行结果
- * - AgentEvent: 事件联合类型
+ * - AgentEvent: 事件联合类型（含 TodoReminderEvent, ContextCompactEvent）
  * - AgentResult: Agent 最终运行结果
  */
 
@@ -76,7 +76,9 @@ export type AgentEvent =
   | ThinkingEvent
   | ErrorEvent
   | UsageEvent
-  | ContextManagementEvent;
+  | ContextManagementEvent
+  | TodoReminderEvent
+  | ContextCompactEvent;
 
 export interface AgentStartEvent {
   type: 'agent_start';
@@ -153,6 +155,26 @@ export interface ContextManagementEvent {
   type: 'context_management';
   action: 'offload' | 'compact';
   details: string;
+}
+
+/** TodoList 引导 Reminder 触发事件 */
+export interface TodoReminderEvent {
+  type: 'todo_reminder';
+  /** 距上次 TodoList 更新的轮数 */
+  turnsSinceUpdate: number;
+  /** 未完成的 todo 项列表 */
+  items: Array<{ content: string; activeForm: string; status: string }>;
+}
+
+/** 上下文 compact 操作事件 */
+export interface ContextCompactEvent {
+  type: 'context_compact';
+  /** compact 前的 token 数量 */
+  beforeTokens: number;
+  /** compact 后的 token 数量 */
+  afterTokens: number;
+  /** compact 操作是否成功 */
+  success: boolean;
 }
 
 /** Token 使用统计 */

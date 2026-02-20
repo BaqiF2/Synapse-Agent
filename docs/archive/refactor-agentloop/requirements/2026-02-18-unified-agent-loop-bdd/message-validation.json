@@ -1,0 +1,123 @@
+[
+  {
+    "category": "functional",
+    "feature": "message-validation",
+    "description": "消息入口预验证机制，替代后期全量重写的 History Sanitization",
+    "overallPass": false,
+    "bdd": [
+      {
+        "scenario": "有效消息正常追加",
+        "description": "格式正确的 assistant message 正常追加到历史记录",
+        "steps": {
+          "given": [
+            "messageValidator 已启用",
+            "LLM 返回包含有效 JSON 参数的工具调用"
+          ],
+          "when": [
+            "核心 loop 将 assistant message 追加到 messages 数组"
+          ],
+          "then": [
+            "验证通过，消息正常追加",
+            "messages 数组包含该消息"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "无效 JSON 参数 — 返回 tool error",
+        "description": "当工具调用参数不是有效 JSON 时，返回 tool error 而非清理历史",
+        "steps": {
+          "given": [
+            "messageValidator 已启用",
+            "LLM 返回的工具调用参数为无效 JSON: '{invalid json}'"
+          ],
+          "when": [
+            "核心 loop 验证 assistant message"
+          ],
+          "then": [
+            "验证失败，该 assistant message 不追加到历史",
+            "构造 tool_result 错误消息: {type: 'tool_result', is_error: true, content: 'Invalid tool call format: ...'}",
+            "错误消息追加到 messages 数组",
+            "LLM 在下一轮收到错误反馈后可重新生成"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "重复 tool_use_id — 返回 tool error",
+        "description": "当同一轮中出现重复的 tool_use_id 时，返回 tool error",
+        "steps": {
+          "given": [
+            "messageValidator 已启用",
+            "LLM 返回 2 个工具调用，tool_use_id 都是 'toolu_123'"
+          ],
+          "when": [
+            "核心 loop 验证 assistant message"
+          ],
+          "then": [
+            "检测到重复 tool_use_id",
+            "返回 tool error 包含重复 ID 信息",
+            "LLM 在下一轮重新生成"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "验证失败计入滑动窗口",
+        "description": "消息格式验证失败应计入滑动窗口的失败记录",
+        "steps": {
+          "given": [
+            "messageValidator 已启用",
+            "滑动窗口已有部分失败记录",
+            "LLM 返回格式错误的工具调用"
+          ],
+          "when": [
+            "核心 loop 验证失败并返回 tool error"
+          ],
+          "then": [
+            "该失败记录推入滑动窗口",
+            "如窗口内失败数达到阈值，触发退出"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "messageValidator 未启用时跳过验证",
+        "description": "当 AgentLoopConfig 未提供 messageValidator 时，跳过验证直接追加",
+        "steps": {
+          "given": [
+            "AgentLoopConfig 的 messageValidator 为 undefined",
+            "LLM 返回消息（无论格式是否正确）"
+          ],
+          "when": [
+            "核心 loop 处理 assistant message"
+          ],
+          "then": [
+            "跳过验证，消息直接追加到 messages 数组",
+            "行为与当前 runAgentLoop 一致"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "不修改已有历史记录",
+        "description": "预验证机制绝不修改已有的历史消息，只对新消息进行验证",
+        "steps": {
+          "given": [
+            "messages 数组中已有 10 条消息",
+            "messageValidator 已启用"
+          ],
+          "when": [
+            "新的 assistant message 验证失败"
+          ],
+          "then": [
+            "已有的 10 条消息保持不变",
+            "仅对新消息返回 error，不触发全量重写",
+            "不调用 session.clear() 或 session.rewrite()"
+          ]
+        },
+        "passes": false
+      }
+    ]
+  }
+]

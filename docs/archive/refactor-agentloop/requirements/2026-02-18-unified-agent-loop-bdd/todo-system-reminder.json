@@ -1,0 +1,160 @@
+[
+  {
+    "category": "functional",
+    "feature": "todo-system-reminder",
+    "description": "TodoList System Reminder 引导机制，多轮未更新时注入提醒而非强制继续循环",
+    "overallPass": false,
+    "bdd": [
+      {
+        "scenario": "达到阈值时注入 System Reminder",
+        "description": "当 Agent 连续 10 轮未更新 TodoList 且存在未完成项时，注入 System Reminder",
+        "steps": {
+          "given": [
+            "TodoList 中有 2 个状态为 'pending' 的任务",
+            "todoStrategy.staleThresholdTurns 设置为 10",
+            "Agent 已执行 10 轮且未调用 TodoWrite 工具"
+          ],
+          "when": [
+            "核心 loop 开始第 11 轮"
+          ],
+          "then": [
+            "在下一轮的 messages 中追加 [System Reminder] 内容",
+            "Reminder 内容包含未完成任务的列表",
+            "EventStream 发射 todo_reminder 事件",
+            "核心 loop 不强制继续 — LLM 可自主决定是否继续工作"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "TodoList 更新后重置计数",
+        "description": "当 Agent 通过 TodoWrite 更新 todo 状态后，未更新轮数重置为 0",
+        "steps": {
+          "given": [
+            "TodoList 中有未完成任务",
+            "Agent 已执行 8 轮未更新 TodoList（阈值为 10）"
+          ],
+          "when": [
+            "Agent 在第 9 轮通过 TodoWrite 工具更新了一个任务状态"
+          ],
+          "then": [
+            "turnsSinceLastUpdate 重置为 0",
+            "后续 10 轮内不会注入 System Reminder"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "无未完成任务时不注入",
+        "description": "当所有 todo 项状态为 completed 时，即使超过阈值也不注入 reminder",
+        "steps": {
+          "given": [
+            "TodoList 中有 3 个任务，全部状态为 'completed'",
+            "Agent 已执行 15 轮未调用 TodoWrite"
+          ],
+          "when": [
+            "核心 loop 开始新一轮"
+          ],
+          "then": [
+            "不注入 System Reminder",
+            "不发射 todo_reminder 事件"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "TodoList 为空时跳过检查",
+        "description": "当 TodoList 没有任何项目时，跳过整个检查逻辑",
+        "steps": {
+          "given": [
+            "TodoList 为空（无任何 todo 项）",
+            "Agent 已执行 20 轮"
+          ],
+          "when": [
+            "核心 loop 开始新一轮"
+          ],
+          "then": [
+            "跳过 TodoList 检查",
+            "不注入 System Reminder"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "todoStrategy 未启用时完全跳过",
+        "description": "当 AgentLoopConfig 中未提供 todoStrategy 时，核心 loop 不执行任何 TodoList 逻辑",
+        "steps": {
+          "given": [
+            "AgentLoopConfig 的 todoStrategy 为 undefined",
+            "全局 TodoStore 中有未完成任务"
+          ],
+          "when": [
+            "调用 runAgentLoop(config, userMessage)"
+          ],
+          "then": [
+            "核心 loop 完全跳过 TodoList 相关逻辑",
+            "不注入 System Reminder",
+            "不发射 todo_reminder 事件"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "LLM 收到 Reminder 后选择停止",
+        "description": "LLM 收到 System Reminder 后可以自主决定不继续工作",
+        "steps": {
+          "given": [
+            "System Reminder 已注入到 messages 中",
+            "LLM 在收到 reminder 后返回纯文本响应（无工具调用）"
+          ],
+          "when": [
+            "核心 loop 处理 LLM 响应"
+          ],
+          "then": [
+            "核心 loop 正常结束，stopReason 为 'end_turn'",
+            "不强制继续循环",
+            "尊重 LLM 的停止决定"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "连续多轮触发 Reminder",
+        "description": "当 LLM 收到 Reminder 后继续工作但仍不更新 TodoList，下次达到阈值时再次注入",
+        "steps": {
+          "given": [
+            "Agent 在第 10 轮触发了 System Reminder",
+            "LLM 继续工作但没有通过 TodoWrite 更新 todo",
+            "又过了 10 轮（第 20 轮）"
+          ],
+          "when": [
+            "核心 loop 开始第 21 轮"
+          ],
+          "then": [
+            "再次注入 System Reminder",
+            "Reminder 内容包含最新的未完成任务列表"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "阈值为 0 时每轮都注入",
+        "description": "当 staleThresholdTurns 为 0 时，每轮都注入 Reminder（边界条件）",
+        "steps": {
+          "given": [
+            "todoStrategy.staleThresholdTurns 设置为 0",
+            "TodoList 中有未完成任务"
+          ],
+          "when": [
+            "核心 loop 执行每一轮"
+          ],
+          "then": [
+            "每轮开始时都注入 System Reminder",
+            "每轮都发射 todo_reminder 事件"
+          ]
+        },
+        "passes": false
+      }
+    ]
+  }
+]
