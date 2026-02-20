@@ -9,7 +9,7 @@
 
 import { Command } from 'commander';
 import { startRepl } from './repl.ts';
-import { getProjectVersion } from '../config/version.ts';
+import { getProjectVersion } from '../shared/config/version.ts';
 
 const program = new Command();
 

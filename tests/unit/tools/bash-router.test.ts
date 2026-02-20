@@ -10,7 +10,7 @@ import { BashRouter, CommandType } from '../../../src/tools/bash-router.ts';
 import type { BashSession } from '../../../src/tools/bash-session.ts';
 import type { CancelablePromise } from '../../../src/tools/callable-tool.ts';
 import { McpClient, McpConfigParser } from '../../../src/tools/converters/mcp/index.ts';
-import type { SandboxManager } from '../../../src/sandbox/sandbox-manager.ts';
+import type { SandboxManager } from '../../../src/shared/sandbox/sandbox-manager.ts';
 
 type SessionMock = {
   execute: ReturnType<typeof mock>;
@@ -115,7 +115,7 @@ describe('BashRouter', () => {
     const result = await router.route('task:general --prompt "hi" --description "Test"');
 
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain('Task commands require LLM client and tool executor');
+    expect(result.stderr).toContain('Task commands require SubAgent executor');
   });
 
   it('should allow echo redirection file writes', async () => {
@@ -255,34 +255,23 @@ describe('BashRouter - skill command routing', () => {
   });
 });
 
-describe('BashRouter - setToolExecutor', () => {
-  it('should accept tool executor and update options', () => {
+describe('BashRouter - hasSubAgentExecutor', () => {
+  it('should return false when no executor factory is provided', () => {
     const session = createSessionStub();
     const router = new BashRouter(session);
-    const mockBashTool = {
-      call: mock(async () => ({})),
-    } as any;
 
-    // setToolExecutor 不应抛异常
-    router.setToolExecutor(mockBashTool);
+    expect(router.hasSubAgentExecutor()).toBe(false);
   });
 
-  it('should reset task handler with shutdown when it exists', async () => {
+  it('should return true when executor factory is provided', () => {
     const session = createSessionStub();
-    const shutdownSpy = mock(() => {});
+    const mockFactory = () => ({
+      execute: async () => '',
+      shutdown: () => {},
+    });
+    const router = new BashRouter(session, { subAgentExecutorFactory: mockFactory });
 
-    const router = new BashRouter(session);
-
-    // 注册一个带 shutdown 的 task handler（模拟已经初始化过的场景）
-    router.registerHandler('task:', CommandType.AGENT_SHELL_COMMAND, {
-      execute: async () => ({ stdout: '', stderr: '', exitCode: 0 }),
-      shutdown: shutdownSpy,
-    }, 'prefix');
-
-    const mockBashTool = { call: mock(async () => ({})) } as any;
-    router.setToolExecutor(mockBashTool);
-
-    expect(shutdownSpy).toHaveBeenCalledTimes(1);
+    expect(router.hasSubAgentExecutor()).toBe(true);
   });
 });
 

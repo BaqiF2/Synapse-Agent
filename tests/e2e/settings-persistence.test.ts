@@ -8,8 +8,8 @@ import { describe, expect, it, beforeEach, afterEach } from 'bun:test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
-import { SettingsManager } from '../../src/config/index.ts';
-import { DEFAULT_SETTINGS } from '../../src/config/settings-schema.ts';
+import { SettingsManager } from '../../src/shared/config/index.ts';
+import { DEFAULT_SETTINGS } from '../../src/shared/config/settings-schema.ts';
 
 describe('Settings Persistence E2E', () => {
   let testDir: string;

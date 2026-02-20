@@ -14,7 +14,7 @@ import * as path from 'node:path';
 import { SUPPORTED_EXTENSIONS } from './skill-structure.js';
 import type { SupportedExtension } from './skill-structure.js';
 import type { SkillWrapperGenerator } from './wrapper-generator.js';
-import { createLogger } from '../../../utils/logger.ts';
+import { createLogger } from '../../../shared/file-logger.ts';
 
 const logger = createLogger('skill-script-processor');
 

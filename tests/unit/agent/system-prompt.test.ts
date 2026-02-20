@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect } from 'bun:test';
-import { buildSystemPrompt } from '../../../src/agent/system-prompt.js';
+import { buildSystemPrompt } from '../../../src/core/system-prompt.js';
 
 describe('buildSystemPrompt', () => {
   it('should include all 4 sections in correct order', () => {

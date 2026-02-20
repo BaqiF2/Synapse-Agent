@@ -24,7 +24,7 @@ import {
 } from './anthropic-types.ts';
 import { AnthropicStreamedMessage } from './anthropic-streamed-message.ts';
 import { toAnthropicMessages } from './anthropic-message-converter.ts';
-import { parseEnvInt } from '../../utils/env.ts';
+import { parseEnvInt } from '../../shared/env.ts';
 
 const DEFAULT_MAX_TOKENS = parseEnvInt(process.env.SYNAPSE_MAX_TOKENS, 4096);
 

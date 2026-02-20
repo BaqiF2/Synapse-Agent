@@ -1,14 +1,7 @@
 /**
- * extend Shell command handler index
- *
- * Exports handlers for Layer 3 commands: MCP tools, Skill tools, and command discovery.
- *
- * Core Exports:
- * - CommandSearchHandler: command:search handler
- * - McpCommandHandler: mcp:<server>:<tool> handler
- * - SkillToolHandler: skill:<skill>:<tool> handler
+ * @deprecated 请使用 tools/commands/index.ts
+ * 此文件保留为向后兼容的重导出
  */
-
-export { CommandSearchHandler, parseCommandSearchCommand, type ParsedCommandSearchCommand } from './command-search.ts';
-export { McpCommandHandler } from './mcp-command-handler.ts';
-export { SkillToolHandler } from './skill-tool-handler.ts';
+export { CommandSearchHandler, parseCommandSearchCommand, type ParsedCommandSearchCommand } from '../../commands/search-handler.ts';
+export { McpCommandHandler } from '../../commands/mcp-handler.ts';
+export { SkillToolHandler } from '../../commands/skill-tool.ts';

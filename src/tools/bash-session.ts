@@ -10,7 +10,7 @@
 
 import { spawn, type ChildProcess, type SpawnOptionsWithoutStdio } from 'node:child_process';
 import type { CommandResult } from '../types/tool.ts';
-import { parseEnvInt } from '../utils/env.ts';
+import { parseEnvInt } from '../shared/env.ts';
 
 const COMMAND_TIMEOUT = parseEnvInt(process.env.SYNAPSE_COMMAND_TIMEOUT, 30000);
 const COMMAND_END_MARKER = '___SYNAPSE_COMMAND_END___';

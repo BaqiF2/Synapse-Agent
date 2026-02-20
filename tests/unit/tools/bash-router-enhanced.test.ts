@@ -223,48 +223,26 @@ describe('BashRouter Enhanced Tests', () => {
     });
   });
 
-  describe('setToolExecutor', () => {
-    it('should reset task handler when setting new executor', () => {
-      // 先触发 task handler 创建
+  describe('subAgentExecutorFactory', () => {
+    it('should make executor available when factory is provided', () => {
+      const mockFactory = () => ({
+        execute: async () => '',
+        shutdown: () => {},
+      });
       const routerWithDeps = new BashRouter(session, {
         synapseDir,
-        llmClient: {} as any,
-        toolExecutor: {} as any,
+        subAgentExecutorFactory: mockFactory,
       });
 
       try {
-        // 手动访问 task handler entry
-        const registry = (routerWithDeps as any).handlerRegistry;
-        const taskEntry = registry.get('task:');
-        expect(taskEntry).toBeDefined();
-
-        // setToolExecutor 应重置已创建的 handler
-        const mockExecutor = {} as any;
-        routerWithDeps.setToolExecutor(mockExecutor);
-
-        // 重置后 handler 应为 null
-        expect(taskEntry.handler).toBeNull();
+        expect(routerWithDeps.hasSubAgentExecutor()).toBe(true);
       } finally {
         routerWithDeps.shutdown();
       }
     });
 
-    it('should reset skill handler when setting new executor', () => {
-      const routerWithDeps = new BashRouter(session, {
-        synapseDir,
-        llmClient: {} as any,
-        toolExecutor: {} as any,
-      });
-
-      try {
-        const registry = (routerWithDeps as any).handlerRegistry;
-        const skillEntry = registry.get('skill:');
-
-        routerWithDeps.setToolExecutor({} as any);
-        expect(skillEntry.handler).toBeNull();
-      } finally {
-        routerWithDeps.shutdown();
-      }
+    it('should report no executor when factory is not provided', () => {
+      expect(router.hasSubAgentExecutor()).toBe(false);
     });
   });
 

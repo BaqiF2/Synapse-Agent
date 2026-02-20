@@ -8,7 +8,7 @@ import { describe, expect, it } from 'bun:test';
 import {
   SynapseSettingsSchema,
   DEFAULT_SETTINGS,
-} from '../../../src/config/settings-schema.ts';
+} from '../../../src/shared/config/settings-schema.ts';
 
 describe('SynapseSettingsSchema', () => {
   const expectedMaxEnhanceContextChars = parseInt(

@@ -5,8 +5,8 @@ import * as path from 'node:path';
 import type { AnthropicClient } from '../../../src/providers/anthropic/anthropic-client.ts';
 import type { Message } from '../../../src/providers/message.ts';
 import { createTextMessage } from '../../../src/providers/message.ts';
-import { OffloadStorage } from '../../../src/agent/offload-storage.ts';
-import { ContextCompactor } from '../../../src/agent/context-compactor.ts';
+import { OffloadStorage } from '../../../src/core/offload-storage.ts';
+import { ContextCompactor } from '../../../src/core/context-compactor.ts';
 
 function createMockClient(): AnthropicClient {
   return {

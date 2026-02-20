@@ -10,7 +10,7 @@
 import { describe, expect, it, mock } from 'bun:test';
 import { AnthropicClient } from '../../src/providers/anthropic/anthropic-client.ts';
 import { AnthropicStreamedMessage } from '../../src/providers/anthropic/anthropic-streamed-message.ts';
-import { AgentRunner } from '../../src/agent/agent-runner.ts';
+import { AgentRunner } from '../../src/core/agent-runner.ts';
 import { CallableToolset } from '../../src/tools/toolset.ts';
 import { ToolOk, type CallableTool, type ToolReturnValue } from '../../src/tools/callable-tool.ts';
 import {

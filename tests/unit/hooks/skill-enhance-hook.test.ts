@@ -9,7 +9,7 @@ import { describe, expect, it, beforeEach, afterEach, afterAll, mock, spyOn } fr
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
-import type { StopHookContext } from '../../../src/hooks/types.ts';
+import type { StopHookContext } from '../../../src/core/hooks/types.ts';
 import type { Message } from '../../../src/providers/message.ts';
 
 let capturedSkillEnhancePrompt: string | null = null;
@@ -17,7 +17,7 @@ let mockSubAgentResponses: string[] = [];
 let capturedExecuteParams: Array<{ type: string; action?: string; prompt: string }> = [];
 
 // Mock SubAgentManager，避免真实 API 调用
-mock.module('../../../src/sub-agents/sub-agent-manager.ts', () => ({
+mock.module('../../../src/core/sub-agents/sub-agent-manager.ts', () => ({
   SubAgentManager: class MockSubAgentManager {
     execute(type: string, params: { prompt: string; action?: string }) {
       capturedSkillEnhancePrompt = params.prompt;
@@ -138,8 +138,8 @@ describe('SkillEnhanceHook - 配置检查 (Feature 9)', () => {
 
   it('autoEnhance 禁用时跳过处理', async () => {
     // 动态导入以确保环境变量生效
-    const { SettingsManager } = await import('../../../src/config/settings-manager.ts');
-    const { skillEnhanceHook } = await import('../../../src/hooks/skill-enhance-hook.ts');
+    const { SettingsManager } = await import('../../../src/shared/config/settings-manager.ts');
+    const { skillEnhanceHook } = await import('../../../src/core/hooks/skill-enhance-hook.ts');
 
     // Mock isAutoEnhanceEnabled 返回 false
     const settingsProto = SettingsManager.prototype;
@@ -158,8 +158,8 @@ describe('SkillEnhanceHook - 配置检查 (Feature 9)', () => {
   });
 
   it('autoEnhance 启用时继续处理', async () => {
-    const { SettingsManager } = await import('../../../src/config/settings-manager.ts');
-    const { skillEnhanceHook } = await import('../../../src/hooks/skill-enhance-hook.ts');
+    const { SettingsManager } = await import('../../../src/shared/config/settings-manager.ts');
+    const { skillEnhanceHook } = await import('../../../src/core/hooks/skill-enhance-hook.ts');
 
     // Mock isAutoEnhanceEnabled 返回 true
     const settingsProto = SettingsManager.prototype;
@@ -183,8 +183,8 @@ describe('SkillEnhanceHook - 配置检查 (Feature 9)', () => {
   });
 
   it('autoEnhance 启用且执行增强时应发送进度提示', async () => {
-    const { SettingsManager } = await import('../../../src/config/settings-manager.ts');
-    const { skillEnhanceHook } = await import('../../../src/hooks/skill-enhance-hook.ts');
+    const { SettingsManager } = await import('../../../src/shared/config/settings-manager.ts');
+    const { skillEnhanceHook } = await import('../../../src/core/hooks/skill-enhance-hook.ts');
 
     const settingsProto = SettingsManager.prototype;
     const originalIsAutoEnhanceEnabled = settingsProto.isAutoEnhanceEnabled;
@@ -226,8 +226,8 @@ describe('SkillEnhanceHook - SessionId 检查 (Feature 10)', () => {
   });
 
   it('sessionId 为 null 时跳过增强', async () => {
-    const { SettingsManager } = await import('../../../src/config/settings-manager.ts');
-    const { skillEnhanceHook } = await import('../../../src/hooks/skill-enhance-hook.ts');
+    const { SettingsManager } = await import('../../../src/shared/config/settings-manager.ts');
+    const { skillEnhanceHook } = await import('../../../src/core/hooks/skill-enhance-hook.ts');
 
     // Mock isAutoEnhanceEnabled 返回 true
     const settingsProto = SettingsManager.prototype;
@@ -247,8 +247,8 @@ describe('SkillEnhanceHook - SessionId 检查 (Feature 10)', () => {
   });
 
   it('sessionId 存在时继续处理', async () => {
-    const { SettingsManager } = await import('../../../src/config/settings-manager.ts');
-    const { skillEnhanceHook } = await import('../../../src/hooks/skill-enhance-hook.ts');
+    const { SettingsManager } = await import('../../../src/shared/config/settings-manager.ts');
+    const { skillEnhanceHook } = await import('../../../src/core/hooks/skill-enhance-hook.ts');
 
     // 创建会话文件
     const sessionPath = path.join(tempDir, 'existing-session.jsonl');
@@ -296,8 +296,8 @@ describe('SkillEnhanceHook - 会话读取与压缩 (Feature 11)', () => {
   });
 
   it('会话文件不存在时返回空会话', async () => {
-    const { SettingsManager } = await import('../../../src/config/settings-manager.ts');
-    const { skillEnhanceHook } = await import('../../../src/hooks/skill-enhance-hook.ts');
+    const { SettingsManager } = await import('../../../src/shared/config/settings-manager.ts');
+    const { skillEnhanceHook } = await import('../../../src/core/hooks/skill-enhance-hook.ts');
 
     // Mock settings
     const settingsProto = SettingsManager.prototype;
@@ -323,8 +323,8 @@ describe('SkillEnhanceHook - 会话读取与压缩 (Feature 11)', () => {
   });
 
   it('使用配置的 maxChars 参数', async () => {
-    const { SettingsManager } = await import('../../../src/config/settings-manager.ts');
-    const { skillEnhanceHook } = await import('../../../src/hooks/skill-enhance-hook.ts');
+    const { SettingsManager } = await import('../../../src/shared/config/settings-manager.ts');
+    const { skillEnhanceHook } = await import('../../../src/core/hooks/skill-enhance-hook.ts');
     const { ConversationReader } = await import('../../../src/skills/conversation-reader.ts');
 
     // 创建会话文件
@@ -380,8 +380,8 @@ describe('SkillEnhanceHook - Meta-skill 加载 (Feature 12)', () => {
   });
 
   it('Meta-skill 文件存在时加载成功', async () => {
-    const { SettingsManager } = await import('../../../src/config/settings-manager.ts');
-    const { skillEnhanceHook } = await import('../../../src/hooks/skill-enhance-hook.ts');
+    const { SettingsManager } = await import('../../../src/shared/config/settings-manager.ts');
+    const { skillEnhanceHook } = await import('../../../src/core/hooks/skill-enhance-hook.ts');
 
     // 创建会话文件
     const sessionPath = path.join(tempDir, 'meta-skill-test.jsonl');
@@ -418,8 +418,8 @@ describe('SkillEnhanceHook - Meta-skill 加载 (Feature 12)', () => {
   });
 
   it('增强 prompt 不应包含规则化候选列表区块（纯 LLM 判定）', async () => {
-    const { SettingsManager } = await import('../../../src/config/settings-manager.ts');
-    const { skillEnhanceHook } = await import('../../../src/hooks/skill-enhance-hook.ts');
+    const { SettingsManager } = await import('../../../src/shared/config/settings-manager.ts');
+    const { skillEnhanceHook } = await import('../../../src/core/hooks/skill-enhance-hook.ts');
 
     const sessionPath = path.join(tempDir, 'llm-only-test.jsonl');
     fs.writeFileSync(
@@ -449,8 +449,8 @@ describe('SkillEnhanceHook - Meta-skill 加载 (Feature 12)', () => {
 
 describe('SkillEnhanceHook - Sub-agent 超时处理 (Feature 14)', () => {
   it('子代理返回无效中间话术时应重试并返回规范结果', async () => {
-    const { SettingsManager } = await import('../../../src/config/settings-manager.ts');
-    const { skillEnhanceHook } = await import('../../../src/hooks/skill-enhance-hook.ts');
+    const { SettingsManager } = await import('../../../src/shared/config/settings-manager.ts');
+    const { skillEnhanceHook } = await import('../../../src/core/hooks/skill-enhance-hook.ts');
 
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skill-enhance-retry-test-'));
     process.env.SYNAPSE_SESSIONS_DIR = tempDir;
@@ -498,8 +498,8 @@ describe('SkillEnhanceHook - Sub-agent 超时处理 (Feature 14)', () => {
   });
 
   it('子代理连续两次无效输出时应返回兜底结果', async () => {
-    const { SettingsManager } = await import('../../../src/config/settings-manager.ts');
-    const { skillEnhanceHook } = await import('../../../src/hooks/skill-enhance-hook.ts');
+    const { SettingsManager } = await import('../../../src/shared/config/settings-manager.ts');
+    const { skillEnhanceHook } = await import('../../../src/core/hooks/skill-enhance-hook.ts');
 
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skill-enhance-fallback-test-'));
     process.env.SYNAPSE_SESSIONS_DIR = tempDir;
@@ -567,10 +567,10 @@ describe('SkillEnhanceHook - Sub-agent 超时处理 (Feature 14)', () => {
 describe('SkillEnhanceHook - 模块加载时自动注册 (Feature 15)', () => {
   it('导入模块时自动注册 Hook', async () => {
     // 重新导入模块以触发自动注册
-    const { stopHookRegistry } = await import('../../../src/hooks/stop-hook-registry.ts');
+    const { stopHookRegistry } = await import('../../../src/core/hooks/stop-hook-registry.ts');
 
     // 导入 skill-enhance-hook 模块（这会触发自动注册）
-    await import('../../../src/hooks/skill-enhance-hook.ts');
+    await import('../../../src/core/hooks/skill-enhance-hook.ts');
 
     // 验证 hook 已注册
     expect(stopHookRegistry.has('skill-enhance')).toBe(true);
@@ -593,8 +593,8 @@ describe('SkillEnhanceHook - TodoWrite 调用检测', () => {
   });
 
   it('无 TodoWrite 调用时应跳过增强', async () => {
-    const { SettingsManager } = await import('../../../src/config/settings-manager.ts');
-    const { skillEnhanceHook } = await import('../../../src/hooks/skill-enhance-hook.ts');
+    const { SettingsManager } = await import('../../../src/shared/config/settings-manager.ts');
+    const { skillEnhanceHook } = await import('../../../src/core/hooks/skill-enhance-hook.ts');
 
     // 创建会话文件
     const sessionPath = path.join(tempDir, 'no-todo-write.jsonl');
@@ -632,8 +632,8 @@ describe('SkillEnhanceHook - TodoWrite 调用检测', () => {
   });
 
   it('有 TodoWrite 调用时应继续增强流程', async () => {
-    const { SettingsManager } = await import('../../../src/config/settings-manager.ts');
-    const { skillEnhanceHook } = await import('../../../src/hooks/skill-enhance-hook.ts');
+    const { SettingsManager } = await import('../../../src/shared/config/settings-manager.ts');
+    const { skillEnhanceHook } = await import('../../../src/core/hooks/skill-enhance-hook.ts');
 
     // 创建会话文件
     const sessionPath = path.join(tempDir, 'with-todo-write.jsonl');
@@ -682,8 +682,8 @@ describe('SkillEnhanceHook - TodoWrite 调用检测', () => {
   });
 
   it('TodoWrite 命令前有空格时也应检测成功', async () => {
-    const { SettingsManager } = await import('../../../src/config/settings-manager.ts');
-    const { skillEnhanceHook } = await import('../../../src/hooks/skill-enhance-hook.ts');
+    const { SettingsManager } = await import('../../../src/shared/config/settings-manager.ts');
+    const { skillEnhanceHook } = await import('../../../src/core/hooks/skill-enhance-hook.ts');
 
     // 创建会话文件
     const sessionPath = path.join(tempDir, 'with-space-todo-write.jsonl');
@@ -729,8 +729,8 @@ describe('SkillEnhanceHook - TodoWrite 调用检测', () => {
   });
 
   it('非 Bash 工具调用时不应误判为 TodoWrite', async () => {
-    const { SettingsManager } = await import('../../../src/config/settings-manager.ts');
-    const { skillEnhanceHook } = await import('../../../src/hooks/skill-enhance-hook.ts');
+    const { SettingsManager } = await import('../../../src/shared/config/settings-manager.ts');
+    const { skillEnhanceHook } = await import('../../../src/core/hooks/skill-enhance-hook.ts');
 
     // 创建会话文件
     const sessionPath = path.join(tempDir, 'other-tool.jsonl');
@@ -778,7 +778,7 @@ describe('SkillEnhanceHook - TodoWrite 调用检测', () => {
 
 describe('buildRetryPrompt - 新签名测试', () => {
   it('输出应包含 [Previous Attempt Failed] 和截断文本', async () => {
-    const { buildRetryPrompt } = await import('../../../src/hooks/skill-enhance-result-parser.ts');
+    const { buildRetryPrompt } = await import('../../../src/core/hooks/skill-enhance-result-parser.ts');
 
     const prompt = 'Analyze conversation';
     const previousOutput = '我来分析这个对话，看看是否需要创建或增强技能。';
@@ -791,7 +791,7 @@ describe('buildRetryPrompt - 新签名测试', () => {
   });
 
   it('超过 500 字符的 previousOutput 应被截断', async () => {
-    const { buildRetryPrompt } = await import('../../../src/hooks/skill-enhance-result-parser.ts');
+    const { buildRetryPrompt } = await import('../../../src/core/hooks/skill-enhance-result-parser.ts');
 
     const longOutput = 'A'.repeat(600);
     const result = buildRetryPrompt('test prompt', longOutput);
@@ -802,7 +802,7 @@ describe('buildRetryPrompt - 新签名测试', () => {
   });
 
   it('短于 500 字符的 previousOutput 不应被截断', async () => {
-    const { buildRetryPrompt } = await import('../../../src/hooks/skill-enhance-result-parser.ts');
+    const { buildRetryPrompt } = await import('../../../src/core/hooks/skill-enhance-result-parser.ts');
 
     const shortOutput = 'Short invalid output';
     const result = buildRetryPrompt('test prompt', shortOutput);

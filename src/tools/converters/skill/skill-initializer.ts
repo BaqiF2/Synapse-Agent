@@ -17,7 +17,7 @@ import * as path from 'node:path';
 import { SkillStructure, type SkillEntry } from './skill-structure.js';
 import { SkillWrapperGenerator } from './wrapper-generator.js';
 import { MetaSkillInstaller } from '../../../skills/meta-skill-installer.js';
-import { createLogger } from '../../../utils/logger.js';
+import { createLogger } from '../../../shared/file-logger.js';
 
 const logger = createLogger('skill-init');
 

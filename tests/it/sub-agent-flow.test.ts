@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'bun:test';
-import { getConfig } from '../../src/sub-agents/configs/index.ts';
+import { getConfig } from '../../src/core/sub-agents/configs/index.ts';
 
 
 describe('IT: Sub-agent config flow', () => {

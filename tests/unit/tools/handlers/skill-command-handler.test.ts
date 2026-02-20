@@ -360,7 +360,7 @@ domain: general
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain('Conflicts');
       expect(result.stdout).toContain('git-commit');
-      expect(result.stdout).toContain('修改源目录中的名称后重新导入');
+      expect(result.stdout).toContain('Please rename the conflicting skills in the source directory and re-import');
     });
 
     it('发现相似时提示 --continue 或 --merge', async () => {
@@ -446,7 +446,7 @@ domain: general
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain('Available versions for git-commit');
       expect(result.stdout).toContain('2026-02-03-001');
-      expect(result.stdout).toContain('请选择版本号重新执行');
+      expect(result.stdout).toContain('Select a version and re-run');
     });
 
     it('skill:rollback 指定版本时执行回滚', async () => {

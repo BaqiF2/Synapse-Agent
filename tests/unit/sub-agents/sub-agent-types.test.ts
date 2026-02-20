@@ -9,7 +9,7 @@ import {
   isSubAgentType,
   TaskCommandParamsSchema,
   SUB_AGENT_TYPES,
-} from '../../../src/sub-agents/sub-agent-types.ts';
+} from '../../../src/core/sub-agents/sub-agent-types.ts';
 
 describe('Sub Agent Types', () => {
   describe('isSubAgentType', () => {

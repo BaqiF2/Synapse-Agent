@@ -14,7 +14,7 @@
  */
 
 import chalk from 'chalk';
-import type { ToolResultEvent, SubAgentCompleteEvent } from '../terminal-renderer-types.ts';
+import type { ToolResultEvent, SubAgentCompleteEvent } from '../../types/events.ts';
 import type { ActiveSubAgentState } from './renderer-types.ts';
 import {
   buildSubAgentToolLine,
@@ -23,7 +23,7 @@ import {
   truncateTaskDescription,
   outputToolError,
 } from './render-utils.ts';
-import { parseEnvInt } from '../../utils/env.ts';
+import { parseEnvInt } from '../../shared/env.ts';
 
 /** SubAgent 渲染时最多显示的最近工具数 */
 const MAX_RECENT_TOOLS = parseEnvInt(process.env.SYNAPSE_MAX_RECENT_TOOLS, 5);

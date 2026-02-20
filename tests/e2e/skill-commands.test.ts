@@ -10,7 +10,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
 import { SkillCommandHandler } from '../../src/tools/handlers/skill-command-handler.ts';
-import { DEFAULT_SETTINGS } from '../../src/config/settings-schema.ts';
+import { DEFAULT_SETTINGS } from '../../src/shared/config/settings-schema.ts';
 
 describe('Skill Commands E2E', () => {
   let testDir: string;

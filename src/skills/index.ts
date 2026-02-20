@@ -22,6 +22,7 @@
  * - MetaSkillInstaller: Copies bundled meta skills to user directory
  */
 
+// Schema sub-module
 export {
   SkillDocParser,
   SkillDocSchema,
@@ -29,25 +30,31 @@ export {
   SKILL_DOMAINS,
   type SkillDoc,
   type SkillDomain,
-} from './skill-schema.js';
+} from './schema/skill-doc-parser.ts';
 
+// Loader sub-module
 export {
   SkillIndexer,
   SkillIndexSchema,
   SkillIndexEntrySchema,
+  SkillIndexUpdater,
   type SkillIndex,
   type SkillIndexEntry,
-} from './indexer.js';
+} from './loader/indexer.ts';
 
 export {
   SkillLoader,
   type SkillLevel1,
   type SkillLevel2,
   type ProviderSearchResult,
-} from './skill-loader.js';
+} from './loader/skill-loader.ts';
 
-// Skill Management Types
+// Types
 export type {
+  SkillSpec,
+  ScriptDef,
+  ConversationMessage,
+  GenerationResult,
   VersionInfo,
   SkillMeta,
   ConflictInfo,
@@ -56,26 +63,23 @@ export type {
   ImportResult,
   ImportOptions,
   MergeIntoOption,
-} from './types.js';
+} from './types.ts';
 
-// Skill Merger
+// Manager sub-module
 export {
   SkillMerger,
-} from './skill-merger.js';
+} from './manager/skill-merger.ts';
 
-// Skill Version Manager
 export {
   SkillVersionManager,
   type SkillVersionManagerOptions,
-} from './skill-version-manager.js';
+} from './manager/version-manager.ts';
 
-// Skill Import Export
 export {
   SkillImportExport,
   type SkillImportExportOptions,
-} from './skill-import-export.js';
+} from './manager/import-export.ts';
 
-// Skill Manager (Facade)
 export {
   SkillManager,
   MAX_VERSIONS_DEFAULT,
@@ -83,59 +87,46 @@ export {
   getConfiguredMaxVersions,
   getConfiguredImportTimeout,
   type SkillManagerOptions,
-} from './skill-manager.js';
+} from './manager/skill-manager.ts';
 
-// Conversation Reader
+// Generator sub-module
 export {
   ConversationReader,
   type ConversationTurn,
   type ConversationSummary,
   type ToolCall,
   type ToolResult,
-} from './conversation-reader.js';
+} from './generator/conversation-reader.ts';
 
-// Skill Generator
 export {
   SkillGenerator,
-  type SkillSpec,
-  type ScriptDef,
-  type GenerationResult,
-  type ConversationMessage,
-} from './skill-generator.js';
+  parseSkillSpecFromLLM,
+} from './generator/skill-generator.ts';
 
-// Skill Enhancer
 export {
   SkillEnhancer,
   type ConversationAnalysis,
   type EnhanceDecision,
   type EnhanceResult,
   type SkillEnhancerOptions,
-} from './skill-enhancer.js';
+} from './generator/skill-enhancer.ts';
 
-// Skill Index Updater
-export {
-  SkillIndexUpdater,
-} from './index-updater.js';
-
-// Meta Skill Installer
 export {
   MetaSkillInstaller,
   getDefaultResourceDir,
   type InstallResult,
-} from './meta-skill-installer.js';
+} from './manager/meta-skill-installer.ts';
 
-// Skill Validator
 export {
   SkillValidator,
   type ValidationResult,
   type ValidationIssue,
   type ValidationSeverity,
-} from './skill-validator.js';
+} from './generator/skill-validator.ts';
 
-// Skill Generation Pipeline
 export {
   SkillGenerationPipeline,
   type PipelineResult,
   type PipelineOptions,
   type PipelineStats,
-} from './skill-generation-pipeline.js';
+} from './generator/generation-pipeline.ts';

@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
-import { SandboxProviderRegistry } from '../../../src/sandbox/provider-registry.ts';
+import { SandboxProviderRegistry } from '../../../src/shared/sandbox/provider-registry.ts';
 import type {
   ExecuteResult,
   SandboxBackend,
   SandboxCreateOptions,
   SandboxProvider,
-} from '../../../src/sandbox/types.ts';
-import { LocalSandboxProvider } from '../../../src/sandbox/providers/local/index.ts';
+} from '../../../src/shared/sandbox/types.ts';
+import { LocalSandboxProvider } from '../../../src/shared/sandbox/providers/local/index.ts';
 
 class MockBackend implements SandboxBackend {
   readonly id = 'mock-backend';

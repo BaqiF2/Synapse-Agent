@@ -24,7 +24,7 @@ import {
   appendToMessage,
   isToolCallPart,
 } from './message.ts';
-import { throwIfAborted } from '../utils/abort.ts';
+import { throwIfAborted } from '../shared/abort.ts';
 
 /**
  * Callback for raw streamed message parts

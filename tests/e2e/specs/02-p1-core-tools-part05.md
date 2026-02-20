@@ -61,10 +61,10 @@
 **And** 不应丢失取消信号
 
 ### Scenario: Task 依赖未注入时应返回统一依赖错误
-**Given** Router 未注入 `llmClient` 或 `toolExecutor`  
-**When** 执行 `task:general --prompt ... --description ...`  
-**Then** 退出码应为 `1`  
-**And** stderr 应包含 `Task commands require LLM client and tool executor`
+**Given** Router 未注入 `subAgentExecutorFactory`
+**When** 执行 `task:general --prompt ... --description ...`
+**Then** 退出码应为 `1`
+**And** stderr 应包含 `Task commands require SubAgent executor`
 
 ## Feature: 原生 Shell 写文件语法兼容
 

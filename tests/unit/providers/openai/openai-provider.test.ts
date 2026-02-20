@@ -303,7 +303,7 @@ describe('OpenAIProvider', () => {
         '../../../../src/providers/openai/openai-provider.ts'
       );
       const { AuthenticationError } = await import(
-        '../../../../src/common/errors.ts'
+        '../../../../src/shared/errors.ts'
       );
 
       const provider = new OpenAIProvider({
@@ -341,7 +341,7 @@ describe('OpenAIProvider', () => {
         '../../../../src/providers/openai/openai-provider.ts'
       );
       const { RateLimitError } = await import(
-        '../../../../src/common/errors.ts'
+        '../../../../src/shared/errors.ts'
       );
 
       const provider = new OpenAIProvider({

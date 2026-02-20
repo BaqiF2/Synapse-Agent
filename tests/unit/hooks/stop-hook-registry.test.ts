@@ -5,8 +5,8 @@
  */
 
 import { describe, expect, it, beforeEach } from 'bun:test';
-import { StopHookRegistry, stopHookRegistry } from '../../../src/hooks/stop-hook-registry.ts';
-import type { StopHookContext, HookResult } from '../../../src/hooks/types.ts';
+import { StopHookRegistry, stopHookRegistry } from '../../../src/core/hooks/stop-hook-registry.ts';
+import type { StopHookContext, HookResult } from '../../../src/core/hooks/types.ts';
 
 // 创建测试用 context
 function createTestContext(overrides: Partial<StopHookContext> = {}): StopHookContext {
@@ -99,7 +99,7 @@ describe('StopHookRegistry - 错误隔离', () => {
 describe('StopHookRegistry - 全局单例导出', () => {
   it('导出全局单例实例', async () => {
     // 从同一模块的两次导入应该是同一个引用
-    const { stopHookRegistry: registry2 } = await import('../../../src/hooks/stop-hook-registry.ts');
+    const { stopHookRegistry: registry2 } = await import('../../../src/core/hooks/stop-hook-registry.ts');
 
     expect(stopHookRegistry).toBe(registry2);
   });
@@ -108,7 +108,7 @@ describe('StopHookRegistry - 全局单例导出', () => {
     const {
       StopHookRegistry: ImportedClass,
       stopHookRegistry: importedInstance,
-    } = await import('../../../src/hooks/index.ts');
+    } = await import('../../../src/core/hooks/index.ts');
 
     expect(ImportedClass).toBeDefined();
     expect(importedInstance).toBeDefined();

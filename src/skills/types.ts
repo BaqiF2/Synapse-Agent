@@ -1,6 +1,48 @@
 import type { SkillIndexEntry } from './indexer.js';
 
 /**
+ * Skill specification for generation
+ */
+export interface SkillSpec {
+  name: string;
+  description: string;
+  quickStart: string;
+  executionSteps: string[];
+  bestPractices: string[];
+  examples: string[];
+  domain?: string;
+  version?: string;
+  author?: string;
+  tags?: string[];
+  scripts?: ScriptDef[];
+}
+
+/**
+ * Script definition
+ */
+export interface ScriptDef {
+  name: string;
+  content: string;
+}
+
+/**
+ * 对话消息类型，用于从对话历史生成技能
+ */
+export interface ConversationMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+/**
+ * Generation result
+ */
+export interface GenerationResult {
+  success: boolean;
+  path?: string;
+  error?: string;
+}
+
+/**
  * 版本信息
  */
 export interface VersionInfo {

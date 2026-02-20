@@ -1,8 +1,5 @@
 /**
- * Skill Index Updater - 向后兼容模块
- *
- * SkillIndexUpdater 已合并到 SkillIndexer 中。
- * 此文件保留 re-export 以兼容现有引用。
+ * Skill Index Updater (re-export shim)
+ * 实际实现已迁移到 loader/indexer.ts
  */
-
-export { SkillIndexer as SkillIndexUpdater } from './indexer.ts';
+export { SkillIndexer as SkillIndexUpdater } from './loader/indexer.ts';

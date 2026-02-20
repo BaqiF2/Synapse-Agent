@@ -2,8 +2,8 @@ import { describe, test, expect, beforeEach, afterEach, spyOn } from 'bun:test';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { calculateCost, getPricing, loadPricing } from '../../../src/config/pricing.ts';
-import { Logger } from '../../../src/utils/logger.ts';
+import { calculateCost, getPricing, loadPricing } from '../../../src/shared/config/pricing.ts';
+import { Logger } from '../../../src/shared/file-logger.ts';
 
 describe('pricing config', () => {
   let testDir: string;

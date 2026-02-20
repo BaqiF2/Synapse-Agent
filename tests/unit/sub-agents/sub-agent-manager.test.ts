@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { SubAgentManager } from '../../../src/sub-agents/sub-agent-manager.ts';
+import { SubAgentManager } from '../../../src/core/sub-agents/sub-agent-manager.ts';
 import { BashTool } from '../../../src/tools/bash-tool.ts';
 import type { AnthropicClient } from '../../../src/providers/anthropic/anthropic-client.ts';
 import type { StreamedMessagePart } from '../../../src/providers/anthropic/anthropic-types.ts';

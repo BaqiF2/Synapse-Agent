@@ -9,7 +9,7 @@ import {
   validateAgentLoopConfig,
   freezeConfig,
 } from '../../../src/core/agent-loop-config.ts';
-import { ConfigurationError } from '../../../src/common/errors.ts';
+import { ConfigurationError } from '../../../src/shared/errors.ts';
 
 // ========== 测试辅助 ==========
 

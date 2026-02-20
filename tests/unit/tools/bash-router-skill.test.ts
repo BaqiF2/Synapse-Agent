@@ -184,10 +184,13 @@ description: A test skill
     });
 
     it('createSkillHandler should pass llm/tool dependencies', async () => {
+      const mockExecutor = {
+        execute: async () => '',
+        shutdown: () => {},
+      };
       const routerWithDeps = new BashRouter(session, {
         synapseDir,
-        llmClient: {} as any,
-        toolExecutor: {} as any,
+        subAgentExecutorFactory: () => mockExecutor,
       });
 
       try {

@@ -12,10 +12,10 @@
 import * as readline from 'node:readline';
 import chalk from 'chalk';
 
-import { Session } from '../agent/session.ts';
+import { Session } from '../core/session.ts';
 import { FixedBottomRenderer } from './fixed-bottom-renderer.ts';
 import { extractHookOutput } from './hook-output.ts';
-import { todoStore } from '../tools/handlers/agent-bash/todo/todo-store.ts';
+import { todoStore } from '../tools/commands/todo-handler.ts';
 import {
   executeShellCommand,
   handleSpecialCommand,
@@ -26,7 +26,7 @@ import {
   type SpecialCommandOptions,
 } from './commands/index.ts';
 import { initializeAgent, initializeMcp, initializeSkills, showWelcomeBanner } from './repl-init.ts';
-import { createLogger } from '../utils/logger.ts';
+import { createLogger } from '../shared/file-logger.ts';
 
 // re-export 供外部使用（测试等）
 export { executeShellCommand, handleSpecialCommand, handleSigint, formatStreamText };

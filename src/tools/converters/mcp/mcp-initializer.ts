@@ -16,8 +16,8 @@ import { McpConfigParser, type McpServerEntry } from './config-parser.js';
 import { McpClient } from './mcp-client.js';
 import { McpWrapperGenerator } from './wrapper-generator.js';
 import { McpInstaller } from './installer.js';
-import { createLogger } from '../../../utils/logger.js';
-import { parseEnvInt } from '../../../utils/env.js';
+import { createLogger } from '../../../shared/file-logger.js';
+import { parseEnvInt } from '../../../shared/env.js';
 
 const logger = createLogger('mcp-init');
 

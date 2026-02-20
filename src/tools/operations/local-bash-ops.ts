@@ -6,8 +6,8 @@
  * - LocalBashOperations: BashOperations 接口的本地实现
  */
 
-import { TimeoutError } from '../../common/errors.ts';
-import { DEFAULT_COMMAND_TIMEOUT_MS } from '../../common/constants.ts';
+import { TimeoutError } from '../../shared/errors.ts';
+import { DEFAULT_COMMAND_TIMEOUT_MS } from '../../shared/constants.ts';
 import type { BashOperations, ExecOptions, ExecResult } from './types.ts';
 
 /**

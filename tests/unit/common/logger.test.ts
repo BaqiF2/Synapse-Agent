@@ -4,7 +4,7 @@
  */
 
 import { describe, expect, it } from 'bun:test';
-import { createLogger, createChildLogger, withCorrelationId, getCorrelationId } from '../../../src/common/logger.ts';
+import { createLogger, createChildLogger, withCorrelationId, getCorrelationId } from '../../../src/shared/logger.ts';
 
 describe('createLogger', () => {
   it('should create a logger instance', () => {

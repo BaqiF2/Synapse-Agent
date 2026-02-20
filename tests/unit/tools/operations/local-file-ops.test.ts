@@ -10,7 +10,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
 import { LocalFileOperations } from '../../../../src/tools/operations/local-file-ops.ts';
-import { FileNotFoundError } from '../../../../src/common/errors.ts';
+import { FileNotFoundError } from '../../../../src/shared/errors.ts';
 
 describe('LocalFileOperations', () => {
   let fileOps: LocalFileOperations;

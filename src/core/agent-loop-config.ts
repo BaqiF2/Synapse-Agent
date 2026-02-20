@@ -14,7 +14,7 @@
  * - AgentLoopHooks: Agent Loop 生命周期钩子
  */
 
-import { ConfigurationError } from '../common';
+import { ConfigurationError } from '../shared';
 import type { AgentTool, LLMProviderLike } from './types.ts';
 import type { AgentEventBus } from './event-bus.ts';
 

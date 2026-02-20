@@ -11,9 +11,9 @@
 import type * as readline from 'node:readline';
 import chalk from 'chalk';
 
-import { Session, type SessionInfo } from '../../agent/session.ts';
+import { Session, type SessionInfo } from '../../core/session.ts';
 import { extractText } from '../../providers/message.ts';
-import type { AgentRunner } from '../../agent/agent-runner.ts';
+import type { AgentRunner } from '../../core/agent-runner.ts';
 import type { ResumeSessionHandler } from './types.ts';
 
 // ===== 常量 =====

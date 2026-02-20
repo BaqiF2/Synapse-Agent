@@ -15,7 +15,7 @@
 import type * as readline from 'node:readline';
 import chalk from 'chalk';
 
-import type { AgentRunner } from '../../agent/agent-runner.ts';
+import type { AgentRunner } from '../../core/agent-runner.ts';
 import type { SpecialCommandOptions } from './types.ts';
 
 // 命令子模块

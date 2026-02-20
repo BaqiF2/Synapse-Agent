@@ -17,11 +17,11 @@ import type {
   LLMResponse,
   LLMResponseContentBlock,
 } from '../types.ts';
-import { AuthenticationError, RateLimitError } from '../../common/errors.ts';
+import { AuthenticationError, RateLimitError } from '../../shared/errors.ts';
 import { toOpenAIParams, mapOpenAIFinishReason } from './openai-mapper.ts';
-import { createLogger } from '../../common/index.ts';
+import { createLogger } from '../../shared/file-logger.ts';
 
-const logger = createLogger({ name: 'openai-provider' });
+const logger = createLogger('openai-provider');
 
 /** OpenAIProvider 构造选项 */
 export interface OpenAIProviderOptions {

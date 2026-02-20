@@ -2,6 +2,7 @@
  * 渲染工具函数
  *
  * 提供终端渲染所需的底层工具方法，包括 ANSI 转义操作、行数计算、文本处理等。
+ * 合并自: render-utils.ts + hook-output.ts
  *
  * 核心导出：
  * - renderLineInPlace: 在当前行原地覆盖渲染
@@ -13,13 +14,15 @@
  * - getToolDotColor: 根据工具执行结果获取对应的着色函数
  * - truncateTaskDescription: 截断过长的任务描述
  * - outputToolError: 输出工具错误信息
+ * - extractHookOutput: 从响应文本中提取 hook 输出
  */
 
 import chalk from 'chalk';
 import readline from 'readline';
-import { TREE_SYMBOLS } from '../terminal-renderer-types.ts';
-import { SKILL_ENHANCE_PROGRESS_TEXT, isSkillEnhanceCommand } from '../../hooks/skill-enhance-constants.ts';
-import { parseEnvInt } from '../../utils/env.ts';
+import { TREE_SYMBOLS } from './renderer-types.ts';
+import { SKILL_ENHANCE_PROGRESS_TEXT, isSkillEnhanceCommand } from '../../core/hooks/skill-enhance-constants.ts';
+import { STOP_HOOK_MARKER } from '../../core/hooks/stop-hook-constants.ts';
+import { parseEnvInt } from '../../shared/env.ts';
 
 /** Bash 命令显示最大字符数（超出后截断） */
 const MAX_COMMAND_DISPLAY_LENGTH = 40;
@@ -164,4 +167,30 @@ export function outputToolError(output: string): number {
     return displayLines.length + 1;
   }
   return displayLines.length;
+}
+
+// ========== Hook Output 提取（合并自 hook-output.ts） ==========
+
+/**
+ * 从响应文本中提取 hook 输出。
+ *
+ * 优先查找 STOP_HOOK_MARKER 标记，如果不存在则回退到最后一个 [...] 模式匹配。
+ */
+export function extractHookOutput(response: string): string | null {
+  const markerIndex = response.lastIndexOf(STOP_HOOK_MARKER);
+  if (markerIndex !== -1) {
+    return response.slice(markerIndex + STOP_HOOK_MARKER.length).trimStart();
+  }
+  const pattern = /(^|\n)\[[^\]\r\n]+?\](?=\s|$)/g;
+  let lastStart = -1;
+  let match: RegExpExecArray | null = null;
+
+  while ((match = pattern.exec(response)) !== null) {
+    lastStart = match.index + (match[1] ?? '').length;
+  }
+
+  if (lastStart === -1) {
+    return null;
+  }
+  return response.slice(lastStart).trimStart();
 }

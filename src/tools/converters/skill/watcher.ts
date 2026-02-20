@@ -20,7 +20,7 @@ import type { SupportedExtension } from './skill-structure.js';
 import { SkillWrapperGenerator } from './wrapper-generator.js';
 import { SkillScriptProcessor } from './script-processor.js';
 import type { ProcessResult } from './script-processor.js';
-import { parseEnvInt } from '../../../utils/env.ts';
+import { parseEnvInt } from '../../../shared/env.ts';
 
 const DEFAULT_SKILLS_DIR = '.synapse/skills';
 const DEFAULT_DEBOUNCE_MS = parseEnvInt(process.env.SYNAPSE_SKILL_WATCHER_DEBOUNCE_MS, 1500);

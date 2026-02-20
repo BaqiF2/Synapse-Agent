@@ -13,7 +13,7 @@
 import { spawn } from 'node:child_process';
 import chalk from 'chalk';
 
-import { SKILL_ENHANCE_PROGRESS_TEXT } from '../../hooks/skill-enhance-constants.ts';
+import { SKILL_ENHANCE_PROGRESS_TEXT } from '../../core/hooks/skill-enhance-constants.ts';
 import type { SigintHandlerOptions } from './types.ts';
 
 // ===== 常量 =====

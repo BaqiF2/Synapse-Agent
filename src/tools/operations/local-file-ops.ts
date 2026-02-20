@@ -9,7 +9,7 @@
 import * as fs from 'node:fs/promises';
 import * as fsSync from 'node:fs';
 import * as path from 'node:path';
-import { FileNotFoundError } from '../../common/errors.ts';
+import { FileNotFoundError } from '../../shared/errors.ts';
 import type {
   FileOperations,
   FileEdit,

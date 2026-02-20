@@ -2,16 +2,32 @@
  * 渲染器内部共享类型定义
  *
  * 定义各渲染子模块之间通信所需的接口和类型，避免子模块之间的直接引用。
+ * 同时包含渲染相关的常量（从 terminal-renderer-types.ts 合并）。
  *
  * 核心导出：
  * - ActiveCall: 顶层活跃工具调用的状态
  * - ActiveSubAgentState: SubAgent 活跃状态
  * - ToolLineBuilder: 构建工具行文本的回调类型
  * - LineInPlaceRenderer: 原地渲染的回调类型
+ * - TREE_SYMBOLS: Unicode 树形符号常量
  */
 
-import type { SubAgentType } from '../../sub-agents/sub-agent-types.ts';
+import type { SubAgentType } from '../../core/sub-agents/sub-agent-types.ts';
 import type { SubAgentToolCallEvent } from '../../types/events.ts';
+
+/**
+ * Unicode tree symbols for rendering
+ */
+export const TREE_SYMBOLS = {
+  /** Middle branch: ├─ */
+  BRANCH: '├─',
+  /** Last branch: └─ */
+  LAST: '└─',
+  /** Vertical line: │ */
+  VERTICAL: '│',
+  /** Indent spacing */
+  SPACE: '  ',
+} as const;
 
 /**
  * 顶层活跃工具调用的状态

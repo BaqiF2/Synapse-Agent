@@ -11,8 +11,8 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
 import { SkillEnhancer } from '../../src/skills/skill-enhancer.ts';
-import { AutoEnhanceTrigger, type TaskContext } from '../../src/agent/auto-enhance-trigger.ts';
-import { DEFAULT_SETTINGS } from '../../src/config/settings-schema.ts';
+import { AutoEnhanceTrigger, type TaskContext } from '../../src/core/auto-enhance-trigger.ts';
+import { DEFAULT_SETTINGS } from '../../src/shared/config/settings-schema.ts';
 
 describe('Skill Enhancement E2E', () => {
   let testDir: string;

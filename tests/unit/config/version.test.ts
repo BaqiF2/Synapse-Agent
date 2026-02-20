@@ -8,7 +8,7 @@ import { describe, expect, it } from 'bun:test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { getProjectVersion } from '../../../src/config/version.ts';
+import { getProjectVersion } from '../../../src/shared/config/version.ts';
 
 describe('getProjectVersion', () => {
   it('should read version from package.json', () => {

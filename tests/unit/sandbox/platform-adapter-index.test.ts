@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'bun:test';
-import { getPlatformAdapter } from '../../../src/sandbox/providers/local/platforms/index.ts';
-import { LinuxAdapter } from '../../../src/sandbox/providers/local/platforms/linux-adapter.ts';
-import { MacOSAdapter } from '../../../src/sandbox/providers/local/platforms/macos-adapter.ts';
+import { getPlatformAdapter } from '../../../src/shared/sandbox/providers/local/platforms/index.ts';
+import { LinuxAdapter } from '../../../src/shared/sandbox/providers/local/platforms/linux-adapter.ts';
+import { MacOSAdapter } from '../../../src/shared/sandbox/providers/local/platforms/macos-adapter.ts';
 
 describe('getPlatformAdapter', () => {
   it('macOS 平台返回 MacOSAdapter', () => {

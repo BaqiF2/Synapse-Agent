@@ -10,7 +10,7 @@
 import type Anthropic from '@anthropic-ai/sdk';
 import type { TokenUsage, StreamedMessagePart } from './anthropic-types.ts';
 import type { LLMStreamedMessage } from '../llm-client.ts';
-import { createLogger } from '../../utils/logger.ts';
+import { createLogger } from '../../shared/file-logger.ts';
 
 const logger = createLogger('anthropic-stream');
 

@@ -8,7 +8,7 @@
  */
 
 import { z } from 'zod';
-import { ConfigurationError } from '../common/index.ts';
+import { ConfigurationError } from '../shared/index.ts';
 
 // 最小正整数阈值
 const MIN_POSITIVE_INT = 1;

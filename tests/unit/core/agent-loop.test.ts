@@ -7,11 +7,11 @@
 import { describe, expect, it } from 'bun:test';
 import { AgentConfigSchema, validateAgentConfig } from '../../../src/core/agent-config-schema.ts';
 import { runAgentLoop } from '../../../src/core/agent-loop.ts';
-import { ConfigurationError } from '../../../src/common/errors.ts';
-import { MAX_TOOL_ITERATIONS, MAX_CONSECUTIVE_TOOL_FAILURES } from '../../../src/common/constants.ts';
+import { ConfigurationError } from '../../../src/shared/errors.ts';
+import { MAX_TOOL_ITERATIONS, MAX_CONSECUTIVE_TOOL_FAILURES } from '../../../src/shared/constants.ts';
 import type { AgentTool, ToolResult, AgentConfig, AgentEvent, LLMProviderLike } from '../../../src/core/types.ts';
 import type { AgentLoopConfig } from '../../../src/core/agent-loop-config.ts';
-import type { LLMResponse } from '../../../src/providers/types.ts';
+import type { LLMResponse, LLMStream, LLMStreamChunk } from '../../../src/types/provider.ts';
 
 // ========== 测试辅助工厂函数 ==========
 
@@ -21,12 +21,12 @@ function createMockProvider(responses: LLMResponse[]): LLMProviderLike {
   return {
     name: 'mock-provider',
     model: 'mock-model',
-    generate(_params: unknown): AsyncIterable<unknown> & { result: Promise<unknown> } {
+    generate(_params) {
       const response = responses[callIndex] ?? responses[responses.length - 1]!;
       callIndex++;
 
-      const iterable = {
-        async *[Symbol.asyncIterator]() {
+      const iterable: LLMStream = {
+        async *[Symbol.asyncIterator](): AsyncGenerator<LLMStreamChunk> {
           // 空流：不产出 chunk
         },
         result: Promise.resolve(response),
@@ -357,13 +357,13 @@ describe('F-002 Agent Core Interface', () => {
       const provider: LLMProviderLike = {
         name: 'abort-provider',
         model: 'abort-model',
-        generate(_params: unknown): AsyncIterable<unknown> & { result: Promise<unknown> } {
+        generate(_params) {
           callCount++;
           if (callCount > 1) {
             controller.abort();
           }
-          return {
-            async *[Symbol.asyncIterator]() {},
+          const stream: LLMStream = {
+            async *[Symbol.asyncIterator](): AsyncGenerator<LLMStreamChunk> {},
             result: Promise.resolve({
               content: [
                 { type: 'tool_use', id: `call-${callCount}`, name: 'tool', input: {} },
@@ -372,6 +372,7 @@ describe('F-002 Agent Core Interface', () => {
               usage: { inputTokens: 10, outputTokens: 5 },
             } satisfies LLMResponse),
           };
+          return stream;
         },
       };
 

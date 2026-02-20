@@ -11,10 +11,10 @@
  * - CreateDomainMessageInput: createDomainMessage 的输入参数类型
  */
 
-import { createLogger } from '../common/index.ts';
+import { createLogger } from '../shared/file-logger.ts';
 
 // 模块级日志实例，避免在 core/ 中使用 console 直接输出
-const logger = createLogger({ name: 'core:messages' });
+const logger = createLogger('core:messages');
 
 // ========== 领域消息层 ==========
 

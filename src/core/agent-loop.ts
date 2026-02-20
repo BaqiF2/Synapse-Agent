@@ -5,6 +5,13 @@
  * 通过 EventStream 发射事件，所有依赖通过接口注入，不直接实例化任何具体 Provider 或 Tool。
  * 如果配置了 eventBus，所有事件同时桥接到事件总线供可观测组件订阅。
  *
+ * 已接入能力:
+ * - 滑动窗口失败检测 (SlidingWindowFailureDetector)
+ * - TodoList Reminder 引导策略 (TodoReminderStrategy)
+ * - 消息入口预验证 (MessageValidator)
+ * - 累计 Usage 统计
+ * - AgentLoopHooks 生命周期钩子调用
+ *
  * 核心导出:
  * - runAgentLoop: 启动 Agent Loop，返回 EventStream
  */
@@ -25,7 +32,10 @@ import type {
 import type { AgentLoopConfig } from './agent-loop-config.ts';
 import { validateAgentLoopConfig } from './agent-loop-config.ts';
 import { EventStream } from './event-stream.ts';
-import { isSynapseError } from '../common/index.ts';
+import { SlidingWindowFailureDetector } from './sliding-window-failure.ts';
+import { TodoReminderStrategy, type TodoStoreLike } from './todo-reminder-strategy.ts';
+import { MessageValidator } from './message-validator.ts';
+import { isSynapseError } from '../shared/index.ts';
 
 // ========== 内部辅助类型 ==========
 
@@ -37,6 +47,12 @@ interface UserContentBlock {
 
 /** 事件发射函数 — 同时写入 EventStream 和可选的 EventBus */
 type EmitFn = (event: AgentEvent) => void;
+
+/** 累计 Usage 统计 */
+interface AccumulatedUsage {
+  inputTokens: number;
+  outputTokens: number;
+}
 
 // ========== 核心实现 ==========
 
@@ -77,6 +93,7 @@ export function runAgentLoop(
 /**
  * Agent Loop 主循环逻辑。
  * 每个 turn: 调用 LLM -> 处理响应 -> 如有 tool_use 则执行工具并继续，否则结束。
+ * 已接入: 失败检测、TodoReminder、MessageValidator、Hooks、累计 Usage。
  */
 async function executeLoop(
   config: AgentLoopConfig,
@@ -89,6 +106,23 @@ async function executeLoop(
 
   const toolMap = buildToolMap(tools);
   const toolDefinitions = buildToolDefinitions(tools);
+
+  // 初始化已实现的组件
+  const failureDetector = new SlidingWindowFailureDetector({
+    windowSize: config.failureDetection.windowSize,
+    failureThreshold: config.failureDetection.failureThreshold,
+  });
+
+  const messageValidator = config.messageValidator?.enabled
+    ? new MessageValidator()
+    : null;
+
+  const todoReminder = initTodoReminder(config);
+
+  const hooks = config.hooks;
+
+  // 累计 Usage
+  const totalUsage: AccumulatedUsage = { inputTokens: 0, outputTokens: 0 };
 
   const messages: LLMProviderMessage[] = [];
 
@@ -115,100 +149,171 @@ async function executeLoop(
   let turnIndex = 0;
   let lastTextResponse = '';
 
-  while (turnIndex < maxIterations) {
-    if (abortSignal?.aborted) {
-      completeWithAborted(stream, emit, turnIndex, lastTextResponse);
-      return;
-    }
+  try {
+    while (turnIndex < maxIterations) {
+      if (abortSignal?.aborted) {
+        completeWithResult(stream, emit, turnIndex, lastTextResponse, 'aborted', totalUsage);
+        return;
+      }
 
-    emit({ type: 'turn_start', turnIndex });
+      // Hook: beforeTurn
+      hooks?.beforeTurn?.();
 
-    const llmResponse = await callProvider(provider, systemPrompt, messages, toolDefinitions);
+      emit({ type: 'turn_start', turnIndex });
 
-    emit({ type: 'message_start', role: 'assistant' });
+      // TodoReminder 检查 — 在 LLM 调用前注入提醒
+      if (todoReminder) {
+        const reminderResult = todoReminder.check();
+        if (reminderResult.shouldRemind && reminderResult.reminder) {
+          // 注入 system reminder 到消息历史中
+          messages.push({
+            role: 'user',
+            content: [{ type: 'text', text: reminderResult.reminder }],
+          });
+          emit({
+            type: 'todo_reminder',
+            turnsSinceUpdate: todoReminder.turnsSinceLastUpdate,
+            items: [],
+          });
+        }
+      }
 
-    const textBlocks: string[] = [];
-    const toolUseCalls: Array<{ id: string; name: string; input: unknown }> = [];
+      const llmResponse = await callProvider(provider, systemPrompt, messages, toolDefinitions);
 
-    for (const block of llmResponse.content) {
-      if (block.type === 'text') {
-        textBlocks.push(block.text);
-        emit({ type: 'message_delta', contentDelta: block.text });
-      } else if (block.type === 'tool_use') {
-        toolUseCalls.push({ id: block.id, name: block.name, input: block.input });
+      emit({ type: 'message_start', role: 'assistant' });
+
+      const textBlocks: string[] = [];
+      const toolUseCalls: Array<{ id: string; name: string; input: unknown }> = [];
+
+      for (const block of llmResponse.content) {
+        if (block.type === 'text') {
+          textBlocks.push(block.text);
+          emit({ type: 'message_delta', contentDelta: block.text });
+        } else if (block.type === 'thinking') {
+          emit({ type: 'thinking', content: block.content });
+        } else if (block.type === 'tool_use') {
+          toolUseCalls.push({ id: block.id, name: block.name, input: block.input });
+        }
+      }
+
+      if (textBlocks.length > 0) {
+        lastTextResponse = textBlocks.join('');
+      }
+
+      emit({ type: 'message_end', stopReason: llmResponse.stopReason });
+
+      // 累计 Usage 统计
+      totalUsage.inputTokens += llmResponse.usage.inputTokens;
+      totalUsage.outputTokens += llmResponse.usage.outputTokens;
+      emit({
+        type: 'usage',
+        inputTokens: llmResponse.usage.inputTokens,
+        outputTokens: llmResponse.usage.outputTokens,
+      });
+
+      // MessageValidator — 验证 assistant 响应
+      if (messageValidator) {
+        const validationResult = messageValidator.validate(
+          llmResponse.content as LLMProviderContentBlock[],
+        );
+        if (!validationResult.valid && validationResult.errors) {
+          // 构造 tool_result error 响应而非终止循环
+          const errorContent: LLMProviderContentBlock[] = validationResult.errors.map((err) => ({
+            type: 'tool_result' as const,
+            tool_use_id: err.toolUseId,
+            content: `Validation error: ${err.message}`,
+            is_error: true,
+          }));
+          // 仍然将 assistant 消息追加到历史
+          const assistantContent = buildAssistantContent(llmResponse.content);
+          messages.push({ role: 'assistant', content: assistantContent });
+          messages.push({ role: 'user', content: errorContent });
+
+          emit({ type: 'turn_end', turnIndex, hasToolCalls: false });
+          turnIndex++;
+          todoReminder?.recordTurn();
+          hooks?.afterTurn?.();
+          continue;
+        }
+      }
+
+      const hasToolCalls = toolUseCalls.length > 0;
+
+      const assistantContent = buildAssistantContent(llmResponse.content);
+      messages.push({ role: 'assistant', content: assistantContent });
+
+      if (hasToolCalls) {
+        // Hook: beforeToolExecution
+        hooks?.beforeToolExecution?.();
+
+        const toolResults = await executeToolCalls(toolUseCalls, toolMap, emit);
+
+        // Hook: afterToolExecution
+        hooks?.afterToolExecution?.();
+
+        // 记录工具结果到失败检测器
+        for (const tr of toolResults) {
+          failureDetector.record(tr.result.isError);
+        }
+
+        // 检查失败检测器是否达到阈值
+        if (failureDetector.shouldStop()) {
+          emit({ type: 'error', error: new Error('Sliding window failure threshold reached'), recoverable: false });
+          completeWithResult(stream, emit, turnIndex + 1, lastTextResponse, 'tool_failure', totalUsage);
+          return;
+        }
+
+        const toolResultContent: LLMProviderContentBlock[] = toolResults.map((tr) => ({
+          type: 'tool_result' as const,
+          tool_use_id: tr.toolUseId,
+          content: tr.result.output,
+          is_error: tr.result.isError || undefined,
+        }));
+        messages.push({ role: 'user', content: toolResultContent });
+      }
+
+      emit({ type: 'turn_end', turnIndex, hasToolCalls });
+      turnIndex++;
+
+      // TodoReminder 记录轮次
+      todoReminder?.recordTurn();
+
+      // Hook: afterTurn
+      hooks?.afterTurn?.();
+
+      if (abortSignal?.aborted) {
+        completeWithResult(stream, emit, turnIndex, lastTextResponse, 'aborted', totalUsage);
+        return;
+      }
+
+      if (!hasToolCalls) {
+        completeWithResult(stream, emit, turnIndex, lastTextResponse, 'end_turn', totalUsage);
+        return;
       }
     }
 
-    if (textBlocks.length > 0) {
-      lastTextResponse = textBlocks.join('');
-    }
-
-    emit({ type: 'message_end', stopReason: llmResponse.stopReason });
-
-    emit({
-      type: 'usage',
-      inputTokens: llmResponse.usage.inputTokens,
-      outputTokens: llmResponse.usage.outputTokens,
-    });
-
-    const hasToolCalls = toolUseCalls.length > 0;
-
-    const assistantContent: LLMProviderContentBlock[] = llmResponse.content.map(
-      (block: LLMResponseContentBlock) => {
-        if (block.type === 'text') {
-          return { type: 'text' as const, text: block.text };
-        }
-        if (block.type === 'thinking') {
-          return { type: 'thinking' as const, content: block.content };
-        }
-        return { type: 'tool_use' as const, id: block.id, name: block.name, input: block.input };
-      },
-    );
-    messages.push({ role: 'assistant', content: assistantContent });
-
-    if (hasToolCalls) {
-      const toolResults = await executeToolCalls(toolUseCalls, toolMap, emit);
-
-      const toolResultContent: LLMProviderContentBlock[] = toolResults.map((tr) => ({
-        type: 'tool_result' as const,
-        tool_use_id: tr.toolUseId,
-        content: tr.result.output,
-        is_error: tr.result.isError || undefined,
-      }));
-      messages.push({ role: 'user', content: toolResultContent });
-    }
-
-    emit({ type: 'turn_end', turnIndex, hasToolCalls });
-    turnIndex++;
-
-    if (abortSignal?.aborted) {
-      completeWithAborted(stream, emit, turnIndex, lastTextResponse);
-      return;
-    }
-
-    if (!hasToolCalls) {
-      const result: AgentResult = {
-        response: lastTextResponse,
-        turnCount: turnIndex,
-        stopReason: 'end_turn',
-      };
-      emit({ type: 'agent_end', result, usage: llmResponse.usage });
-      stream.complete(result);
-      return;
-    }
+    // 达到最大迭代次数
+    completeWithResult(stream, emit, maxIterations, lastTextResponse, 'max_iterations', totalUsage);
+  } finally {
+    // 清理 TodoReminder 资源
+    todoReminder?.dispose();
   }
-
-  // 达到最大迭代次数
-  const result: AgentResult = {
-    response: lastTextResponse,
-    turnCount: maxIterations,
-    stopReason: 'max_iterations',
-  };
-  emit({ type: 'agent_end', result, usage: { inputTokens: 0, outputTokens: 0 } });
-  stream.complete(result);
 }
 
 // ========== 辅助函数 ==========
+
+/** 初始化 TodoReminder（需要 todoStore 注入） */
+function initTodoReminder(config: AgentLoopConfig): TodoReminderStrategy | null {
+  if (!config.todoStrategy?.enabled) return null;
+
+  // todoStore 通过 config 注入，避免直接依赖 tools 模块
+  const todoStore = (config as { todoStore?: TodoStoreLike }).todoStore;
+  if (!todoStore) return null;
+
+  return new TodoReminderStrategy(todoStore, {
+    staleThresholdTurns: config.todoStrategy.staleThresholdTurns,
+  });
+}
 
 function buildToolMap(tools: AgentTool[]): Map<string, AgentTool> {
   const map = new Map<string, AgentTool>();
@@ -224,6 +329,19 @@ function buildToolDefinitions(tools: AgentTool[]): LLMToolDefinition[] {
     description: tool.description,
     inputSchema: tool.inputSchema,
   }));
+}
+
+/** 构建 assistant 消息的 LLMProviderContentBlock 数组 */
+function buildAssistantContent(content: LLMResponseContentBlock[]): LLMProviderContentBlock[] {
+  return content.map((block: LLMResponseContentBlock) => {
+    if (block.type === 'text') {
+      return { type: 'text' as const, text: block.text };
+    }
+    if (block.type === 'thinking') {
+      return { type: 'thinking' as const, content: block.content };
+    }
+    return { type: 'tool_use' as const, id: block.id, name: block.name, input: block.input };
+  });
 }
 
 async function callProvider(
@@ -309,17 +427,20 @@ async function safeExecuteTool(
   }
 }
 
-function completeWithAborted(
+/** 统一的循环结束处理函数 */
+function completeWithResult(
   stream: EventStream,
   emit: EmitFn,
   turnCount: number,
   lastResponse: string,
+  stopReason: AgentResult['stopReason'],
+  usage: AccumulatedUsage,
 ): void {
   const result: AgentResult = {
     response: lastResponse,
     turnCount,
-    stopReason: 'aborted',
+    stopReason,
   };
-  emit({ type: 'agent_end', result, usage: { inputTokens: 0, outputTokens: 0 } });
+  emit({ type: 'agent_end', result, usage });
   stream.complete(result);
 }

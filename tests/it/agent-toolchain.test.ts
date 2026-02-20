@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, mock } from 'bun:test';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { AgentRunner } from '../../src/agent/agent-runner.ts';
+import { AgentRunner } from '../../src/core/agent-runner.ts';
 import { CallableToolset } from '../../src/tools/toolset.ts';
 import { ReadHandler } from '../../src/tools/handlers/agent-bash/read.ts';
 import { ToolOk } from '../../src/tools/callable-tool.ts';

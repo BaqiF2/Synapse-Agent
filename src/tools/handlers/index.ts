@@ -1,18 +1,14 @@
 /**
- * Tool Handlers Module
- *
- * 功能：导出所有命令处理器
- *
- * 核心导出：
- * - SkillCommandHandler: 技能加载命令处理器
+ * @deprecated 请使用 tools/commands/index.ts
+ * 此文件保留为向后兼容的重导出
  */
-
 export {
   SkillCommandHandler,
   type SkillCommandHandlerOptions,
-} from './skill-command-handler.js';
+} from '../commands/skill-mgmt.ts';
 
 export {
   NativeShellCommandHandler,
-  type CommandResult,
-} from './native-command-handler.js';
+} from '../commands/native-handler.ts';
+
+export type { CommandResult } from '../../types/tool.ts';

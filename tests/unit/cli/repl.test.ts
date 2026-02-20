@@ -3,7 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
 import readline from 'node:readline';
-import type { AgentRunner } from '../../../src/agent/agent-runner.ts';
+import type { AgentRunner } from '../../../src/core/agent-runner.ts';
 
 type MockRl = {
   close: ReturnType<typeof mock>;
@@ -219,7 +219,7 @@ description: Demo skill description
   });
 
   it('handleSpecialCommand should handle /skill enhance --on', async () => {
-    const { SettingsManager } = await import('../../../src/config/settings-manager.ts');
+    const { SettingsManager } = await import('../../../src/shared/config/settings-manager.ts');
     const setSpy = spyOn(SettingsManager.prototype, 'setAutoEnhance').mockImplementation(() => {});
     const { handleSpecialCommand } = await import('../../../src/cli/repl.ts');
     console.log = mock(() => {}) as unknown as typeof console.log;
@@ -296,7 +296,7 @@ description: Demo skill description
     const rl = createMockRl();
     const onResumeSession = mock((_sessionId: string) => {});
     const { handleSpecialCommand } = await loadRepl();
-    const { Session } = await import('../../../src/agent/session.ts');
+    const { Session } = await import('../../../src/core/session.ts');
 
     const listSpy = spyOn(Session, 'list').mockResolvedValue([
       {
@@ -362,7 +362,7 @@ description: Demo skill description
     const rl = createMockRl();
     rl.question = mock((_prompt: string, cb: (answer: string) => void) => cb('1'));
     const { handleSpecialCommand } = await loadRepl();
-    const { Session } = await import('../../../src/agent/session.ts');
+    const { Session } = await import('../../../src/core/session.ts');
 
     const listSpy = spyOn(Session, 'list').mockResolvedValue([
       {
@@ -410,7 +410,7 @@ description: Demo skill description
     const rl = createMockRl();
     rl.question = mock((_prompt: string, cb: (answer: string) => void) => cb(''));
     const { handleSpecialCommand } = await loadRepl();
-    const { Session } = await import('../../../src/agent/session.ts');
+    const { Session } = await import('../../../src/core/session.ts');
 
     const listSpy = spyOn(Session, 'list').mockResolvedValue([
       {
@@ -464,7 +464,7 @@ description: Demo skill description
       capturedCallback = cb;
     });
     const { handleSpecialCommand } = await loadRepl();
-    const { Session } = await import('../../../src/agent/session.ts');
+    const { Session } = await import('../../../src/core/session.ts');
 
     const listSpy = spyOn(Session, 'list').mockResolvedValue([
       {
@@ -517,7 +517,7 @@ description: Demo skill description
     const rl = createMockRl();
     const onResumeSession = mock((_sessionId: string) => {});
     const { handleSpecialCommand } = await loadRepl();
-    const { Session } = await import('../../../src/agent/session.ts');
+    const { Session } = await import('../../../src/core/session.ts');
     const findSpy = spyOn(Session, 'find').mockResolvedValue(null);
 
     const handled = await handleSpecialCommand('/resume session-current', rl as unknown as readline.Interface, null, {

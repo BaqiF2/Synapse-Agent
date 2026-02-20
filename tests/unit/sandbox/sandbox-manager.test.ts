@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
-import { SandboxManager } from '../../../src/sandbox/sandbox-manager.ts';
-import type { SandboxBackend, SandboxConfig, SandboxCreateOptions, SandboxProvider } from '../../../src/sandbox/types.ts';
+import { SandboxManager } from '../../../src/shared/sandbox/sandbox-manager.ts';
+import type { SandboxBackend, SandboxConfig, SandboxCreateOptions, SandboxProvider } from '../../../src/shared/sandbox/types.ts';
 
 class MockBackend implements SandboxBackend {
   readonly id: string;

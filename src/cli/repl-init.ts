@@ -13,16 +13,16 @@
 import chalk from 'chalk';
 
 import { AnthropicClient } from '../providers/anthropic/anthropic-client.ts';
-import { buildSystemPrompt } from '../agent/system-prompt.ts';
-import type { Session } from '../agent/session.ts';
-import { AgentRunner } from '../agent/agent-runner.ts';
+import { buildSystemPrompt } from '../core/system-prompt.ts';
+import type { Session } from '../core/session.ts';
+import { AgentRunner } from '../core/agent-runner.ts';
 import { CallableToolset } from '../tools/toolset.ts';
 import { BashTool } from '../tools/bash-tool.ts';
 import { initializeMcpTools } from '../tools/converters/mcp/index.ts';
 import { initializeSkillTools } from '../tools/converters/skill/index.ts';
-import { createLogger } from '../utils/logger.ts';
-import { parseEnvInt } from '../utils/env.ts';
-import { SettingsManager } from '../config/settings-manager.ts';
+import { createLogger } from '../shared/file-logger.ts';
+import { parseEnvInt } from '../shared/env.ts';
+import { SettingsManager } from '../shared/config/settings-manager.ts';
 import { TerminalRenderer } from './terminal-renderer.ts';
 import { formatStreamText } from './commands/index.ts';
 
@@ -52,26 +52,7 @@ export function initializeAgent(
     const terminalRenderer = new TerminalRenderer();
 
     const bashTool = new BashTool({
-      llmClient,
       getConversationPath: () => session?.historyPath ?? null,
-      onSubAgentToolStart: (event) => {
-        if (!options.shouldRenderTurn()) return;
-        terminalRenderer.renderSubAgentToolStart(event);
-      },
-      onSubAgentToolEnd: (event) => {
-        if (!options.shouldRenderTurn()) return;
-        terminalRenderer.renderSubAgentToolEnd(event);
-      },
-      onSubAgentComplete: (event) => {
-        if (!options.shouldRenderTurn()) return;
-        terminalRenderer.renderSubAgentComplete(event);
-      },
-      onSubAgentUsage: async (usage, model) => {
-        if (!runnerRef) {
-          return;
-        }
-        await runnerRef.recordUsage(usage, model);
-      },
     });
 
     const toolset = new CallableToolset([bashTool]);

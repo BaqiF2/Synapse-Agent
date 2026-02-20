@@ -1,37 +1,6 @@
 /**
- * Native Shell Command Handler
- *
- * 功能：处理标准 Unix 命令的执行，将命令传递给持久 Bash 会话
- *
- * 核心导出：
- * - NativeShellCommandHandler: Native Shell Command 命令处理器类
+ * @deprecated 请使用 tools/commands/native-handler.ts
+ * 此文件保留为向后兼容的重导出
  */
-
-import type { BashSession } from '../bash-session.ts';
-
-// 从共享类型层导入并 re-export，保持向后兼容
+export { NativeShellCommandHandler } from '../commands/native-handler.ts';
 export type { CommandResult } from '../../types/tool.ts';
-import type { CommandResult } from '../../types/tool.ts';
-
-/**
- * Handler for Native Shell Command commands (standard Unix commands)
- */
-export class NativeShellCommandHandler {
-  constructor(private session: BashSession) {}
-
-  /**
-   * Execute a Native Shell Command
-   */
-  async execute(command: string): Promise<CommandResult> {
-    try {
-      return await this.session.execute(command);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'unknown error';
-      return {
-        stdout: '',
-        stderr: `Command execution failed: ${message}`,
-        exitCode: 1,
-      };
-    }
-  }
-}

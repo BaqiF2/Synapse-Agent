@@ -11,7 +11,7 @@ import * as os from 'node:os';
 import {
   AgentRunner,
   type AgentRunnerOptions,
-} from '../../../src/agent/agent-runner.ts';
+} from '../../../src/core/agent-runner.ts';
 import { CallableToolset, type Toolset } from '../../../src/tools/toolset.ts';
 import { ToolOk, ToolError, asCancelablePromise } from '../../../src/tools/callable-tool.ts';
 import type { CallableTool, CancelablePromise, ToolReturnValue } from '../../../src/tools/callable-tool.ts';
@@ -24,12 +24,12 @@ const MockBashToolDef = {
 };
 import type { AnthropicClient } from '../../../src/providers/anthropic/anthropic-client.ts';
 import type { StreamedMessagePart } from '../../../src/providers/anthropic/anthropic-types.ts';
-import { Logger } from '../../../src/utils/logger.ts';
-import { Session } from '../../../src/agent/session.ts';
-import { stopHookRegistry } from '../../../src/hooks/stop-hook-registry.ts';
-import { countMessageTokens } from '../../../src/utils/token-counter.ts';
-import { ContextManager } from '../../../src/agent/context-manager.ts';
-import { ContextCompactor } from '../../../src/agent/context-compactor.ts';
+import { Logger } from '../../../src/shared/file-logger.ts';
+import { Session } from '../../../src/core/session.ts';
+import { stopHookRegistry } from '../../../src/core/hooks/stop-hook-registry.ts';
+import { countMessageTokens } from '../../../src/shared/token-counter.ts';
+import { ContextManager } from '../../../src/core/context-manager.ts';
+import { ContextCompactor } from '../../../src/core/context-compactor.ts';
 
 function createMockCallableTool(
   handler: (args: unknown) => Promise<ToolReturnValue> | CancelablePromise<ToolReturnValue>

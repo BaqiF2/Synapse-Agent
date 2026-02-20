@@ -21,7 +21,7 @@ import {
   createSkillConfig,
   createSkillSearchConfig,
   createSkillEnhanceConfig,
-} from '../../../src/sub-agents/configs/skill.js';
+} from '../../../src/core/sub-agents/configs/skill.js';
 
 describe('Skill Sub Agent Config', () => {
   describe('loadAllSkillMetadata', () => {

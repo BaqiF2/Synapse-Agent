@@ -23,7 +23,7 @@ import type {
   UrlServerConfig,
   McpServerEntry,
 } from './config-parser.js';
-import { parseEnvInt } from '../../../utils/env.js';
+import { parseEnvInt } from '../../../shared/env.js';
 
 const DEFAULT_TIMEOUT_MS = parseEnvInt(process.env.SYNAPSE_MCP_TIMEOUT_MS, 30000);
 const CLIENT_NAME = 'synapse-agent';
