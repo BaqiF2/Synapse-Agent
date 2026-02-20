@@ -1,5 +1,5 @@
 import { createLogger } from '../utils/logger.ts';
-import type { SubAgentManager } from '../sub-agents/sub-agent-manager.ts';
+import type { ISubAgentExecutor } from '../sub-agents/sub-agent-types.ts';
 import type { MergeCandidate, SkillMeta } from './types.js';
 
 const logger = createLogger('skill-merger');
@@ -21,7 +21,7 @@ interface SimilarityJson {
  * 2. 技能融合执行（merge）
  */
 export class SkillMerger {
-  constructor(private subAgentManager: SubAgentManager | null) {}
+  constructor(private subAgentManager: ISubAgentExecutor | null) {}
 
   /**
    * 查找与新技能内容语义相似的已安装技能
@@ -67,7 +67,7 @@ export class SkillMerger {
   /**
    * 供外部检查是否处于降级模式
    */
-  getSubAgentManager(): SubAgentManager | null {
+  getSubAgentManager(): ISubAgentExecutor | null {
     return this.subAgentManager;
   }
 

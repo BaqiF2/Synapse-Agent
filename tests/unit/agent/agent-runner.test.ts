@@ -1032,6 +1032,279 @@ describe('AgentRunner', () => {
   });
 });
 
+describe('AgentRunner - step method', () => {
+  it('should return completed status for simple text response', async () => {
+    const client = createMockClient([[{ type: 'text', text: 'Step response' }]]);
+    const toolset = new CallableToolset([createMockCallableTool(() =>
+      Promise.resolve(ToolOk({ output: '' }))
+    )]);
+
+    const runner = new AgentRunner({
+      client,
+      systemPrompt: 'Test',
+      toolset,
+      enableStopHooks: false,
+    });
+
+    const result = await runner.step('Hello');
+
+    expect(result.status).toBe('completed');
+    if (result.status === 'completed') {
+      expect(result.response).toBe('Step response');
+    }
+  });
+
+  it('should return requires_permission when sandbox blocks command', async () => {
+    const client = createMockClient([
+      [{ type: 'tool_call', id: 'c1', name: 'Bash', input: { command: 'cat /etc/shadow' } }],
+    ]);
+    const toolset = new CallableToolset([createMockCallableTool(() =>
+      Promise.resolve(ToolOk({
+        output: '',
+        message: 'Sandbox blocked: /etc/shadow',
+        extras: {
+          type: 'sandbox_blocked',
+          resource: '/etc/shadow',
+        },
+      }))
+    )]);
+
+    const runner = new AgentRunner({
+      client,
+      systemPrompt: 'Test',
+      toolset,
+      enableStopHooks: false,
+    });
+
+    const result = await runner.step('Read shadow file');
+
+    expect(result.status).toBe('requires_permission');
+    if (result.status === 'requires_permission') {
+      expect(result.permission.type).toBe('sandbox_access');
+      expect(result.permission.resource).toBe('/etc/shadow');
+      expect(result.permission.options).toContain('allow_once');
+      expect(result.permission.options).toContain('deny');
+    }
+  });
+});
+
+describe('AgentRunner - resolveSandboxPermission', () => {
+  it('should throw when no pending permission request', async () => {
+    const client = createMockClient([[{ type: 'text', text: 'Done' }]]);
+    const toolset = new CallableToolset([createMockCallableTool(() =>
+      Promise.resolve(ToolOk({ output: '' }))
+    )]);
+
+    const runner = new AgentRunner({
+      client,
+      systemPrompt: 'Test',
+      toolset,
+      enableStopHooks: false,
+    });
+
+    expect(runner.getPendingSandboxPermission()).toBeNull();
+    await expect(runner.resolveSandboxPermission('deny')).rejects.toThrow(
+      'No pending sandbox permission request'
+    );
+  });
+
+  it('should return deny message when user denies permission', async () => {
+    const client = createMockClient([
+      [{ type: 'tool_call', id: 'c1', name: 'Bash', input: { command: 'cat /etc/shadow' } }],
+    ]);
+    const toolset = new CallableToolset([createMockCallableTool(() =>
+      Promise.resolve(ToolOk({
+        output: '',
+        message: 'Sandbox blocked: /etc/shadow',
+        extras: {
+          type: 'sandbox_blocked',
+          resource: '/etc/shadow',
+        },
+      }))
+    )]);
+
+    const runner = new AgentRunner({
+      client,
+      systemPrompt: 'Test',
+      toolset,
+      enableStopHooks: false,
+    });
+
+    await runner.step('Read shadow');
+    expect(runner.getPendingSandboxPermission()).not.toBeNull();
+
+    const result = await runner.resolveSandboxPermission('deny');
+    expect(result).toContain('denied access');
+    expect(result).toContain('/etc/shadow');
+    expect(runner.getPendingSandboxPermission()).toBeNull();
+  });
+});
+
+describe('AgentRunner - utility methods', () => {
+  it('clearHistory should empty history array', async () => {
+    const client = createMockClient([[{ type: 'text', text: 'Hello' }]]);
+    const toolset = new CallableToolset([createMockCallableTool(() =>
+      Promise.resolve(ToolOk({ output: '' }))
+    )]);
+
+    const runner = new AgentRunner({
+      client,
+      systemPrompt: 'Test',
+      toolset,
+      enableStopHooks: false,
+    });
+
+    await runner.run('Hi');
+    expect(runner.getHistory().length).toBeGreaterThan(0);
+
+    runner.clearHistory();
+    expect(runner.getHistory().length).toBe(0);
+  });
+
+  it('getModelName should return client model name', () => {
+    const client = createMockClient([[{ type: 'text', text: 'unused' }]]);
+    const toolset = new CallableToolset([createMockCallableTool(() =>
+      Promise.resolve(ToolOk({ output: '' }))
+    )]);
+
+    const runner = new AgentRunner({
+      client,
+      systemPrompt: 'Test',
+      toolset,
+    });
+
+    expect(runner.getModelName()).toBe('claude-sonnet-4-20250514');
+  });
+
+  it('getContextStats should return null when no session exists', () => {
+    const client = createMockClient([[{ type: 'text', text: 'unused' }]]);
+    const toolset = new CallableToolset([createMockCallableTool(() =>
+      Promise.resolve(ToolOk({ output: '' }))
+    )]);
+
+    const runner = new AgentRunner({
+      client,
+      systemPrompt: 'Test',
+      toolset,
+    });
+
+    expect(runner.getContextStats()).toBeNull();
+  });
+
+  it('executeBashCommand should throw when Bash tool is unavailable', async () => {
+    const client = createMockClient([[{ type: 'text', text: 'unused' }]]);
+    // 创建不含 Bash 工具的 toolset
+    const toolset: Toolset = {
+      tools: [],
+      handle: () => { throw new Error('not reached'); },
+      getTool: () => undefined,
+    } as unknown as Toolset;
+
+    const runner = new AgentRunner({
+      client,
+      systemPrompt: 'Test',
+      toolset,
+      enableStopHooks: false,
+    });
+
+    await expect(runner.executeBashCommand('ls')).rejects.toThrow('Bash tool is unavailable');
+  });
+
+  it('executeBashCommand should handle empty output gracefully', async () => {
+    const client = createMockClient([[{ type: 'text', text: 'unused' }]]);
+    const toolHandler = mock(() =>
+      Promise.resolve(ToolOk({ output: '', message: '' }))
+    );
+    const toolset = new CallableToolset([createMockCallableTool(toolHandler)]);
+
+    const runner = new AgentRunner({
+      client,
+      systemPrompt: 'Test',
+      toolset,
+      enableStopHooks: false,
+    });
+
+    const output = await runner.executeBashCommand('true');
+    expect(output).toBe('(Command executed successfully with no output)');
+  });
+
+  it('executeBashCommand should support restart flag', async () => {
+    const client = createMockClient([[{ type: 'text', text: 'unused' }]]);
+    const toolHandler = mock((args: unknown) => {
+      const parsed = args as { command?: string; restart?: boolean };
+      expect(parsed.restart).toBe(true);
+      return Promise.resolve(ToolOk({ output: 'restarted' }));
+    });
+    const toolset = new CallableToolset([createMockCallableTool(toolHandler)]);
+
+    const runner = new AgentRunner({
+      client,
+      systemPrompt: 'Test',
+      toolset,
+      enableStopHooks: false,
+    });
+
+    const output = await runner.executeBashCommand('ls', true);
+    expect(output).toContain('restarted');
+  });
+
+  it('should use default maxIterations when not specified', async () => {
+    const client = createMockClient([
+      [{ type: 'tool_call', id: 'c1', name: 'Bash', input: { command: 'ls' } }],
+      [{ type: 'text', text: 'Done' }],
+    ]);
+    const toolset = new CallableToolset([createMockCallableTool(() =>
+      Promise.resolve(ToolOk({ output: 'ok' }))
+    )]);
+
+    const runner = new AgentRunner({
+      client,
+      systemPrompt: 'Test',
+      toolset,
+      enableStopHooks: false,
+    });
+
+    // 验证默认构造不会抛异常，且能正常运行
+    const response = await runner.run('Hi');
+    expect(response).toBe('Done');
+  });
+
+  it('should reset consecutive failure counter after successful tool execution', async () => {
+    const client = createMockClient([
+      [{ type: 'tool_call', id: 'c1', name: 'Bash', input: { command: 'fail' } }],
+      [{ type: 'tool_call', id: 'c2', name: 'Bash', input: { command: 'ok' } }],
+      [{ type: 'tool_call', id: 'c3', name: 'Bash', input: { command: 'fail2' } }],
+      [{ type: 'text', text: 'Done' }],
+    ]);
+
+    let callCount = 0;
+    const toolset = new CallableToolset([createMockCallableTool(() => {
+      callCount++;
+      if (callCount === 1 || callCount === 3) {
+        return Promise.resolve(ToolError({
+          message: 'Invalid usage',
+          output: 'Usage: command <args>',
+          extras: { failureCategory: 'invalid_usage' },
+        }));
+      }
+      return Promise.resolve(ToolOk({ output: 'success' }));
+    })]);
+
+    const runner = new AgentRunner({
+      client,
+      systemPrompt: 'Test',
+      toolset,
+      maxConsecutiveToolFailures: 2,
+      enableStopHooks: false,
+    });
+
+    // 成功的工具执行应重置连续失败计数
+    // fail -> ok (reset) -> fail -> text 应不会触发连续失败停止
+    const response = await runner.run('Run');
+    expect(response).toBe('Done');
+  });
+});
+
 describe('AgentRunner with Session', () => {
   let testDir: string;
 

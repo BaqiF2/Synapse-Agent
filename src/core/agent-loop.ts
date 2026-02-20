@@ -1,14 +1,16 @@
 /**
  * Agent Loop 主循环 — 核心执行引擎，协调 LLM 调用与工具执行。
  * 接收 AgentLoopConfig（包含 provider、tools、systemPrompt、failureDetection 等），
- * 循环执行: 调用 provider.generate() → 解析 tool calls → 调用 tool.execute() → 重复。
+ * 循环执行: 调用 provider.generate() -> 解析 tool calls -> 调用 tool.execute() -> 重复。
  * 通过 EventStream 发射事件，所有依赖通过接口注入，不直接实例化任何具体 Provider 或 Tool。
+ * 如果配置了 eventBus，所有事件同时桥接到事件总线供可观测组件订阅。
  *
  * 核心导出:
  * - runAgentLoop: 启动 Agent Loop，返回 EventStream
  */
 
 import type {
+  AgentEvent,
   AgentResult,
   AgentTool,
   ToolResult,
@@ -23,6 +25,7 @@ import type {
 import type { AgentLoopConfig } from './agent-loop-config.ts';
 import { validateAgentLoopConfig } from './agent-loop-config.ts';
 import { EventStream } from './event-stream.ts';
+import { isSynapseError } from '../common/index.ts';
 
 // ========== 内部辅助类型 ==========
 
@@ -31,6 +34,9 @@ interface UserContentBlock {
   type: 'text';
   text: string;
 }
+
+/** 事件发射函数 — 同时写入 EventStream 和可选的 EventBus */
+type EmitFn = (event: AgentEvent) => void;
 
 // ========== 核心实现 ==========
 
@@ -48,20 +54,21 @@ export function runAgentLoop(
   userMessage: UserContentBlock[],
   history?: LLMProviderMessage[],
 ): EventStream {
-  // 配置验证
   validateAgentLoopConfig(config);
 
   const stream = new EventStream();
 
-  // 在后台启动循环（不阻塞返回）
-  executeLoop(config, userMessage, stream, history).catch((err: unknown) => {
+  // 构建桥接 emit：EventStream + 可选 EventBus
+  const eventBus = config.eventBus;
+  const emit: EmitFn = eventBus
+    ? (event) => { stream.emit(event); eventBus.emit(event); }
+    : (event) => { stream.emit(event); };
+
+  executeLoop(config, userMessage, stream, emit, history).catch((err: unknown) => {
     const error = err instanceof Error ? err : new Error(String(err));
-    stream.emit({ type: 'error', error, recoverable: false });
-    stream.complete({
-      response: '',
-      turnCount: 0,
-      stopReason: 'error',
-    });
+    const recoverable = isSynapseError(err) ? err.recoverable : false;
+    emit({ type: 'error', error, recoverable });
+    stream.complete({ response: '', turnCount: 0, stopReason: 'error' });
   });
 
   return stream;
@@ -69,21 +76,20 @@ export function runAgentLoop(
 
 /**
  * Agent Loop 主循环逻辑。
- * 每个 turn: 调用 LLM → 处理响应 → 如有 tool_use 则执行工具并继续，否则结束。
+ * 每个 turn: 调用 LLM -> 处理响应 -> 如有 tool_use 则执行工具并继续，否则结束。
  */
 async function executeLoop(
   config: AgentLoopConfig,
   userMessage: UserContentBlock[],
   stream: EventStream,
+  emit: EmitFn,
   history?: LLMProviderMessage[],
 ): Promise<void> {
   const { provider, tools, systemPrompt, maxIterations, abortSignal } = config;
 
-  // 构建工具查找表
   const toolMap = buildToolMap(tools);
   const toolDefinitions = buildToolDefinitions(tools);
 
-  // 构建初始消息历史：如果有 history 则先加入，然后追加新用户消息
   const messages: LLMProviderMessage[] = [];
 
   if (history && history.length > 0) {
@@ -95,11 +101,9 @@ async function executeLoop(
     content: userMessage.map((block) => ({ type: 'text' as const, text: block.text })),
   });
 
-  // 生成 sessionId
   const sessionId = `session-${Date.now()}`;
 
-  // 发射 agent_start 事件
-  stream.emit({
+  emit({
     type: 'agent_start',
     sessionId,
     config: {
@@ -112,29 +116,24 @@ async function executeLoop(
   let lastTextResponse = '';
 
   while (turnIndex < maxIterations) {
-    // 检查中止信号
     if (abortSignal?.aborted) {
-      completeWithAborted(stream, turnIndex, lastTextResponse);
+      completeWithAborted(stream, emit, turnIndex, lastTextResponse);
       return;
     }
 
-    // 发射 turn_start 事件
-    stream.emit({ type: 'turn_start', turnIndex });
+    emit({ type: 'turn_start', turnIndex });
 
-    // 调用 LLM
     const llmResponse = await callProvider(provider, systemPrompt, messages, toolDefinitions);
 
-    // 发射 message 事件
-    stream.emit({ type: 'message_start', role: 'assistant' });
+    emit({ type: 'message_start', role: 'assistant' });
 
-    // 从响应中提取文本和 tool_use
     const textBlocks: string[] = [];
     const toolUseCalls: Array<{ id: string; name: string; input: unknown }> = [];
 
     for (const block of llmResponse.content) {
       if (block.type === 'text') {
         textBlocks.push(block.text);
-        stream.emit({ type: 'message_delta', contentDelta: block.text });
+        emit({ type: 'message_delta', contentDelta: block.text });
       } else if (block.type === 'tool_use') {
         toolUseCalls.push({ id: block.id, name: block.name, input: block.input });
       }
@@ -144,10 +143,9 @@ async function executeLoop(
       lastTextResponse = textBlocks.join('');
     }
 
-    stream.emit({ type: 'message_end', stopReason: llmResponse.stopReason });
+    emit({ type: 'message_end', stopReason: llmResponse.stopReason });
 
-    // 发射 usage 事件
-    stream.emit({
+    emit({
       type: 'usage',
       inputTokens: llmResponse.usage.inputTokens,
       outputTokens: llmResponse.usage.outputTokens,
@@ -155,7 +153,6 @@ async function executeLoop(
 
     const hasToolCalls = toolUseCalls.length > 0;
 
-    // 将 assistant 响应添加到消息历史
     const assistantContent: LLMProviderContentBlock[] = llmResponse.content.map(
       (block: LLMResponseContentBlock) => {
         if (block.type === 'text') {
@@ -164,17 +161,14 @@ async function executeLoop(
         if (block.type === 'thinking') {
           return { type: 'thinking' as const, content: block.content };
         }
-        // tool_use
         return { type: 'tool_use' as const, id: block.id, name: block.name, input: block.input };
       },
     );
     messages.push({ role: 'assistant', content: assistantContent });
 
-    // 执行工具调用
     if (hasToolCalls) {
-      const toolResults = await executeToolCalls(toolUseCalls, toolMap, stream);
+      const toolResults = await executeToolCalls(toolUseCalls, toolMap, emit);
 
-      // 将工具结果添加到消息历史
       const toolResultContent: LLMProviderContentBlock[] = toolResults.map((tr) => ({
         type: 'tool_result' as const,
         tool_use_id: tr.toolUseId,
@@ -184,28 +178,21 @@ async function executeLoop(
       messages.push({ role: 'user', content: toolResultContent });
     }
 
-    // 发射 turn_end 事件
-    stream.emit({ type: 'turn_end', turnIndex, hasToolCalls });
+    emit({ type: 'turn_end', turnIndex, hasToolCalls });
     turnIndex++;
 
-    // 检查中止信号
     if (abortSignal?.aborted) {
-      completeWithAborted(stream, turnIndex, lastTextResponse);
+      completeWithAborted(stream, emit, turnIndex, lastTextResponse);
       return;
     }
 
-    // 如果没有 tool calls，表示 LLM 决定结束
     if (!hasToolCalls) {
       const result: AgentResult = {
         response: lastTextResponse,
         turnCount: turnIndex,
         stopReason: 'end_turn',
       };
-      stream.emit({
-        type: 'agent_end',
-        result,
-        usage: llmResponse.usage,
-      });
+      emit({ type: 'agent_end', result, usage: llmResponse.usage });
       stream.complete(result);
       return;
     }
@@ -217,17 +204,12 @@ async function executeLoop(
     turnCount: maxIterations,
     stopReason: 'max_iterations',
   };
-  stream.emit({
-    type: 'agent_end',
-    result,
-    usage: { inputTokens: 0, outputTokens: 0 },
-  });
+  emit({ type: 'agent_end', result, usage: { inputTokens: 0, outputTokens: 0 } });
   stream.complete(result);
 }
 
 // ========== 辅助函数 ==========
 
-/** 构建工具名到工具实例的查找表 */
 function buildToolMap(tools: AgentTool[]): Map<string, AgentTool> {
   const map = new Map<string, AgentTool>();
   for (const tool of tools) {
@@ -236,7 +218,6 @@ function buildToolMap(tools: AgentTool[]): Map<string, AgentTool> {
   return map;
 }
 
-/** 将 AgentTool 列表转换为 LLM 工具定义列表 */
 function buildToolDefinitions(tools: AgentTool[]): LLMToolDefinition[] {
   return tools.map((tool) => ({
     name: tool.name,
@@ -245,7 +226,6 @@ function buildToolDefinitions(tools: AgentTool[]): LLMToolDefinition[] {
   }));
 }
 
-/** 调用 LLM Provider 并获取完整响应 */
 async function callProvider(
   provider: LLMProviderLike,
   systemPrompt: string,
@@ -259,7 +239,6 @@ async function callProvider(
   };
 
   const llmStream = provider.generate(params);
-  // 必须消费迭代器，否则 async function* 生成器不会执行，.result 永远不会 resolve
   for await (const _chunk of llmStream) {
     // 消费所有 chunk，确保生成器完整执行
   }
@@ -267,40 +246,32 @@ async function callProvider(
   return response;
 }
 
-/** 工具执行结果（带 toolUseId 用于回传） */
 interface ToolCallResult {
   toolUseId: string;
   result: ToolResult;
 }
 
-/**
- * 执行工具调用列表。
- * 每个工具执行都做 try-catch 兜底，确保不向上抛异常。
- */
 async function executeToolCalls(
   calls: Array<{ id: string; name: string; input: unknown }>,
   toolMap: Map<string, AgentTool>,
-  stream: EventStream,
+  emit: EmitFn,
 ): Promise<ToolCallResult[]> {
   const results: ToolCallResult[] = [];
 
   for (const call of calls) {
     const startTime = Date.now();
 
-    // 发射 tool_start 事件
-    stream.emit({
+    emit({
       type: 'tool_start',
       toolName: call.name,
       toolId: call.id,
       input: call.input,
     });
 
-    // 安全执行工具
     const result = await safeExecuteTool(toolMap, call.name, call.input);
     const duration = Date.now() - startTime;
 
-    // 发射 tool_end 事件
-    stream.emit({
+    emit({
       type: 'tool_end',
       toolName: call.name,
       toolId: call.id,
@@ -315,10 +286,6 @@ async function executeToolCalls(
   return results;
 }
 
-/**
- * 安全执行单个工具。
- * 如果工具不存在或执行抛异常，返回 isError=true 的 ToolResult。
- */
 async function safeExecuteTool(
   toolMap: Map<string, AgentTool>,
   name: string,
@@ -326,27 +293,25 @@ async function safeExecuteTool(
 ): Promise<ToolResult> {
   const tool = toolMap.get(name);
   if (!tool) {
-    return {
-      output: `Tool not found: ${name}`,
-      isError: true,
-    };
+    return { output: `Tool not found: ${name}`, isError: true };
   }
 
   try {
     return await tool.execute(input);
   } catch (err: unknown) {
-    // 工具执行异常兜底：不向上抛出，转为 ToolResult
     const message = err instanceof Error ? err.message : String(err);
-    return {
-      output: `Tool execution failed: ${message}`,
-      isError: true,
-    };
+    const metadata: Record<string, unknown> = {};
+    if (isSynapseError(err)) {
+      metadata.errorCode = err.code;
+      metadata.recoverable = err.recoverable;
+    }
+    return { output: `Tool execution failed: ${message}`, isError: true, metadata };
   }
 }
 
-/** 中止信号触发时的完成处理 */
 function completeWithAborted(
   stream: EventStream,
+  emit: EmitFn,
   turnCount: number,
   lastResponse: string,
 ): void {
@@ -355,10 +320,6 @@ function completeWithAborted(
     turnCount,
     stopReason: 'aborted',
   };
-  stream.emit({
-    type: 'agent_end',
-    result,
-    usage: { inputTokens: 0, outputTokens: 0 },
-  });
+  emit({ type: 'agent_end', result, usage: { inputTokens: 0, outputTokens: 0 } });
   stream.complete(result);
 }

@@ -11,7 +11,6 @@ import type { OnMessagePart } from '../providers/generate.ts';
 import type { Message } from '../providers/message.ts';
 import type { HookResult } from '../hooks/index.ts';
 import { stopHookRegistry } from '../hooks/stop-hook-registry.ts';
-import { loadStopHooks } from '../hooks/load-stop-hooks.ts';
 import { STOP_HOOK_MARKER } from '../hooks/stop-hook-constants.ts';
 import { createLogger } from '../utils/logger.ts';
 
@@ -21,6 +20,9 @@ let stopHooksLoadPromise: Promise<void> | null = null;
 
 async function ensureStopHooksLoaded(): Promise<void> {
   if (!stopHooksLoadPromise) {
+    // 动态 require 打破 stop-hook-executor → load-stop-hooks → skill-enhance-hook → sub-agent-manager → agent-runner 循环依赖
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { loadStopHooks } = require('../hooks/load-stop-hooks.ts');
     stopHooksLoadPromise = loadStopHooks();
   }
   await stopHooksLoadPromise;

@@ -19,6 +19,10 @@ export {
   FileNotFoundError,
   PermissionError,
   ConfigurationError,
+  ToolExecutionError,
+  CommandNotFoundError,
+  SkillValidationError,
+  isSynapseError,
 } from './errors.ts';
 export {
   MAX_TOOL_ITERATIONS,

@@ -2,12 +2,13 @@
  * Bash Command Router
  *
  * 功能：解析 Bash 命令并路由到三层处理器（Native Shell / Agent Shell / Extend Shell）。
- * 使用注册表模式统一管理命令处理器，通过 Map<prefix, handler> 实现路由。
+ * 使用声明式路由表 + 注册表模式管理命令处理器。
  *
  * 核心导出：
  * - BashRouter: 命令路由器，识别命令类型并分发到对应 handler
  * - CommandType: 命令类型枚举
  * - BashRouterOptions: 路由器配置选项
+ * - RouteDefinition: 声明式路由定义
  */
 
 import * as path from 'node:path';
@@ -20,8 +21,8 @@ import { SkillCommandHandler } from './handlers/skill-command-handler.ts';
 import { TaskCommandHandler } from './handlers/task-command-handler.ts';
 import type { LLMClient } from '../providers/llm-client.ts';
 import type { OnUsage } from '../providers/generate.ts';
-import type { BashTool } from './bash-tool.ts';
 import { asCancelablePromise, type CancelablePromise } from './callable-tool.ts';
+import type { ISubAgentExecutor } from '../sub-agents/sub-agent-types.ts';
 import type { SandboxManager } from '../sandbox/sandbox-manager.ts';
 import type { ExecuteResult } from '../sandbox/types.ts';
 import type {
@@ -43,7 +44,8 @@ const DEFAULT_SYNAPSE_DIR = path.join(os.homedir(), '.synapse');
 export interface BashRouterOptions {
   synapseDir?: string;
   llmClient?: LLMClient;
-  toolExecutor?: BashTool;
+  /** BashTool 实例，类型为 unknown 以避免 bash-tool ↔ bash-router 循环依赖 */
+  toolExecutor?: unknown;
   sandboxManager?: SandboxManager;
   getCwd?: () => string;
   getConversationPath?: () => string | null;
@@ -59,6 +61,20 @@ export type BashRouterCommandResult = CommandResult & Partial<Pick<ExecuteResult
 interface CommandHandler {
   execute(command: string): Promise<BashRouterCommandResult> | CancelablePromise<BashRouterCommandResult>;
   shutdown?(): void;
+}
+
+/** 声明式路由定义：描述一条命令前缀到处理器的映射 */
+export interface RouteDefinition {
+  /** 命令前缀 */
+  prefix: string;
+  /** 命令类型层次 */
+  type: CommandType;
+  /** 前缀匹配模式 */
+  matchMode: 'exact' | 'prefix';
+  /** 立即创建的处理器实例（与 factory 二选一） */
+  handler?: CommandHandler | null;
+  /** 惰性初始化工厂（与 handler 二选一） */
+  factory?: () => CommandHandler | null;
 }
 
 /** 注册表条目：命令类型 + 处理器（支持惰性初始化） */
@@ -165,7 +181,7 @@ export class BashRouter {
   }
 
   /** 设置 BashTool 实例（延迟绑定，避免循环依赖） */
-  setToolExecutor(executor: BashTool): void {
+  setToolExecutor(executor: unknown): void {
     this.options.toolExecutor = executor;
 
     // 重置 task handler 以使用新的 executor
@@ -197,28 +213,31 @@ export class BashRouter {
     return this.options.sandboxManager;
   }
 
-  /** 注册所有内置命令处理器 */
+  /** 声明式路由表：定义所有内置命令的路由规则 */
+  private getBuiltinRoutes(): RouteDefinition[] {
+    return [
+      // Agent Shell — 文件操作命令（exact 匹配）
+      { prefix: 'read',      type: CommandType.AGENT_SHELL_COMMAND, matchMode: 'exact',  handler: new ReadHandler() },
+      { prefix: 'write',     type: CommandType.AGENT_SHELL_COMMAND, matchMode: 'exact',  handler: new WriteHandler() },
+      { prefix: 'edit',      type: CommandType.AGENT_SHELL_COMMAND, matchMode: 'exact',  handler: new EditHandler() },
+      { prefix: 'bash',      type: CommandType.AGENT_SHELL_COMMAND, matchMode: 'exact',  handler: new BashWrapperHandler(this.session) },
+      { prefix: 'TodoWrite', type: CommandType.AGENT_SHELL_COMMAND, matchMode: 'exact',  handler: new TodoWriteHandler() },
+      // Agent Shell — 搜索命令
+      { prefix: 'command:search', type: CommandType.AGENT_SHELL_COMMAND, matchMode: 'prefix', handler: new CommandSearchHandler() },
+      // Agent Shell — task / skill 管理命令（惰性初始化）
+      { prefix: 'task:',  type: CommandType.AGENT_SHELL_COMMAND,  matchMode: 'prefix', factory: () => this.createTaskHandler() },
+      { prefix: 'skill:', type: CommandType.AGENT_SHELL_COMMAND,  matchMode: 'prefix', factory: () => this.createSkillHandler() },
+      // Extend Shell — mcp 和 skill tool
+      { prefix: 'mcp:',        type: CommandType.EXTEND_SHELL_COMMAND, matchMode: 'prefix', handler: new McpCommandHandler() },
+      { prefix: 'skill-tool:', type: CommandType.EXTEND_SHELL_COMMAND, matchMode: 'prefix', handler: new SkillToolHandler() },
+    ];
+  }
+
+  /** 从声明式路由表批量注册处理器 */
   private registerBuiltinHandlers(): void {
-    // Agent Shell — 文件操作命令（exact 匹配）
-    this.registerHandler('read', CommandType.AGENT_SHELL_COMMAND, new ReadHandler());
-    this.registerHandler('write', CommandType.AGENT_SHELL_COMMAND, new WriteHandler());
-    this.registerHandler('edit', CommandType.AGENT_SHELL_COMMAND, new EditHandler());
-    this.registerHandler('bash', CommandType.AGENT_SHELL_COMMAND, new BashWrapperHandler(this.session));
-    this.registerHandler('TodoWrite', CommandType.AGENT_SHELL_COMMAND, new TodoWriteHandler());
-
-    // Agent Shell — 搜索命令（prefix 匹配）
-    this.registerHandler('command:search', CommandType.AGENT_SHELL_COMMAND, new CommandSearchHandler(), 'prefix');
-
-    // Agent Shell — task 命令（prefix 匹配，惰性初始化）
-    this.registerHandler('task:', CommandType.AGENT_SHELL_COMMAND, null, 'prefix', () => this.createTaskHandler());
-
-    // Agent Shell — skill 管理命令（prefix 匹配，惰性初始化）
-    this.registerHandler('skill:', CommandType.AGENT_SHELL_COMMAND, null, 'prefix', () => this.createSkillHandler());
-
-    // Extend Shell — mcp 和 skill tool（prefix 匹配）
-    this.registerHandler('mcp:', CommandType.EXTEND_SHELL_COMMAND, new McpCommandHandler(), 'prefix');
-    // 注意：使用内部前缀 skill-tool: 作为注册表 key，实际匹配在 findHandler() 中特殊处理
-    this.registerHandler('skill-tool:', CommandType.EXTEND_SHELL_COMMAND, new SkillToolHandler(), 'prefix');
+    for (const route of this.getBuiltinRoutes()) {
+      this.registerHandler(route.prefix, route.type, route.handler ?? null, route.matchMode, route.factory);
+    }
   }
 
   /** 在注册表中查找匹配的处理器条目 */
@@ -294,36 +313,49 @@ export class BashRouter {
 
   /** 创建 TaskCommandHandler（惰性） */
   private createTaskHandler(): CommandHandler {
-    const { llmClient, toolExecutor, onSubAgentToolStart, onSubAgentToolEnd, onSubAgentComplete, onSubAgentUsage } =
-      this.options;
+    const { llmClient, toolExecutor } = this.options;
     if (!llmClient || !toolExecutor) {
       // 缺少依赖时返回一个固定错误的处理器
       return { execute: () => Promise.resolve(errorResult('Task commands require LLM client and tool executor')) };
     }
 
-    return new TaskCommandHandler({
+    // 延迟创建 SubAgentManager 并注入到 handler，打破循环依赖
+    const manager = this.createSubAgentManager();
+    return new TaskCommandHandler({ manager });
+  }
+
+  /** 创建 SkillCommandHandler（惰性） */
+  private createSkillHandler(): SkillCommandHandler {
+    // 构建 SubAgentManager 工厂函数，由 SkillCommandHandler 按需调用
+    const createSubAgentManager = this.options.llmClient && this.options.toolExecutor
+      ? () => this.createSubAgentManager()
+      : undefined;
+
+    return new SkillCommandHandler({
+      homeDir: path.dirname(this.options.synapseDir ?? DEFAULT_SYNAPSE_DIR),
+      createSubAgentManager,
+    });
+  }
+
+  /**
+   * 创建 SubAgentManager 实例
+   *
+   * 使用动态 require 延迟加载 sub-agent-manager 模块，
+   * 打破 bash-router → handler → sub-agent-manager → bash-tool → bash-router 循环依赖。
+   * 此方法仅在惰性工厂中调用（首次 task:/skill: 命令时），安全且高效。
+   */
+  private createSubAgentManager(): ISubAgentExecutor {
+    const { llmClient, toolExecutor, onSubAgentToolStart, onSubAgentToolEnd, onSubAgentComplete, onSubAgentUsage } =
+      this.options;
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { SubAgentManager } = require('../sub-agents/sub-agent-manager.ts');
+    return new SubAgentManager({
       client: llmClient,
       bashTool: toolExecutor,
       onToolStart: onSubAgentToolStart,
       onToolEnd: onSubAgentToolEnd,
       onComplete: onSubAgentComplete,
       onUsage: onSubAgentUsage,
-    });
-  }
-
-  /** 创建 SkillCommandHandler（惰性） */
-  private createSkillHandler(): SkillCommandHandler {
-    const { llmClient, toolExecutor, onSubAgentToolStart, onSubAgentToolEnd, onSubAgentComplete, onSubAgentUsage } =
-      this.options;
-
-    return new SkillCommandHandler({
-      homeDir: path.dirname(this.options.synapseDir ?? DEFAULT_SYNAPSE_DIR),
-      llmClient,
-      toolExecutor,
-      onSubAgentToolStart,
-      onSubAgentToolEnd,
-      onSubAgentComplete,
-      onSubAgentUsage,
     });
   }
 }

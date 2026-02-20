@@ -13,7 +13,7 @@ import type { LLMTool } from '../types/tool.ts';
 import type { Message } from './message.ts';
 import type { StreamedMessagePart } from '../types/message.ts';
 import type { TokenUsage } from '../types/usage.ts';
-import type { GenerationKwargs } from './anthropic/anthropic-client.ts';
+import type { GenerationKwargs } from './anthropic/anthropic-types.ts';
 import type { ThinkingEffort } from './anthropic/anthropic-types.ts';
 
 /**

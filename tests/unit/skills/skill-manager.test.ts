@@ -10,6 +10,9 @@ import {
   getConfiguredMaxVersions,
   getConfiguredImportTimeout,
 } from '../../../src/skills/skill-manager.ts';
+import { SkillVersionManager } from '../../../src/skills/skill-version-manager.ts';
+import { SkillImportExport } from '../../../src/skills/skill-import-export.ts';
+import { SkillMetadataService } from '../../../src/skills/skill-metadata-service.ts';
 import type { SkillMerger } from '../../../src/skills/skill-merger.ts';
 import type { ImportResult, MergeCandidate } from '../../../src/skills/types.ts';
 
@@ -195,11 +198,12 @@ describe('SkillManager', () => {
       fs.mkdirSync(versionsDir, { recursive: true });
       fs.writeFileSync(path.join(versionsDir, 'SKILL.md'), 'historical content', 'utf-8');
 
-      const manager = new SkillManager(skillsDir, indexer, createMockMerger() as unknown as SkillMerger);
-      const hash1 = await (manager as any).hashDirectory(skillDir);
+      const metadataService = new SkillMetadataService(skillsDir, indexer);
+      const versionManager = new SkillVersionManager(skillsDir, indexer, metadataService);
+      const hash1 = await versionManager.hashDirectory(skillDir);
 
       fs.writeFileSync(path.join(versionsDir, 'SKILL.md'), 'changed historical content', 'utf-8');
-      const hash2 = await (manager as any).hashDirectory(skillDir);
+      const hash2 = await versionManager.hashDirectory(skillDir);
 
       expect(hash1).toBe(hash2);
     });
@@ -208,8 +212,9 @@ describe('SkillManager', () => {
       const emptySkillDir = path.join(skillsDir, 'empty-skill');
       fs.mkdirSync(emptySkillDir, { recursive: true });
 
-      const manager = new SkillManager(skillsDir, indexer, createMockMerger() as unknown as SkillMerger);
-      const hash = await (manager as any).hashDirectory(emptySkillDir);
+      const metadataService = new SkillMetadataService(skillsDir, indexer);
+      const versionManager = new SkillVersionManager(skillsDir, indexer, metadataService);
+      const hash = await versionManager.hashDirectory(emptySkillDir);
       expect(hash).toBeNull();
     });
   });
@@ -495,8 +500,11 @@ domain: general
         'skill-c': {},
       });
       const manager = new SkillManager(skillsDir, indexer, createMockMerger() as unknown as SkillMerger);
-      const originalCopy = (manager as any).copySkillSnapshot.bind(manager);
-      (manager as any).copySkillSnapshot = async (src: string, dest: string) => {
+      // 通过 Facade 内部 importExport 的 versionManager 对 copySkillSnapshot 进行 monkey-patch
+      const importExport = (manager as any).importExport;
+      const versionMgr = importExport.versionManager;
+      const originalCopy = versionMgr.copySkillSnapshot.bind(versionMgr);
+      versionMgr.copySkillSnapshot = async (src: string, dest: string) => {
         if (src.endsWith(path.join(source, 'skill-b'))) {
           throw new Error('copy failed');
         }
@@ -662,7 +670,9 @@ domain: general
           createTempDir: async () => tempDir,
         },
       );
-      const importSpy = spyOn(manager as any, 'importFromDirectory').mockRejectedValue(new Error('import failed'));
+      // spy 在内部 importExport 实例上
+      const importExport = (manager as any).importExport;
+      const importSpy = spyOn(importExport as any, 'importFromDirectory').mockRejectedValue(new Error('import failed'));
 
       await expect(
         manager.import('https://github.com/user/repo'),
@@ -731,6 +741,162 @@ domain: general
     it('删除不存在技能返回错误', async () => {
       const manager = new SkillManager(skillsDir, indexer, createMockMerger() as unknown as SkillMerger);
       await expect(manager.delete('non-existent')).rejects.toThrow('Skill non-existent not found');
+    });
+  });
+
+  describe('版本创建异常', () => {
+    it('createVersion 不存在技能时抛出错误', async () => {
+      const manager = new SkillManager(skillsDir, indexer, createMockMerger() as unknown as SkillMerger);
+      await expect(manager.createVersion('non-existent')).rejects.toThrow('Skill non-existent not found');
+    });
+
+    it('copySkillSnapshot 递归复制子目录但排除 versions', async () => {
+      const skillDir = writeSkill(skillsDir, 'deep-skill', {
+        scripts: { 'run.sh': 'echo run' },
+      });
+      // 添加嵌套目录
+      const nestedDir = path.join(skillDir, 'data', 'templates');
+      fs.mkdirSync(nestedDir, { recursive: true });
+      fs.writeFileSync(path.join(nestedDir, 'default.txt'), 'template content', 'utf-8');
+
+      const manager = new SkillManager(skillsDir, indexer, createMockMerger() as unknown as SkillMerger);
+      const version = await manager.createVersion('deep-skill');
+
+      const versionDir = path.join(skillsDir, 'deep-skill', 'versions', version);
+      expect(fs.existsSync(path.join(versionDir, 'SKILL.md'))).toBe(true);
+      expect(fs.existsSync(path.join(versionDir, 'scripts', 'run.sh'))).toBe(true);
+      expect(fs.existsSync(path.join(versionDir, 'data', 'templates', 'default.txt'))).toBe(true);
+      // versions 目录不会被复制到快照中
+      expect(fs.existsSync(path.join(versionDir, 'versions'))).toBe(false);
+    });
+  });
+
+  describe('URL 解析', () => {
+    function createImportExport(): SkillImportExport {
+      const metadataService = new SkillMetadataService(skillsDir, indexer);
+      const versionManager = new SkillVersionManager(skillsDir, indexer, metadataService);
+      return new SkillImportExport(
+        skillsDir,
+        indexer,
+        createMockMerger() as unknown as SkillMerger,
+        metadataService,
+        versionManager,
+      );
+    }
+
+    it('parseRemoteImportSource 普通 HTTPS URL 不做特殊处理', () => {
+      const importExport = createImportExport();
+      const result = importExport.parseRemoteImportSource('https://example.com/repo.git');
+      expect(result.cloneUrl).toBe('https://example.com/repo.git');
+      expect(result.branch).toBeUndefined();
+      expect(result.importSubPath).toBeUndefined();
+    });
+
+    it('parseRemoteImportSource 解析 GitHub tree URL 中编码路径', () => {
+      const importExport = createImportExport();
+      const result = importExport.parseRemoteImportSource(
+        'https://github.com/user/repo/tree/main/path%20with%20spaces',
+      );
+      expect(result.cloneUrl).toBe('https://github.com/user/repo.git');
+      expect(result.branch).toBe('main');
+      expect(result.importSubPath).toBe('path with spaces');
+    });
+
+    it('isHttpSource 正确区分 HTTP 与非 HTTP', () => {
+      const importExport = createImportExport();
+      expect(importExport.isHttpSource('https://github.com/repo')).toBe(true);
+      expect(importExport.isHttpSource('http://example.com')).toBe(true);
+      expect(importExport.isHttpSource('/local/path')).toBe(false);
+      expect(importExport.isHttpSource('./relative/path')).toBe(false);
+    });
+  });
+
+  describe('路径遍历防护', () => {
+    it('resolveImportSourceDir 阻止路径遍历攻击', async () => {
+      const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'synapse-path-traversal-'));
+      const metadataService = new SkillMetadataService(skillsDir, indexer);
+      const versionManager = new SkillVersionManager(skillsDir, indexer, metadataService);
+      const importExport = new SkillImportExport(
+        skillsDir,
+        indexer,
+        createMockMerger() as unknown as SkillMerger,
+        metadataService,
+        versionManager,
+      );
+
+      await expect(
+        importExport.resolveImportSourceDir(tempDir, '../../etc/passwd'),
+      ).rejects.toThrow('Invalid import path');
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    });
+  });
+
+  describe('包装目录导入', () => {
+    it('识别 skills 包装目录并导入内部技能', async () => {
+      // 创建 <wrapper>/skills/<skill-name>/SKILL.md 结构
+      const sourceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'synapse-wrapper-import-'));
+      const innerSkillsDir = path.join(sourceRoot, 'skills');
+      fs.mkdirSync(path.join(innerSkillsDir, 'my-tool'), { recursive: true });
+      fs.writeFileSync(
+        path.join(innerSkillsDir, 'my-tool', 'SKILL.md'),
+        `---\nname: my-tool\ndescription: A test tool\ndomain: general\n---\n\n# My Tool\n`,
+        'utf-8',
+      );
+
+      const manager = new SkillManager(skillsDir, indexer, createMockMerger() as unknown as SkillMerger);
+      const result = await manager.import(sourceRoot);
+
+      expect(result.imported).toContain('my-tool');
+      expect(fs.existsSync(path.join(skillsDir, 'my-tool', 'SKILL.md'))).toBe(true);
+      fs.rmSync(sourceRoot, { recursive: true, force: true });
+    });
+  });
+
+  describe('隐藏目录过滤', () => {
+    it('list 跳过点开头的隐藏目录', async () => {
+      writeSkill(skillsDir, 'visible-skill');
+      // 手动创建一个隐藏目录
+      fs.mkdirSync(path.join(skillsDir, '.hidden-skill'), { recursive: true });
+      fs.writeFileSync(path.join(skillsDir, '.hidden-skill', 'SKILL.md'), '# hidden', 'utf-8');
+      indexer.rebuild();
+
+      const manager = new SkillManager(skillsDir, indexer, createMockMerger() as unknown as SkillMerger);
+      const list = await manager.list();
+
+      expect(list.map((s) => s.name)).toEqual(['visible-skill']);
+    });
+  });
+
+  describe('超时错误检测', () => {
+    function createImportExport(): SkillImportExport {
+      const metadataService = new SkillMetadataService(skillsDir, indexer);
+      const versionManager = new SkillVersionManager(skillsDir, indexer, metadataService);
+      return new SkillImportExport(
+        skillsDir,
+        indexer,
+        createMockMerger() as unknown as SkillMerger,
+        metadataService,
+        versionManager,
+      );
+    }
+
+    it('isTimeoutError 识别 killed 标记', () => {
+      const importExport = createImportExport();
+      expect(importExport.isTimeoutError({ killed: true })).toBe(true);
+      expect(importExport.isTimeoutError({ killed: false })).toBe(false);
+    });
+
+    it('isTimeoutError 识别 timed out 消息', () => {
+      const importExport = createImportExport();
+      expect(importExport.isTimeoutError(new Error('Command timed out'))).toBe(true);
+      expect(importExport.isTimeoutError(new Error('Connection refused'))).toBe(false);
+    });
+
+    it('isTimeoutError 处理 null/undefined 输入', () => {
+      const importExport = createImportExport();
+      expect(importExport.isTimeoutError(null)).toBe(false);
+      expect(importExport.isTimeoutError(undefined)).toBe(false);
+      expect(importExport.isTimeoutError('string error')).toBe(false);
     });
   });
 });

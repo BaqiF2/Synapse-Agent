@@ -10,10 +10,10 @@
 
 import type { CommandResult } from './native-command-handler.ts';
 import { parseCommandArgs } from './agent-bash/command-utils.ts';
-import { SubAgentManager, type SubAgentManagerOptions } from '../../sub-agents/sub-agent-manager.ts';
 import {
   type SubAgentType,
   type TaskCommandParams,
+  type ISubAgentExecutor,
   TaskCommandParamsSchema,
   isSubAgentType,
 } from '../../sub-agents/sub-agent-types.ts';
@@ -102,7 +102,10 @@ export function parseTaskCommand(command: string): ParsedTaskCommand {
 /**
  * TaskCommandHandler 配置选项
  */
-export type TaskCommandHandlerOptions = SubAgentManagerOptions;
+export interface TaskCommandHandlerOptions {
+  /** SubAgent 执行器（由上层注入，解耦循环依赖） */
+  manager: ISubAgentExecutor;
+}
 
 /**
  * TaskCommandHandler - Task 命令处理器
@@ -110,10 +113,10 @@ export type TaskCommandHandlerOptions = SubAgentManagerOptions;
  * 处理 task:* 命令，路由到对应的 Sub Agent
  */
 export class TaskCommandHandler {
-  private manager: SubAgentManager;
+  private manager: ISubAgentExecutor;
 
   constructor(options: TaskCommandHandlerOptions) {
-    this.manager = new SubAgentManager(options);
+    this.manager = options.manager;
   }
 
   /**
@@ -223,7 +226,7 @@ EXAMPLES:
   /**
    * 获取 SubAgentManager 实例（用于测试）
    */
-  getManager(): SubAgentManager {
+  getManager(): ISubAgentExecutor {
     return this.manager;
   }
 

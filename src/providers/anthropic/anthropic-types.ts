@@ -6,6 +6,7 @@
  *
  * Core Exports:
  * - ThinkingEffort: Thinking effort level type
+ * - GenerationKwargs: Generation parameters interface
  * - TokenUsage: Token usage statistics interface
  * - StreamedMessagePart: Union type for streamed response parts
  * - ChatProviderError: Base error class for LLM errors
@@ -14,6 +15,8 @@
  * - APIStatusError: Error for HTTP status errors
  * - APIEmptyResponseError: Error for empty responses
  */
+
+import type Anthropic from '@anthropic-ai/sdk';
 
 // 从共享类型层 re-export 类型
 export type {
@@ -107,3 +110,20 @@ export function getTokenUsageTotal(usage: TokenUsage): number {
  * Thinking effort level
  */
 export type ThinkingEffort = 'off' | 'low' | 'medium' | 'high';
+
+// ===== Generation Parameters =====
+
+/**
+ * LLM 生成参数（Anthropic 特定）
+ *
+ * 从 anthropic-client.ts 提取到此文件，
+ * 打破 llm-client → anthropic-client → anthropic-streamed-message 循环依赖。
+ */
+export interface GenerationKwargs {
+  maxTokens: number;
+  temperature?: number;
+  topK?: number;
+  topP?: number;
+  thinking?: Anthropic.ThinkingConfigParam;
+  toolChoice?: Anthropic.ToolChoice;
+}

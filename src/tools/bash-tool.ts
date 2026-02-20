@@ -31,6 +31,7 @@ import {
   shouldAttachToolSelfDescription,
   TOOL_FAILURE_CATEGORIES,
 } from './tool-failure.ts';
+import { isSynapseError } from '../common/errors.ts';
 import type { OnUsage } from '../providers/generate.ts';
 import type {
   ToolResultEvent,
@@ -213,9 +214,15 @@ export class BashTool extends CallableTool<BashToolParams> {
         if (message.includes(COMMAND_TIMEOUT_MARKER)) {
           await this.restartSessionSafely();
         }
+        const extras: Record<string, unknown> = {};
+        if (isSynapseError(error)) {
+          extras.errorCode = error.code;
+          extras.recoverable = error.recoverable;
+        }
         return ToolError({
           message: `Command execution failed: ${message}`,
           brief: 'Command execution failed',
+          extras,
         });
       }), () => routePromise.cancel?.());
 

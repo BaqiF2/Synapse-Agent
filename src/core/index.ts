@@ -12,6 +12,9 @@
  * - TodoReminderStrategy: TodoList System Reminder 引导策略
  * - AgentLoopConfig / validateAgentLoopConfig / freezeConfig: 统一配置体系
  * - MessageValidator: 消息入口预验证器
+ * - AgentEventBus / getGlobalEventBus: 多订阅者事件总线
+ * - MetricsCollector: 指标收集器
+ * - CostTracker: 成本追踪器
  */
 
 // 事件系统
@@ -94,3 +97,15 @@ export type {
   MessageValidationResult,
   MessageValidationError,
 } from './message-validator.ts';
+
+// 事件总线（多订阅者）
+export { AgentEventBus, getGlobalEventBus, resetGlobalEventBus } from './event-bus.ts';
+export type { EventHandler, AgentEventType } from './event-bus.ts';
+
+// 指标收集
+export { MetricsCollector } from './metrics-collector.ts';
+export type { ToolMetrics, LlmMetrics, MetricsSnapshot } from './metrics-collector.ts';
+
+// 成本追踪
+export { CostTracker } from './cost-tracker.ts';
+export type { SessionCostSummary, CostCalculator } from './cost-tracker.ts';

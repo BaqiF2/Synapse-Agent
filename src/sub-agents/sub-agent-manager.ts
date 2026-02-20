@@ -16,7 +16,7 @@ import { RestrictedBashTool } from '../tools/restricted-bash-tool.ts';
 import type { LLMClient } from '../providers/llm-client.ts';
 import type { OnUsage } from '../providers/generate.ts';
 import type { BashTool } from '../tools/bash-tool.ts';
-import type { SubAgentType, TaskCommandParams, ToolPermissions } from './sub-agent-types.ts';
+import type { SubAgentType, TaskCommandParams, ToolPermissions, ISubAgentExecutor } from './sub-agent-types.ts';
 import type { ToolResultEvent, SubAgentCompleteEvent, SubAgentToolCallEvent } from '../cli/terminal-renderer-types.ts';
 import { getConfig } from './configs/index.ts';
 import type { ToolCall, ToolResult } from '../providers/message.ts';
@@ -86,7 +86,7 @@ interface ToolsetWithCleanup {
  * - 根据类型配置工具权限
  * - 转发工具调用、结果、完成回调到上层
  */
-export class SubAgentManager {
+export class SubAgentManager implements ISubAgentExecutor {
   private client: LLMClient;
   private bashTool: BashTool;
   private maxIterations: number;

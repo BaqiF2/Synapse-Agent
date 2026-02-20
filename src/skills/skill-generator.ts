@@ -1,15 +1,18 @@
 /**
- * Skill Generator
+ * Skill Generator (Facade)
  *
  * Generates and updates SKILL.md files for skill enhancement.
  * 支持通过 LLMProvider 接口从对话历史智能生成技能。
+ * 内部逻辑委托给 skill-template 和 skill-md-parser 子模块。
  *
  * @module skill-generator
  *
  * Core Exports:
- * - SkillGenerator: Class for generating skills
+ * - SkillGenerator: Class for generating skills (Facade)
  * - SkillSpec: Skill specification type
  * - ConversationMessage: 对话消息类型
+ * - ScriptDef: 脚本定义类型
+ * - GenerationResult: 生成结果类型
  */
 
 import * as fs from 'node:fs';
@@ -17,25 +20,61 @@ import * as path from 'node:path';
 import { createLogger } from '../utils/logger.ts';
 import { getSynapseSkillsDir } from '../config/paths.ts';
 import type { LLMProvider, LLMResponse } from '../providers/types.ts';
+import { generateSkillMd } from './skill-template.ts';
+import { parseSkillMdToSpec, parseSkillSpecFromLLM } from './skill-md-parser.ts';
 
 const logger = createLogger('skill-generator');
 
-/**
- * Default skills directory
- */
 const DEFAULT_SKILLS_DIR = getSynapseSkillsDir();
 
 /**
- * 用于 LLM 生成技能的系统提示词
+ * 用于 LLM 生成技能的系统提示词（含 few-shot 示例和 chain-of-thought 引导）
  */
-const SKILL_GENERATION_SYSTEM_PROMPT = `You are a skill extraction assistant. Analyze the conversation history and generate a skill specification in JSON format.
-The JSON must have these fields:
-- name: kebab-case skill name
-- description: brief description
-- quickStart: quick start example
-- executionSteps: array of step strings
-- bestPractices: array of best practice strings
-- examples: array of example strings
+const SKILL_GENERATION_SYSTEM_PROMPT = `You are a skill extraction assistant. Your task is to analyze a conversation and extract a reusable skill specification.
+
+## Think Step by Step
+1. Identify the core task the user is trying to accomplish
+2. Extract the key tools and commands used
+3. Generalize the specific steps into reusable execution steps
+4. Identify best practices from what worked well
+
+## Output Format
+Return a JSON object with these fields:
+- name: kebab-case skill name (e.g., "code-review", "data-pipeline")
+- description: clear description of what the skill does and when to use it (20-200 chars)
+- quickStart: a brief code example showing typical usage
+- executionSteps: array of specific, actionable step strings (3-10 steps)
+- bestPractices: array of best practice strings derived from the conversation
+- examples: array of example usage strings
+- domain: one of "programming", "data", "devops", "finance", "general", "automation", "ai", "security", "other"
+- version: semver string (default "1.0.0")
+- tags: array of lowercase tag strings for searchability
+
+## Few-Shot Example
+
+Input conversation about refactoring a React component:
+Output:
+{
+  "name": "react-refactor",
+  "description": "Refactor React components for better performance and readability. Use when components are too large or have performance issues.",
+  "quickStart": "Identify the component to refactor, extract sub-components, and optimize re-renders.",
+  "executionSteps": [
+    "Read the target component and identify responsibilities",
+    "Extract reusable sub-components into separate files",
+    "Add React.memo for pure components",
+    "Move complex state logic to custom hooks",
+    "Verify all tests still pass after refactoring"
+  ],
+  "bestPractices": [
+    "Keep components under 200 lines",
+    "Extract custom hooks for shared logic",
+    "Use React.memo only for expensive renders"
+  ],
+  "examples": ["Refactor UserProfile into UserAvatar + UserDetails + UserActions"],
+  "domain": "programming",
+  "version": "1.0.0",
+  "tags": ["react", "refactor", "performance"]
+}
 
 Return ONLY valid JSON, no markdown code fences or extra text.`;
 
@@ -81,122 +120,36 @@ export interface GenerationResult {
   error?: string;
 }
 
-/** YAML 特殊字符：含冒号、引号、井号等需要引号包裹 */
-const YAML_SPECIAL_CHARS = /[:#'"{}[\]|>&*!?@`]/;
+/** shell 脚本权限 */
+const SHELL_SCRIPT_MODE = 0o755;
 
 /**
- * 包裹 YAML 值：当值包含特殊字符时用双引号包裹，内部双引号转义
- */
-function yamlSafeValue(value: string): string {
-  if (!YAML_SPECIAL_CHARS.test(value)) {
-    return value;
-  }
-  const escaped = value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-  return `"${escaped}"`;
-}
-
-/**
- * SkillGenerator - Creates and updates skill files
+ * SkillGenerator - Facade，创建和更新技能文件
  *
- * Usage:
- * ```typescript
- * const generator = new SkillGenerator();
- * const result = generator.createSkill(spec);
- * ```
+ * 内部委托：
+ * - 模板生成 → skill-template
+ * - Md 解析 → skill-md-parser
  */
 export class SkillGenerator {
   private skillsDir: string;
 
-  /**
-   * Creates a new SkillGenerator
-   *
-   * @param skillsDir - Skills directory path
-   */
   constructor(skillsDir: string = DEFAULT_SKILLS_DIR) {
     this.skillsDir = skillsDir;
   }
 
   /**
    * Generate SKILL.md content from specification
-   *
-   * @param spec - Skill specification
-   * @returns SKILL.md content
    */
   generateSkillMd(spec: SkillSpec): string {
-    const lines: string[] = [];
-
-    // YAML frontmatter
-    lines.push('---');
-    lines.push(`name: ${yamlSafeValue(spec.name)}`);
-    lines.push(`description: ${yamlSafeValue(spec.description)}`);
-    if (spec.domain) lines.push(`domain: ${yamlSafeValue(spec.domain)}`);
-    if (spec.version) lines.push(`version: ${yamlSafeValue(spec.version)}`);
-    if (spec.author) lines.push(`author: ${yamlSafeValue(spec.author)}`);
-    if (spec.tags && spec.tags.length > 0) {
-      lines.push(`tags: ${spec.tags.map(t => yamlSafeValue(t)).join(', ')}`);
-    }
-    lines.push('---');
-    lines.push('');
-
-    // Title (convert kebab-case to Title Case)
-    const title = spec.name
-      .split('-')
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(' ');
-    lines.push(`# ${title}`);
-    lines.push('');
-
-    // Quick Start
-    if (spec.quickStart) {
-      lines.push('## Quick Start');
-      lines.push('');
-      lines.push(spec.quickStart);
-      lines.push('');
-    }
-
-    // Execution Steps
-    if (spec.executionSteps.length > 0) {
-      lines.push('## Execution Steps');
-      lines.push('');
-      for (let i = 0; i < spec.executionSteps.length; i++) {
-        lines.push(`${i + 1}. ${spec.executionSteps[i]}`);
-      }
-      lines.push('');
-    }
-
-    // Best Practices
-    if (spec.bestPractices.length > 0) {
-      lines.push('## Best Practices');
-      lines.push('');
-      for (const practice of spec.bestPractices) {
-        lines.push(`- ${practice}`);
-      }
-      lines.push('');
-    }
-
-    // Examples
-    if (spec.examples.length > 0) {
-      lines.push('## Examples');
-      lines.push('');
-      for (const example of spec.examples) {
-        lines.push(example);
-        lines.push('');
-      }
-    }
-
-    return lines.join('\n');
+    return generateSkillMd(spec);
   }
 
   /**
    * Create a new skill
-   *
-   * @param spec - Skill specification
-   * @returns Generation result
    */
   createSkill(spec: SkillSpec): GenerationResult {
     const skillDir = path.join(this.skillsDir, spec.name);
 
-    // Check if skill already exists
     if (fs.existsSync(skillDir)) {
       return {
         success: false,
@@ -205,14 +158,11 @@ export class SkillGenerator {
     }
 
     try {
-      // Create skill directory
       fs.mkdirSync(skillDir, { recursive: true });
 
-      // Write SKILL.md
-      const content = this.generateSkillMd(spec);
+      const content = generateSkillMd(spec);
       fs.writeFileSync(path.join(skillDir, 'SKILL.md'), content, 'utf-8');
 
-      // Create scripts if provided
       if (spec.scripts && spec.scripts.length > 0) {
         const scriptsDir = path.join(skillDir, 'scripts');
         fs.mkdirSync(scriptsDir, { recursive: true });
@@ -223,41 +173,29 @@ export class SkillGenerator {
             script.content,
             'utf-8'
           );
-          // Make executable if shell script
           if (script.name.endsWith('.sh')) {
-            fs.chmodSync(path.join(scriptsDir, script.name), 0o755);
+            fs.chmodSync(path.join(scriptsDir, script.name), SHELL_SCRIPT_MODE);
           }
         }
       }
 
       logger.info('Skill created', { name: spec.name, path: skillDir });
 
-      return {
-        success: true,
-        path: skillDir,
-      };
+      return { success: true, path: skillDir };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
       logger.error('Failed to create skill', { name: spec.name, error });
-      return {
-        success: false,
-        error: message,
-      };
+      return { success: false, error: message };
     }
   }
 
   /**
    * Update an existing skill
-   *
-   * @param name - Skill name
-   * @param updates - Partial specification with updates
-   * @returns Generation result
    */
   updateSkill(name: string, updates: Partial<SkillSpec>): GenerationResult {
     const skillDir = path.join(this.skillsDir, name);
     const skillMdPath = path.join(skillDir, 'SKILL.md');
 
-    // Check if skill exists
     if (!fs.existsSync(skillMdPath)) {
       return {
         success: false,
@@ -266,22 +204,19 @@ export class SkillGenerator {
     }
 
     try {
-      // Read existing content
       const existingContent = fs.readFileSync(skillMdPath, 'utf-8');
-      const existingSpec = this.parseSkillMd(existingContent, name);
+      // 委托解析到 skill-md-parser
+      const existingSpec = parseSkillMdToSpec(existingContent, name);
 
-      // Merge updates
       const mergedSpec: SkillSpec = {
         ...existingSpec,
         ...updates,
-        name, // Preserve original name
+        name,
       };
 
-      // Generate new content
-      const content = this.generateSkillMd(mergedSpec);
+      const content = generateSkillMd(mergedSpec);
       fs.writeFileSync(skillMdPath, content, 'utf-8');
 
-      // Update scripts if provided
       if (updates.scripts && updates.scripts.length > 0) {
         const scriptsDir = path.join(skillDir, 'scripts');
         fs.mkdirSync(scriptsDir, { recursive: true });
@@ -297,38 +232,26 @@ export class SkillGenerator {
 
       logger.info('Skill updated', { name, path: skillDir });
 
-      return {
-        success: true,
-        path: skillDir,
-      };
+      return { success: true, path: skillDir };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
       logger.error('Failed to update skill', { name, error });
-      return {
-        success: false,
-        error: message,
-      };
+      return { success: false, error: message };
     }
   }
 
   /**
    * 通过 LLMProvider 从对话历史智能生成技能规格
-   *
-   * @param provider - LLM Provider 实例
-   * @param conversationHistory - 对话历史
-   * @returns 生成的技能规格
    */
   async generateFromConversation(
     provider: LLMProvider,
     conversationHistory: ConversationMessage[],
   ): Promise<SkillSpec> {
-    // 将对话历史转换为 Provider 消息格式
     const messages = conversationHistory.map((msg) => ({
       role: msg.role,
       content: [{ type: 'text' as const, text: msg.content }],
     }));
 
-    // 添加提取指令
     messages.push({
       role: 'user',
       content: [{
@@ -354,99 +277,7 @@ export class SkillGenerator {
       throw new Error('LLM response did not contain text content');
     }
 
-    return this.parseSkillSpecFromLLM(textContent.text);
-  }
-
-  /**
-   * 从 LLM 响应文本中解析 SkillSpec
-   */
-  private parseSkillSpecFromLLM(text: string): SkillSpec {
-    // 尝试提取 JSON（处理可能的 markdown code fences）
-    let jsonStr = text.trim();
-    const fenceMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-    if (fenceMatch && fenceMatch[1]) {
-      jsonStr = fenceMatch[1].trim();
-    }
-
-    const parsed = JSON.parse(jsonStr);
-
-    // 验证必须字段
-    if (!parsed.name || typeof parsed.name !== 'string') {
-      throw new Error('Invalid skill spec: missing or invalid "name" field');
-    }
-
-    return {
-      name: parsed.name,
-      description: parsed.description || '',
-      quickStart: parsed.quickStart || '',
-      executionSteps: Array.isArray(parsed.executionSteps) ? parsed.executionSteps : [],
-      bestPractices: Array.isArray(parsed.bestPractices) ? parsed.bestPractices : [],
-      examples: Array.isArray(parsed.examples) ? parsed.examples : [],
-      domain: parsed.domain,
-      version: parsed.version,
-      author: parsed.author,
-      tags: Array.isArray(parsed.tags) ? parsed.tags : undefined,
-    };
-  }
-
-  /**
-   * Parse existing SKILL.md to extract specification
-   */
-  private parseSkillMd(content: string, name: string): SkillSpec {
-    const spec: SkillSpec = {
-      name,
-      description: '',
-      quickStart: '',
-      executionSteps: [],
-      bestPractices: [],
-      examples: [],
-    };
-
-    // Parse frontmatter
-    const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
-    if (frontmatterMatch && frontmatterMatch[1]) {
-      const lines = frontmatterMatch[1].split('\n');
-      for (const line of lines) {
-        const colonIndex = line.indexOf(':');
-        if (colonIndex > 0) {
-          const key = line.slice(0, colonIndex).trim();
-          const value = line.slice(colonIndex + 1).trim();
-
-          if (key === 'description') spec.description = value;
-          if (key === 'domain') spec.domain = value;
-          if (key === 'version') spec.version = value;
-          if (key === 'author') spec.author = value;
-          if (key === 'tags') spec.tags = value.split(',').map(t => t.trim());
-        }
-      }
-    }
-
-    // Parse Quick Start section
-    const quickStartMatch = content.match(/## Quick Start\n\n([\s\S]*?)(?=\n## |$)/);
-    if (quickStartMatch && quickStartMatch[1]) {
-      spec.quickStart = quickStartMatch[1].trim();
-    }
-
-    // Parse Execution Steps
-    const stepsMatch = content.match(/## Execution Steps\n\n([\s\S]*?)(?=\n## |$)/);
-    if (stepsMatch && stepsMatch[1]) {
-      const stepLines = stepsMatch[1].split('\n').filter(l => l.match(/^\d+\./));
-      spec.executionSteps = stepLines.map(l => l.replace(/^\d+\.\s*/, ''));
-    }
-
-    // Parse Best Practices
-    const practicesMatch = content.match(/## Best Practices\n\n([\s\S]*?)(?=\n## |$)/);
-    if (practicesMatch && practicesMatch[1]) {
-      const practiceLines = practicesMatch[1].split('\n').filter(l => l.startsWith('-'));
-      spec.bestPractices = practiceLines.map(l => l.replace(/^-\s*/, ''));
-    }
-
-    // Parse Examples
-    const examplesMatch = content.match(/## Examples\n\n([\s\S]*?)$/);
-    if (examplesMatch && examplesMatch[1]) {
-      spec.examples = [examplesMatch[1].trim()];
-    }
-
-    return spec;
+    // 委托解析到 skill-md-parser
+    return parseSkillSpecFromLLM(textContent.text);
   }
 }

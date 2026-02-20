@@ -24,7 +24,7 @@ import { createLogger } from '../utils/logger.ts';
 import { parseEnvInt } from '../utils/env.ts';
 import { SettingsManager } from '../config/settings-manager.ts';
 import { TerminalRenderer } from './terminal-renderer.ts';
-import { formatStreamText } from './repl-commands.ts';
+import { formatStreamText } from './commands/index.ts';
 
 const cliLogger = createLogger('cli');
 const MAX_TOOL_ITERATIONS = parseEnvInt(process.env.SYNAPSE_MAX_TOOL_ITERATIONS, 50);

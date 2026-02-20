@@ -14,6 +14,7 @@ import * as path from 'node:path';
 import type { CommandResult } from '../native-command-handler.ts';
 import { parseCommandArgs, toCommandErrorResult } from './command-utils.ts';
 import { BaseAgentHandler } from './base-agent-handler.ts';
+import { FileNotFoundError, ToolExecutionError } from '../../../common/errors.ts';
 
 const USAGE = 'Usage: edit <file_path> <old_string> <new_string> [--all]';
 
@@ -74,16 +75,16 @@ export class EditHandler extends BaseAgentHandler {
     const absolutePath = this.resolveFilePath(args.filePath);
 
     if (!fs.existsSync(absolutePath)) {
-      throw new Error(`File not found: ${absolutePath}`);
+      throw new FileNotFoundError(absolutePath);
     }
     const stats = fs.statSync(absolutePath);
     if (stats.isDirectory()) {
-      throw new Error(`Cannot edit directory: ${absolutePath}`);
+      throw new ToolExecutionError('edit', `Cannot edit directory: ${absolutePath}`);
     }
 
     const content = fs.readFileSync(absolutePath, 'utf-8');
     if (!content.includes(args.oldString)) {
-      throw new Error(`String not found in file: "${this.truncateString(args.oldString, 50)}"`);
+      throw new ToolExecutionError('edit', `String not found in file: "${this.truncateString(args.oldString, 50)}"`);
     }
 
     let newContent: string;

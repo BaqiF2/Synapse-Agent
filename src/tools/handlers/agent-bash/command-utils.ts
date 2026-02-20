@@ -11,6 +11,7 @@
  */
 
 import type { CommandResult } from '../native-command-handler.ts';
+import { isSynapseError } from '../../../common/errors.ts';
 
 /**
  * Parse command arguments with proper quote and escape handling
@@ -83,9 +84,17 @@ export function parseCommandArgs(command: string): string[] {
 }
 
 /**
- * Normalize unknown errors to a CommandResult
+ * Normalize unknown errors to a CommandResult.
+ * SynapseError 类型会保留错误码到 extras 字段供上层区分。
  */
 export function toCommandErrorResult(error: unknown): CommandResult {
+  if (isSynapseError(error)) {
+    return {
+      stdout: '',
+      stderr: `[${error.code}] ${error.message}`,
+      exitCode: 1,
+    };
+  }
   const message = error instanceof Error ? error.message : 'Unknown error';
   return {
     stdout: '',
