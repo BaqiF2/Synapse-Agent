@@ -9,7 +9,7 @@
  */
 
 import { spawn, type ChildProcess, type SpawnOptionsWithoutStdio } from 'node:child_process';
-import type { CommandResult } from './handlers/native-command-handler.ts';
+import type { CommandResult } from '../types/tool.ts';
 import { parseEnvInt } from '../utils/env.ts';
 
 const COMMAND_TIMEOUT = parseEnvInt(process.env.SYNAPSE_COMMAND_TIMEOUT, 30000);

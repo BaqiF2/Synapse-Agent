@@ -2,7 +2,8 @@
  * Skills Module
  *
  * This module provides the core skill system functionality including
- * skill schema parsing, indexing, searching, loading, and enhancement.
+ * skill schema parsing, indexing, searching, loading, enhancement,
+ * validation, and generation pipeline.
  *
  * @module skills
  *
@@ -16,6 +17,8 @@
  * - ConversationReader: Reads conversation history
  * - SkillGenerator: Creates and updates skills
  * - SkillEnhancer: Analyzes conversations and generates skills
+ * - SkillValidator: 技能结构/语义验证器
+ * - SkillGenerationPipeline: 带验证反馈循环的技能生成器
  * - MetaSkillInstaller: Copies bundled meta skills to user directory
  */
 
@@ -60,7 +63,19 @@ export {
   SkillMerger,
 } from './skill-merger.js';
 
-// Skill Manager
+// Skill Version Manager
+export {
+  SkillVersionManager,
+  type SkillVersionManagerOptions,
+} from './skill-version-manager.js';
+
+// Skill Import Export
+export {
+  SkillImportExport,
+  type SkillImportExportOptions,
+} from './skill-import-export.js';
+
+// Skill Manager (Facade)
 export {
   SkillManager,
   MAX_VERSIONS_DEFAULT,
@@ -108,3 +123,19 @@ export {
   getDefaultResourceDir,
   type InstallResult,
 } from './meta-skill-installer.js';
+
+// Skill Validator
+export {
+  SkillValidator,
+  type ValidationResult,
+  type ValidationIssue,
+  type ValidationSeverity,
+} from './skill-validator.js';
+
+// Skill Generation Pipeline
+export {
+  SkillGenerationPipeline,
+  type PipelineResult,
+  type PipelineOptions,
+  type PipelineStats,
+} from './skill-generation-pipeline.js';

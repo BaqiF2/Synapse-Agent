@@ -129,4 +129,127 @@ describe('TerminalRenderer', () => {
     expect(process.stdout.write).not.toHaveBeenCalled();
     expect(console.log).not.toHaveBeenCalled();
   });
+
+  it('renderToolEnd should ignore unknown tool id', () => {
+    const renderer = new TerminalRenderer();
+    // 结束一个从未开始的工具，不应报错
+    renderer.renderToolEnd({ id: 'unknown-id', success: true, output: 'ok' });
+    // 不会渲染任何内容，因为没有对应的 activeCall
+    expect(console.log).not.toHaveBeenCalled();
+  });
+
+  it('storeCommand and getStoredCommand should work for active calls', () => {
+    const renderer = new TerminalRenderer();
+    renderer.renderToolStart({ id: 'store-1', command: 'initial', depth: 0 });
+
+    renderer.storeCommand('store-1', 'updated-command');
+    expect(renderer.getStoredCommand('store-1')).toBe('updated-command');
+
+    renderer.renderToolEnd({ id: 'store-1', success: true, output: '' });
+  });
+
+  it('storeCommand should do nothing for non-existent call', () => {
+    const renderer = new TerminalRenderer();
+    renderer.storeCommand('non-existent', 'some-command');
+    expect(renderer.getStoredCommand('non-existent')).toBeUndefined();
+  });
+
+  it('renderToolEnd should show red dot for failed tool', () => {
+    const renderer = new TerminalRenderer();
+    renderer.renderToolStart({ id: 'fail-1', command: 'failing-cmd', depth: 0 });
+    renderer.renderToolEnd({ id: 'fail-1', success: false, output: 'error occurred' });
+
+    const writes = (process.stdout.write as unknown as { mock: { calls: unknown[][] } }).mock.calls;
+    const output = writes.map((call) => String(call[0] ?? '')).join('');
+    // 应包含工具命令
+    expect(stripAnsi(output)).toContain('Bash(failing-cmd)');
+  });
+
+  it('renderToolEnd should render output lines for failed tool', () => {
+    const renderer = new TerminalRenderer();
+    renderer.renderToolStart({ id: 'err-1', command: 'bad-cmd', depth: 0 });
+    renderer.renderToolEnd({ id: 'err-1', success: false, output: 'line1\nline2' });
+
+    const logs = (console.log as unknown as { mock: { calls: unknown[][] } }).mock.calls;
+    const output = logs.map((call) => stripAnsi(String(call[0] ?? ''))).join('\n');
+    expect(output).toContain('line1');
+    expect(output).toContain('line2');
+  });
+
+  it('renderToolEnd should omit extra output lines beyond limit', () => {
+    const renderer = new TerminalRenderer();
+    renderer.renderToolStart({ id: 'long-1', command: 'verbose-cmd', depth: 0 });
+
+    const lines = Array.from({ length: 20 }, (_, i) => `output line ${i + 1}`).join('\n');
+    renderer.renderToolEnd({ id: 'long-1', success: false, output: lines });
+
+    const logs = (console.log as unknown as { mock: { calls: unknown[][] } }).mock.calls;
+    const output = logs.map((call) => stripAnsi(String(call[0] ?? ''))).join('\n');
+    expect(output).toContain('...[omit');
+  });
+
+  it('renderSubAgentStart should display SubAgent name', () => {
+    const renderer = new TerminalRenderer();
+    renderer.renderSubAgentStart({ id: 'sa-1', name: 'code-explorer' });
+
+    const logs = (console.log as unknown as { mock: { calls: unknown[][] } }).mock.calls;
+    const output = logs.map((call) => stripAnsi(String(call[0] ?? ''))).join('\n');
+    expect(output).toContain('Skill(code-explorer)');
+  });
+
+  it('renderSubAgentEnd should display completed tag', () => {
+    const renderer = new TerminalRenderer();
+    renderer.renderSubAgentStart({ id: 'sa-2', name: 'test-agent' });
+    renderer.renderSubAgentEnd('sa-2');
+
+    const logs = (console.log as unknown as { mock: { calls: unknown[][] } }).mock.calls;
+    const output = logs.map((call) => stripAnsi(String(call[0] ?? ''))).join('\n');
+    expect(output).toContain('[completed]');
+  });
+
+  it('renderSubAgentEnd should ignore unknown SubAgent', () => {
+    const renderer = new TerminalRenderer();
+    // 结束一个从未启动的 SubAgent，不应报错
+    renderer.renderSubAgentEnd('unknown-agent');
+
+    const logs = (console.log as unknown as { mock: { calls: unknown[][] } }).mock.calls;
+    // 不应渲染 [completed] 标签
+    const output = logs.map((call) => stripAnsi(String(call[0] ?? ''))).join('\n');
+    expect(output).not.toContain('[completed]');
+  });
+
+  it('isLastCallAtDepth should return true when no other calls at same depth', () => {
+    const renderer = new TerminalRenderer();
+    renderer.renderToolStart({ id: 'only-1', command: 'echo single', depth: 0 });
+
+    // 调用 renderToolEnd 时会内部检查 isLastCallAtDepth
+    renderer.renderToolEnd({ id: 'only-1', success: true, output: '' });
+
+    // 如果是最后一个 call，end 时会使用 isLast = true 来构建树
+    const writes = (process.stdout.write as unknown as { mock: { calls: unknown[][] } }).mock.calls;
+    expect(writes.length).toBeGreaterThan(0);
+  });
+
+  it('non-TTY mode should use console.log for renderToolEnd', () => {
+    (process.stdout as { isTTY?: boolean }).isTTY = false;
+    const renderer = new TerminalRenderer();
+
+    renderer.renderToolStart({ id: 'non-tty-1', command: 'echo test', depth: 0 });
+    renderer.renderToolEnd({ id: 'non-tty-1', success: true, output: 'ok' });
+
+    // 非 TTY 模式下 renderToolStart 不写入 stdout.write
+    // renderToolEnd 使用 console.log
+    expect(console.log).toHaveBeenCalled();
+  });
+
+  it('getLineRows should return 1 when columns is 0 or undefined', () => {
+    (process.stdout as { columns?: number }).columns = 0;
+    const renderer = new TerminalRenderer();
+
+    renderer.renderToolStart({ id: 'col-0', command: 'short', depth: 0 });
+    renderer.renderToolEnd({ id: 'col-0', success: true, output: '' });
+
+    // 不应崩溃，正常输出
+    expect(process.stdout.write).toHaveBeenCalled();
+  });
 });

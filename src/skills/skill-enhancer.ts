@@ -1,15 +1,13 @@
 /**
- * Skill Enhancer
+ * Skill Enhancer (Facade)
  *
- * Analyzes conversation history and generates or enhances skills.
- * 支持通过 LLMProvider 接口进行智能技能增强。
+ * 分析对话历史，生成或增强技能。支持 LLMProvider 智能增强。
+ * 内部委托 skill-analysis（模式检测）和 skill-spec-builder（规格构建）。
  *
  * @module skill-enhancer
- *
  * Core Exports:
- * - SkillEnhancer: Main skill enhancement class
- * - EnhanceDecision: Enhancement decision type
- * - ConversationAnalysis: Analysis result type
+ * - SkillEnhancer: Facade 类
+ * - ConversationAnalysis / EnhanceDecision / EnhanceResult / SkillEnhancerOptions: 类型
  */
 
 import * as path from 'node:path';
@@ -20,49 +18,47 @@ import { ConversationReader, type ConversationTurn, type ConversationSummary } f
 import { SkillGenerator, type SkillSpec } from './skill-generator.ts';
 import { SkillLoader } from './skill-loader.ts';
 import type { LLMProvider, LLMResponse } from '../providers/types.ts';
+import { detectPattern, findMatchingSkill, suggestSkillName } from './skill-analysis.ts';
+import { buildSkillSpec, generateUpdates, parseEnhancementsFromLLM } from './skill-spec-builder.ts';
 
 const logger = createLogger('skill-enhancer');
-
 const DEFAULT_MIN_TOOL_CALLS = 3;
 const DEFAULT_MIN_UNIQUE_TOOLS = 2;
 
-/**
- * 用于 LLM 增强技能的系统提示词
- */
-const SKILL_ENHANCE_SYSTEM_PROMPT = `You are a skill enhancement assistant. Given an existing skill specification, improve it with better descriptions, more execution steps, and better practices.
+/** LLM 增强技能的系统提示词（含 chain-of-thought 引导） */
+const SKILL_ENHANCE_SYSTEM_PROMPT = `You are a skill enhancement assistant. Given an existing skill specification, improve it.
+
+## Think Step by Step
+1. Analyze the current skill's strengths and weaknesses
+2. Improve the description to be clearer and more actionable
+3. Refine execution steps to be more specific and logical
+4. Add relevant best practices based on the skill's domain
+
+## Output Format
 Return the enhanced fields as JSON with these optional fields:
-- description: improved description
-- executionSteps: improved array of step strings
+- description: improved description (20-200 chars, clear and actionable)
+- executionSteps: improved array of step strings (3-10 specific steps)
 - bestPractices: improved array of best practice strings
 
+Only include fields you are improving. Preserve fields that are already good.
 Return ONLY valid JSON, no markdown code fences or extra text.`;
 
-/**
- * Minimum tool calls to consider enhancement
- */
 function getMinToolCalls(): number {
   return parseEnvPositiveInt(process.env.SYNAPSE_MIN_ENHANCE_TOOL_CALLS, DEFAULT_MIN_TOOL_CALLS);
 }
 
-/**
- * Minimum unique tools to consider enhancement
- */
 function getMinUniqueTools(): number {
   return parseEnvPositiveInt(process.env.SYNAPSE_MIN_ENHANCE_UNIQUE_TOOLS, DEFAULT_MIN_UNIQUE_TOOLS);
 }
 
-/**
- * Conversation analysis result
- */
+/** Conversation analysis result */
 export interface ConversationAnalysis {
   summary: ConversationSummary;
   toolSequence: string[];
   turns: ConversationTurn[];
 }
 
-/**
- * Enhancement decision
- */
+/** Enhancement decision */
 export interface EnhanceDecision {
   shouldEnhance: boolean;
   reason: string;
@@ -71,9 +67,7 @@ export interface EnhanceDecision {
   existingSkill?: string;
 }
 
-/**
- * Enhancement result
- */
+/** Enhancement result */
 export interface EnhanceResult {
   action: 'created' | 'enhanced' | 'none';
   skillName?: string;
@@ -81,39 +75,20 @@ export interface EnhanceResult {
   path?: string;
 }
 
-/**
- * Options for SkillEnhancer
- */
+/** Options for SkillEnhancer */
 export interface SkillEnhancerOptions {
   skillsDir?: string;
   conversationsDir?: string;
   homeDir?: string;
 }
 
-/**
- * SkillEnhancer - Analyzes conversations and generates skills
- *
- * Usage:
- * ```typescript
- * const enhancer = new SkillEnhancer();
- * const analysis = enhancer.analyzeConversation('/path/to/session.jsonl');
- * const decision = enhancer.shouldEnhance(analysis);
- * if (decision.shouldEnhance) {
- *   const result = enhancer.enhance(analysis, decision);
- * }
- * ```
- */
+/** SkillEnhancer - Facade，内部委托 skill-analysis + skill-spec-builder */
 export class SkillEnhancer {
   private reader: ConversationReader;
   private generator: SkillGenerator;
   private loader: SkillLoader;
   private skillsDir: string;
 
-  /**
-   * Creates a new SkillEnhancer
-   *
-   * @param options - Configuration options
-   */
   constructor(options: SkillEnhancerOptions = {}) {
     const homeDir = options.homeDir ?? os.homedir();
     const synapseDir = path.join(homeDir, '.synapse');
@@ -125,13 +100,6 @@ export class SkillEnhancer {
     this.loader = new SkillLoader(homeDir);
   }
 
-  /**
-   * Analyze a conversation file
-   *
-   * @param conversationPath - Path to conversation JSONL file
-   * @param maxChars - Maximum characters to analyze (optional, counted from end)
-   * @returns Conversation analysis
-   */
   analyzeConversation(conversationPath: string, maxChars?: number): ConversationAnalysis {
     const turns = maxChars
       ? this.reader.readTruncated(conversationPath, maxChars)
@@ -140,19 +108,9 @@ export class SkillEnhancer {
     const summary = this.reader.summarize(turns);
     const toolSequence = this.reader.extractToolSequence(turns);
 
-    return {
-      summary,
-      toolSequence,
-      turns,
-    };
+    return { summary, toolSequence, turns };
   }
 
-  /**
-   * Determine if conversation should trigger enhancement
-   *
-   * @param analysis - Conversation analysis
-   * @returns Enhancement decision
-   */
   shouldEnhance(analysis: ConversationAnalysis): EnhanceDecision {
     const { summary, toolSequence } = analysis;
 
@@ -174,11 +132,11 @@ export class SkillEnhancer {
       };
     }
 
-    // Look for patterns
-    const hasPattern = this.detectPattern(toolSequence);
+    // 委托模式检测
+    const hasPattern = detectPattern(toolSequence);
 
-    // Check for existing skill match
-    const existingSkill = this.findMatchingSkill(analysis);
+    // 委托技能匹配
+    const existingSkill = findMatchingSkill(analysis, this.loader);
 
     if (existingSkill) {
       return {
@@ -190,7 +148,7 @@ export class SkillEnhancer {
     }
 
     if (hasPattern) {
-      const suggestedName = this.suggestSkillName(analysis);
+      const suggestedName = suggestSkillName(analysis);
       return {
         shouldEnhance: true,
         reason: 'Detected reusable pattern in tool usage',
@@ -206,51 +164,10 @@ export class SkillEnhancer {
     };
   }
 
-  /**
-   * Generate skill specification from analysis
-   *
-   * @param analysis - Conversation analysis
-   * @param name - Skill name
-   * @returns Skill specification
-   */
   generateSkillSpec(analysis: ConversationAnalysis, name: string): SkillSpec {
-    const { summary, toolSequence, turns } = analysis;
-
-    // Extract user intent from first turn
-    const firstUserTurn = turns.find(t => t.role === 'user');
-    const intent = firstUserTurn?.content || 'Complete the task';
-
-    // Generate description
-    const description = `${intent}. Uses ${summary.uniqueTools.join(', ')} tools.`;
-
-    // Generate quick start from tool sequence
-    const quickStart = this.generateQuickStart(toolSequence);
-
-    // Generate execution steps
-    const executionSteps = this.generateExecutionSteps(turns);
-
-    // Generate best practices
-    const bestPractices = this.generateBestPractices(analysis);
-
-    return {
-      name,
-      description,
-      quickStart,
-      executionSteps,
-      bestPractices,
-      examples: [],
-      domain: 'general',
-      version: '1.0.0',
-    };
+    return buildSkillSpec(analysis, name);
   }
 
-  /**
-   * Execute enhancement
-   *
-   * @param analysis - Conversation analysis
-   * @param decision - Enhancement decision
-   * @returns Enhancement result
-   */
   enhance(analysis: ConversationAnalysis, decision: EnhanceDecision): EnhanceResult {
     if (!decision.shouldEnhance || decision.suggestedAction === 'none') {
       return { action: 'none', message: decision.reason };
@@ -267,13 +184,7 @@ export class SkillEnhancer {
     return { action: 'none', message: 'No action taken' };
   }
 
-  /**
-   * 通过 LLMProvider 增强已有技能
-   *
-   * @param provider - LLM Provider 实例
-   * @param skill - 需要增强的技能规格
-   * @returns 增强后的技能规格
-   */
+  /** 通过 LLMProvider 增强已有技能 */
   async enhanceWithProvider(
     provider: LLMProvider,
     skill: SkillSpec,
@@ -306,34 +217,13 @@ export class SkillEnhancer {
       throw new Error('LLM response did not contain text content');
     }
 
-    const enhancements = this.parseEnhancementsFromLLM(textContent.text);
-
-    // 合并增强结果到原始技能
+    // 委托 LLM 响应解析
+    const enhancements = parseEnhancementsFromLLM(textContent.text);
     return {
       ...skill,
       description: enhancements.description ?? skill.description,
       executionSteps: enhancements.executionSteps ?? skill.executionSteps,
       bestPractices: enhancements.bestPractices ?? skill.bestPractices,
-    };
-  }
-
-  /**
-   * 从 LLM 响应文本中解析增强字段
-   */
-  private parseEnhancementsFromLLM(text: string): Partial<SkillSpec> {
-    // 尝试提取 JSON（处理可能的 markdown code fences）
-    let jsonStr = text.trim();
-    const fenceMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-    if (fenceMatch && fenceMatch[1]) {
-      jsonStr = fenceMatch[1].trim();
-    }
-
-    const parsed = JSON.parse(jsonStr);
-
-    return {
-      description: typeof parsed.description === 'string' ? parsed.description : undefined,
-      executionSteps: Array.isArray(parsed.executionSteps) ? parsed.executionSteps : undefined,
-      bestPractices: Array.isArray(parsed.bestPractices) ? parsed.bestPractices : undefined,
     };
   }
 
@@ -360,7 +250,7 @@ export class SkillEnhancer {
    * Enhance an existing skill
    */
   private enhanceExistingSkill(analysis: ConversationAnalysis, skillName: string): EnhanceResult {
-    const updates = this.generateUpdates(analysis);
+    const updates = generateUpdates(analysis);
     const result = this.generator.updateSkill(skillName, updates);
 
     if (result.success) {
@@ -373,148 +263,6 @@ export class SkillEnhancer {
     }
 
     return { action: 'none', message: `Failed to enhance skill: ${result.error}` };
-  }
-
-  /**
-   * Detect repeating patterns in tool sequence
-   */
-  private detectPattern(sequence: string[]): boolean {
-    if (sequence.length < 4) return false;
-
-    // Look for repeating subsequences
-    for (let len = 2; len <= Math.floor(sequence.length / 2); len++) {
-      const pattern = sequence.slice(0, len);
-      let matches = 0;
-
-      for (let i = len; i <= sequence.length - len; i += len) {
-        const sub = sequence.slice(i, i + len);
-        if (sub.every((v, j) => v === pattern[j])) {
-          matches++;
-        }
-      }
-
-      if (matches >= 1) return true;
-    }
-
-    return false;
-  }
-
-  /**
-   * Find matching existing skill
-   */
-  private findMatchingSkill(analysis: ConversationAnalysis): string | null {
-    const { summary } = analysis;
-
-    try {
-      // Search for skills that use similar tools
-      const allSkills = this.loader.loadAllLevel1();
-
-      for (const skill of allSkills) {
-        // Check if skill tools overlap with used tools
-        const skillTools = skill.tools.map(t => t.split(':').pop() || t);
-        const overlap = summary.uniqueTools.filter(t => skillTools.includes(t));
-
-        if (overlap.length >= Math.floor(summary.uniqueTools.length * 0.5)) {
-          return skill.name;
-        }
-      }
-    } catch (error) {
-      // Skills directory may not exist yet
-      logger.debug('Could not load existing skills', { error });
-    }
-
-    return null;
-  }
-
-  /**
-   * Suggest skill name from analysis
-   */
-  private suggestSkillName(analysis: ConversationAnalysis): string {
-    const { turns } = analysis;
-
-    // Extract keywords from user turns
-    const userContent = turns
-      .filter(t => t.role === 'user')
-      .map(t => t.content)
-      .join(' ')
-      .toLowerCase();
-
-    // Simple keyword extraction
-    const words = userContent.split(/\s+/).filter(w => w.length > 3);
-    const wordFreq = new Map<string, number>();
-
-    for (const word of words) {
-      wordFreq.set(word, (wordFreq.get(word) || 0) + 1);
-    }
-
-    // Get top words
-    const sorted = Array.from(wordFreq.entries())
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 2)
-      .map(([word]) => word);
-
-    if (sorted.length === 0) return `task-${Date.now()}`;
-    if (sorted.length === 1) return `${sorted[0]}-task`;
-    return `${sorted[0]}-${sorted[1]}`;
-  }
-
-  /**
-   * Generate quick start section
-   */
-  private generateQuickStart(toolSequence: string[]): string {
-    const uniqueTools = [...new Set(toolSequence)];
-    const lines = ['```bash'];
-
-    for (const tool of uniqueTools.slice(0, 5)) {
-      lines.push(`${tool} <args>`);
-    }
-
-    lines.push('```');
-    return lines.join('\n');
-  }
-
-  /**
-   * Generate execution steps from turns
-   */
-  private generateExecutionSteps(turns: ConversationTurn[]): string[] {
-    const steps: string[] = [];
-
-    for (const turn of turns) {
-      if (turn.role === 'assistant' && turn.toolCalls) {
-        for (const call of turn.toolCalls) {
-          steps.push(`Use ${call.name} to process data`);
-        }
-      }
-    }
-
-    return [...new Set(steps)].slice(0, 10);
-  }
-
-  /**
-   * Generate best practices from analysis
-   */
-  private generateBestPractices(analysis: ConversationAnalysis): string[] {
-    const practices: string[] = [];
-
-    if (analysis.summary.toolCalls > 5) {
-      practices.push('Break complex tasks into smaller steps');
-    }
-
-    if (analysis.summary.uniqueTools.length > 3) {
-      practices.push('Verify intermediate results before proceeding');
-    }
-
-    return practices;
-  }
-
-  /**
-   * Generate updates for existing skill
-   */
-  private generateUpdates(analysis: ConversationAnalysis): Partial<SkillSpec> {
-    return {
-      executionSteps: this.generateExecutionSteps(analysis.turns),
-      bestPractices: this.generateBestPractices(analysis),
-    };
   }
 }
 

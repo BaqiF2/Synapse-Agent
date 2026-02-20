@@ -1,39 +1,18 @@
-import { describe, it, expect, mock } from 'bun:test';
-import type { AnthropicClient } from '../../../../src/providers/anthropic/anthropic-client.ts';
-import type { StreamedMessagePart } from '../../../../src/providers/anthropic/anthropic-types.ts';
+import { describe, it, expect } from 'bun:test';
+import { TaskCommandHandler } from '../../../../src/tools/handlers/task-command-handler.ts';
+import type { ISubAgentExecutor } from '../../../../src/sub-agents/sub-agent-types.ts';
+import type { SubAgentType, TaskCommandParams } from '../../../../src/sub-agents/sub-agent-types.ts';
 
-function createMockClient(partsList: StreamedMessagePart[][]): AnthropicClient {
-  let callIndex = 0;
+function createMockManager(result: string = 'Hello from sub-agent'): ISubAgentExecutor {
   return {
-    generate: () => {
-      const parts = partsList[callIndex++] || [{ type: 'text', text: 'Default' }];
-      return Promise.resolve({
-        id: `msg_${callIndex}`,
-        usage: { inputOther: 1, output: 1, inputCacheRead: 0, inputCacheCreation: 0 },
-        async *[Symbol.asyncIterator]() {
-          for (const part of parts) yield part;
-        },
-      });
-    },
-  } as unknown as AnthropicClient;
+    execute: () => Promise.resolve(result),
+    shutdown: () => {},
+  };
 }
 
 describe('TaskCommandHandler execute (more)', () => {
   it('should reject invalid parameters', async () => {
-    mock.restore();
-    mock.module('../../../../src/sub-agents/sub-agent-manager.ts', () => ({
-      SubAgentManager: class MockSubAgentManager {
-        execute() {
-          return Promise.resolve('Hello from sub-agent');
-        }
-        shutdown() {}
-      },
-    }));
-    const { TaskCommandHandler } = await import('../../../../src/tools/handlers/task-command-handler.ts');
-    const { BashTool } = await import('../../../../src/tools/bash-tool.ts');
-    const client = createMockClient([[{ type: 'text', text: 'Hello' }]]);
-    const bashTool = new BashTool();
-    const handler = new TaskCommandHandler({ client, bashTool });
+    const handler = new TaskCommandHandler({ manager: createMockManager() });
 
     const result = await handler.execute('task:general --prompt "hi"');
 
@@ -41,24 +20,10 @@ describe('TaskCommandHandler execute (more)', () => {
     expect(result.stderr).toContain('Invalid parameters');
 
     handler.shutdown();
-    bashTool.cleanup();
   });
 
   it('should execute sub-agent when parameters are valid', async () => {
-    mock.restore();
-    mock.module('../../../../src/sub-agents/sub-agent-manager.ts', () => ({
-      SubAgentManager: class MockSubAgentManager {
-        execute() {
-          return Promise.resolve('Hello from sub-agent');
-        }
-        shutdown() {}
-      },
-    }));
-    const { TaskCommandHandler } = await import('../../../../src/tools/handlers/task-command-handler.ts');
-    const { BashTool } = await import('../../../../src/tools/bash-tool.ts');
-    const client = createMockClient([[{ type: 'text', text: 'Hello from sub-agent' }]]);
-    const bashTool = new BashTool();
-    const handler = new TaskCommandHandler({ client, bashTool });
+    const handler = new TaskCommandHandler({ manager: createMockManager('Hello from sub-agent') });
 
     const result = await handler.execute('task:general --prompt "hi" --description "Test task"');
 
@@ -66,38 +31,30 @@ describe('TaskCommandHandler execute (more)', () => {
     expect(result.stdout).toBe('Hello from sub-agent');
 
     handler.shutdown();
-    bashTool.cleanup();
   });
 
   it('should cancel task execution when cancel is called', async () => {
-    mock.restore();
-
     let receivedSignal: AbortSignal | undefined;
-    mock.module('../../../../src/sub-agents/sub-agent-manager.ts', () => ({
-      SubAgentManager: class MockSubAgentManager {
-        execute(
-          _type: string,
-          _params: unknown,
-          options?: { signal?: AbortSignal }
-        ) {
-          receivedSignal = options?.signal;
-          return new Promise<string>((_resolve, reject) => {
-            options?.signal?.addEventListener('abort', () => {
-              const abortError = new Error('Operation aborted');
-              abortError.name = 'AbortError';
-              reject(abortError);
-            }, { once: true });
-          });
-        }
-        shutdown() {}
-      },
-    }));
 
-    const { TaskCommandHandler } = await import('../../../../src/tools/handlers/task-command-handler.ts');
-    const { BashTool } = await import('../../../../src/tools/bash-tool.ts');
-    const client = createMockClient([[{ type: 'text', text: 'Hello from sub-agent' }]]);
-    const bashTool = new BashTool();
-    const handler = new TaskCommandHandler({ client, bashTool });
+    const manager: ISubAgentExecutor = {
+      execute: (
+        _type: SubAgentType,
+        _params: TaskCommandParams,
+        options?: { signal?: AbortSignal }
+      ) => {
+        receivedSignal = options?.signal;
+        return new Promise<string>((_resolve, reject) => {
+          options?.signal?.addEventListener('abort', () => {
+            const abortError = new Error('Operation aborted');
+            abortError.name = 'AbortError';
+            reject(abortError);
+          }, { once: true });
+        });
+      },
+      shutdown: () => {},
+    };
+
+    const handler = new TaskCommandHandler({ manager });
 
     const execution = handler.execute(
       'task:general --prompt "hi" --description "Test task"'
@@ -111,6 +68,5 @@ describe('TaskCommandHandler execute (more)', () => {
     expect(result.stderr).toContain('interrupted');
 
     handler.shutdown();
-    bashTool.cleanup();
   });
 });

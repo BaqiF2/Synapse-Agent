@@ -201,6 +201,195 @@ describe('BashTool', () => {
     expect(isolated.getSandboxManager()).not.toBe(original.getSandboxManager());
   });
 
+  it('should return success result for command with exit code 0', async () => {
+    const bashTool = new BashTool();
+    instances.push(bashTool);
+
+    setRouterResult(bashTool, {
+      stdout: 'file1.txt\nfile2.txt',
+      stderr: '',
+      exitCode: 0,
+    });
+
+    const result = await bashTool.call({ command: 'ls' });
+
+    expect(result.isError).toBe(false);
+    expect(result.output).toContain('file1.txt');
+    expect(result.output).toContain('file2.txt');
+  });
+
+  it('should show "(Command executed successfully with no output)" for empty output on success', async () => {
+    const bashTool = new BashTool();
+    instances.push(bashTool);
+
+    setRouterResult(bashTool, {
+      stdout: '',
+      stderr: '',
+      exitCode: 0,
+    });
+
+    const result = await bashTool.call({ command: 'touch file.txt' });
+
+    expect(result.isError).toBe(false);
+    expect(result.output).toBe('(Command executed successfully with no output)');
+  });
+
+  it('should handle router exception gracefully', async () => {
+    const bashTool = new BashTool();
+    instances.push(bashTool);
+
+    const router = bashTool.getRouter() as unknown as {
+      route: (command: string, restart?: boolean) => Promise<any>;
+    };
+    router.route = mock(async () => {
+      throw new Error('Router internal error');
+    });
+
+    const result = await bashTool.call({ command: 'broken-command' });
+
+    expect(result.isError).toBe(true);
+    expect(result.message).toContain('Command execution failed');
+    expect(result.message).toContain('Router internal error');
+  });
+
+  it('should handle timeout exception with session restart', async () => {
+    const bashTool = new BashTool();
+    instances.push(bashTool);
+
+    const router = bashTool.getRouter() as unknown as {
+      route: (command: string, restart?: boolean) => Promise<any>;
+    };
+    router.route = mock(async () => {
+      throw new Error('Command execution timeout');
+    });
+
+    const session = bashTool.getSession() as unknown as {
+      restart: ReturnType<typeof mock>;
+    };
+    session.restart = mock(async () => {});
+
+    const result = await bashTool.call({ command: 'slow-command' });
+
+    expect(result.isError).toBe(true);
+    expect(session.restart).toHaveBeenCalled();
+  });
+
+  it('should include stderr in output when both stdout and stderr present on success', async () => {
+    const bashTool = new BashTool();
+    instances.push(bashTool);
+
+    setRouterResult(bashTool, {
+      stdout: 'normal output',
+      stderr: 'warning: something',
+      exitCode: 0,
+    });
+
+    const result = await bashTool.call({ command: 'npm install' });
+
+    expect(result.isError).toBe(false);
+    expect(result.output).toContain('normal output');
+    expect(result.output).toContain('[stderr]');
+    expect(result.output).toContain('warning: something');
+  });
+
+  it('should not attach self-description for execution_error failures', async () => {
+    const bashTool = new BashTool();
+    instances.push(bashTool);
+
+    setRouterResult(bashTool, {
+      stdout: '',
+      stderr: 'File not found: /missing/path',
+      exitCode: 1,
+    });
+
+    const result = await bashTool.call({ command: 'read /missing/path' });
+
+    expect(result.isError).toBe(true);
+    // execution_error 不应包含自描述提示
+    expect(result.output).not.toContain('Self-description');
+    expect(result.extras?.failureCategory).toBe('execution_error');
+  });
+
+  it('should attach self-description for command_not_found failures', async () => {
+    const bashTool = new BashTool();
+    instances.push(bashTool);
+
+    setRouterResult(bashTool, {
+      stdout: '',
+      stderr: 'Unknown tool: foobar',
+      exitCode: 1,
+    });
+
+    const result = await bashTool.call({ command: 'foobar --test' });
+
+    expect(result.isError).toBe(true);
+    expect(result.output).toContain('Self-description');
+    expect(result.extras?.failureCategory).toBe('command_not_found');
+  });
+
+  it('getRouter should return the BashRouter instance', () => {
+    const bashTool = new BashTool();
+    instances.push(bashTool);
+
+    const router = bashTool.getRouter();
+    expect(router).toBeDefined();
+    expect(typeof router.route).toBe('function');
+  });
+
+  it('getSession should return the BashSession instance', () => {
+    const bashTool = new BashTool();
+    instances.push(bashTool);
+
+    const session = bashTool.getSession();
+    expect(session).toBeDefined();
+  });
+
+  it('createIsolatedCopy should create a new BashTool with separate session', () => {
+    const original = new BashTool();
+    const isolated = original.createIsolatedCopy();
+    instances.push(original, isolated);
+
+    expect(isolated).not.toBe(original);
+    expect(isolated.getSession()).not.toBe(original.getSession());
+    expect(isolated.getRouter()).not.toBe(original.getRouter());
+  });
+
+  it('should include exitCode in extras when command fails', async () => {
+    const bashTool = new BashTool();
+    instances.push(bashTool);
+
+    setRouterResult(bashTool, {
+      stdout: '',
+      stderr: 'permission denied',
+      exitCode: 13,
+    });
+
+    const result = await bashTool.call({ command: 'chmod 777 /root' });
+
+    expect(result.isError).toBe(true);
+    expect(result.extras?.exitCode).toBe(13);
+  });
+
+  it('should use default sandbox blocked message when blockedReason is undefined', async () => {
+    const bashTool = new BashTool();
+    instances.push(bashTool);
+
+    setRouterResult(bashTool, {
+      stdout: '',
+      stderr: '',
+      exitCode: 1,
+      blocked: true,
+      blockedReason: undefined as unknown as string,
+      blockedResource: '/sensitive/file',
+    });
+
+    const result = await bashTool.call({ command: 'cat /sensitive/file' });
+
+    expect(result.isError).toBe(false);
+    expect(result.message).toBe('Sandbox blocked command execution');
+    expect(result.extras?.type).toBe('sandbox_blocked');
+  });
+
   it('allow_permanent 会写入 sandbox.json 并添加会话白名单', async () => {
     tempSynapseHome = fs.mkdtempSync(path.join(os.tmpdir(), 'synapse-bash-tool-'));
     process.env.SYNAPSE_HOME = tempSynapseHome;

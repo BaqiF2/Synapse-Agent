@@ -13,6 +13,7 @@ import * as path from 'node:path';
 import type { CommandResult } from '../native-command-handler.ts';
 import { toCommandErrorResult } from './command-utils.ts';
 import { BaseAgentHandler } from './base-agent-handler.ts';
+import { ToolExecutionError } from '../../../common/errors.ts';
 
 const USAGE = 'Usage: write <file_path> <content>';
 
@@ -113,7 +114,7 @@ export class WriteHandler extends BaseAgentHandler {
       fs.mkdirSync(parentDir, { recursive: true });
     }
     if (fs.existsSync(absolutePath) && fs.statSync(absolutePath).isDirectory()) {
-      throw new Error(`Cannot write to directory: ${absolutePath}`);
+      throw new ToolExecutionError('write', `Cannot write to directory: ${absolutePath}`);
     }
 
     fs.writeFileSync(absolutePath, args.content, 'utf-8');

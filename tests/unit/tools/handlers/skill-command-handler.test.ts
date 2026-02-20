@@ -238,11 +238,13 @@ describe('SkillCommandHandler', () => {
   });
 
   describe('依赖注入', () => {
-    it('提供 llmClient 和 toolExecutor 时创建完整 SkillMerger', () => {
+    it('提供 createSubAgentManager 时创建完整 SkillMerger', () => {
       const handler = new SkillCommandHandler({
         homeDir: testDir,
-        llmClient: {} as any,
-        toolExecutor: {} as any,
+        createSubAgentManager: () => ({
+          execute: () => Promise.resolve(''),
+          shutdown: () => {},
+        }),
       });
 
       const merger = (handler as any).getSkillMerger();
@@ -269,6 +271,22 @@ describe('SkillCommandHandler', () => {
       expect(result.stdout).toContain('(3 versions)');
       expect(result.stdout).toContain('code-review');
       expect(result.stdout).toContain('(5 versions)');
+    });
+
+    it('skill:list 空列表时提示无技能', async () => {
+      const skillManager = {
+        list: mock(async () => []),
+        info: mock(async () => null),
+        import: mock(async () => createImportResult()),
+        getVersions: mock(async () => []),
+        rollback: mock(async () => {}),
+        delete: mock(async () => {}),
+      } as unknown as SkillManager;
+      const handler = new SkillCommandHandler({ homeDir: testDir, skillManager });
+      const result = await handler.execute('skill:list');
+
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('No skills installed');
     });
 
     it('skill:info 输出详情与版本历史', async () => {
@@ -465,6 +483,292 @@ domain: general
       expect((skillManager as any).delete).toHaveBeenCalledWith('git-commit');
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain('deleted');
+    });
+  });
+
+  describe('帮助信息', () => {
+    it('skill:load 无参数时显示帮助', async () => {
+      const handler = new SkillCommandHandler({ homeDir: testDir });
+      const result = await handler.execute('skill:load');
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stdout).toContain('USAGE');
+      expect(result.stdout).toContain('skill:load <skill-name>');
+    });
+
+    it('skill:load --help 显示帮助且 exitCode 为 0', async () => {
+      const handler = new SkillCommandHandler({ homeDir: testDir });
+      const result = await handler.execute('skill:load --help');
+
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('USAGE');
+    });
+
+    it('skill:info 无参数时显示帮助', async () => {
+      const handler = new SkillCommandHandler({ homeDir: testDir });
+      const result = await handler.execute('skill:info');
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stdout).toContain('USAGE');
+      expect(result.stdout).toContain('skill:info <skill-name>');
+    });
+
+    it('skill:import 无参数时显示帮助', async () => {
+      const handler = new SkillCommandHandler({ homeDir: testDir });
+      const result = await handler.execute('skill:import');
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stdout).toContain('USAGE');
+      expect(result.stdout).toContain('skill:import <source>');
+    });
+
+    it('skill:rollback 无参数时显示帮助', async () => {
+      const handler = new SkillCommandHandler({ homeDir: testDir });
+      const result = await handler.execute('skill:rollback');
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stdout).toContain('USAGE');
+      expect(result.stdout).toContain('skill:rollback <skill-name>');
+    });
+
+    it('skill:delete -h 显示帮助', async () => {
+      const handler = new SkillCommandHandler({ homeDir: testDir });
+      const result = await handler.execute('skill:delete -h');
+
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('USAGE');
+    });
+  });
+
+  describe('错误处理', () => {
+    it('skill:list 异常时返回错误', async () => {
+      const skillManager = {
+        list: mock(async () => { throw new Error('disk read failed'); }),
+        info: mock(async () => null),
+        import: mock(async () => createImportResult()),
+        getVersions: mock(async () => []),
+        rollback: mock(async () => {}),
+        delete: mock(async () => {}),
+      } as unknown as SkillManager;
+      const handler = new SkillCommandHandler({ homeDir: testDir, skillManager });
+
+      const result = await handler.execute('skill:list');
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain('disk read failed');
+    });
+
+    it('skill:info 异常时返回错误', async () => {
+      const skillManager = {
+        list: mock(async () => []),
+        info: mock(async () => { throw new Error('index corrupted'); }),
+        import: mock(async () => createImportResult()),
+        getVersions: mock(async () => []),
+        rollback: mock(async () => {}),
+        delete: mock(async () => {}),
+      } as unknown as SkillManager;
+      const handler = new SkillCommandHandler({ homeDir: testDir, skillManager });
+
+      const result = await handler.execute('skill:info some-skill');
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain('index corrupted');
+    });
+
+    it('skill:info 不存在技能返回 exitCode 1', async () => {
+      const skillManager = {
+        list: mock(async () => []),
+        info: mock(async () => null),
+        import: mock(async () => createImportResult()),
+        getVersions: mock(async () => []),
+        rollback: mock(async () => {}),
+        delete: mock(async () => {}),
+      } as unknown as SkillManager;
+      const handler = new SkillCommandHandler({ homeDir: testDir, skillManager });
+
+      const result = await handler.execute('skill:info not-found');
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain("Skill 'not-found' not found");
+    });
+
+    it('skill:import 异常时返回错误', async () => {
+      const skillManager = {
+        list: mock(async () => []),
+        info: mock(async () => null),
+        import: mock(async () => { throw new Error('permission denied'); }),
+        getVersions: mock(async () => []),
+        rollback: mock(async () => {}),
+        delete: mock(async () => {}),
+      } as unknown as SkillManager;
+      const handler = new SkillCommandHandler({ homeDir: testDir, skillManager });
+
+      const result = await handler.execute('skill:import /tmp/source');
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain('permission denied');
+    });
+
+    it('skill:rollback 异常时返回错误', async () => {
+      const skillManager = {
+        list: mock(async () => []),
+        info: mock(async () => null),
+        import: mock(async () => createImportResult()),
+        getVersions: mock(async () => []),
+        rollback: mock(async () => { throw new Error('version corrupted'); }),
+        delete: mock(async () => {}),
+      } as unknown as SkillManager;
+      const handler = new SkillCommandHandler({ homeDir: testDir, skillManager });
+
+      const result = await handler.execute('skill:rollback my-skill 2026-02-03-001');
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain('version corrupted');
+    });
+
+    it('skill:rollback 无可用版本时返回错误', async () => {
+      const skillManager = {
+        list: mock(async () => []),
+        info: mock(async () => null),
+        import: mock(async () => createImportResult()),
+        getVersions: mock(async () => []),
+        rollback: mock(async () => {}),
+        delete: mock(async () => {}),
+      } as unknown as SkillManager;
+      const handler = new SkillCommandHandler({ homeDir: testDir, skillManager });
+
+      const result = await handler.execute('skill:rollback my-skill');
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain("No versions available for skill 'my-skill'");
+    });
+
+    it('skill:delete 异常时返回错误', async () => {
+      const skillManager = {
+        list: mock(async () => []),
+        info: mock(async () => null),
+        import: mock(async () => createImportResult()),
+        getVersions: mock(async () => []),
+        rollback: mock(async () => {}),
+        delete: mock(async () => { throw new Error('Skill my-skill not found'); }),
+      } as unknown as SkillManager;
+      const handler = new SkillCommandHandler({ homeDir: testDir, skillManager });
+
+      const result = await handler.execute('skill:delete my-skill');
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain('Skill my-skill not found');
+    });
+
+    it('skill:load 不存在技能返回错误', async () => {
+      const loadLevel2 = mock(() => null);
+      const skillLoader = { loadLevel2 } as unknown as SkillLoader;
+      const handler = new SkillCommandHandler({ homeDir: testDir, skillLoader });
+
+      const result = await handler.execute('skill:load non-existent');
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain("Skill 'non-existent' not found");
+    });
+
+    it('skill:load 技能缺少 rawContent 返回错误', async () => {
+      const loadLevel2 = mock(() => ({
+        name: 'broken-skill',
+        domain: 'general',
+        tags: [],
+        tools: [],
+        scriptCount: 0,
+        path: '/tmp/broken-skill',
+        version: '1.0.0',
+        toolDependencies: [],
+        executionSteps: [],
+        examples: [],
+        rawContent: undefined,
+      }));
+      const skillLoader = { loadLevel2 } as unknown as SkillLoader;
+      const handler = new SkillCommandHandler({ homeDir: testDir, skillLoader });
+
+      const result = await handler.execute('skill:load broken-skill');
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain('missing SKILL.md');
+    });
+  });
+
+  describe('导入选项解析', () => {
+    it('解析 --continue 空格分隔形式', async () => {
+      const skillManager = {
+        list: mock(async () => []),
+        info: mock(async () => null),
+        import: mock(async () => createImportResult()),
+        getVersions: mock(async () => []),
+        rollback: mock(async () => {}),
+        delete: mock(async () => {}),
+      } as unknown as SkillManager;
+      const handler = new SkillCommandHandler({ homeDir: testDir, skillManager });
+
+      await handler.execute('skill:import /tmp/source --continue skill-a,skill-b');
+
+      expect((skillManager as any).import).toHaveBeenCalledWith('/tmp/source', {
+        continueSkills: ['skill-a', 'skill-b'],
+        mergeInto: [],
+      });
+    });
+
+    it('解析 --merge 空格分隔形式', async () => {
+      const skillManager = {
+        list: mock(async () => []),
+        info: mock(async () => null),
+        import: mock(async () => createImportResult()),
+        getVersions: mock(async () => []),
+        rollback: mock(async () => {}),
+        delete: mock(async () => {}),
+      } as unknown as SkillManager;
+      const handler = new SkillCommandHandler({ homeDir: testDir, skillManager });
+
+      await handler.execute('skill:import /tmp/source --merge src:dst');
+
+      expect((skillManager as any).import).toHaveBeenCalledWith('/tmp/source', {
+        continueSkills: [],
+        mergeInto: [{ source: 'src', target: 'dst' }],
+      });
+    });
+
+    it('导入完成但无结果时显示 no skills found', async () => {
+      const skillManager = {
+        list: mock(async () => []),
+        info: mock(async () => null),
+        import: mock(async () => createImportResult()),
+        getVersions: mock(async () => []),
+        rollback: mock(async () => {}),
+        delete: mock(async () => {}),
+      } as unknown as SkillManager;
+      const handler = new SkillCommandHandler({ homeDir: testDir, skillManager });
+
+      const result = await handler.execute('skill:import /tmp/empty-source');
+
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('No skills found');
+    });
+  });
+
+  describe('生命周期', () => {
+    it('shutdown 调用不应报错', () => {
+      const handler = new SkillCommandHandler({ homeDir: testDir });
+      // 没有 SubAgentManager 的情况下不应崩溃
+      expect(() => handler.shutdown()).not.toThrow();
+    });
+
+    it('getSkillManager 返回 SkillManager 实例', () => {
+      const handler = new SkillCommandHandler({ homeDir: testDir });
+      const manager = handler.getSkillManager();
+      expect(manager).toBeDefined();
+    });
+
+    it('getSkillMerger 返回 SkillMerger 实例', () => {
+      const handler = new SkillCommandHandler({ homeDir: testDir });
+      const merger = handler.getSkillMerger();
+      expect(merger).toBeDefined();
     });
   });
 });

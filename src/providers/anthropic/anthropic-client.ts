@@ -1,28 +1,29 @@
 /**
  * Anthropic LLM Client
  *
- * Wrapper for Anthropic API with support for streaming, prompt caching,
- * extended thinking, and token usage tracking.
+ * Anthropic API 封装，支持流式输出、prompt 缓存、extended thinking 和 token 用量追踪。
  *
- * Core Exports:
- * - AnthropicClient: Main client class for Anthropic API
+ * 核心导出:
+ * - AnthropicClient: Anthropic API 客户端主类
  * - AnthropicClientOptions: 构造选项接口
  * - LlmSettings: LLM 配置参数接口
- * - GenerationKwargs: Generation parameters interface
- * - toAnthropicMessage(s): Convert internal Message to Anthropic wire format
+ * - GenerationKwargs: 生成参数接口
+ * - toAnthropicMessage(s): 消息格式转换（从 anthropic-message-converter 重导出）
  */
 
 import Anthropic from '@anthropic-ai/sdk';
-import type { ContentPart, ImageUrlPart, Message, ToolCall } from '../message.ts';
+import type { Message } from '../message.ts';
 import type { LLMTool } from '../../types/tool.ts';
 import type { LLMClient, LLMStreamedMessage } from '../llm-client.ts';
 import {
   type ThinkingEffort,
+  type GenerationKwargs,
   ChatProviderError,
   APIConnectionError,
   APIStatusError,
 } from './anthropic-types.ts';
 import { AnthropicStreamedMessage } from './anthropic-streamed-message.ts';
+import { toAnthropicMessages } from './anthropic-message-converter.ts';
 import { createLogger } from '../../utils/logger.ts';
 import { parseEnvInt } from '../../utils/env.ts';
 
@@ -30,25 +31,15 @@ const logger = createLogger('anthropic-client');
 
 const DEFAULT_MAX_TOKENS = parseEnvInt(process.env.SYNAPSE_MAX_TOKENS, 4096);
 
-/**
- * Generation parameters
- */
-export interface GenerationKwargs {
-  maxTokens: number;
-  temperature?: number;
-  topK?: number;
-  topP?: number;
-  thinking?: Anthropic.ThinkingConfigParam;
-  toolChoice?: Anthropic.ToolChoice;
-}
+/** 重导出，保持外部接口兼容 */
+export type { GenerationKwargs } from './anthropic-types.ts';
+export { toAnthropicMessages, toAnthropicMessage } from './anthropic-message-converter.ts';
 
 export interface GenerateOptions {
   signal?: AbortSignal;
 }
 
-/**
- * Client configuration
- */
+/** 客户端内部配置 */
 interface ClientConfig {
   apiKey: string;
   baseURL: string;
@@ -57,18 +48,14 @@ interface ClientConfig {
   generationKwargs: GenerationKwargs;
 }
 
-/**
- * LLM 配置参数
- */
+/** LLM 配置参数 */
 export interface LlmSettings {
   apiKey: string;
   baseURL: string;
   model: string;
 }
 
-/**
- * AnthropicClient 构造选项
- */
+/** AnthropicClient 构造选项 */
 export interface AnthropicClientOptions {
   /** LLM 配置（必需，由调用方从 SettingsManager 获取后传入） */
   settings: LlmSettings;
@@ -77,7 +64,7 @@ export interface AnthropicClientOptions {
 }
 
 /**
- * Anthropic API client with streaming and caching support
+ * Anthropic API 客户端，支持流式输出与 prompt 缓存
  */
 export class AnthropicClient implements LLMClient {
   static readonly name = 'anthropic';
@@ -89,7 +76,6 @@ export class AnthropicClient implements LLMClient {
   constructor(options: AnthropicClientOptions) {
     const { apiKey, baseURL, model } = options.settings;
 
-    // 确保 API key 已配置，避免以空 key 发起请求后得到难以理解的错误
     if (!apiKey) {
       throw new ChatProviderError(
         'ANTHROPIC_API_KEY is not configured. Set it via environment variable or settings file (~/.synapse/settings.json).'
@@ -108,9 +94,6 @@ export class AnthropicClient implements LLMClient {
     };
   }
 
-  /**
-   * Private constructor for creating copies with updated config
-   */
   private static fromConfig(client: Anthropic, config: ClientConfig): AnthropicClient {
     const instance = Object.create(AnthropicClient.prototype) as AnthropicClient;
     Object.defineProperty(instance, 'client', { value: client, writable: false });
@@ -132,17 +115,11 @@ export class AnthropicClient implements LLMClient {
     return 'high';
   }
 
-  /**
-   * Create a new client with thinking configured
-   */
   withThinking(effort: ThinkingEffort): AnthropicClient {
     const thinkingConfig = this.mapThinkingEffort(effort);
     return this.withGenerationKwargs({ thinking: thinkingConfig });
   }
 
-  /**
-   * Create a new client with updated generation kwargs
-   */
   withGenerationKwargs(kwargs: Partial<GenerationKwargs>): AnthropicClient {
     const newConfig: ClientConfig = {
       ...this.config,
@@ -151,9 +128,6 @@ export class AnthropicClient implements LLMClient {
     return AnthropicClient.fromConfig(this.client, newConfig);
   }
 
-  /**
-   * Create a new client with updated model
-   */
   withModel(model: string): AnthropicClient {
     const normalizedModel = model.trim();
     if (!normalizedModel || normalizedModel === this.config.model) {
@@ -181,7 +155,7 @@ export class AnthropicClient implements LLMClient {
   }
 
   /**
-   * Generate a response from the LLM
+   * 调用 LLM 生成响应
    */
   async generate(
     systemPrompt: string,
@@ -190,7 +164,6 @@ export class AnthropicClient implements LLMClient {
     options?: GenerateOptions
   ): Promise<LLMStreamedMessage> {
     try {
-      // Build system prompt with cache_control
       const system: Anthropic.TextBlockParam[] | undefined = systemPrompt
         ? [
             {
@@ -202,15 +175,9 @@ export class AnthropicClient implements LLMClient {
         : undefined;
 
       const anthropicMessages = toAnthropicMessages(messages);
-
-      // Inject cache_control into last message
       const processedMessages = this.injectMessageCacheControl(anthropicMessages);
-
-      // Inject cache_control into last tool
-      // LLMTool 与 Anthropic.Tool 结构兼容，直接传递给 SDK
       const processedTools = this.injectToolsCacheControl(tools) as Anthropic.Tool[];
 
-      // Build request parameters
       const { thinking, toolChoice, maxTokens, ...restKwargs } = this.config.generationKwargs;
 
       const requestParams = {
@@ -243,7 +210,7 @@ export class AnthropicClient implements LLMClient {
   }
 
   /**
-   * Inject cache_control into the last content block of the last message
+   * 为最后一条消息的最后一个内容块注入 cache_control
    */
   private injectMessageCacheControl(
     messages: Anthropic.MessageParam[]
@@ -262,7 +229,6 @@ export class AnthropicClient implements LLMClient {
       const lastBlockIndex = blocks.length - 1;
       const lastBlock = blocks[lastBlockIndex];
 
-      // Cacheable block types
       if (
         typeof lastBlock === 'object' &&
         lastBlock !== null &&
@@ -270,7 +236,6 @@ export class AnthropicClient implements LLMClient {
       ) {
         const cacheableTypes = ['text', 'image', 'tool_use', 'tool_result'];
         if (cacheableTypes.includes(lastBlock.type)) {
-          // Create new block with cache_control
           blocks[lastBlockIndex] = {
             ...lastBlock,
             cache_control: { type: 'ephemeral' },
@@ -288,7 +253,7 @@ export class AnthropicClient implements LLMClient {
   }
 
   /**
-   * Inject cache_control into the last tool
+   * 为最后一个工具注入 cache_control
    */
   private injectToolsCacheControl(tools: LLMTool[]): LLMTool[] {
     if (tools.length === 0) return tools;
@@ -303,7 +268,7 @@ export class AnthropicClient implements LLMClient {
   }
 
   /**
-   * Convert Anthropic errors to unified error types
+   * 将 Anthropic SDK 错误转换为统一错误类型
    */
   private convertError(error: unknown): ChatProviderError {
     if (error instanceof Anthropic.APIConnectionError) {
@@ -319,225 +284,4 @@ export class AnthropicClient implements LLMClient {
     }
     return new ChatProviderError('Unknown error occurred');
   }
-}
-
-export function toAnthropicMessages(messages: readonly Message[]): Anthropic.MessageParam[] {
-  return messages.map((message) => toAnthropicMessage(message));
-}
-
-export function toAnthropicMessage(message: Message): Anthropic.MessageParam {
-  if (message.role === 'system') {
-    const text = extractTextFromParts(message.content, '\n');
-    return { role: 'user', content: `<system>${text}</system>` };
-  }
-
-  if (message.role === 'tool') {
-    if (!message.toolCallId) {
-      throw new ChatProviderError('Tool message missing `toolCallId`.');
-    }
-
-    return {
-      role: 'user',
-      content: [
-        {
-          type: 'tool_result',
-          tool_use_id: message.toolCallId,
-          content: convertToolResultContent(message.content),
-        },
-      ],
-    };
-  }
-
-  const hasToolCalls = message.role === 'assistant' && (message.toolCalls?.length ?? 0) > 0;
-  const hasNonTextParts = message.content.some((part) => part.type !== 'text');
-
-  if (!hasToolCalls && !hasNonTextParts) {
-    return { role: message.role, content: extractTextFromParts(message.content) };
-  }
-
-  const contentBlocks = convertContentParts(message.content);
-
-  if (message.role === 'assistant' && message.toolCalls?.length) {
-    for (const call of message.toolCalls) {
-      contentBlocks.push(convertToolCall(call));
-    }
-  }
-
-  if (!hasToolCalls && contentBlocks.length === 0) {
-    return { role: message.role, content: '' };
-  }
-
-  return { role: message.role, content: contentBlocks };
-}
-
-function extractTextFromParts(parts: ContentPart[], separator: string = ''): string {
-  return parts
-    .filter((part): part is { type: 'text'; text: string } => part.type === 'text')
-    .map((part) => part.text)
-    .join(separator);
-}
-
-function convertContentParts(parts: ContentPart[]): Anthropic.ContentBlockParam[] {
-  const blocks: Anthropic.ContentBlockParam[] = [];
-  for (const part of parts) {
-    const block = convertContentPart(part);
-    if (block) blocks.push(block);
-  }
-  return blocks;
-}
-
-function convertContentPart(part: ContentPart): Anthropic.ContentBlockParam | null {
-  switch (part.type) {
-    case 'text':
-      return { type: 'text', text: part.text };
-    case 'image_url':
-      return convertImageUrlPart(part);
-    case 'thinking':
-      if (!part.signature) return null;
-      return {
-        type: 'thinking',
-        thinking: part.content,
-        signature: part.signature,
-      };
-    default:
-      return null;
-  }
-}
-
-function convertToolCall(call: ToolCall): Anthropic.ToolUseBlockParam {
-  logger.trace('Converting ToolCall to Anthropic format', {
-    toolId: call.id,
-    toolName: call.name,
-    argumentsLength: call.arguments?.length ?? 'undefined',
-  });
-  return {
-    type: 'tool_use',
-    id: call.id,
-    name: call.name,
-    input: parseToolInput(call.arguments),
-  };
-}
-
-function fallbackToEmptyToolInput(
-  message: string,
-  context: Record<string, unknown>
-): Record<string, unknown> {
-  logger.warn(message, context);
-  return {};
-}
-
-function parseToolInput(argumentsJson: string): Record<string, unknown> {
-  // 关键调试点：记录输入的参数 JSON
-  logger.trace('Parsing tool input arguments', {
-    argumentsJson,
-    argumentsJsonLength: argumentsJson?.length ?? 'undefined',
-    argumentsJsonType: typeof argumentsJson,
-    first100Chars: argumentsJson?.substring(0, 100),
-  });
-
-  const trimmed = argumentsJson.trim();
-  if (!trimmed) {
-    logger.trace('Empty arguments, returning empty object');
-    return {};
-  }
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(trimmed);
-  } catch (error) {
-    // 历史会话中可能存在被中断写入的 tool_call 参数，降级为空对象以继续会话。
-    return fallbackToEmptyToolInput('Failed to parse tool call arguments as JSON, fallback to empty object', {
-      argumentsJson,
-      trimmedJson: trimmed,
-      trimmedLength: trimmed.length,
-      first100Chars: trimmed.substring(0, 100),
-      last100Chars: trimmed.substring(Math.max(0, trimmed.length - 100)),
-      error: error instanceof Error ? error.message : String(error),
-    });
-  }
-
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    return fallbackToEmptyToolInput('Parsed tool arguments is not an object, fallback to empty object', {
-      parsedType: typeof parsed,
-      isArray: Array.isArray(parsed),
-      parsed,
-    });
-  }
-
-  logger.trace('Successfully parsed tool input', { parsedKeys: Object.keys(parsed) });
-  return parsed as Record<string, unknown>;
-}
-
-function convertToolResultContent(
-  parts: ContentPart[]
-): string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam> {
-  const blocks: Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam> = [];
-  let hasNonText = false;
-  let text = '';
-
-  for (const part of parts) {
-    switch (part.type) {
-      case 'text':
-        if (part.text) {
-          blocks.push({ type: 'text', text: part.text });
-          text += part.text;
-        }
-        break;
-      case 'image_url':
-        hasNonText = true;
-        blocks.push(convertImageUrlPart(part));
-        break;
-      default:
-        throw new ChatProviderError(
-          `Anthropic API does not support ${part.type} in tool result`
-        );
-    }
-  }
-
-  return hasNonText ? blocks : text;
-}
-
-function convertImageUrlPart(part: ImageUrlPart): Anthropic.ImageBlockParam {
-  const url = part.imageUrl.url;
-
-  if (url.startsWith('data:')) {
-    const payload = url.slice(5);
-    const separator = ';base64,';
-    const separatorIndex = payload.indexOf(separator);
-
-    if (separatorIndex === -1) {
-      throw new ChatProviderError(`Invalid data URL for image: ${url}`);
-    }
-
-    const mediaType = payload.slice(0, separatorIndex);
-    const data = payload.slice(separatorIndex + separator.length);
-
-    if (!mediaType || !data) {
-      throw new ChatProviderError(`Invalid data URL for image: ${url}`);
-    }
-
-    const supportedTypes = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
-    if (!supportedTypes.includes(mediaType)) {
-      throw new ChatProviderError(
-        `Unsupported media type for base64 image: ${mediaType}, url: ${url}`
-      );
-    }
-
-    return {
-      type: 'image',
-      source: {
-        type: 'base64',
-        data,
-        media_type: mediaType as 'image/png' | 'image/jpeg' | 'image/gif' | 'image/webp',
-      },
-    };
-  }
-
-  return {
-    type: 'image',
-    source: {
-      type: 'url',
-      url,
-    },
-  };
 }

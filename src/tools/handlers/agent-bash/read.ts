@@ -14,6 +14,7 @@ import { parseEnvInt } from '../../../utils/env.js';
 import type { CommandResult } from '../native-command-handler.ts';
 import { parseCommandArgs, toCommandErrorResult } from './command-utils.ts';
 import { BaseAgentHandler } from './base-agent-handler.ts';
+import { FileNotFoundError, ToolExecutionError } from '../../../common/errors.ts';
 
 const DEFAULT_LIMIT = parseEnvInt(process.env.SYNAPSE_READ_DEFAULT_LIMIT, 2000);
 const USAGE = 'Usage: read <file_path> [--offset N] [--limit N]';
@@ -91,11 +92,11 @@ export class ReadHandler extends BaseAgentHandler {
     const absolutePath = this.resolveFilePath(args.filePath);
 
     if (!fs.existsSync(absolutePath)) {
-      throw new Error(`File not found: ${absolutePath}`);
+      throw new FileNotFoundError(absolutePath);
     }
     const stats = fs.statSync(absolutePath);
     if (stats.isDirectory()) {
-      throw new Error(`Cannot read directory: ${absolutePath}`);
+      throw new ToolExecutionError('read', `Cannot read directory: ${absolutePath}`);
     }
 
     const content = fs.readFileSync(absolutePath, 'utf-8');

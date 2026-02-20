@@ -24,7 +24,7 @@ import {
   type ReplState,
   type SigintHandlerOptions,
   type SpecialCommandOptions,
-} from './repl-commands.ts';
+} from './commands/index.ts';
 import { initializeAgent, initializeMcp, initializeSkills, showWelcomeBanner } from './repl-init.ts';
 import { createLogger } from '../utils/logger.ts';
 

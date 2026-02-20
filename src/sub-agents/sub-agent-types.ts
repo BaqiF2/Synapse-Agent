@@ -86,3 +86,18 @@ export type TaskCommandParams = z.infer<typeof TaskCommandParamsSchema>;
 export function isSubAgentType(value: string): value is SubAgentType {
   return (SUB_AGENT_TYPES as readonly string[]).includes(value);
 }
+
+/**
+ * SubAgent 执行器接口
+ *
+ * 用于解耦 handler 对 SubAgentManager 的直接依赖，
+ * 打破 handler → sub-agent-manager → bash-tool → bash-router → handler 循环。
+ */
+export interface ISubAgentExecutor {
+  execute(
+    type: SubAgentType,
+    params: TaskCommandParams,
+    options?: { signal?: AbortSignal },
+  ): Promise<string>;
+  shutdown(): void;
+}

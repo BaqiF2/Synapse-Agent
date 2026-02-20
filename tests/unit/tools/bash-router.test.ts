@@ -224,6 +224,194 @@ describe('BashRouter', () => {
   });
 });
 
+describe('BashRouter - skill command routing', () => {
+  it('should route two-segment skill: command to Agent Shell', () => {
+    const session = createSessionStub();
+    const router = new BashRouter(session);
+
+    // skill:list, skill:info 等都是两段式 Agent Shell 命令
+    expect(router.identifyCommandType('skill:list')).toBe(CommandType.AGENT_SHELL_COMMAND);
+    expect(router.identifyCommandType('skill:info my-skill')).toBe(CommandType.AGENT_SHELL_COMMAND);
+    expect(router.identifyCommandType('skill:load test-skill')).toBe(CommandType.AGENT_SHELL_COMMAND);
+  });
+
+  it('should route three-segment skill:name:tool to Extend Shell', () => {
+    const session = createSessionStub();
+    const router = new BashRouter(session);
+
+    // skill:name:tool 三段式是 Extend Shell 命令
+    expect(router.identifyCommandType('skill:test:run')).toBe(CommandType.EXTEND_SHELL_COMMAND);
+    expect(router.identifyCommandType('skill:pdf:extract file.pdf')).toBe(CommandType.EXTEND_SHELL_COMMAND);
+    expect(router.identifyCommandType('skill:git:commit --amend')).toBe(CommandType.EXTEND_SHELL_COMMAND);
+  });
+
+  it('should normalize /skill: prefix to skill: for routing', () => {
+    const session = createSessionStub();
+    const router = new BashRouter(session);
+
+    // /skill:name:tool 应该被归一化为 skill:name:tool 并路由到 Extend Shell
+    expect(router.identifyCommandType('/skill:test:run')).toBe(CommandType.EXTEND_SHELL_COMMAND);
+    expect(router.identifyCommandType('/skill:list')).toBe(CommandType.AGENT_SHELL_COMMAND);
+  });
+});
+
+describe('BashRouter - setToolExecutor', () => {
+  it('should accept tool executor and update options', () => {
+    const session = createSessionStub();
+    const router = new BashRouter(session);
+    const mockBashTool = {
+      call: mock(async () => ({})),
+    } as any;
+
+    // setToolExecutor 不应抛异常
+    router.setToolExecutor(mockBashTool);
+  });
+
+  it('should reset task handler with shutdown when it exists', async () => {
+    const session = createSessionStub();
+    const shutdownSpy = mock(() => {});
+
+    const router = new BashRouter(session);
+
+    // 注册一个带 shutdown 的 task handler（模拟已经初始化过的场景）
+    router.registerHandler('task:', CommandType.AGENT_SHELL_COMMAND, {
+      execute: async () => ({ stdout: '', stderr: '', exitCode: 0 }),
+      shutdown: shutdownSpy,
+    }, 'prefix');
+
+    const mockBashTool = { call: mock(async () => ({})) } as any;
+    router.setToolExecutor(mockBashTool);
+
+    expect(shutdownSpy).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('BashRouter - shutdown', () => {
+  it('should cleanup all registered handlers', () => {
+    const session = createSessionStub();
+    const router = new BashRouter(session);
+    const shutdownSpy = mock(() => {});
+
+    // 注册一个带 shutdown 的 handler
+    router.registerHandler('custom:', CommandType.AGENT_SHELL_COMMAND, {
+      execute: async () => ({ stdout: '', stderr: '', exitCode: 0 }),
+      shutdown: shutdownSpy,
+    }, 'prefix');
+
+    router.shutdown();
+
+    expect(shutdownSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('should be safe to call shutdown multiple times', () => {
+    const session = createSessionStub();
+    const router = new BashRouter(session);
+
+    // shutdown 应该幂等
+    router.shutdown();
+    router.shutdown();
+    // 不应抛异常
+  });
+});
+
+describe('BashRouter - edge cases', () => {
+  it('should handle sandbox manager execution failure gracefully', async () => {
+    const session = createSessionStub();
+    const execute = mock(async () => {
+      throw new Error('Sandbox connection failed');
+    });
+    const sandboxManager = { execute } as unknown as SandboxManager;
+    const router = new BashRouter(session, { sandboxManager });
+
+    const result = await router.route('npm install');
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain('Command execution failed');
+    expect(result.stderr).toContain('Sandbox connection failed');
+  });
+
+  it('should use process.cwd when getCwd is not provided for sandbox execution', async () => {
+    const session = createSessionStub();
+    const execute = mock(async (_command: string, cwd: string) => ({
+      stdout: `cwd:${cwd}`,
+      stderr: '',
+      exitCode: 0,
+      blocked: false,
+    }));
+    const sandboxManager = { execute } as unknown as SandboxManager;
+    // 不提供 getCwd
+    const router = new BashRouter(session, { sandboxManager });
+
+    const result = await router.route('pwd');
+
+    expect(execute).toHaveBeenCalledTimes(1);
+    // 第二个参数应该是 process.cwd()
+    const callArgs = execute.mock.calls[0] as [string, string];
+    expect(callArgs[1]).toBe(process.cwd());
+  });
+
+  it('should return cancel-able promise from route', () => {
+    const session = createSessionStub();
+    const router = new BashRouter(session);
+
+    const result = router.route('echo hello');
+
+    // 所有路由结果都应该是 CancelablePromise
+    expect(typeof (result as any).cancel).toBe('function');
+  });
+
+  it('should register custom handler with exact match mode', async () => {
+    const session = createSessionStub();
+    const router = new BashRouter(session);
+    const executeSpy = mock(async () => ({
+      stdout: 'custom output',
+      stderr: '',
+      exitCode: 0,
+    }));
+
+    router.registerHandler('mycommand', CommandType.AGENT_SHELL_COMMAND, {
+      execute: executeSpy,
+    });
+
+    const result = await router.route('mycommand --flag');
+
+    expect(executeSpy).toHaveBeenCalledTimes(1);
+    expect(result.stdout).toBe('custom output');
+  });
+
+  it('should not match exact handler when command is just a prefix', async () => {
+    const session = createSessionStub();
+    const router = new BashRouter(session);
+    const executeSpy = mock(async () => ({
+      stdout: 'custom',
+      stderr: '',
+      exitCode: 0,
+    }));
+
+    // 注册 'read' 的 exact 匹配已经由 builtin 注册
+    // 'reading' 不应匹配到 'read' handler
+    const result = await router.route('reading something');
+
+    // 应该走 native shell
+    expect(asSessionMock(session).execute).toHaveBeenCalledWith('reading something');
+  });
+
+  it('should return getSandboxManager from options', () => {
+    const session = createSessionStub();
+    const sandboxManager = { execute: mock(async () => ({})) } as unknown as SandboxManager;
+    const router = new BashRouter(session, { sandboxManager });
+
+    expect(router.getSandboxManager()).toBe(sandboxManager);
+  });
+
+  it('should return undefined when no sandbox manager provided', () => {
+    const session = createSessionStub();
+    const router = new BashRouter(session);
+
+    expect(router.getSandboxManager()).toBeUndefined();
+  });
+});
+
 describe('BashRouter MCP', () => {
   let originalGetServer: typeof McpConfigParser.prototype.getServer;
   let originalConnect: typeof McpClient.prototype.connect;

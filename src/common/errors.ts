@@ -3,7 +3,7 @@
  * 每种错误类型对应特定的故障场景，携带结构化的上下文信息。
  *
  * 核心导出:
- * - SynapseError: 基础错误类
+ * - SynapseError: 基础错误类（含 code 和 recoverable 属性）
  * - AuthenticationError: API Key 无效
  * - TimeoutError: 操作超时
  * - RateLimitError: 速率限制
@@ -13,17 +13,31 @@
  * - FileNotFoundError: 文件不存在
  * - PermissionError: 权限不足
  * - ConfigurationError: 配置错误
+ * - ToolExecutionError: 工具执行失败
+ * - CommandNotFoundError: 命令未找到
+ * - SkillValidationError: 技能校验失败
+ * - isSynapseError: 类型守卫函数
  */
 
 /** 基础错误类，所有 Synapse 错误的父类 */
 export class SynapseError extends Error {
   public readonly code: string;
+  /** 该错误是否可恢复（可恢复错误不应终止 Agent 循环） */
+  public readonly recoverable: boolean;
 
-  constructor(message: string, code: string, options?: ErrorOptions) {
+  constructor(message: string, code: string, options?: ErrorOptions & { recoverable?: boolean }) {
     super(message, options);
     this.name = 'SynapseError';
     this.code = code;
+    this.recoverable = options?.recoverable ?? false;
   }
+}
+
+/**
+ * 类型守卫：检查是否为 SynapseError 实例
+ */
+export function isSynapseError(error: unknown): error is SynapseError {
+  return error instanceof SynapseError;
 }
 
 /** API Key 无效或认证失败 */
@@ -145,5 +159,50 @@ export class ConfigurationError extends SynapseError {
   constructor(message: string) {
     super(message, 'CONFIGURATION_ERROR');
     this.name = 'ConfigurationError';
+  }
+}
+
+/** 工具执行失败（Agent Shell / Extend Shell 命令执行期间的错误） */
+export class ToolExecutionError extends SynapseError {
+  public readonly command: string;
+
+  constructor(command: string, message?: string) {
+    super(
+      message ?? `Tool execution failed: ${command}`,
+      'TOOL_EXECUTION_ERROR',
+      { recoverable: true },
+    );
+    this.name = 'ToolExecutionError';
+    this.command = command;
+  }
+}
+
+/** 命令未找到（路由器无法匹配任何处理器） */
+export class CommandNotFoundError extends SynapseError {
+  public readonly command: string;
+
+  constructor(command: string, message?: string) {
+    super(
+      message ?? `Command not found: ${command}`,
+      'COMMAND_NOT_FOUND_ERROR',
+      { recoverable: true },
+    );
+    this.name = 'CommandNotFoundError';
+    this.command = command;
+  }
+}
+
+/** 技能校验失败（技能格式、结构或内容不合规） */
+export class SkillValidationError extends SynapseError {
+  public readonly skillName: string;
+
+  constructor(skillName: string, message?: string) {
+    super(
+      message ?? `Skill validation failed: ${skillName}`,
+      'SKILL_VALIDATION_ERROR',
+      { recoverable: true },
+    );
+    this.name = 'SkillValidationError';
+    this.skillName = skillName;
   }
 }

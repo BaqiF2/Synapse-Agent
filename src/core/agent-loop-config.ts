@@ -16,6 +16,7 @@
 
 import { ConfigurationError } from '../common';
 import type { AgentTool, LLMProviderLike } from './types.ts';
+import type { AgentEventBus } from './event-bus.ts';
 
 // ========== 子配置接口 ==========
 
@@ -89,6 +90,8 @@ export interface AgentLoopConfig {
   abortSignal?: AbortSignal;
   /** 生命周期钩子（可选） */
   hooks?: AgentLoopHooks;
+  /** 事件总线（可选），接入后所有事件同时发射到总线 */
+  eventBus?: AgentEventBus;
 }
 
 // ========== 验证逻辑 ==========
