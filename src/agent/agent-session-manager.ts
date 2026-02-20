@@ -121,7 +121,7 @@ export class AgentSessionManager {
     if (this.session) await this.session.appendMessage(message);
   }
 
-  /** 直接推送到 history（不持久化到 session，用于 todo 提醒等） */
+  /** 同步推送到 history 并持久化（用于 todo 提醒等非异步场景） */
   pushLocal(message: Message): void {
     this.history.push(message);
     if (this.session) this.session.appendMessage(message);
