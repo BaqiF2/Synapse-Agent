@@ -12,7 +12,7 @@ import chalk from 'chalk';
 import { TreeBuilder } from '../tree-builder.ts';
 import type { ToolCallEvent, ToolResultEvent } from '../terminal-renderer-types.ts';
 import type { ActiveCall } from './renderer-types.ts';
-import { AnimationController } from './animation-controller.ts';
+import type { AnimationController } from './animation-controller.ts';
 import {
   renderLineInPlace,
   getLineRows,

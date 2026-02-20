@@ -13,7 +13,7 @@
  */
 
 import { createLogger } from '../utils/logger.ts';
-import { SkillLoader } from './skill-loader.ts';
+import type { SkillLoader } from './skill-loader.ts';
 import type { ConversationAnalysis } from './skill-enhancer.ts';
 import type { ConversationTurn } from './conversation-reader.ts';
 

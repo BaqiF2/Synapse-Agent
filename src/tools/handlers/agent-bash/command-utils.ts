@@ -11,7 +11,7 @@
  */
 
 import type { CommandResult } from '../native-command-handler.ts';
-import { type SynapseError, isSynapseError } from '../../../common/errors.ts';
+import { isSynapseError } from '../../../common/errors.ts';
 
 /**
  * Parse command arguments with proper quote and escape handling

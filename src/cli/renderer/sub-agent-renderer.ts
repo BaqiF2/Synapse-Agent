@@ -17,7 +17,7 @@ import type {
 } from '../terminal-renderer-types.ts';
 import { TreeBuilder } from '../tree-builder.ts';
 import type { ActiveSubAgentState } from './renderer-types.ts';
-import { AnimationController } from './animation-controller.ts';
+import type { AnimationController } from './animation-controller.ts';
 import { buildSubAgentToolLine } from './render-utils.ts';
 import {
   buildSubAgentTaskLine,

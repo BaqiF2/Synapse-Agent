@@ -20,7 +20,6 @@
 import * as os from 'node:os';
 import { SkillIndexer, type SkillIndexEntry } from './indexer.js';
 import { SkillDocParser, type SkillDoc } from './skill-schema.js';
-import { createLogger } from '../utils/logger.ts';
 import type { LLMProvider } from '../providers/types.ts';
 import { SkillCache } from './skill-cache.ts';
 import {
@@ -28,8 +27,6 @@ import {
   searchWithProvider as doSearchWithProvider,
   searchWithProviderDetailed as doSearchWithProviderDetailed,
 } from './skill-search.ts';
-
-const loaderLogger = createLogger('skill-loader');
 
 /**
  * Level 1 skill data - basic metadata from index

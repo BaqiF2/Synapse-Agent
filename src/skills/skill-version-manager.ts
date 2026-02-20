@@ -15,7 +15,7 @@ import { promises as fsp } from 'node:fs';
 import * as path from 'node:path';
 import type { SkillIndexer } from './indexer.js';
 import type { VersionInfo } from './types.js';
-import { SkillMetadataService } from './skill-metadata-service.js';
+import type { SkillMetadataService } from './skill-metadata-service.js';
 import { parseEnvPositiveInt } from '../utils/env.ts';
 
 export const MAX_VERSIONS_DEFAULT = 20;

@@ -20,14 +20,11 @@ import type { SupportedExtension } from './skill-structure.js';
 import { SkillWrapperGenerator } from './wrapper-generator.js';
 import { SkillScriptProcessor } from './script-processor.js';
 import type { ProcessResult } from './script-processor.js';
-import { createLogger } from '../../../utils/logger.ts';
 import { parseEnvInt } from '../../../utils/env.ts';
 
 const DEFAULT_SKILLS_DIR = '.synapse/skills';
 const DEFAULT_DEBOUNCE_MS = parseEnvInt(process.env.SYNAPSE_SKILL_WATCHER_DEBOUNCE_MS, 1500);
 const SCRIPTS_DIR = 'scripts';
-
-const logger = createLogger('skill-watcher');
 
 /** 文件变更事件类型 */
 export type WatchEventType = 'add' | 'change' | 'unlink';

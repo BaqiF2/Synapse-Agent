@@ -173,7 +173,7 @@ describe('SkillEnhancer - Analysis & Enhancement Flow', () => {
       expect(decision.suggestedSkillName).toBeDefined();
     });
 
-    it('should suggest enhance when matching skill exists', () => {
+    it('should suggest enhance when matching skill exists', async () => {
       // 创建一个已有技能，需要有 scripts 目录来让 indexer 生成 tools
       const skillDir = path.join(skillsDir, 'existing-skill');
       const scriptsDir = path.join(skillDir, 'scripts');
@@ -190,7 +190,7 @@ describe('SkillEnhancer - Analysis & Enhancement Flow', () => {
       fs.writeFileSync(path.join(scriptsDir, 'read.sh'), '#!/bin/bash\necho read', 'utf-8');
 
       // 重建索引让 loader 能找到它
-      const { SkillIndexer } = require('../../../src/skills/indexer.ts');
+      const { SkillIndexer } = await import('../../../src/skills/indexer.ts');
       const indexer = new SkillIndexer(testDir);
       indexer.rebuild();
 

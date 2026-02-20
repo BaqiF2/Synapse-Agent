@@ -12,8 +12,6 @@
 
 import type { AgentEventBus } from './event-bus.ts';
 import type {
-  AgentEvent,
-  ToolStartEvent,
   ToolEndEvent,
   UsageEvent,
 } from './types.ts';

@@ -165,6 +165,7 @@ describe('SkillGenerationPipeline', () => {
       const spec = createValidSpec({ name: 'BAD_NAME' });
 
       const errorStream: LLMStream = {
+        // eslint-disable-next-line require-yield
         [Symbol.asyncIterator]: async function* () {
           throw new Error('LLM error');
         },

@@ -16,7 +16,6 @@ import {
   parsePythonDocstring,
   parseShellDocstring,
   parseJSDocstring,
-  parseParamType,
 } from './language-parsers.js';
 import type { RawDocstring } from './language-parsers.js';
 

@@ -9,7 +9,7 @@
  * - toAnthropicMessage: 转换单条消息
  */
 
-import Anthropic from '@anthropic-ai/sdk';
+import type Anthropic from '@anthropic-ai/sdk';
 import type { ContentPart, ImageUrlPart, Message, ToolCall } from '../message.ts';
 import { ChatProviderError } from './anthropic-types.ts';
 import { createLogger } from '../../utils/logger.ts';

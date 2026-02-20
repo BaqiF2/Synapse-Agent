@@ -69,7 +69,7 @@ export type AgentRunnerStepResult =
   | { status: 'requires_permission'; permission: SandboxPermissionRequest };
 
 /** 循环单步结果（内部使用） */
-type LoopAction = 'continue' | 'completed' | 'permission' | 'failure_limit';
+type _LoopAction = 'continue' | 'completed' | 'permission' | 'failure_limit';
 
 interface LoopResult {
   finalResponse: string;

@@ -9,7 +9,7 @@
  * - IMPORT_TIMEOUT_DEFAULT / getConfiguredImportTimeout: 超时配置
  */
 
-import * as fs from 'node:fs';
+import type * as fs from 'node:fs';
 import { promises as fsp } from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';

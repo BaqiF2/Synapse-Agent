@@ -15,7 +15,7 @@
 import { createLogger } from '../utils/logger.ts';
 import { parseEnvPositiveInt } from '../utils/env.ts';
 import type { SkillSpec, ConversationMessage } from './skill-generator.ts';
-import { SkillGenerator } from './skill-generator.ts';
+import type { SkillGenerator } from './skill-generator.ts';
 import { SkillValidator, type ValidationResult, type ValidationIssue } from './skill-validator.ts';
 import type { LLMProvider, LLMResponse } from '../providers/types.ts';
 

@@ -313,8 +313,7 @@ export class BashRouter {
 
   /** 创建 TaskCommandHandler（惰性） */
   private createTaskHandler(): CommandHandler {
-    const { llmClient, toolExecutor, onSubAgentToolStart, onSubAgentToolEnd, onSubAgentComplete, onSubAgentUsage } =
-      this.options;
+    const { llmClient, toolExecutor } = this.options;
     if (!llmClient || !toolExecutor) {
       // 缺少依赖时返回一个固定错误的处理器
       return { execute: () => Promise.resolve(errorResult('Task commands require LLM client and tool executor')) };

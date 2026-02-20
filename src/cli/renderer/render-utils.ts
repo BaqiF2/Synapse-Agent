@@ -74,6 +74,7 @@ export function getLineRows(line: string): number {
  * 去除字符串中的 ANSI 转义序列
  */
 export function stripAnsi(text: string): string {
+  // eslint-disable-next-line no-control-regex
   return text.replace(/\x1b\[[0-9;]*m/g, '');
 }
 

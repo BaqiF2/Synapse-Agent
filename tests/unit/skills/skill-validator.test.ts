@@ -46,6 +46,7 @@ function createMockProvider(responseText: string): LLMProvider {
 /** 创建返回错误的 LLMProvider */
 function createErrorProvider(): LLMProvider {
   const mockStream: LLMStream = {
+    // eslint-disable-next-line require-yield
     [Symbol.asyncIterator]: async function* () {
       throw new Error('LLM error');
     },
