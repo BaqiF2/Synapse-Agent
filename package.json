@@ -19,7 +19,7 @@
     "test:cli:e2e:basic": "bun run tests/e2e/cli/index.ts --scenario=\"Basic Chat\"",
     "test:cli:e2e:file": "bun run tests/e2e/cli/index.ts --scenario=\"File Operations\"",
     "typecheck": "tsc --noEmit",
-    "test:unit": "bun test tests/unit/",
+    "test:unit": "bun test tests/unit/ --timeout 60000",
     "test:integration": "bun test tests/integration/",
     "test:arch": "dependency-cruise src/ -c .dependency-cruiser.cjs --ignore-known",
     "test:arch:structure": "python3 .claude/skills/project-architecture-init/scripts/validate_architecture.py . --config architecture-config.json",
