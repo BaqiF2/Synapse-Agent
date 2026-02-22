@@ -12,8 +12,7 @@
  * - TREE_SYMBOLS: Unicode 树形符号常量
  */
 
-import type { SubAgentType } from '../../core/sub-agents/sub-agent-types.ts';
-import type { SubAgentToolCallEvent } from '../../types/events.ts';
+import type { SubAgentType, SubAgentToolCallEvent } from '../../types/events.ts';
 
 /**
  * Unicode tree symbols for rendering

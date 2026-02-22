@@ -1,5 +1,5 @@
 import { describe, expect, it, mock } from 'bun:test';
-import { DaytonaSandboxBackend } from '../../../src/shared/sandbox/providers/daytona/daytona-backend.ts';
+import { DaytonaSandboxBackend } from '../../../src/shared/sandbox/providers/daytona.ts';
 import type { SandboxCreateOptions } from '../../../src/shared/sandbox/types.ts';
 
 function createOptions(): SandboxCreateOptions {

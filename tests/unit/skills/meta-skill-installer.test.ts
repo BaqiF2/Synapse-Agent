@@ -8,7 +8,7 @@ import { describe, expect, it, beforeEach, afterEach } from 'bun:test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
-import { MetaSkillInstaller } from '../../../src/skills/meta-skill-installer.js';
+import { MetaSkillInstaller } from '../../../src/skills/manager/meta-skill-installer.js';
 
 describe('MetaSkillInstaller', () => {
   let testDir: string;

@@ -11,6 +11,7 @@
  */
 
 import { z } from 'zod';
+import type { TokenUsage } from '../../types/usage.ts';
 
 /**
  * Sub Agent 类型
@@ -100,4 +101,42 @@ export interface ISubAgentExecutor {
     options?: { signal?: AbortSignal },
   ): Promise<string>;
   shutdown(): void;
+}
+
+/**
+ * BashTool 最小抽象接口 — 供 SubAgentManager 使用
+ *
+ * 抽象 BashTool 的隔离复制和清理能力，使 core 不直接依赖 tools/bash-tool.ts。
+ */
+export interface IBashToolProvider {
+  /** 创建隔离副本（独立 bash session） */
+  createIsolatedCopy(): IBashToolProvider & { cleanup(): void };
+}
+
+/**
+ * Agent Runner 最小抽象接口 — 供 SubAgentManager 使用
+ *
+ * 抽象 AgentRunner 的运行能力，打破 sub-agent-manager → agent-runner 循环依赖。
+ */
+export interface IAgentRunner {
+  run(prompt: string, options?: { signal?: AbortSignal }): Promise<string>;
+}
+
+/**
+ * Agent Runner 工厂函数类型 — 用于注入创建 AgentRunner 的能力
+ */
+export type AgentRunnerFactory = (options: AgentRunnerCreateParams) => IAgentRunner;
+
+/**
+ * 创建 AgentRunner 时的参数
+ */
+export interface AgentRunnerCreateParams {
+  systemPrompt: string;
+  toolset: unknown;
+  maxIterations: number;
+  enableStopHooks: boolean;
+  enableSkillSearchInstruction: boolean;
+  onToolCall?: (toolCall: { id: string; name: string; arguments: string }) => void;
+  onToolResult?: (toolResult: { toolCallId: string; returnValue: { isError: boolean; output?: string } }) => void;
+  onUsage?: (usage: TokenUsage, model: string) => void | Promise<void>;
 }

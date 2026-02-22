@@ -12,10 +12,22 @@
  */
 
 import { createLogger } from '../../shared/file-logger.ts';
-import type { ISubAgentExecutor } from '../../core/sub-agents/sub-agent-types.ts';
 import type { MergeCandidate, SkillMeta } from '../types.ts';
 
 const logger = createLogger('skill-merger');
+
+/**
+ * SubAgent 执行器最小接口 — 避免 skills→core 静态跨层依赖。
+ * 与 core/sub-agents/sub-agent-types.ts 中 ISubAgentExecutor 保持签名兼容。
+ */
+interface ISubAgentExecutor {
+  execute(
+    type: string,
+    params: { prompt: string; description: string; action?: string },
+    options?: { signal?: AbortSignal },
+  ): Promise<string>;
+  shutdown(): void;
+}
 
 interface SimilarityJson {
   similar?: Array<{

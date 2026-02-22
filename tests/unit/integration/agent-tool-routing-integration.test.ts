@@ -6,15 +6,15 @@
  */
 
 import { describe, it, expect, mock, afterEach } from 'bun:test';
-import { AgentRunner, type AgentRunnerOptions } from '../../../src/core/agent-runner.ts';
+import { AgentRunner, type AgentRunnerOptions } from '../../../src/core/agent/agent-runner.ts';
 import { CallableToolset } from '../../../src/tools/toolset.ts';
 import { ToolOk, ToolError, asCancelablePromise } from '../../../src/tools/callable-tool.ts';
 import type { CallableTool, CancelablePromise, ToolReturnValue } from '../../../src/tools/callable-tool.ts';
 import { createTextMessage } from '../../../src/providers/message.ts';
 import type { AnthropicClient } from '../../../src/providers/anthropic/anthropic-client.ts';
 import type { StreamedMessagePart } from '../../../src/providers/anthropic/anthropic-types.ts';
-import { runAgentLoop } from '../../../src/core/agent-loop.ts';
-import type { AgentLoopConfig } from '../../../src/core/agent-loop-config.ts';
+import { runAgentLoop } from '../../../src/core/agent/agent-loop.ts';
+import type { AgentLoopConfig } from '../../../src/core/agent/agent-loop-config.ts';
 import type { AgentTool, AgentEvent, LLMProviderLike } from '../../../src/core/types.ts';
 import type { LLMResponse, LLMStream, LLMStreamChunk } from '../../../src/types/provider.ts';
 

@@ -67,21 +67,21 @@ export type {
 } from './messages.ts';
 
 // 配置验证
-export { AgentConfigSchema, validateAgentConfig } from './agent-config-schema.ts';
+export { AgentConfigSchema, validateAgentConfig } from './agent/agent-config-schema.ts';
 
 // Agent Loop
-export { runAgentLoop } from './agent-loop.ts';
+export { runAgentLoop } from './agent/agent-loop.ts';
 
 // 滑动窗口失败检测
-export { SlidingWindowFailureDetector, NON_COUNTABLE_CATEGORIES } from './sliding-window-failure.ts';
-export type { SlidingWindowConfig, FailureCategory } from './sliding-window-failure.ts';
+export { SlidingWindowFailureDetector, NON_COUNTABLE_CATEGORIES } from './agent/sliding-window-failure.ts';
+export type { SlidingWindowConfig, FailureCategory } from './agent/sliding-window-failure.ts';
 
 // TodoList Reminder 引导策略
-export { TodoReminderStrategy } from './todo-reminder-strategy.ts';
-export type { TodoReminderResult, TodoReminderOptions, TodoStoreLike, TodoItemLike, TodoStateLike } from './todo-reminder-strategy.ts';
+export { TodoReminderStrategy } from './agent/todo-reminder-strategy.ts';
+export type { TodoReminderResult, TodoReminderOptions, TodoStoreLike, TodoItemLike, TodoStateLike } from './agent/todo-reminder-strategy.ts';
 
 // 统一配置体系
-export { validateAgentLoopConfig, freezeConfig } from './agent-loop-config.ts';
+export { validateAgentLoopConfig, freezeConfig } from './agent/agent-loop-config.ts';
 export type {
   AgentLoopConfig,
   TodoStrategyConfig,
@@ -89,7 +89,7 @@ export type {
   ContextManagerConfig,
   MessageValidatorConfig,
   AgentLoopHooks,
-} from './agent-loop-config.ts';
+} from './agent/agent-loop-config.ts';
 
 // 消息入口预验证
 export { MessageValidator } from './message-validator.ts';

@@ -8,7 +8,7 @@ import { describe, expect, it, beforeEach, afterEach } from 'bun:test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
-import { SkillEnhancer, type EnhanceDecision } from '../../../src/skills/skill-enhancer.ts';
+import { SkillEnhancer, type EnhanceDecision } from '../../../src/skills/generator/skill-enhancer.ts';
 
 describe('SkillEnhancer', () => {
   let testDir: string;

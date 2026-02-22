@@ -10,13 +10,8 @@
 
 import type { CommandResult } from '../../types/tool.ts';
 import { parseCommandArgs } from './command-utils.ts';
-import {
-  type SubAgentType,
-  type TaskCommandParams,
-  type ISubAgentExecutor,
-  TaskCommandParamsSchema,
-  isSubAgentType,
-} from '../../core/sub-agents/sub-agent-types.ts';
+import type { SubAgentType, TaskCommandParams, ISubAgentExecutor } from '../../types/sub-agent.ts';
+import { TaskCommandParamsSchema, isSubAgentType } from '../../core/sub-agents/sub-agent-types.ts';
 import { createLogger } from '../../shared/file-logger.ts';
 import { isAbortError } from '../../shared/abort.ts';
 import { asCancelablePromise, type CancelablePromise } from '../callable-tool.ts';

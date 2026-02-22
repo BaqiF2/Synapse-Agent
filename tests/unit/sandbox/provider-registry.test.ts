@@ -6,7 +6,7 @@ import type {
   SandboxCreateOptions,
   SandboxProvider,
 } from '../../../src/shared/sandbox/types.ts';
-import { LocalSandboxProvider } from '../../../src/shared/sandbox/providers/local/index.ts';
+import { LocalSandboxProvider } from '../../../src/shared/sandbox/providers/local.ts';
 
 class MockBackend implements SandboxBackend {
   readonly id = 'mock-backend';

@@ -10,56 +10,24 @@
  *
  * Core Exports:
  * - SkillLoader: 渐进式技能加载器（Facade）
- * - SkillLevel1: 基本技能元数据（来自索引）
- * - SkillLevel2: 完整技能数据（来自 SKILL.md）
- * - ProviderSearchResult: Provider 搜索结果（含降级标志）
+ * Re-exports from types:
+ * - SkillLevel1, SkillLevel2, ProviderSearchResult
  */
 
 import * as os from 'node:os';
 import { SkillIndexer, type SkillIndexEntry } from './indexer.ts';
 import { SkillDocParser, type SkillDoc } from '../schema/skill-doc-parser.ts';
-import type { LLMProvider } from '../../providers/types.ts';
+import type { LLMProvider } from '../../types/provider.ts';
 import { SkillCache } from './skill-cache.ts';
 import {
   searchByText,
   searchWithProvider as doSearchWithProvider,
   searchWithProviderDetailed as doSearchWithProviderDetailed,
 } from './skill-search.ts';
+import type { SkillLevel1, SkillLevel2, ProviderSearchResult } from '../types.ts';
 
-/**
- * Level 1 skill data - basic metadata from index
- */
-export interface SkillLevel1 {
-  name: string;
-  title?: string;
-  domain: string;
-  description?: string;
-  tags: string[];
-  tools: string[];
-  scriptCount: number;
-  path: string;
-}
-
-/**
- * Level 2 skill data - complete skill information from SKILL.md
- */
-export interface SkillLevel2 extends SkillLevel1 {
-  version: string;
-  author?: string;
-  usageScenarios?: string;
-  toolDependencies: string[];
-  executionSteps: string[];
-  examples: string[];
-  rawContent?: string;
-}
-
-/**
- * Provider 搜索结果，包含降级标志
- */
-export interface ProviderSearchResult {
-  results: SkillLevel1[];
-  fallbackUsed: boolean;
-}
+// 向后兼容：从 types 重导出
+export type { SkillLevel1, SkillLevel2, ProviderSearchResult } from '../types.ts';
 
 /**
  * SkillLoader - Facade，提供渐进式技能加载和缓存

@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it, beforeEach, afterEach, mock } from 'bun:test';
-import { AgentRunner } from '../../../src/core/agent-runner.ts';
+import { AgentRunner } from '../../../src/core/agent/agent-runner.ts';
 import { CallableToolset } from '../../../src/tools/toolset.ts';
 import { ToolOk } from '../../../src/tools/callable-tool.ts';
 import type { CallableTool, ToolReturnValue } from '../../../src/tools/callable-tool.ts';

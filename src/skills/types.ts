@@ -1,4 +1,47 @@
-import type { SkillIndexEntry } from './indexer.js';
+import type { SkillIndexEntry } from './loader/indexer.js';
+import type { ConversationSummary, ConversationTurn } from './generator/conversation-reader.ts';
+
+/**
+ * Level 1 skill data - basic metadata from index
+ */
+export interface SkillLevel1 {
+  name: string;
+  title?: string;
+  domain: string;
+  description?: string;
+  tags: string[];
+  tools: string[];
+  scriptCount: number;
+  path: string;
+}
+
+/**
+ * Level 2 skill data - complete skill information from SKILL.md
+ */
+export interface SkillLevel2 extends SkillLevel1 {
+  version: string;
+  author?: string;
+  usageScenarios?: string;
+  toolDependencies: string[];
+  executionSteps: string[];
+  examples: string[];
+  rawContent?: string;
+}
+
+/**
+ * Provider 搜索结果，包含降级标志
+ */
+export interface ProviderSearchResult {
+  results: SkillLevel1[];
+  fallbackUsed: boolean;
+}
+
+/** Conversation analysis result */
+export interface ConversationAnalysis {
+  summary: ConversationSummary;
+  toolSequence: string[];
+  turns: ConversationTurn[];
+}
 
 /**
  * Skill specification for generation

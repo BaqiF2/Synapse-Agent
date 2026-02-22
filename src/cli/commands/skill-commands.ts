@@ -11,7 +11,7 @@
 
 import chalk from 'chalk';
 
-import type { AgentRunner } from '../../core/agent-runner.ts';
+import type { AgentRunner } from '../../core/agent/agent-runner.ts';
 import { SettingsManager } from '../../shared/config/settings-manager.ts';
 import {
   showSkillsList,

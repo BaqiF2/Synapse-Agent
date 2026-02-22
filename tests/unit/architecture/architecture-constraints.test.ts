@@ -20,10 +20,10 @@ const PROJECT_ROOT = path.resolve(SRC_DIR, '..');
 
 // PRD 定义的约束常量（当前阶段放宽值，重构完成后应收敛到目标值）
 const MAX_TOP_LEVEL_MODULES = 7;
-// 目标: 10，当前 core 合并了 agent/hooks/sub-agents，skills 含大量子模块
-const MAX_FILES_PER_MODULE = 30;
-// 目标: 3，当前 shared/sandbox/providers/local/platforms 深度为 5
-const MAX_DIRECTORY_NESTING_DEPTH = 5;
+// 目标: 10，当前阶段逐步收敛：30 → 25 → 20 → 15 → 10
+const MAX_FILES_PER_MODULE = 20;
+// 目标: 3，当前阶段逐步收敛：5 → 4 → 3
+const MAX_DIRECTORY_NESTING_DEPTH = 4;
 
 // PRD 定义的 7 个目标模块
 const TARGET_MODULES = ['core', 'types', 'providers', 'tools', 'skills', 'cli', 'shared'];

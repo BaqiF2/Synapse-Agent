@@ -10,7 +10,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
-import { SkillDocParser, SkillDocSchema, SKILL_DOMAINS, parseSkillMd } from '../../../src/skills/skill-schema.ts';
+import { SkillDocParser, SkillDocSchema, SKILL_DOMAINS, parseSkillMd } from '../../../src/skills/schema/skill-doc-parser.ts';
 
 describe('SkillDocParser - Extended', () => {
   let tempDir: string;

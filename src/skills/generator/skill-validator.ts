@@ -16,7 +16,7 @@
 import { createLogger } from '../../shared/file-logger.ts';
 import { SKILL_DOMAINS, type SkillDomain } from '../schema/skill-doc-parser.ts';
 import type { SkillSpec } from '../types.ts';
-import type { LLMProvider, LLMResponse } from '../../providers/types.ts';
+import type { LLMProvider, LLMResponse } from '../../types/provider.ts';
 
 const logger = createLogger('skill-validator');
 

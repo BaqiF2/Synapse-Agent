@@ -11,7 +11,7 @@
  */
 
 import type * as readline from 'node:readline';
-import type { AgentRunner } from '../../core/agent-runner.ts';
+import type { AgentRunner } from '../../core/agent/agent-runner.ts';
 
 export interface ReplState {
   isProcessing: boolean;

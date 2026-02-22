@@ -5,8 +5,8 @@ import * as path from 'node:path';
 import type { AnthropicClient } from '../../../src/providers/anthropic/anthropic-client.ts';
 import type { Message } from '../../../src/providers/message.ts';
 import { createTextMessage } from '../../../src/providers/message.ts';
-import { OffloadStorage } from '../../../src/core/offload-storage.ts';
-import { ContextCompactor } from '../../../src/core/context-compactor.ts';
+import { OffloadStorage } from '../../../src/core/context/offload-storage.ts';
+import { ContextCompactor } from '../../../src/core/context/context-compactor.ts';
 
 function createMockClient(): AnthropicClient {
   return {
@@ -22,7 +22,7 @@ function createCompactor(
   options?: { client?: AnthropicClient; retryCount?: number; targetTokens?: number }
 ): ContextCompactor {
   const storage = new OffloadStorage(testDir);
-  return new ContextCompactor(storage, options?.client ?? createMockClient(), {
+  return new ContextCompactor(storage, options?.client ?? createMockClient(), undefined, {
     targetTokens: options?.targetTokens ?? 8000,
     preserveCount: 5,
     retryCount: options?.retryCount ?? 3,

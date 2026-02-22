@@ -5,12 +5,12 @@
  */
 
 import { describe, expect, it } from 'bun:test';
-import { AgentConfigSchema, validateAgentConfig } from '../../../src/core/agent-config-schema.ts';
-import { runAgentLoop } from '../../../src/core/agent-loop.ts';
+import { AgentConfigSchema, validateAgentConfig } from '../../../src/core/agent/agent-config-schema.ts';
+import { runAgentLoop } from '../../../src/core/agent/agent-loop.ts';
 import { ConfigurationError } from '../../../src/shared/errors.ts';
 import { MAX_TOOL_ITERATIONS, MAX_CONSECUTIVE_TOOL_FAILURES } from '../../../src/shared/constants.ts';
 import type { AgentTool, ToolResult, AgentConfig, AgentEvent, LLMProviderLike } from '../../../src/core/types.ts';
-import type { AgentLoopConfig } from '../../../src/core/agent-loop-config.ts';
+import type { AgentLoopConfig } from '../../../src/core/agent/agent-loop-config.ts';
 import type { LLMResponse, LLMStream, LLMStreamChunk } from '../../../src/types/provider.ts';
 
 // ========== 测试辅助工厂函数 ==========
@@ -232,7 +232,7 @@ describe('F-002 Agent Core Interface', () => {
       // Given: Agent Core 模块的源代码
       // When: 扫描 agent-loop.ts 中的 import 和实例化语句
       const agentLoopSource = await Bun.file(
-        new URL('../../../src/core/agent-loop.ts', import.meta.url).pathname,
+        new URL('../../../src/core/agent/agent-loop.ts', import.meta.url).pathname,
       ).text();
 
       // Then: 不存在 new AnthropicClient() 或类似的具体 Provider 实例化
@@ -251,7 +251,7 @@ describe('F-002 Agent Core Interface', () => {
 
     it('should not import from providers or tools implementation modules', async () => {
       const agentLoopSource = await Bun.file(
-        new URL('../../../src/core/agent-loop.ts', import.meta.url).pathname,
+        new URL('../../../src/core/agent/agent-loop.ts', import.meta.url).pathname,
       ).text();
 
       // 不应导入具体实现模块

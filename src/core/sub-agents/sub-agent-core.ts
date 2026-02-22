@@ -11,10 +11,10 @@
  * - TOOL_PERMISSION_MAP: 不同 SubAgent 类型的工具权限映射
  */
 
-import { runAgentLoop } from '../agent-loop.ts';
+import { runAgentLoop } from '../agent/agent-loop.ts';
 import type { EventStream } from '../event-stream.ts';
 import type { AgentTool, LLMProviderLike } from '../types.ts';
-import type { AgentLoopConfig } from '../agent-loop-config.ts';
+import type { AgentLoopConfig } from '../agent/agent-loop-config.ts';
 import { MAX_TOOL_ITERATIONS } from '../../shared/constants.ts';
 import type {
   SubAgentType,
@@ -25,7 +25,19 @@ import type {
 import { getConfig } from './configs/index.ts';
 import { createLogger } from '../../shared/file-logger.ts';
 import { isAbortError } from '../../shared/abort.ts';
-import type { CallableTool } from '../../tools/callable-tool.ts';
+
+/**
+ * CallableTool 最小抽象接口 — 用于 callableToolToAgentTool 适配。
+ * 避免 core → tools 的静态依赖。
+ */
+interface ICallableTool {
+  readonly toolDefinition: {
+    readonly name: string;
+    readonly description: string;
+    readonly input_schema: Record<string, unknown>;
+  };
+  call(input: unknown): Promise<{ output: string; isError: boolean }>;
+}
 
 const logger = createLogger('sub-agent-executor');
 
@@ -183,7 +195,7 @@ export function createSubAgent(options: SubAgentOptions): SubAgentResult {
  * 桥接旧版工具系统（CallableTool/ToolReturnValue）和新版 Agent Core（AgentTool/AgentToolResult），
  * 使 BashTool 等 CallableTool 实例可直接传入 runAgentLoop()。
  */
-export function callableToolToAgentTool(tool: CallableTool<unknown>): AgentTool {
+export function callableToolToAgentTool(tool: ICallableTool): AgentTool {
   const toolDef = tool.toolDefinition;
   return {
     name: toolDef.name,
@@ -288,7 +300,7 @@ export class SubAgentExecutor implements ISubAgentExecutor {
     });
 
     // 获取类型配置（包含 systemPrompt、permissions、maxIterations）
-    const config = getConfig(type, params.action ?? undefined);
+    const config = await getConfig(type, params.action ?? undefined);
 
     // 获取工具集：优先使用 toolFactory（支持隔离），否则使用 parentTools
     let tools: AgentTool[];

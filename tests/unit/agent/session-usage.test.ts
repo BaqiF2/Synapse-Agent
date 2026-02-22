@@ -4,7 +4,7 @@ import {
   createEmptySessionUsage,
   formatCostOutput,
   resetSessionUsage,
-} from '../../../src/core/session-usage.ts';
+} from '../../../src/core/session/session-usage.ts';
 
 describe('session-usage', () => {
   test('should create empty SessionUsage', () => {

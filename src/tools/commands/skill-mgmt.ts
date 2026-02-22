@@ -5,6 +5,10 @@
  * skill-command-read-handlers 和 skill-command-write-handlers。
  * 将各 skill:* 命令路由到对应的子处理逻辑。
  *
+ * 通过接口抽象消除 tools→skills 跨层依赖：
+ * 所有技能服务通过 ISkillLoader / ISkillManager / ISkillMetadataService 接口访问，
+ * 具体实现由调用方（cli 层）通过依赖注入提供。
+ *
  * 核心导出：
  * - SkillCommandHandler: 技能命令分发器
  * - SkillCommandHandlerOptions: 配置选项
@@ -15,25 +19,28 @@
  */
 
 import * as os from 'node:os';
-import * as path from 'node:path';
 import { promises as fsp } from 'node:fs';
 import type { CommandResult } from '../../types/tool.ts';
 import { parseCommandArgs } from './command-utils.ts';
 import { createLogger } from '../../shared/file-logger.ts';
-import { SkillLoader } from '../../skills/skill-loader.js';
-import { SkillIndexer } from '../../skills/indexer.js';
-import { SkillMerger } from '../../skills/skill-merger.js';
-import { SkillManager } from '../../skills/skill-manager.js';
-import { SkillMetadataService, type ISkillMetadataService } from '../../skills/skill-metadata-service.js';
-import type { ISubAgentExecutor } from '../../core/sub-agents/sub-agent-types.ts';
-import type { SkillMeta, VersionInfo, ImportOptions, MergeIntoOption } from '../../skills/types.js';
+import type { ISubAgentExecutor } from '../../types/sub-agent.ts';
+import type {
+  ISkillLoader,
+  ISkillManager,
+  ISkillMetadataService,
+  ISkillMerger,
+  SkillMeta,
+  VersionInfo,
+  ImportOptions,
+  MergeIntoOption,
+} from '../../types/skill.ts';
 
 const logger = createLogger('skill-mgmt');
 
 // ==================== 只读操作处理函数 ====================
 
 /** 处理 skill:load 命令 */
-export function handleLoad(command: string, skillLoader: SkillLoader): CommandResult {
+export function handleLoad(command: string, skillLoader: ISkillLoader): CommandResult {
   const parts = parseCommandArgs(command);
   const skillName = parts[1];
 
@@ -147,7 +154,7 @@ ARGUMENTS:
 /** 处理 skill:import 命令 */
 export async function handleImport(
   command: string,
-  getManager: () => SkillManager,
+  getManager: () => ISkillManager,
 ): Promise<CommandResult> {
   const parts = parseCommandArgs(command);
   const source = parts[1];
@@ -199,7 +206,7 @@ OPTIONS:
 /** 处理 skill:rollback 命令 */
 export async function handleRollback(
   command: string,
-  getManager: () => SkillManager,
+  getManager: () => ISkillManager,
   metadataService: ISkillMetadataService,
 ): Promise<CommandResult> {
   const parts = parseCommandArgs(command);
@@ -249,7 +256,7 @@ EXAMPLES:
 /** 处理 skill:delete 命令 */
 export async function handleDelete(
   command: string,
-  getManager: () => SkillManager,
+  getManager: () => ISkillManager,
 ): Promise<CommandResult> {
   const parts = parseCommandArgs(command);
   const skillName = parts[1];
@@ -373,11 +380,18 @@ export interface SkillCommandHandlerOptions {
   homeDir?: string;
   /** SubAgentManager 工厂函数，解耦循环依赖 */
   createSubAgentManager?: () => ISubAgentExecutor;
-  /** 测试注入 */
-  skillLoader?: SkillLoader;
-  skillManager?: SkillManager;
+  /** 技能加载器（由调用方注入，未注入时 skill:load 返回错误） */
+  skillLoader?: ISkillLoader;
+  /** 技能管理器（可选，惰性创建需提供 skillManagerFactory） */
+  skillManager?: ISkillManager;
+  /** 技能元数据服务（由调用方注入，未注入时 skill:list/info 返回空） */
   metadataService?: ISkillMetadataService;
-  skillMerger?: SkillMerger;
+  /** 技能合并器（直接注入） */
+  skillMerger?: ISkillMerger;
+  /** 技能合并器工厂（当提供 createSubAgentManager 时自动创建合并器） */
+  skillMergerFactory?: (subAgentExecutor: ISubAgentExecutor | null) => ISkillMerger;
+  /** 技能管理器工厂（惰性创建用） */
+  skillManagerFactory?: () => ISkillManager;
 }
 
 /** 命令路由条目 */
@@ -386,34 +400,56 @@ interface SkillSubcommand {
   handle: (command: string) => CommandResult | Promise<CommandResult>;
 }
 
+/** 当未注入技能加载器时使用的空实现 */
+const NOOP_SKILL_LOADER: ISkillLoader = {
+  loadLevel2: () => null,
+};
+
+/** 当未注入元数据服务时使用的空实现 */
+const NOOP_METADATA_SERVICE: ISkillMetadataService = {
+  list: async () => [],
+  info: async () => null,
+  getVersions: async () => [],
+};
+
 /**
  * SkillCommandHandler - 技能命令分发器
  *
  * 只读操作通过 ISkillMetadataService 接口查询，
- * 写入操作通过 SkillManager（惰性创建）执行。
+ * 写入操作通过 ISkillManager（惰性创建）执行。
+ * 所有技能服务通过接口注入，不直接依赖 skills/ 模块。
  */
 export class SkillCommandHandler {
-  private skillLoader: SkillLoader;
+  private skillLoader: ISkillLoader;
   private metadataService: ISkillMetadataService;
-  private skillManager: SkillManager | null;
-  private skillMerger: SkillMerger;
+  private skillManager: ISkillManager | null;
+  private skillMerger: ISkillMerger | null;
   private subAgentManager: ISubAgentExecutor | null = null;
   private readonly homeDir: string;
+  private readonly skillManagerFactory?: () => ISkillManager;
   private readonly subcommands: SkillSubcommand[];
 
   constructor(options: SkillCommandHandlerOptions = {}) {
     this.homeDir = options.homeDir ?? os.homedir();
-    this.skillLoader = options.skillLoader ?? new SkillLoader(this.homeDir);
-    this.skillMerger = options.skillMerger ?? this.createMerger(options);
+    this.skillLoader = options.skillLoader ?? NOOP_SKILL_LOADER;
+    this.skillManager = options.skillManager ?? null;
+    // ISkillManager 继承 ISkillMetadataService，优先使用显式注入的 metadataService，
+    // 其次使用 skillManager（兼容旧调用方式），最后降级为 NOOP
+    this.metadataService = options.metadataService ?? options.skillManager ?? NOOP_METADATA_SERVICE;
+    this.skillManagerFactory = options.skillManagerFactory;
 
-    if (options.skillManager) {
-      this.skillManager = options.skillManager;
-      this.metadataService = options.metadataService ?? options.skillManager;
+    // 构建 skillMerger：优先直接注入，其次通过工厂 + createSubAgentManager 创建
+    if (options.skillMerger) {
+      this.skillMerger = options.skillMerger;
+    } else if (options.skillMergerFactory) {
+      const subAgent = options.createSubAgentManager?.() ?? null;
+      this.skillMerger = options.skillMergerFactory(subAgent);
     } else {
-      const skillsDir = path.join(this.homeDir, '.synapse', 'skills');
-      const indexer = new SkillIndexer(this.homeDir);
-      this.metadataService = options.metadataService ?? new SkillMetadataService(skillsDir, indexer);
-      this.skillManager = null;
+      this.skillMerger = null;
+    }
+
+    if (options.createSubAgentManager) {
+      this.subAgentManager = options.createSubAgentManager();
     }
 
     // 声明式子命令路由表（按优先级顺序匹配）
@@ -438,28 +474,19 @@ export class SkillCommandHandler {
     return this.unknownCommand(command);
   }
 
-  getSkillMerger(): SkillMerger { return this.skillMerger; }
-  getSkillManager(): SkillManager { return this.getOrCreateSkillManager(); }
+  getSkillMerger(): ISkillMerger | null { return this.skillMerger; }
+  getSkillManager(): ISkillManager { return this.getOrCreateSkillManager(); }
 
   shutdown(): void { this.subAgentManager?.shutdown(); }
 
-  private getOrCreateSkillManager(): SkillManager {
+  private getOrCreateSkillManager(): ISkillManager {
     if (!this.skillManager) {
-      const skillsDir = path.join(this.homeDir, '.synapse', 'skills');
-      const indexer = new SkillIndexer(this.homeDir);
-      this.skillManager = new SkillManager(skillsDir, indexer, this.skillMerger);
+      if (!this.skillManagerFactory) {
+        throw new Error('SkillManager not provided and no factory available');
+      }
+      this.skillManager = this.skillManagerFactory();
     }
     return this.skillManager;
-  }
-
-  private createMerger(options: SkillCommandHandlerOptions): SkillMerger {
-    if (!options.createSubAgentManager) {
-      this.subAgentManager = null;
-      return new SkillMerger(null);
-    }
-
-    this.subAgentManager = options.createSubAgentManager();
-    return new SkillMerger(this.subAgentManager);
   }
 
   private unknownCommand(command: string): CommandResult {

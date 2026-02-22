@@ -12,8 +12,8 @@
  */
 
 import type { LLMTool } from '../types/tool.ts';
-import type { LLMClient } from './llm-client.ts';
-import type { StreamedMessagePart, TokenUsage } from './anthropic/anthropic-types.ts';
+import type { LLMClient } from '../types/llm-client.ts';
+import type { TokenUsage } from '../types/usage.ts';
 import { APIEmptyResponseError } from './anthropic/anthropic-types.ts';
 import {
   type Message,
@@ -26,20 +26,14 @@ import {
 } from './message.ts';
 import { throwIfAborted } from '../shared/abort.ts';
 
-/**
- * Callback for raw streamed message parts
- */
-export type OnMessagePart = (part: StreamedMessagePart) => void | Promise<void>;
+// 从共享类型层 re-export 回调类型
+export type { OnMessagePart, OnUsage, GenerateResult } from '../types/generate.ts';
+import type { OnMessagePart, OnUsage } from '../types/generate.ts';
 
 /**
  * Callback for complete tool calls
  */
 export type OnToolCall = (toolCall: ToolCall) => void | Promise<void>;
-
-/**
- * Callback for usage after one API call completes
- */
-export type OnUsage = (usage: TokenUsage, model: string) => void | Promise<void>;
 
 /**
  * Generate options
@@ -52,9 +46,9 @@ export interface GenerateOptions {
 }
 
 /**
- * Generate result
+ * Generate result (local alias)
  */
-export interface GenerateResult {
+interface _GenerateResult {
   id: string | null;
   message: Message;
   usage: TokenUsage | null;
@@ -77,7 +71,7 @@ export async function generate(
   tools: LLMTool[],
   history: readonly Message[],
   options?: GenerateOptions
-): Promise<GenerateResult> {
+): Promise<_GenerateResult> {
   const { onMessagePart, onToolCall, onUsage, signal } = options ?? {};
   throwIfAborted(signal);
 

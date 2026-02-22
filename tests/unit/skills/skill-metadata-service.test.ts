@@ -9,9 +9,9 @@ import { describe, it, expect, beforeEach, afterEach, mock, spyOn } from 'bun:te
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
-import { SkillMetadataService } from '../../../src/skills/skill-metadata-service.ts';
-import { SkillIndexer } from '../../../src/skills/indexer.ts';
-import type { SkillIndexEntry } from '../../../src/skills/indexer.ts';
+import { SkillMetadataService } from '../../../src/skills/manager/metadata-service.ts';
+import { SkillIndexer } from '../../../src/skills/loader/indexer.ts';
+import type { SkillIndexEntry } from '../../../src/skills/loader/indexer.ts';
 
 /**
  * 在 skillsDir 中创建技能目录和 SKILL.md

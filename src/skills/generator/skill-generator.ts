@@ -16,10 +16,10 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { createLogger } from '../../shared/file-logger.ts';
 import { getSynapseSkillsDir } from '../../shared/config/paths.ts';
-import type { LLMProvider, LLMResponse } from '../../providers/types.ts';
+import type { LLMProvider, LLMResponse } from '../../types/provider.ts';
 import { generateSkillMd } from '../schema/skill-template.ts';
 import { SkillDocParser } from '../schema/skill-doc-parser.ts';
-import type { SkillSpec, ScriptDef, ConversationMessage, GenerationResult } from '../types.ts';
+import type { SkillSpec, ConversationMessage, GenerationResult } from '../types.ts';
 import type { SkillDoc } from '../schema/skill-doc-parser.ts';
 
 // 从 types.ts re-export 类型，保持向后兼容

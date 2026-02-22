@@ -24,6 +24,7 @@ import { BashToolParamsSchema, type BashToolParams } from './schemas.ts';
 export type { BashToolParams } from './schemas.ts';
 import { BashRouter } from './bash-router.ts';
 import { BashSession } from './bash-session.ts';
+import type { SkillCommandHandlerOptions } from './commands/skill-mgmt.ts';
 import { loadDesc } from '../shared/load-desc.js';
 import type { LLMProviderLike } from '../types/provider.ts';
 import { extractBaseCommand } from './constants.ts';
@@ -40,7 +41,7 @@ import {
   SubAgentExecutor,
   callableToolToAgentTool,
 } from '../core/sub-agents/sub-agent-core.ts';
-import type { ISubAgentExecutor } from '../core/sub-agents/sub-agent-types.ts';
+import type { ISubAgentExecutor } from '../types/sub-agent.ts';
 
 const COMMAND_TIMEOUT_MARKER = 'Command execution timeout';
 const BASH_TOOL_MISUSE_REGEX = /^Bash(?:\s|\(|$)/;
@@ -80,6 +81,8 @@ export interface BashToolOptions {
   sandboxConfig?: SandboxConfig;
   /** 预创建的 SubAgent 执行器（测试注入，优先于 provider） */
   subAgentExecutor?: ISubAgentExecutor;
+  /** SkillCommandHandler 配置工厂 — 由调用方注入技能服务依赖 */
+  skillCommandHandlerFactory?: (homeDir: string, createSubAgentManager?: () => ISubAgentExecutor) => SkillCommandHandlerOptions;
 }
 
 /**
@@ -113,6 +116,7 @@ export class BashTool extends CallableTool<BashToolParams> {
       subAgentExecutorFactory,
       sandboxManager: this.sandboxManager,
       getConversationPath: options.getConversationPath,
+      skillCommandHandlerFactory: options.skillCommandHandlerFactory,
     });
   }
 

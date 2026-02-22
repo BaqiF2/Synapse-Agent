@@ -9,7 +9,10 @@ import { describe, expect, it, beforeEach, afterEach } from 'bun:test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
-import { SkillCommandHandler } from '../../src/tools/handlers/skill-command-handler.ts';
+import { SkillCommandHandler } from '../../src/tools/commands/skill-mgmt.ts';
+import { SkillLoader } from '../../src/skills/loader/skill-loader.ts';
+import { SkillMetadataService } from '../../src/skills/manager/metadata-service.ts';
+import { SkillIndexer } from '../../src/skills/loader/indexer.ts';
 import { DEFAULT_SETTINGS } from '../../src/shared/config/settings-schema.ts';
 
 describe('Skill Commands E2E', () => {
@@ -51,7 +54,11 @@ describe('Skill Commands E2E', () => {
       tags: ['testing', 'automation'],
     });
 
-    handler = new SkillCommandHandler({ homeDir: testDir });
+    handler = new SkillCommandHandler({
+      homeDir: testDir,
+      skillLoader: new SkillLoader(testDir),
+      metadataService: new SkillMetadataService(skillsDir, new SkillIndexer(testDir)),
+    });
   });
 
   afterEach(() => {

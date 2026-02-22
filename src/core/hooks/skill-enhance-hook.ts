@@ -30,13 +30,10 @@ import { createLogger } from '../../shared/file-logger.ts';
 import { loadDesc } from '../../shared/load-desc.js';
 import { SettingsManager } from '../../shared/config/settings-manager.ts';
 import { getSynapseSessionsDir, getSynapseSkillsDir } from '../../shared/config/paths.ts';
-import { ConversationReader } from '../../skills/generator/conversation-reader.ts';
-import { AnthropicClient } from '../../providers/anthropic/anthropic-client.ts';
-import { BashTool } from '../../tools/bash-tool.ts';
 import { SubAgentManager } from '../sub-agents/sub-agent-manager.ts';
 import { loadSandboxConfig } from '../../shared/sandbox/sandbox-config.ts';
 import { stopHookRegistry, type StopHookContext, type HookResult } from './hook-registry.ts';
-import type { Message } from '../../providers/message.ts';
+import type { Message } from '../../types/message.ts';
 
 const logger = createLogger('skill-enhance-hook');
 
@@ -383,6 +380,8 @@ export async function skillEnhanceHook(context: StopHookContext): Promise<HookRe
 
   // Step 3: 读取并压缩会话历史
   const sessionPath = buildSessionPath(context.sessionId);
+  // 动态导入 ConversationReader，避免 core → skills 的静态依赖
+  const { ConversationReader } = await import('../../skills/generator/conversation-reader.ts');
   const reader = new ConversationReader();
   const maxChars = settings.getMaxEnhanceContextChars();
 
@@ -431,14 +430,27 @@ export async function skillEnhanceHook(context: StopHookContext): Promise<HookRe
   await context.onProgress?.(SKILL_ENHANCE_PROGRESS_TEXT);
 
   try {
-    // 创建必要的组件（SubAgent 为内部组件，禁用沙箱避免不必要的隔离失败）
+    // 动态导入 AnthropicClient 和 BashTool，避免 core → providers/tools 的静态依赖
+    const { AnthropicClient } = await import('../../providers/anthropic/anthropic-client.ts');
+    const { BashTool } = await import('../../tools/bash-tool.ts');
+    const { createSubAgentToolsetFactory } = await import('../../tools/sub-agent-toolset-factory.ts');
+    const { generate } = await import('../../providers/generate.ts');
+    const { createPreloadedAgentRunnerFactory } = await import('./agent-runner-factory.ts');
+
     const client = new AnthropicClient({ settings: SettingsManager.getInstance().getLlmConfig() });
     const bashTool = new BashTool({
       sandboxConfig: { ...loadSandboxConfig(), enabled: false },
     });
+    const agentRunnerFactory = await createPreloadedAgentRunnerFactory({
+      client,
+      generateFn: generate,
+    });
     const subAgentManager = new SubAgentManager({
       client,
       bashTool,
+      toolsetFactory: createSubAgentToolsetFactory(),
+      generateFn: generate,
+      agentRunnerFactory,
     });
 
     // 执行 sub-agent（带超时）

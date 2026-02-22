@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect } from 'bun:test';
-import { parseTaskCommand } from '../../../../src/tools/handlers/task-command-handler.ts';
+import { parseTaskCommand } from '../../../../src/tools/commands/task-handler.ts';
 
 describe('parseTaskCommand', () => {
   describe('basic parsing', () => {

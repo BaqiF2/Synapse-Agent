@@ -17,7 +17,7 @@ import { parseEnvPositiveInt } from '../../shared/env.ts';
 import type { SkillSpec, ConversationMessage } from '../types.ts';
 import type { SkillGenerator } from './skill-generator.ts';
 import { SkillValidator, type ValidationResult, type ValidationIssue } from './skill-validator.ts';
-import type { LLMProvider, LLMResponse } from '../../providers/types.ts';
+import type { LLMProvider, LLMResponse } from '../../types/provider.ts';
 
 const logger = createLogger('skill-generation-pipeline');
 

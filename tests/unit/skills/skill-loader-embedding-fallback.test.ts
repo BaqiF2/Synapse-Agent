@@ -8,7 +8,7 @@ import { describe, expect, it, beforeEach, afterEach } from 'bun:test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
-import { SkillLoader } from '../../../src/skills/skill-loader.ts';
+import { SkillLoader } from '../../../src/skills/loader/skill-loader.ts';
 import type { LLMProvider, LLMStream, LLMResponse, GenerateParams } from '../../../src/providers/types.ts';
 import type { EmbeddingProvider } from '../../../src/providers/types.ts';
 

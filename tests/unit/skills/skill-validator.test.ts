@@ -6,8 +6,8 @@
  */
 
 import { describe, it, expect } from 'bun:test';
-import { SkillValidator } from '../../../src/skills/skill-validator.ts';
-import type { SkillSpec } from '../../../src/skills/skill-generator.ts';
+import { SkillValidator } from '../../../src/skills/generator/skill-validator.ts';
+import type { SkillSpec } from '../../../src/skills/generator/skill-generator.ts';
 import type { LLMProvider, LLMStream, LLMResponse, GenerateParams } from '../../../src/providers/types.ts';
 
 /** 创建最小合法 SkillSpec */

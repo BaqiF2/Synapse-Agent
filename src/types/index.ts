@@ -11,6 +11,9 @@
  * - usage.ts: TokenUsage, SessionUsage, AgentUsage
  * - provider.ts: LLMProviderLike, LLMProvider, GenerateParams, LLMStream 等
  * - agent-result.ts: AgentConfig, AgentResult
+ * - llm-client.ts: LLMClient, LLMStreamedMessage, LLMGenerateOptions, ThinkingEffort
+ * - generate.ts: OnMessagePart, OnUsage, GenerateResult, GenerateFunction
+ * - sub-agent.ts: ISubAgentExecutor, ToolPermissions, TaskCommandParams
  */
 
 // 消息类型
@@ -94,3 +97,49 @@ export type {
   AgentConfig,
   AgentResult,
 } from './agent-result.ts';
+
+// LLM Client 接口
+export type {
+  LLMClient,
+  LLMStreamedMessage,
+  LLMGenerateOptions,
+  ThinkingEffort,
+} from './llm-client.ts';
+
+// Generate 回调类型
+export type {
+  OnMessagePart,
+  OnUsage,
+  GenerateResult,
+  GenerateFunction,
+} from './generate.ts';
+
+// Toolset 接口
+export type {
+  Toolset,
+  CancelablePromise,
+} from './toolset.ts';
+
+// SubAgent 共享类型
+export type {
+  ISubAgentExecutor,
+  ToolPermissions,
+  TaskCommandParams,
+} from './sub-agent.ts';
+
+// 技能系统接口
+export type {
+  ISkillLoader,
+  ISkillManager,
+  ISkillMetadataService,
+  ISkillMerger,
+  IMetaSkillInstaller,
+  SkillMeta,
+  VersionInfo,
+  ImportOptions,
+  ImportResult,
+  MergeIntoOption,
+  ConflictInfo,
+  SimilarInfo,
+  SkillLevel2,
+} from './skill.ts';

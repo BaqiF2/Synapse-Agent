@@ -14,13 +14,16 @@ import * as path from 'node:path';
 import * as os from 'node:os';
 import { createLogger } from '../../shared/file-logger.ts';
 import { parseEnvPositiveInt } from '../../shared/env.ts';
-import { ConversationReader, type ConversationTurn, type ConversationSummary } from './conversation-reader.ts';
+import { ConversationReader } from './conversation-reader.ts';
 import { SkillGenerator } from './skill-generator.ts';
-import type { SkillSpec } from '../types.ts';
+import type { SkillSpec, ConversationAnalysis } from '../types.ts';
 import { SkillLoader } from '../loader/skill-loader.ts';
-import type { LLMProvider, LLMResponse } from '../../providers/types.ts';
+import type { LLMProvider, LLMResponse } from '../../types/provider.ts';
 import { detectPattern, findMatchingSkill, suggestSkillName } from './skill-analysis.ts';
 import { buildSkillSpec, generateUpdates, parseEnhancementsFromLLM } from './skill-analysis.ts';
+
+// 向后兼容：从 types 重导出
+export type { ConversationAnalysis } from '../types.ts';
 
 const logger = createLogger('skill-enhancer');
 const DEFAULT_MIN_TOOL_CALLS = 3;
@@ -50,13 +53,6 @@ function getMinToolCalls(): number {
 
 function getMinUniqueTools(): number {
   return parseEnvPositiveInt(process.env.SYNAPSE_MIN_ENHANCE_UNIQUE_TOOLS, DEFAULT_MIN_UNIQUE_TOOLS);
-}
-
-/** Conversation analysis result */
-export interface ConversationAnalysis {
-  summary: ConversationSummary;
-  toolSequence: string[];
-  turns: ConversationTurn[];
 }
 
 /** Enhancement decision */

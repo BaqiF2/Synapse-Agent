@@ -6,7 +6,7 @@ import { describe, expect, it, beforeEach, afterEach } from 'bun:test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
-import { ReadHandler, parseReadCommand } from '../../../../../src/tools/handlers/agent-bash/read.ts';
+import { ReadHandler, parseReadCommand } from '../../../../../src/tools/commands/read-handler.ts';
 
 describe('ReadHandler', () => {
   let testDir: string;

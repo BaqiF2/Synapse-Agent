@@ -150,7 +150,7 @@ describe('Module Interaction Integration Tests', () => {
 
   describe('core/ 组件独立功能验证', () => {
     it('SlidingWindowFailureDetector 应正确检测连续失败', async () => {
-      const { SlidingWindowFailureDetector } = await import('../../../src/core/sliding-window-failure.ts');
+      const { SlidingWindowFailureDetector } = await import('../../../src/core/agent/sliding-window-failure.ts');
 
       const detector = new SlidingWindowFailureDetector({
         windowSize: 5,
@@ -168,7 +168,7 @@ describe('Module Interaction Integration Tests', () => {
     });
 
     it('SlidingWindowFailureDetector 成功记录应重置窗口内失败密度', async () => {
-      const { SlidingWindowFailureDetector } = await import('../../../src/core/sliding-window-failure.ts');
+      const { SlidingWindowFailureDetector } = await import('../../../src/core/agent/sliding-window-failure.ts');
 
       // 使用窗口大小 5，阈值 3 — 滑动窗口机制，不是"连续"计数
       const detector = new SlidingWindowFailureDetector({
@@ -425,20 +425,20 @@ describe('Module Interaction Integration Tests', () => {
   describe('跨模块 SubAgent 类型一致性', () => {
     it('sub-agents/ 配置应导出有效的类型配置', async () => {
       const { getConfig } = await import('../../../src/core/sub-agents/configs/index.ts');
-      const generalConfig = getConfig('general');
+      const generalConfig = await getConfig('general');
       expect(generalConfig.type).toBe('general');
 
-      const exploreConfig = getConfig('explore');
+      const exploreConfig = await getConfig('explore');
       expect(exploreConfig.type).toBe('explore');
 
-      const skillConfig = getConfig('skill');
+      const skillConfig = await getConfig('skill');
       expect(skillConfig.type).toBe('skill');
     });
 
     it('SubAgent 配置应包含正确的权限过滤', async () => {
       const { getConfig } = await import('../../../src/core/sub-agents/configs/index.ts');
 
-      const skillConfig = getConfig('skill');
+      const skillConfig = await getConfig('skill');
       // 技能型 SubAgent 应排除 task: 命令（防止递归）
       expect(skillConfig.permissions.exclude.length).toBeGreaterThan(0);
     });
@@ -476,7 +476,7 @@ When you need to run integration tests.
     });
 
     it('SkillIndexer 应能索引技能', async () => {
-      const { SkillIndexer } = await import('../../../src/skills/indexer.ts');
+      const { SkillIndexer } = await import('../../../src/skills/loader/indexer.ts');
 
       const indexer = new SkillIndexer(testSkillsDir);
       indexer.rebuild();
@@ -490,7 +490,7 @@ When you need to run integration tests.
     });
 
     it('SkillLoader 应能加载技能到 Level 1', async () => {
-      const { SkillLoader } = await import('../../../src/skills/skill-loader.ts');
+      const { SkillLoader } = await import('../../../src/skills/loader/skill-loader.ts');
 
       const loader = new SkillLoader(testSkillsDir);
       loader.rebuildIndex();

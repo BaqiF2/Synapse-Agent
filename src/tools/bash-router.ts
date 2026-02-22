@@ -20,12 +20,13 @@ import {
   ReadHandler, WriteHandler, EditHandler, BashWrapperHandler, TodoWriteHandler,
   CommandSearchHandler, McpCommandHandler, SkillToolHandler,
 } from './commands/index.ts';
-import { SkillCommandHandler } from './commands/skill-mgmt.ts';
+import { SkillCommandHandler, type SkillCommandHandlerOptions } from './commands/skill-mgmt.ts';
 import { TaskCommandHandler } from './commands/task-handler.ts';
 import { asCancelablePromise, type CancelablePromise } from './callable-tool.ts';
-import type { ISubAgentExecutor } from '../core/sub-agents/sub-agent-types.ts';
+import type { ISubAgentExecutor } from '../types/sub-agent.ts';
 import type { SandboxManager } from '../shared/sandbox/sandbox-manager.ts';
 import type { ExecuteResult } from '../shared/sandbox/types.ts';
+import { matchesExact, isSkillToolCommand, normalizeSlashSkillCommand, errorResult } from './bash-router-utils.ts';
 
 /** 三层 Bash 架构中的命令类型 */
 export enum CommandType {
@@ -41,12 +42,13 @@ export interface BashRouterOptions {
   synapseDir?: string;
   /**
    * SubAgent 执行器工厂 — 惰性创建 ISubAgentExecutor 实例。
-   * 由 BashTool 注入，消除 BashRouter → SubAgentManager 的循环依赖。
    */
   subAgentExecutorFactory?: () => ISubAgentExecutor;
   sandboxManager?: SandboxManager;
   getCwd?: () => string;
   getConversationPath?: () => string | null;
+  /** SkillCommandHandler 配置工厂 — 由调用方注入技能服务依赖 */
+  skillCommandHandlerFactory?: (homeDir: string, createSubAgentManager?: () => ISubAgentExecutor) => SkillCommandHandlerOptions;
 }
 
 export type BashRouterCommandResult = CommandResult & Partial<Pick<ExecuteResult, 'blocked' | 'blockedReason' | 'blockedResource'>>;
@@ -75,34 +77,8 @@ export interface RouteDefinition {
 interface HandlerEntry {
   type: CommandType;
   handler: CommandHandler | null;
-  /** 惰性初始化工厂，首次调用时创建 handler */
   factory?: () => CommandHandler | null;
-  /** 前缀匹配模式：'exact' 匹配 cmd 或 cmd+空格，'prefix' 匹配 startsWith */
   matchMode: 'exact' | 'prefix';
-}
-
-// 辅助函数
-function matchesExact(trimmed: string, cmd: string): boolean {
-  return trimmed === cmd || trimmed.startsWith(cmd + ' ');
-}
-
-function isSkillToolCommand(value: string): boolean {
-  const commandToken = value.trim().split(/\s+/, 1)[0] ?? '';
-  return commandToken.startsWith('skill:') && commandToken.split(':').length >= 3;
-}
-
-function normalizeSlashSkillCommand(command: string): string {
-  const trimmedStart = command.trimStart();
-  if (!trimmedStart.startsWith('/skill:')) {
-    return command;
-  }
-
-  const leadingWhitespace = command.slice(0, command.length - trimmedStart.length);
-  return `${leadingWhitespace}${trimmedStart.slice(1)}`;
-}
-
-function errorResult(message: string): CommandResult {
-  return { stdout: '', stderr: message, exitCode: 1 };
 }
 
 /**
@@ -307,10 +283,17 @@ export class BashRouter {
 
   /** 创建 SkillCommandHandler（惰性） */
   private createSkillHandler(): SkillCommandHandler {
-    const { subAgentExecutorFactory } = this.options;
+    const { subAgentExecutorFactory, skillCommandHandlerFactory } = this.options;
+    const homeDir = path.dirname(this.options.synapseDir ?? DEFAULT_SYNAPSE_DIR);
 
+    if (skillCommandHandlerFactory) {
+      const handlerOptions = skillCommandHandlerFactory(homeDir, subAgentExecutorFactory);
+      return new SkillCommandHandler(handlerOptions);
+    }
+
+    // 无工厂时使用空实现（技能命令将返回默认空结果）
     return new SkillCommandHandler({
-      homeDir: path.dirname(this.options.synapseDir ?? DEFAULT_SYNAPSE_DIR),
+      homeDir,
       createSubAgentManager: subAgentExecutorFactory,
     });
   }

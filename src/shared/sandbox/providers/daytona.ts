@@ -14,7 +14,7 @@
  * - DaytonaSandboxBackendOptions: Backend 配置选项
  */
 
-import { BashSession } from '../../../tools/bash-session.ts';
+import { BashSession } from '../../bash-session.ts';
 import type {
   ExecuteResult,
   SandboxBackend,

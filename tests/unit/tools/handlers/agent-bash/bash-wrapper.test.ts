@@ -1,6 +1,6 @@
 import { describe, it, expect, mock } from 'bun:test';
 import type { BashSession } from '../../../../../src/tools/bash-session.ts';
-import { BashWrapperHandler } from '../../../../../src/tools/handlers/agent-bash/bash-wrapper.ts';
+import { BashWrapperHandler } from '../../../../../src/tools/commands/bash-wrapper.ts';
 
 describe('BashWrapperHandler', () => {
   it('should show help when extra spaces are used with --help', async () => {

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'bun:test';
-import { TodoWriteHandler } from '../../../src/tools/handlers/agent-bash/todo/todo-write.ts';
-import { todoStore } from '../../../src/tools/handlers/agent-bash/todo/todo-store.ts';
+import { TodoWriteHandler } from '../../../src/tools/commands/todo-handler.ts';
+import { todoStore } from '../../../src/tools/commands/todo-handler.ts';
 
 const handler = new TodoWriteHandler();
 

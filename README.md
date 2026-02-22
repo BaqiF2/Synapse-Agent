@@ -32,32 +32,37 @@ A self-growing AI agent framework built on a unified shell abstraction, with an 
 ┌──────────────────────────────────────────────────────────────┐
 │                         cli (REPL)                           │
 │                     consumes EventStream                     │
-├──────────┬───────────┬───────────┬───────────┬──────────────┤
-│sub-agents│  skills   │   tools   │  config   │              │
-│          │           │ BashRouter│           │              │
-│          │           │ 3-Layer   │           │              │
-├──────────┴─────┬─────┴─────┬─────┴───────────┴──────────────┤
-│     core       │ providers │                                │
-│  EventStream   │ Anthropic │                                │
-│  Agent Loop    │ OpenAI    │                                │
-│  Messages      │ Google    │                                │
-├────────────────┴───────────┴────────────────────────────────┤
-│                        common                                │
-│                  logger, errors, constants                    │
+├──────────────┬───────────┬───────────────────────────────────┤
+│    skills    │   tools   │                                   │
+│ loader/gen/  │ BashRouter│                                   │
+│ manager      │ 3-Layer   │                                   │
+├──────────────┴─────┬─────┴───────────────────────────────────┤
+│     core           │ providers                               │
+│  Agent Loop        │ Anthropic / OpenAI / Google             │
+│  Session/Context   │                                         │
+│  Sub-Agents/Hooks  │                                         │
+├────────────────────┴─────────────────────────────────────────┤
+│                       shared                                  │
+│              logger, errors, constants, config                │
+├──────────────────────────────────────────────────────────────┤
+│                       types                                   │
+│         message, tool, events, provider, skill, usage         │
 └──────────────────────────────────────────────────────────────┘
 ```
 
 ### Module Dependency Rules
 
+Dependency direction: `types ← shared ← core ← providers ← tools ← skills ← cli`
+
 | Module | Allowed Dependencies | Description |
 |--------|---------------------|-------------|
-| `core` | `common` | Event system, Agent Loop, message conversion |
-| `providers` | `common` | LLMProvider adapters (Anthropic/OpenAI/Google) |
-| `tools` | `core`(types), `common` | Three-layer tool system, pluggable operations |
-| `skills` | `core`, `providers`, `common` | Skill generation and enhancement |
-| `sub-agents` | `core`, `providers`, `tools`, `common` | Sub-agent lifecycle management |
-| `cli` | all modules | Top-level consumer |
-| `common` | (none) | Shared utilities |
+| `types` | (none) | Shared type definitions (message, tool, events, provider) |
+| `shared` | `types` | Logger, errors, constants, config, bash-session |
+| `core` | `types`, `shared` | Agent loop, session, context, sub-agents, hooks |
+| `providers` | `types`, `shared` | LLMProvider adapters (Anthropic/OpenAI/Google) |
+| `tools` | `types`, `shared`, `core`, `providers` | Three-layer tool system, pluggable operations |
+| `skills` | `types`, `shared`, `tools` | Skill loading, generation, and management |
+| `cli` | all modules | Top-level consumer (REPL, terminal renderer) |
 
 ## Install and Setup
 
@@ -264,30 +269,42 @@ Example:
 
 ```text
 ├── src/
-│   ├── core/               # Agent Core: EventStream, Agent Loop, messages
-│   ├── providers/           # LLM Provider adapters (Anthropic/OpenAI/Google)
+│   ├── types/               # Shared type definitions (message, tool, events, provider, skill)
+│   ├── shared/              # Shared utilities (logger, errors, constants, config, bash-session)
+│   ├── core/                # Agent core
+│   │   ├── agent/           # Agent loop, runner, step execution
+│   │   ├── session/         # Session management and persistence
+│   │   ├── context/         # Context management and compaction
+│   │   ├── sub-agents/      # Sub-agent lifecycle management
+│   │   ├── hooks/           # Hook system (stop hooks, skill enhancement)
+│   │   └── prompts/         # System prompt templates
+│   ├── providers/           # LLM Provider adapters
 │   │   ├── anthropic/
 │   │   ├── openai/
 │   │   └── google/
 │   ├── tools/               # Three-layer tool system
+│   │   ├── commands/        # Agent Shell command handlers (read, write, edit, bash, etc.)
 │   │   ├── operations/      # Pluggable operations (FileOps/BashOps)
-│   │   ├── handlers/        # Agent Shell command handlers
 │   │   └── converters/      # MCP/Skill converters
-│   ├── skills/              # Skill generation and enhancement
-│   ├── sub-agents/          # Sub-agent lifecycle management
-│   ├── common/              # Logger, errors, constants
+│   ├── skills/              # Skill system
+│   │   ├── loader/          # Skill loading and search
+│   │   ├── generator/       # Skill generation and enhancement
+│   │   ├── manager/         # Skill management (import, versioning, metadata)
+│   │   └── schema/          # Skill document parsing and templates
 │   ├── cli/                 # REPL and terminal UI
-│   ├── config/              # Configuration management
-│   ├── agent/               # Legacy agent runner
-│   ├── utils/               # Utility functions
-│   └── resource/            # System prompts
+│   │   ├── commands/        # CLI command handlers
+│   │   └── renderer/        # Terminal rendering components
+│   └── resource/            # Resource files (meta-skill templates)
 ├── tests/
 │   ├── unit/                # Unit tests (mirrors src/ structure)
 │   ├── integration/         # Integration tests
-│   └── e2e/                 # End-to-end CLI tests
+│   ├── e2e/                 # End-to-end CLI tests
+│   └── fixtures/            # Test fixtures
 ├── docs/
-│   ├── architecture/        # Architecture design and ADRs
-│   └── requirements/        # PRD and BDD acceptance criteria
+│   ├── requirements/        # PRD and requirements documents
+│   ├── reports/             # Test and delivery reports
+│   ├── plans/               # Development plans
+│   └── archive/             # Archived documents
 ├── assets/
 │   └── logo.png
 ├── README.md

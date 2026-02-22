@@ -13,9 +13,9 @@
  */
 
 import { createLogger } from '../../shared/file-logger.ts';
-import type { LLMProvider } from '../../providers/types.ts';
-import { isEmbeddingProvider } from '../../providers/types.ts';
-import type { SkillLevel1, ProviderSearchResult } from './skill-loader.ts';
+import type { LLMProvider } from '../../types/provider.ts';
+import { isEmbeddingProvider } from '../../types/provider.ts';
+import type { SkillLevel1, ProviderSearchResult } from '../types.ts';
 
 const logger = createLogger('skill-search');
 

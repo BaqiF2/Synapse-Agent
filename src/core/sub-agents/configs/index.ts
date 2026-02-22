@@ -36,7 +36,7 @@ const staticConfigs: Record<Exclude<SubAgentType, 'skill'>, SubAgentConfig> = {
  * @param type - Sub Agent 类型
  * @param action - 可选的 action（仅 skill 类型使用）
  */
-export function getConfig(type: SubAgentType, action?: string): SubAgentConfig {
+export async function getConfig(type: SubAgentType, action?: string): Promise<SubAgentConfig> {
   if (type === 'skill') {
     return createSkillConfig(action as SkillAction);
   }

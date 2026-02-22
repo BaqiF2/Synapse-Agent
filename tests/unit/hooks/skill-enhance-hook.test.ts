@@ -325,7 +325,7 @@ describe('SkillEnhanceHook - 会话读取与压缩 (Feature 11)', () => {
   it('使用配置的 maxChars 参数', async () => {
     const { SettingsManager } = await import('../../../src/shared/config/settings-manager.ts');
     const { skillEnhanceHook } = await import('../../../src/core/hooks/skill-enhance-hook.ts');
-    const { ConversationReader } = await import('../../../src/skills/conversation-reader.ts');
+    const { ConversationReader } = await import('../../../src/skills/generator/conversation-reader.ts');
 
     // 创建会话文件
     const sessionPath = path.join(tempDir, 'max-chars-test.jsonl');

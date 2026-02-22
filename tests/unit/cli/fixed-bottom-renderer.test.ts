@@ -6,7 +6,7 @@
 
 import { describe, test, expect, beforeEach, afterEach, spyOn } from 'bun:test';
 import { FixedBottomRenderer, type FixedBottomRendererOptions } from '../../../src/cli/fixed-bottom-renderer.ts';
-import type { TodoStore, TodoState } from '../../../src/tools/handlers/agent-bash/todo/todo-store.ts';
+import type { TodoStore, TodoState } from '../../../src/tools/commands/todo-handler.ts';
 
 // ═══════════════════════════════════════════════════════════════════════
 // 测试常量：基于环境变量计算期望值

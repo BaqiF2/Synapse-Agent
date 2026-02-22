@@ -10,19 +10,15 @@
 
 import { createLogger } from '../../shared/file-logger.ts';
 import { parseEnvInt } from '../../shared/env.ts';
-import { AgentRunner } from '../agent-runner.ts';
-import { CallableToolset } from '../../tools/toolset.ts';
-import { RestrictedBashTool } from '../../tools/restricted-bash-tool.ts';
-import type { LLMClient } from '../../providers/llm-client.ts';
-import type { OnUsage } from '../../providers/generate.ts';
-import type { BashTool } from '../../tools/bash-tool.ts';
-import type { SubAgentType, TaskCommandParams, ToolPermissions, ISubAgentExecutor } from './sub-agent-types.ts';
-import type { ToolResultEvent, SubAgentCompleteEvent, SubAgentToolCallEvent } from '../../cli/terminal-renderer-types.ts';
+import type { LLMClient } from '../../types/llm-client.ts';
+import type { OnUsage, GenerateFunction } from '../../types/generate.ts';
+import type { Toolset } from '../../types/toolset.ts';
+import type { SubAgentType, TaskCommandParams, ToolPermissions, ISubAgentExecutor, IBashToolProvider, IAgentRunner, AgentRunnerFactory } from './sub-agent-types.ts';
+import type { ToolResultEvent, SubAgentCompleteEvent, SubAgentToolCallEvent } from '../../types/events.ts';
 import { getConfig } from './configs/index.ts';
-import type { ToolCall, ToolResult } from '../../providers/message.ts';
+import type { ToolCall, ToolResult } from '../../types/message.ts';
 
 const logger = createLogger('sub-agent-manager');
-const NOOP_CLEANUP = (): void => {};
 
 /**
  * 默认最大迭代次数（从环境变量读取）
@@ -50,8 +46,14 @@ export type OnSubAgentComplete = (event: SubAgentCompleteEvent) => void;
 export interface SubAgentManagerOptions {
   /** LLM 客户端 */
   client: LLMClient;
-  /** Bash 工具（用于创建受限 Toolset） */
-  bashTool: BashTool;
+  /** Bash 工具提供者（用于创建受限 Toolset） */
+  bashTool: IBashToolProvider;
+  /** Toolset 工厂函数（注入 CallableToolset/RestrictedBashTool 的创建能力） */
+  toolsetFactory: ToolsetFactory;
+  /** LLM generate 函数（注入，传递给 AgentRunner） */
+  generateFn: GenerateFunction;
+  /** AgentRunner 工厂函数（注入，打破 sub-agent-manager → agent-runner 循环依赖） */
+  agentRunnerFactory: AgentRunnerFactory;
   /** 最大迭代次数（默认继承主 Agent） */
   maxIterations?: number;
   /** 工具调用开始回调 */
@@ -64,17 +66,31 @@ export interface SubAgentManagerOptions {
   onUsage?: OnUsage;
 }
 
+/**
+ * Toolset 工厂函数类型 — 注入 Toolset 创建逻辑到 SubAgentManager
+ *
+ * @param isolatedBashTool - 隔离的 BashTool 实例
+ * @param permissions - 工具权限配置
+ * @param agentType - SubAgent 类型（用于错误信息）
+ * @returns Toolset 实例
+ */
+export type ToolsetFactory = (
+  isolatedBashTool: IBashToolProvider,
+  permissions: ToolPermissions,
+  agentType: SubAgentType,
+) => Toolset;
+
 export interface SubAgentExecuteOptions {
   signal?: AbortSignal;
 }
 
 interface AgentWithCleanup {
-  runner: AgentRunner;
+  runner: IAgentRunner;
   cleanup: () => void;
 }
 
 interface ToolsetWithCleanup {
-  toolset: CallableToolset;
+  toolset: Toolset;
   cleanup: () => void;
 }
 
@@ -88,7 +104,10 @@ interface ToolsetWithCleanup {
  */
 export class SubAgentManager implements ISubAgentExecutor {
   private client: LLMClient;
-  private bashTool: BashTool;
+  private bashTool: IBashToolProvider;
+  private toolsetFactory: ToolsetFactory;
+  private generateFn: GenerateFunction;
+  private agentRunnerFactory: AgentRunnerFactory;
   private maxIterations: number;
   private onToolStart?: OnSubAgentToolCall;
   private onToolEnd?: OnSubAgentToolResult;
@@ -100,6 +119,9 @@ export class SubAgentManager implements ISubAgentExecutor {
   constructor(options: SubAgentManagerOptions) {
     this.client = options.client;
     this.bashTool = options.bashTool;
+    this.toolsetFactory = options.toolsetFactory;
+    this.generateFn = options.generateFn;
+    this.agentRunnerFactory = options.agentRunnerFactory;
     this.maxIterations = options.maxIterations ?? DEFAULT_MAX_ITERATIONS;
     this.onToolStart = options.onToolStart;
     this.onToolEnd = options.onToolEnd;
@@ -131,7 +153,7 @@ export class SubAgentManager implements ISubAgentExecutor {
     });
 
     // 创建带有回调的 AgentRunner，传递 action 参数
-    const { runner: agent, cleanup } = this.createAgentWithCallbacks(
+    const { runner: agent, cleanup } = await this.createAgentWithCallbacks(
       type,
       subAgentId,
       params.description,
@@ -201,14 +223,14 @@ export class SubAgentManager implements ISubAgentExecutor {
   /**
    * 创建带有回调的 AgentRunner
    */
-  private createAgentWithCallbacks(
+  private async createAgentWithCallbacks(
     type: SubAgentType,
     subAgentId: string,
     description: string,
     action: string | undefined,
     onToolCount: () => void
-  ): AgentWithCleanup {
-    const config = getConfig(type, action);
+  ): Promise<AgentWithCleanup> {
+    const config = await getConfig(type, action);
     const { toolset, cleanup } = this.createToolset(config.permissions, type);
     const onToolStart = this.onToolStart;
     const onToolEnd = this.onToolEnd;
@@ -240,15 +262,29 @@ export class SubAgentManager implements ISubAgentExecutor {
         }
       : undefined;
 
-    const runner = new AgentRunner({
-      client: this.client,
+    // 适配 onToolResult 类型到 AgentRunnerCreateParams 期望的简化签名
+    const wrappedOnToolResult = onToolResult
+      ? (toolResult: { toolCallId: string; returnValue: { isError: boolean; output?: string } }) => {
+          onToolResult({
+            toolCallId: toolResult.toolCallId,
+            returnValue: {
+              isError: toolResult.returnValue.isError,
+              output: toolResult.returnValue.output ?? '',
+              message: '',
+              brief: '',
+            },
+          });
+        }
+      : undefined;
+
+    const runner = this.agentRunnerFactory({
       systemPrompt: config.systemPrompt,
       toolset,
       maxIterations: config.maxIterations ?? this.maxIterations,
       enableStopHooks: false,
       enableSkillSearchInstruction: false,
       onToolCall,
-      onToolResult,
+      onToolResult: wrappedOnToolResult,
       onUsage: this.onUsage,
     });
 
@@ -261,47 +297,17 @@ export class SubAgentManager implements ISubAgentExecutor {
   /**
    * 根据权限配置创建 Toolset
    *
-   * 权限处理逻辑：
-   * - include: [] → 返回空 Toolset（不允许任何工具）
-   * - include: 'all' + exclude: [] → 使用隔离 BashTool（独立 session）
-   * - include: 'all' + exclude 非空 → 创建 RestrictedBashTool 进行命令过滤
+   * 委托给注入的 toolsetFactory 创建实际的 Toolset 实例。
    *
    * @param permissions - 权限配置
    * @param agentType - Agent 类型（用于错误信息）
    */
   private createToolset(permissions: ToolPermissions, agentType: SubAgentType): ToolsetWithCleanup {
-    // 纯文本推理模式：不允许任何工具
-    const isNoToolMode = Array.isArray(permissions.include) && permissions.include.length === 0;
-    if (isNoToolMode) {
-      return {
-        toolset: new CallableToolset([]),
-        cleanup: NOOP_CLEANUP,
-      };
-    }
-
     const isolatedBashTool = this.bashTool.createIsolatedCopy();
     const cleanup = () => isolatedBashTool.cleanup();
+    const toolset = this.toolsetFactory(isolatedBashTool, permissions, agentType);
 
-    // 无排除项：直接使用隔离 BashTool
-    const hasNoExclusions = permissions.include === 'all' && permissions.exclude.length === 0;
-    if (hasNoExclusions) {
-      return {
-        toolset: new CallableToolset([isolatedBashTool]),
-        cleanup,
-      };
-    }
-
-    // 有排除项：创建受限的 BashTool
-    const restrictedBashTool = new RestrictedBashTool(
-      isolatedBashTool,
-      permissions,
-      agentType
-    );
-
-    return {
-      toolset: new CallableToolset([restrictedBashTool]),
-      cleanup,
-    };
+    return { toolset, cleanup };
   }
 
   /**

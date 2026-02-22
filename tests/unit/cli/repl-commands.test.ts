@@ -10,7 +10,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
 import readline from 'node:readline';
-import type { AgentRunner } from '../../../src/core/agent-runner.ts';
+import type { AgentRunner } from '../../../src/core/agent/agent-runner.ts';
 import {
   executeShellCommand,
   handleSpecialCommand,
@@ -943,7 +943,7 @@ describe('repl-commands', () => {
       const capture = captureConsoleOutput();
       const rl = createMockRl();
       const onResumeSession = mock((_id: string) => {});
-      const { Session } = await import('../../../src/core/session.ts');
+      const { Session } = await import('../../../src/core/session/session.ts');
 
       const listSpy = spyOn(Session, 'list').mockResolvedValue([
         {
@@ -1012,7 +1012,7 @@ describe('repl-commands', () => {
       const capture = captureConsoleOutput();
       const rl = createMockRl();
       const onResumeSession = mock((_id: string) => {});
-      const { Session } = await import('../../../src/core/session.ts');
+      const { Session } = await import('../../../src/core/session/session.ts');
 
       const findSpy = spyOn(Session, 'find').mockResolvedValue({
         id: 'target-session-id',
@@ -1042,7 +1042,7 @@ describe('repl-commands', () => {
       const capture = captureConsoleOutput();
       const rl = createMockRl();
       const onResumeSession = mock((_id: string) => {});
-      const { Session } = await import('../../../src/core/session.ts');
+      const { Session } = await import('../../../src/core/session/session.ts');
 
       const findSpy = spyOn(Session, 'find').mockResolvedValue(null);
 
@@ -1071,7 +1071,7 @@ describe('repl-commands', () => {
       const capture = captureConsoleOutput();
       const rl = createMockRl();
       const onResumeSession = mock((_id: string) => {});
-      const { Session } = await import('../../../src/core/session.ts');
+      const { Session } = await import('../../../src/core/session/session.ts');
 
       const findSpy = spyOn(Session, 'find').mockResolvedValue(null);
 
@@ -1101,7 +1101,7 @@ describe('repl-commands', () => {
       const capture = captureConsoleOutput();
       const rl = createMockRl();
       const onResumeSession = mock((_id: string) => {});
-      const { Session } = await import('../../../src/core/session.ts');
+      const { Session } = await import('../../../src/core/session/session.ts');
 
       const listSpy = spyOn(Session, 'list').mockResolvedValue([]);
 

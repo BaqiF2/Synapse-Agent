@@ -47,3 +47,4 @@ export { parseEnvInt, parseEnvPositiveInt } from './env.ts';
 export { loadDesc } from './load-desc.ts';
 export { countTokens } from './token-counter.ts';
 export { createAbortError, isAbortError, throwIfAborted } from './abort.ts';
+export { BashSession, type BashSessionOptions } from './bash-session.ts';

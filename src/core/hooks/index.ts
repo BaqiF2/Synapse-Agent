@@ -21,7 +21,8 @@ export {
   StopHookRegistry,
   stopHookRegistry,
   STOP_HOOK_MARKER,
-  loadStopHooks,
 } from './hook-registry.ts';
+
+export { loadStopHooks } from './load-stop-hooks.ts';
 
 export { StopHookExecutor } from './stop-hook.ts';

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'bun:test';
-import { TaskCommandHandler } from '../../../../src/tools/handlers/task-command-handler.ts';
+import { TaskCommandHandler } from '../../../../src/tools/commands/task-handler.ts';
 import type { ISubAgentExecutor } from '../../../../src/core/sub-agents/sub-agent-types.ts';
 import type { SubAgentType, TaskCommandParams } from '../../../../src/core/sub-agents/sub-agent-types.ts';
 

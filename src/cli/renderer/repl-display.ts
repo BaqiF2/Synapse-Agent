@@ -9,7 +9,7 @@
  * - showHelp: 显示帮助信息
  * - showContextStats: 显示上下文用量统计
  * - showToolsList: 显示可用工具列表
- * - showSkillsList: 显示可用技能列表
+ * - showSkillsList: 显示可用技能列表（委托 SkillLoader 解析元数据）
  * - showSkillEnhanceHelp: 显示技能增强帮助
  */
 
@@ -19,7 +19,8 @@ import chalk from 'chalk';
 
 import { McpInstaller } from '../../tools/converters/mcp/index.ts';
 import { getSynapseSkillsDir } from '../../shared/config/paths.ts';
-import type { ContextStats } from '../../core/agent-runner.ts';
+import { SkillLoader } from '../../skills/loader/skill-loader.ts';
+import type { ContextStats } from '../../core/agent/agent-runner.ts';
 
 // ===== 内部工具函数 =====
 
@@ -27,35 +28,24 @@ function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'Unknown error';
 }
 
-function stripWrappingQuotes(value: string): string {
-  if (
-    (value.startsWith('"') && value.endsWith('"')) ||
-    (value.startsWith("'") && value.endsWith("'"))
-  ) {
-    return value.slice(1, -1);
+/**
+ * 同步读取技能的版本列表（降序排列）
+ */
+function readVersions(skillPath: string): string[] {
+  const versionsDir = path.join(skillPath, 'versions');
+  if (!fs.existsSync(versionsDir)) {
+    return [];
   }
-  return value;
-}
-
-function extractSkillDescription(content: string): string | null {
-  const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
-  if (frontmatterMatch?.[1]) {
-    const lines = frontmatterMatch[1].split('\n');
-    for (const line of lines) {
-      const colonIndex = line.indexOf(':');
-      if (colonIndex <= 0) continue;
-      const key = line.slice(0, colonIndex).trim();
-      if (key !== 'description') continue;
-      const rawValue = line.slice(colonIndex + 1).trim();
-      if (!rawValue) return null;
-      return stripWrappingQuotes(rawValue);
-    }
+  try {
+    const entries = fs.readdirSync(versionsDir, { withFileTypes: true });
+    return entries
+      .filter((entry) => entry.isDirectory() && !entry.name.startsWith('.'))
+      .map((entry) => entry.name)
+      .sort()
+      .reverse();
+  } catch {
+    return [];
   }
-
-  const markdownDesc =
-    content.match(/\*\*描述\*\*:\s*(.+)/)?.[1] ??
-    content.match(/\*\*Description\*\*:\s*(.+)/i)?.[1];
-  return markdownDesc ? markdownDesc.trim() : null;
 }
 
 function calculateContextPercentage(numerator: number, denominator: number): number {
@@ -169,8 +159,9 @@ export function showSkillsList(): void {
   }
 
   try {
-    const entries = fs.readdirSync(skillsDir, { withFileTypes: true });
-    const skills = entries.filter((e) => e.isDirectory() && !e.name.startsWith('.'));
+    // 委托 SkillLoader 加载技能元数据，消除手动 SKILL.md 解析重复
+    const loader = new SkillLoader();
+    const skills = loader.loadAllLevel1();
 
     if (skills.length === 0) {
       console.log(chalk.gray('  No skills installed.'));
@@ -180,39 +171,14 @@ export function showSkillsList(): void {
     }
 
     for (const skill of skills) {
-      const skillDir = path.join(skillsDir, skill.name);
-      const skillMdPath = path.join(skillsDir, skill.name, 'SKILL.md');
-      let description = chalk.gray('(No description)');
-      let versionSummary = chalk.gray('(none)');
+      const description = skill.description
+        ? chalk.white(skill.description)
+        : chalk.gray('(No description)');
 
-      if (fs.existsSync(skillMdPath)) {
-        try {
-          const content = fs.readFileSync(skillMdPath, 'utf-8');
-          const parsedDescription = extractSkillDescription(content);
-          if (parsedDescription) {
-            description = chalk.white(parsedDescription);
-          }
-        } catch {
-          // Ignore read errors
-        }
-      }
-
-      const versionsDir = path.join(skillDir, 'versions');
-      if (fs.existsSync(versionsDir)) {
-        try {
-          const versionEntries = fs.readdirSync(versionsDir, { withFileTypes: true });
-          const versions = versionEntries
-            .filter((entry) => entry.isDirectory() && !entry.name.startsWith('.'))
-            .map((entry) => entry.name)
-            .sort()
-            .reverse();
-          if (versions.length > 0) {
-            versionSummary = chalk.white(versions.join(', '));
-          }
-        } catch {
-          // Ignore read errors
-        }
-      }
+      const versions = readVersions(skill.path);
+      const versionSummary = versions.length > 0
+        ? chalk.white(versions.join(', '))
+        : chalk.gray('(none)');
 
       console.log(chalk.green(`  ${skill.name}`));
       console.log(`    ${description}`);

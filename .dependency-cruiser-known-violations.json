@@ -360,29 +360,11 @@
   },
   {
     "type": "dependency",
-    "from": "src/skills/skill-merger.ts",
-    "to": "src/sub-agents/sub-agent-types.ts",
-    "rule": {
-      "severity": "error",
-      "name": "no-skills-import-sub-agents"
-    }
-  },
-  {
-    "type": "dependency",
     "from": "src/sub-agents/sub-agent-manager.ts",
     "to": "src/cli/terminal-renderer-types.ts",
     "rule": {
       "severity": "error",
       "name": "no-sub-agents-import-cli"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/sub-agents/configs/skill.ts",
-    "to": "src/skills/indexer.ts",
-    "rule": {
-      "severity": "error",
-      "name": "no-sub-agents-import-skills"
     }
   },
   {
@@ -414,105 +396,6 @@
   },
   {
     "type": "dependency",
-    "from": "src/tools/handlers/skill-command-handler.ts",
-    "to": "src/skills/indexer.ts",
-    "rule": {
-      "severity": "error",
-      "name": "no-tools-import-skills"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/tools/handlers/skill-command-handler.ts",
-    "to": "src/skills/skill-loader.ts",
-    "rule": {
-      "severity": "error",
-      "name": "no-tools-import-skills"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/tools/handlers/skill-command-handler.ts",
-    "to": "src/skills/skill-manager.ts",
-    "rule": {
-      "severity": "error",
-      "name": "no-tools-import-skills"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/tools/handlers/skill-command-handler.ts",
-    "to": "src/skills/skill-merger.ts",
-    "rule": {
-      "severity": "error",
-      "name": "no-tools-import-skills"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/tools/handlers/skill-command-handler.ts",
-    "to": "src/skills/skill-metadata-service.ts",
-    "rule": {
-      "severity": "error",
-      "name": "no-tools-import-skills"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/tools/handlers/skill-command-read-handlers.ts",
-    "to": "src/skills/skill-loader.ts",
-    "rule": {
-      "severity": "error",
-      "name": "no-tools-import-skills"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/tools/handlers/skill-command-read-handlers.ts",
-    "to": "src/skills/skill-metadata-service.ts",
-    "rule": {
-      "severity": "error",
-      "name": "no-tools-import-skills"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/tools/handlers/skill-command-read-handlers.ts",
-    "to": "src/skills/types.ts",
-    "rule": {
-      "severity": "error",
-      "name": "no-tools-import-skills"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/tools/handlers/skill-command-write-handlers.ts",
-    "to": "src/skills/skill-manager.ts",
-    "rule": {
-      "severity": "error",
-      "name": "no-tools-import-skills"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/tools/handlers/skill-command-write-handlers.ts",
-    "to": "src/skills/skill-metadata-service.ts",
-    "rule": {
-      "severity": "error",
-      "name": "no-tools-import-skills"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/tools/handlers/skill-command-write-handlers.ts",
-    "to": "src/skills/types.ts",
-    "rule": {
-      "severity": "error",
-      "name": "no-tools-import-skills"
-    }
-  },
-  {
-    "type": "dependency",
     "from": "src/tools/bash-router.ts",
     "to": "src/sub-agents/sub-agent-manager.ts",
     "rule": {
@@ -531,29 +414,123 @@
   },
   {
     "type": "dependency",
-    "from": "src/tools/handlers/skill-command-handler.ts",
-    "to": "src/sub-agents/sub-agent-types.ts",
-    "rule": {
-      "severity": "error",
-      "name": "no-tools-import-sub-agents"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/tools/handlers/task-command-handler.ts",
-    "to": "src/sub-agents/sub-agent-types.ts",
-    "rule": {
-      "severity": "error",
-      "name": "no-tools-import-sub-agents"
-    }
-  },
-  {
-    "type": "dependency",
     "from": "src/tools/restricted-bash-tool.ts",
     "to": "src/sub-agents/sub-agent-types.ts",
     "rule": {
       "severity": "error",
       "name": "no-tools-import-sub-agents"
     }
+  },
+  {
+    "type": "dependency",
+    "from": "src/core/hooks/skill-enhance-hook.ts",
+    "to": "src/tools/sub-agent-toolset-factory.ts",
+    "rule": {
+      "severity": "error",
+      "name": "no-core-import-tools"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/core/hooks/skill-enhance-hook.ts",
+    "to": "src/tools/bash-tool.ts",
+    "rule": {
+      "severity": "error",
+      "name": "no-core-import-tools"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/core/sub-agents/configs/skill.ts",
+    "to": "src/skills/loader/indexer.ts",
+    "rule": {
+      "severity": "error",
+      "name": "no-core-import-skills"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/core/hooks/skill-enhance-hook.ts",
+    "to": "src/skills/generator/conversation-reader.ts",
+    "rule": {
+      "severity": "error",
+      "name": "no-core-import-skills"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/core/agent/auto-enhance-trigger.ts",
+    "to": "src/skills/generator/skill-enhancer.ts",
+    "rule": {
+      "severity": "error",
+      "name": "no-core-import-skills"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/core/hooks/skill-enhance-hook.ts",
+    "to": "src/providers/generate.ts",
+    "rule": {
+      "severity": "error",
+      "name": "no-core-import-providers"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/core/hooks/skill-enhance-hook.ts",
+    "to": "src/providers/anthropic/anthropic-client.ts",
+    "rule": {
+      "severity": "error",
+      "name": "no-core-import-providers"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/core/context/context-compactor.ts",
+    "to": "src/providers/generate.ts",
+    "rule": {
+      "severity": "error",
+      "name": "no-core-import-providers"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/core/agent/step.ts",
+    "to": "src/providers/generate.ts",
+    "rule": {
+      "severity": "error",
+      "name": "no-core-import-providers"
+    }
+  },
+  {
+    "type": "cycle",
+    "from": "src/core/agent/agent-runner.ts",
+    "to": "src/core/hooks/stop-hook.ts",
+    "rule": {
+      "severity": "error",
+      "name": "no-circular"
+    },
+    "cycle": [
+      {
+        "name": "src/core/hooks/stop-hook.ts",
+        "dependencyTypes": ["local", "import"]
+      },
+      {
+        "name": "src/core/hooks/load-stop-hooks.ts",
+        "dependencyTypes": ["local", "require"]
+      },
+      {
+        "name": "src/core/hooks/skill-enhance-hook.ts",
+        "dependencyTypes": ["local", "dynamic-import"]
+      },
+      {
+        "name": "src/core/hooks/agent-runner-factory.ts",
+        "dependencyTypes": ["local", "import"]
+      },
+      {
+        "name": "src/core/agent/agent-runner.ts",
+        "dependencyTypes": ["local", "import"]
+      }
+    ]
   }
 ]

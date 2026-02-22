@@ -6,7 +6,6 @@
  *
  * 核心导出:
  * - McpClient: MCP 服务端连接与工具调用
- * - McpClientManager: 多服务端连接管理（从 mcp-client-manager 重导出）
  * - ConnectionState: 连接状态枚举
  * - McpConnectionOptions: 连接配置选项
  * - McpToolInfo: MCP 工具元数据
@@ -255,8 +254,5 @@ export class McpClient {
     };
   }
 }
-
-// 重导出 McpClientManager，保持外部接口兼容
-export { McpClientManager } from './mcp-client-manager.js';
 
 export default McpClient;

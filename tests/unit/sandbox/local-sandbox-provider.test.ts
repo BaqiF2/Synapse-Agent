@@ -1,7 +1,7 @@
 import { describe, expect, it, mock } from 'bun:test';
-import { LocalSandboxBackend } from '../../../src/shared/sandbox/providers/local/local-backend.ts';
-import { LocalSandboxProvider } from '../../../src/shared/sandbox/providers/local/index.ts';
-import type { PlatformAdapter } from '../../../src/shared/sandbox/providers/local/platforms/platform-adapter.ts';
+import { LocalSandboxBackend } from '../../../src/shared/sandbox/providers/local.ts';
+import { LocalSandboxProvider } from '../../../src/shared/sandbox/providers/local.ts';
+import type { PlatformAdapter } from '../../../src/shared/sandbox/providers/local.ts';
 import type { SandboxCreateOptions } from '../../../src/shared/sandbox/types.ts';
 import type { CommandResult } from '../../../src/types/tool.ts';
 

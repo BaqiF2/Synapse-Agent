@@ -21,9 +21,8 @@
 
 import { createLogger } from '../../shared/file-logger.ts';
 import type { SkillLoader } from '../loader/skill-loader.ts';
-import type { ConversationAnalysis } from './skill-enhancer.ts';
+import type { ConversationAnalysis, SkillSpec } from '../types.ts';
 import type { ConversationTurn } from './conversation-reader.ts';
-import type { SkillSpec } from '../types.ts';
 
 const logger = createLogger('skill-analysis');
 

@@ -4,9 +4,9 @@
  */
 
 import { describe, it, expect } from 'bun:test';
-import { runAgentLoop } from '../../../src/core/agent-loop.ts';
+import { runAgentLoop } from '../../../src/core/agent/agent-loop.ts';
 import type { AgentEvent, LLMProviderLike, AgentTool, ToolResult, LLMProviderMessage } from '../../../src/core/types.ts';
-import type { AgentLoopConfig } from '../../../src/core/agent-loop-config.ts';
+import type { AgentLoopConfig } from '../../../src/core/agent/agent-loop-config.ts';
 import type { LLMResponse, LLMStream, LLMStreamChunk } from '../../../src/types/provider.ts';
 
 // ========== 测试辅助 ==========

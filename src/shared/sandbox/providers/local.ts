@@ -20,7 +20,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { execSync } from 'node:child_process';
-import { BashSession, type BashSessionOptions } from '../../../tools/bash-session.ts';
+import { BashSession, type BashSessionOptions } from '../../bash-session.ts';
 import type { CommandResult } from '../../../types/tool.ts';
 import { createLogger } from '../../file-logger.ts';
 import type {

@@ -1,11 +1,16 @@
 /**
- * Skill Doc Schema - SKILL.md 解析工具函数与 Zod schema 定义
+ * Skill Doc Schema - SKILL.md 解析工具函数、类型定义与 Zod schema
  *
- * 包含 frontmatter 解析、引号剥离、section 规范化、key-value/section 内容解析。
+ * 包含 SKILL_DOMAINS 常量、SkillDocSchema（Zod）、SkillDoc 类型，
+ * 以及 frontmatter 解析、引号剥离、section 规范化、key-value/section 内容解析。
  * 新增 quickStart 和 bestPractices 字段支持。
  *
  * @module skill-doc-schema
  * Core Exports:
+ * - SKILL_DOMAINS: 可用的技能领域列表
+ * - SkillDomain: 技能领域类型
+ * - SkillDocSchema: Zod schema for skill document metadata
+ * - SkillDoc: 技能文档类型（从 SkillDocSchema 推导）
  * - extractFrontmatter: 从 Markdown 内容中提取 YAML frontmatter
  * - applyFrontmatter: 将 frontmatter 映射到 SkillDoc
  * - normalizeSection: 规范化章节名称（支持中英文映射）
@@ -15,7 +20,50 @@
  * - PATTERNS: Markdown 解析用正则模式集
  */
 
-import { SKILL_DOMAINS, type SkillDomain, type SkillDoc } from './skill-doc-parser.ts';
+import { z } from 'zod';
+
+/**
+ * Skill domain categories
+ */
+export const SKILL_DOMAINS = [
+  'programming',
+  'data',
+  'devops',
+  'finance',
+  'general',
+  'automation',
+  'ai',
+  'security',
+  'other',
+] as const;
+
+export type SkillDomain = (typeof SKILL_DOMAINS)[number];
+
+/**
+ * Schema for skill document metadata extracted from SKILL.md
+ * F-004: 新增 quickStart 和 bestPractices 字段
+ */
+export const SkillDocSchema = z.object({
+  name: z.string(),
+  title: z.string().optional(),
+  domain: z.enum(SKILL_DOMAINS).default('general'),
+  description: z.string().optional(),
+  version: z.string().default('1.0.0'),
+  tags: z.array(z.string()).default([]),
+  author: z.string().optional(),
+  usageScenarios: z.string().optional(),
+  toolDependencies: z.array(z.string()).default([]),
+  executionSteps: z.array(z.string()).default([]),
+  examples: z.array(z.string()).default([]),
+  skillPath: z.string(),
+  mdPath: z.string(),
+  rawContent: z.string().optional(),
+  // F-004: 新增字段
+  quickStart: z.string().optional(),
+  bestPractices: z.array(z.string()).default([]),
+});
+
+export type SkillDoc = z.infer<typeof SkillDocSchema>;
 
 /** Regex patterns for parsing SKILL.md */
 export const PATTERNS = {

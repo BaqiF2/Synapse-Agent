@@ -8,7 +8,7 @@ import { describe, expect, it, beforeEach, afterEach } from 'bun:test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
-import { ConversationReader, type ConversationTurn } from '../../../src/skills/conversation-reader.ts';
+import { ConversationReader, type ConversationTurn } from '../../../src/skills/generator/conversation-reader.ts';
 
 describe('ConversationReader.compact() - 消息类型处理', () => {
   it('User 消息格式化', () => {

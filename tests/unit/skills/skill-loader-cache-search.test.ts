@@ -9,8 +9,8 @@ import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
-import { SkillLoader, type SkillLevel1, type SkillLevel2 } from '../../../src/skills/skill-loader.ts';
-import { SkillIndexer } from '../../../src/skills/indexer.ts';
+import { SkillLoader, type SkillLevel1, type SkillLevel2 } from '../../../src/skills/loader/skill-loader.ts';
+import { SkillIndexer } from '../../../src/skills/loader/indexer.ts';
 
 /** 在 skillsDir 中创建技能目录和 SKILL.md */
 function createTestSkill(

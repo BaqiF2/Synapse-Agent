@@ -2,8 +2,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { ContextManager } from '../../../src/core/context-manager.ts';
-import { OffloadStorage } from '../../../src/core/offload-storage.ts';
+import { ContextManager } from '../../../src/core/context/context-manager.ts';
+import { OffloadStorage } from '../../../src/core/context/offload-storage.ts';
 import { type Message, createTextMessage } from '../../../src/providers/message.ts';
 
 function createToolMessage(text: string): Message {

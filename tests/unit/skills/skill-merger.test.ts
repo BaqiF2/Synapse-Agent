@@ -1,5 +1,5 @@
 import { describe, it, expect, mock } from 'bun:test';
-import { SkillMerger } from '../../../src/skills/skill-merger.ts';
+import { SkillMerger } from '../../../src/skills/manager/skill-merger.ts';
 import type { SkillMeta } from '../../../src/skills/types.ts';
 import type { SubAgentManager } from '../../../src/core/sub-agents/sub-agent-manager.ts';
 

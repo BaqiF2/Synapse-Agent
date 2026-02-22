@@ -1,7 +1,8 @@
 /**
- * Hook 注册表 — Stop Hook 类型定义、注册表、常量和加载器。
+ * Hook 注册表 — Stop Hook 类型定义、注册表和常量。
  *
- * 合并自: types.ts + stop-hook-registry.ts + stop-hook-constants.ts + load-stop-hooks.ts
+ * 合并自: types.ts + stop-hook-registry.ts + stop-hook-constants.ts
+ * 注意: loadStopHooks 已迁移到 load-stop-hooks.ts 以打破循环依赖
  *
  * 核心导出:
  * - StopHookContext: 钩子执行时的上下文信息
@@ -10,10 +11,9 @@
  * - StopHookRegistry: Hook 注册表类
  * - stopHookRegistry: 全局单例实例
  * - STOP_HOOK_MARKER: Stop Hook 输出标记常量
- * - loadStopHooks: 加载所有 Stop Hooks
  */
 
-import type { Message } from '../../providers/message.ts';
+import type { Message } from '../../types/message.ts';
 import { createLogger } from '../../shared/file-logger.ts';
 
 const logger = createLogger('stop-hook-registry');
@@ -142,15 +142,3 @@ export class StopHookRegistry {
 
 /** 全局单例实例 */
 export const stopHookRegistry = new StopHookRegistry();
-
-// ========== 加载器 ==========
-
-/**
- * 集中加载所有需要的 Stop Hooks（通过模块副作用完成注册）
- */
-export async function loadStopHooks(): Promise<void> {
-  if (process.env.BUN_TEST === '1') {
-    return;
-  }
-  await import('./skill-enhance-hook.ts');
-}

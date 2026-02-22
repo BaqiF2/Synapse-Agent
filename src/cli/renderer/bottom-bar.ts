@@ -12,7 +12,7 @@
  */
 
 import chalk from 'chalk';
-import type { TodoStore, TodoState, TodoItem, TodoStatus } from '../../tools/handlers/agent-bash/todo/todo-store.ts';
+import type { TodoStore, TodoState, TodoItem, TodoStatus } from '../../tools/commands/todo-handler.ts';
 import { parseEnvInt } from '../../shared/env.ts';
 
 // ═══════════════════════════════════════════════════════════════════════

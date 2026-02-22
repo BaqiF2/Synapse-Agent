@@ -1,6 +1,6 @@
 import { describe, expect, it, spyOn } from 'bun:test';
 import { Logger } from '../../../src/shared/file-logger.ts';
-import { LinuxAdapter } from '../../../src/shared/sandbox/providers/local/platforms/linux-adapter.ts';
+import { LinuxAdapter } from '../../../src/shared/sandbox/providers/local.ts';
 import type { SandboxPolicy } from '../../../src/shared/sandbox/types.ts';
 
 function createPolicy(whitelist: string[] = ['/workspace']): SandboxPolicy {

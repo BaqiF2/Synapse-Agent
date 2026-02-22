@@ -9,9 +9,12 @@ import { describe, expect, it, beforeEach, afterEach } from 'bun:test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
-import { SkillCommandHandler } from '../../src/tools/handlers/skill-command-handler.ts';
-import { SkillGenerator } from '../../src/skills/skill-generator.ts';
-import { SkillIndexUpdater } from '../../src/skills/index-updater.ts';
+import { SkillCommandHandler } from '../../src/tools/commands/skill-mgmt.ts';
+import { SkillGenerator } from '../../src/skills/generator/skill-generator.ts';
+import { SkillIndexUpdater } from '../../src/skills/loader/indexer.ts';
+import { SkillLoader } from '../../src/skills/loader/skill-loader.ts';
+import { SkillIndexer } from '../../src/skills/loader/indexer.ts';
+import { SkillMetadataService } from '../../src/skills/manager/metadata-service.ts';
 
 describe('Skill System Full Integration', () => {
   let testHomeDir: string;
@@ -25,7 +28,11 @@ describe('Skill System Full Integration', () => {
     skillsDir = path.join(testDir, 'skills');
     fs.mkdirSync(skillsDir, { recursive: true });
 
-    handler = new SkillCommandHandler({ homeDir: testHomeDir });
+    handler = new SkillCommandHandler({
+      homeDir: testHomeDir,
+      skillLoader: new SkillLoader(testHomeDir),
+      metadataService: new SkillMetadataService(skillsDir, new SkillIndexer(testHomeDir)),
+    });
   });
 
   afterEach(() => {
@@ -59,7 +66,11 @@ describe('Skill System Full Integration', () => {
 
       // 3. Create new handler to pick up new skill
       handler.shutdown();
-      handler = new SkillCommandHandler({ homeDir: testHomeDir });
+      handler = new SkillCommandHandler({
+        homeDir: testHomeDir,
+        skillLoader: new SkillLoader(testHomeDir),
+        metadataService: new SkillMetadataService(skillsDir, new SkillIndexer(testHomeDir)),
+      });
 
       // 4. Load skill
       const loadResult = await handler.execute('skill:load file-processor');
@@ -92,7 +103,11 @@ describe('Skill System Full Integration', () => {
 
       // Restart handler to pick up new skills
       handler.shutdown();
-      handler = new SkillCommandHandler({ homeDir: testHomeDir });
+      handler = new SkillCommandHandler({
+        homeDir: testHomeDir,
+        skillLoader: new SkillLoader(testHomeDir),
+        metadataService: new SkillMetadataService(skillsDir, new SkillIndexer(testHomeDir)),
+      });
 
       // Load each skill
       for (const skill of skills) {
@@ -211,7 +226,11 @@ describe('Skill System Full Integration', () => {
       });
 
       handler.shutdown();
-      handler = new SkillCommandHandler({ homeDir: testHomeDir });
+      handler = new SkillCommandHandler({
+        homeDir: testHomeDir,
+        skillLoader: new SkillLoader(testHomeDir),
+        metadataService: new SkillMetadataService(skillsDir, new SkillIndexer(testHomeDir)),
+      });
 
       // Perform multiple loads
       const results = await Promise.all([

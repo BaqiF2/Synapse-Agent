@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'bun:test';
-import { SkillDocParser } from '../../../src/skills/skill-schema.ts';
+import { SkillDocParser } from '../../../src/skills/schema/skill-doc-parser.ts';
 
 describe('SkillDocSchema', () => {
   it('should default domain to general when missing', () => {

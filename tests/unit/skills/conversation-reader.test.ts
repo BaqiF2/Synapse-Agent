@@ -11,7 +11,7 @@ import * as os from 'node:os';
 import {
   ConversationReader,
   type ConversationTurn,
-} from '../../../src/skills/conversation-reader.ts';
+} from '../../../src/skills/generator/conversation-reader.ts';
 
 describe('ConversationReader', () => {
   let testDir: string;

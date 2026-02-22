@@ -11,7 +11,7 @@ import * as os from 'node:os';
 import {
   AgentRunner,
   type AgentRunnerOptions,
-} from '../../../src/core/agent-runner.ts';
+} from '../../../src/core/agent/agent-runner.ts';
 import { CallableToolset, type Toolset } from '../../../src/tools/toolset.ts';
 import { ToolOk, ToolError, asCancelablePromise } from '../../../src/tools/callable-tool.ts';
 import type { CallableTool, CancelablePromise, ToolReturnValue } from '../../../src/tools/callable-tool.ts';
@@ -25,11 +25,11 @@ const MockBashToolDef = {
 import type { AnthropicClient } from '../../../src/providers/anthropic/anthropic-client.ts';
 import type { StreamedMessagePart } from '../../../src/providers/anthropic/anthropic-types.ts';
 import { Logger } from '../../../src/shared/file-logger.ts';
-import { Session } from '../../../src/core/session.ts';
+import { Session } from '../../../src/core/session/session.ts';
 import { stopHookRegistry } from '../../../src/core/hooks/stop-hook-registry.ts';
 import { countMessageTokens } from '../../../src/shared/token-counter.ts';
-import { ContextManager } from '../../../src/core/context-manager.ts';
-import { ContextCompactor } from '../../../src/core/context-compactor.ts';
+import { ContextManager } from '../../../src/core/context/context-manager.ts';
+import { ContextCompactor } from '../../../src/core/context/context-compactor.ts';
 
 function createMockCallableTool(
   handler: (args: unknown) => Promise<ToolReturnValue> | CancelablePromise<ToolReturnValue>
@@ -778,8 +778,12 @@ describe('AgentRunner', () => {
 
       expect(response).toContain('Consecutive tool execution failures');
       const history = runner.getHistory();
-      expect(history).toHaveLength(5);
-      expect(history.at(-1)?.role).toBe('tool');
+      // user + (assistant+tool_call + tool_result) x2 + assistant(failure message) = 6
+      expect(history).toHaveLength(6);
+      expect(history.at(-1)?.role).toBe('assistant');
+      expect((history.at(-1)?.content[0] as { text: string }).text).toContain(
+        'Consecutive tool execution failures'
+      );
     });
 
     it('should skip stop hooks when stopping due to consecutive tool failures', async () => {
@@ -1864,5 +1868,147 @@ describe('AgentRunner with Session', () => {
       ContextManager.prototype.offloadIfNeeded = originalOffloadIfNeeded;
       ContextCompactor.prototype.compact = originalCompact;
     }
+  });
+});
+
+describe('AgentRunner - P0-1: message persistence on limit/failure stops', () => {
+  let testDir: string;
+
+  beforeEach(() => {
+    testDir = path.join(
+      os.tmpdir(),
+      `synapse-p0-1-test-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`
+    );
+    fs.mkdirSync(testDir, { recursive: true });
+  });
+
+  afterEach(() => {
+    if (fs.existsSync(testDir)) {
+      fs.rmSync(testDir, { recursive: true });
+    }
+  });
+
+  it('should persist iteration limit message to session for resume', async () => {
+    const client = createMockClient([
+      [{ type: 'tool_call', id: 'c1', name: 'Bash', input: { command: 'ls' } }],
+    ]);
+    const toolset = new CallableToolset([createMockCallableTool(() =>
+      Promise.resolve(ToolOk({ output: 'ok' }))
+    )]);
+
+    const runner = new AgentRunner({
+      client,
+      systemPrompt: 'Test',
+      toolset,
+      maxIterations: 1,
+      sessionsDir: testDir,
+      enableStopHooks: false,
+    });
+
+    const response = await runner.run('Hi');
+    expect(response).toContain('Reached tool iteration limit (1)');
+
+    // 验证消息已持久化到 session
+    const sessionId = runner.getSessionId();
+    expect(sessionId).not.toBeNull();
+
+    const session = await Session.find(sessionId!, { sessionsDir: testDir });
+    expect(session).not.toBeNull();
+
+    const persisted = await session!.loadHistory();
+    const lastPersistedMessage = persisted.at(-1);
+    expect(lastPersistedMessage?.role).toBe('assistant');
+    expect((lastPersistedMessage?.content[0] as { text: string }).text).toContain(
+      'Reached tool iteration limit (1)'
+    );
+  });
+
+  it('should persist consecutive failure message to session for resume', async () => {
+    const client = createMockClient([
+      [{ type: 'tool_call', id: 'c1', name: 'Bash', input: { command: 'fail' } }],
+      [{ type: 'tool_call', id: 'c2', name: 'Bash', input: { command: 'fail' } }],
+    ]);
+
+    const toolset = new CallableToolset([createMockCallableTool(() =>
+      Promise.resolve(ToolError({
+        message: 'Invalid parameters: Usage: read <file_path>',
+        output: '[stderr]\nUsage: read <file_path> [--offset N] [--limit N]',
+        extras: { failureCategory: 'invalid_usage' },
+      }))
+    )]);
+
+    const runner = new AgentRunner({
+      client,
+      systemPrompt: 'Test',
+      toolset,
+      maxConsecutiveToolFailures: 2,
+      sessionsDir: testDir,
+      enableStopHooks: false,
+    });
+
+    const response = await runner.run('Fail');
+    expect(response).toContain('Consecutive tool execution failures');
+
+    // 验证消息已持久化到 session
+    const sessionId = runner.getSessionId();
+    expect(sessionId).not.toBeNull();
+
+    const session = await Session.find(sessionId!, { sessionsDir: testDir });
+    expect(session).not.toBeNull();
+
+    const persisted = await session!.loadHistory();
+    const lastPersistedMessage = persisted.at(-1);
+    expect(lastPersistedMessage?.role).toBe('assistant');
+    expect((lastPersistedMessage?.content[0] as { text: string }).text).toContain(
+      'Consecutive tool execution failures'
+    );
+  });
+
+  it('should resume session after iteration limit and include limit message in history', async () => {
+    // 第一个 runner — 触发迭代超限
+    const client1 = createMockClient([
+      [{ type: 'tool_call', id: 'c1', name: 'Bash', input: { command: 'ls' } }],
+    ]);
+    const toolset1 = new CallableToolset([createMockCallableTool(() =>
+      Promise.resolve(ToolOk({ output: 'ok' }))
+    )]);
+
+    const runner1 = new AgentRunner({
+      client: client1,
+      systemPrompt: 'Test',
+      toolset: toolset1,
+      maxIterations: 1,
+      sessionsDir: testDir,
+      enableStopHooks: false,
+    });
+
+    await runner1.run('First message');
+    const sessionId = runner1.getSessionId()!;
+
+    // 第二个 runner — 恢复会话
+    const client2 = createMockClient([[{ type: 'text', text: 'Resumed!' }]]);
+    const toolset2 = new CallableToolset([createMockCallableTool(() =>
+      Promise.resolve(ToolOk({ output: '' }))
+    )]);
+
+    const runner2 = new AgentRunner({
+      client: client2,
+      systemPrompt: 'Test',
+      toolset: toolset2,
+      sessionId,
+      sessionsDir: testDir,
+      enableStopHooks: false,
+    });
+
+    const response = await runner2.run('Continue');
+    expect(response).toBe('Resumed!');
+
+    // 验证恢复后的历史包含迭代超限消息
+    const history = runner2.getHistory();
+    const limitMessage = history.find(
+      (m) => m.role === 'assistant' && m.content[0]?.type === 'text' &&
+        (m.content[0] as { text: string }).text.includes('Reached tool iteration limit')
+    );
+    expect(limitMessage).toBeDefined();
   });
 });

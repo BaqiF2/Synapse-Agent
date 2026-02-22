@@ -4,11 +4,11 @@
  */
 
 import { describe, it, expect, beforeEach } from 'bun:test';
-import { TodoStore, type TodoItem } from '../../../src/tools/handlers/agent-bash/todo/todo-store.ts';
+import { TodoStore, type TodoItem } from '../../../src/tools/commands/todo-handler.ts';
 import {
   TodoReminderStrategy,
   type TodoReminderResult,
-} from '../../../src/core/todo-reminder-strategy.ts';
+} from '../../../src/core/agent/todo-reminder-strategy.ts';
 
 // ========== 测试辅助 ==========
 

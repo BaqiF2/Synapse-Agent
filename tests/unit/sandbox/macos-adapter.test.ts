@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'bun:test';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { MacOSAdapter } from '../../../src/shared/sandbox/providers/local/platforms/macos-adapter.ts';
+import { MacOSAdapter } from '../../../src/shared/sandbox/providers/local.ts';
 import type { SandboxPolicy } from '../../../src/shared/sandbox/types.ts';
 
 function createPolicy(overrides?: Partial<SandboxPolicy>): SandboxPolicy {

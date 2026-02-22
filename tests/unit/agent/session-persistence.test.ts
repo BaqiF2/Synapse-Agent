@@ -11,7 +11,7 @@ import * as fs from 'node:fs';
 import * as fsp from 'node:fs/promises';
 import * as path from 'node:path';
 import * as os from 'node:os';
-import { Session, SessionsIndexSchema, TITLE_MAX_LENGTH } from '../../../src/core/session.ts';
+import { Session, SessionsIndexSchema, TITLE_MAX_LENGTH } from '../../../src/core/session/session.ts';
 import { createTextMessage, type Message } from '../../../src/providers/message.ts';
 
 describe('Session - persistence', () => {

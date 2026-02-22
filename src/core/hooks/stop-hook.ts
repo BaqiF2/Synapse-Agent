@@ -7,8 +7,8 @@
  * - StopHookExecutor: Stop Hook 执行器，管理 hook 的加载、执行和结果拼接
  */
 
-import type { OnMessagePart } from '../../providers/generate.ts';
-import type { Message } from '../../providers/message.ts';
+import type { OnMessagePart } from '../../types/generate.ts';
+import type { Message } from '../../types/message.ts';
 import type { HookResult } from './hook-registry.ts';
 import { stopHookRegistry, STOP_HOOK_MARKER } from './hook-registry.ts';
 import { createLogger } from '../../shared/file-logger.ts';
@@ -19,9 +19,7 @@ let stopHooksLoadPromise: Promise<void> | null = null;
 
 async function ensureStopHooksLoaded(): Promise<void> {
   if (!stopHooksLoadPromise) {
-    // 动态 require 打破循环依赖
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { loadStopHooks } = require('./hook-registry.ts');
+    const { loadStopHooks } = await import('./load-stop-hooks.ts');
     stopHooksLoadPromise = loadStopHooks();
   }
   await stopHooksLoadPromise;

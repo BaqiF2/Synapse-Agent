@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { TodoStore, type TodoItem } from '../../../src/tools/handlers/agent-bash/todo/todo-store.ts';
+import { TodoStore, type TodoItem } from '../../../src/tools/commands/todo-handler.ts';
 
 describe('TodoStore', () => {
   it('update 全量替换任务列表并刷新更新时间', () => {

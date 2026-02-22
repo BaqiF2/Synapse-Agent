@@ -14,7 +14,6 @@
 
 import * as path from 'node:path';
 import type { SubAgentConfig, SkillAction } from '../sub-agent-types.ts';
-import { SkillIndexer } from '../../../skills/loader/indexer.js';
 import { loadDesc } from '../../../shared/load-desc.js';
 import { createLogger } from '../../../shared/file-logger.js';
 
@@ -31,14 +30,16 @@ interface SkillMetadata {
 /**
  * 加载所有技能的元数据
  *
- * 从 SkillIndexer 获取所有技能的 name 和 description
+ * 通过动态导入 SkillIndexer 获取所有技能的 name 和 description，
+ * 避免 core→skills 静态跨层依赖。
  * - 技能索引为空时返回空数组，不抛出异常
  * - 索引加载失败时记录 ERROR 日志，返回空数组
  *
  * @returns 技能元数据数组
  */
-export function loadAllSkillMetadata(): SkillMetadata[] {
+export async function loadAllSkillMetadata(): Promise<SkillMetadata[]> {
   try {
+    const { SkillIndexer } = await import('../../../skills/loader/indexer.js');
     const indexer = new SkillIndexer();
     const index = indexer.getIndex();
 
@@ -97,8 +98,8 @@ export function buildEnhanceSystemPrompt(metadata: SkillMetadata[]): string {
  *
  * @returns Skill Search Sub Agent 配置对象
  */
-export function createSkillSearchConfig(): SubAgentConfig {
-  const metadata = loadAllSkillMetadata();
+export async function createSkillSearchConfig(): Promise<SubAgentConfig> {
+  const metadata = await loadAllSkillMetadata();
 
   return {
     type: 'skill',
@@ -124,8 +125,8 @@ export function createSkillSearchConfig(): SubAgentConfig {
  *
  * @returns Skill Enhance Sub Agent 配置对象
  */
-export function createSkillEnhanceConfig(): SubAgentConfig {
-  const metadata = loadAllSkillMetadata();
+export async function createSkillEnhanceConfig(): Promise<SubAgentConfig> {
+  const metadata = await loadAllSkillMetadata();
 
   return {
     type: 'skill',
@@ -144,7 +145,7 @@ export function createSkillEnhanceConfig(): SubAgentConfig {
  * @param action - skill action（search 或 enhance）
  * @returns Skill Sub Agent 配置对象
  */
-export function createSkillConfig(action?: SkillAction): SubAgentConfig {
+export async function createSkillConfig(action?: SkillAction): Promise<SubAgentConfig> {
   if (action === 'search') {
     return createSkillSearchConfig();
   }

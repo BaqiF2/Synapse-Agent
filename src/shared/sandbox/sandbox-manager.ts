@@ -1,4 +1,4 @@
-import { BashSession } from '../../tools/bash-session.ts';
+import { BashSession } from '../bash-session.ts';
 import { createLogger } from '../file-logger.ts';
 import { buildPolicy as expandPolicyPaths } from './types.ts';
 import { SandboxProviderRegistry } from './provider-registry.ts';

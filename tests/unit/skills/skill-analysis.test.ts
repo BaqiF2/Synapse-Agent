@@ -9,10 +9,10 @@ import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
-import { detectPattern, findMatchingSkill, suggestSkillName } from '../../../src/skills/skill-analysis.ts';
-import { SkillLoader } from '../../../src/skills/skill-loader.ts';
-import { SkillIndexer } from '../../../src/skills/indexer.ts';
-import type { ConversationAnalysis } from '../../../src/skills/skill-enhancer.ts';
+import { detectPattern, findMatchingSkill, suggestSkillName } from '../../../src/skills/generator/skill-analysis.ts';
+import { SkillLoader } from '../../../src/skills/loader/skill-loader.ts';
+import { SkillIndexer } from '../../../src/skills/loader/indexer.ts';
+import type { ConversationAnalysis } from '../../../src/skills/generator/skill-enhancer.ts';
 
 describe('detectPattern', () => {
   it('should return false for sequences shorter than 4', () => {
