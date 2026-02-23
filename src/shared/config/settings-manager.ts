@@ -173,6 +173,13 @@ export class SettingsManager {
   }
 
   /**
+   * Get skill enhance trigger profile
+   */
+  getEnhanceTriggerProfile(): 'conservative' | 'neutral' | 'aggressive' {
+    return this.get().skillEnhance.triggerProfile;
+  }
+
+  /**
    * Save settings to file
    */
   private save(settings: SynapseSettings): void {

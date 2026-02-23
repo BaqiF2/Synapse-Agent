@@ -26,6 +26,7 @@ describe('SynapseSettingsSchema', () => {
     expect(DEFAULT_SETTINGS.skillEnhance.maxEnhanceContextChars).toBe(
       expectedMaxEnhanceContextChars
     );
+    expect(DEFAULT_SETTINGS.skillEnhance.triggerProfile).toBe('conservative');
   });
 
   it('should reject settings missing env block', () => {
@@ -46,6 +47,7 @@ describe('SynapseSettingsSchema', () => {
       expect(result.data.env.ANTHROPIC_BASE_URL).toBe('https://api.anthropic.com');
       expect(result.data.model).toBe('claude-sonnet-4-5');
       expect(result.data.skillEnhance.autoEnhance).toBe(false);
+      expect(result.data.skillEnhance.triggerProfile).toBe('conservative');
     }
   });
 
@@ -63,6 +65,18 @@ describe('SynapseSettingsSchema', () => {
     const invalid = {
       ...DEFAULT_SETTINGS,
       skillEnhance: { autoEnhance: 'yes' },
+    };
+    const result = SynapseSettingsSchema.safeParse(invalid);
+    expect(result.success).toBe(false);
+  });
+
+  it('should reject invalid triggerProfile value', () => {
+    const invalid = {
+      ...DEFAULT_SETTINGS,
+      skillEnhance: {
+        ...DEFAULT_SETTINGS.skillEnhance,
+        triggerProfile: 'custom',
+      },
     };
     const result = SynapseSettingsSchema.safeParse(invalid);
     expect(result.success).toBe(false);

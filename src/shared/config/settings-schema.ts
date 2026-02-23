@@ -43,6 +43,8 @@ export const SkillEnhanceSettingsSchema = z.object({
   autoEnhance: z.boolean().default(false),
   /** Maximum characters to include in enhance context */
   maxEnhanceContextChars: z.number().positive().default(DEFAULT_MAX_ENHANCE_CONTEXT_CHARS),
+  /** Trigger profile for auto-enhance scoring */
+  triggerProfile: z.enum(['conservative', 'neutral', 'aggressive']).default('conservative'),
 });
 
 export type SkillEnhanceSettings = z.infer<typeof SkillEnhanceSettingsSchema>;
@@ -70,6 +72,7 @@ export const SynapseSettingsSchema = z.object({
   skillEnhance: SkillEnhanceSettingsSchema.default({
     autoEnhance: false,
     maxEnhanceContextChars: DEFAULT_MAX_ENHANCE_CONTEXT_CHARS,
+    triggerProfile: 'conservative',
   }),
 });
 
@@ -87,5 +90,6 @@ export const DEFAULT_SETTINGS: SynapseSettings = {
   skillEnhance: {
     autoEnhance: false,
     maxEnhanceContextChars: DEFAULT_MAX_ENHANCE_CONTEXT_CHARS,
+    triggerProfile: 'conservative',
   },
 };

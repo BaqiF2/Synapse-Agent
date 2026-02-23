@@ -153,4 +153,17 @@ describe('SettingsManager', () => {
       expect(config.model).toBe('claude-sonnet-4-5');
     });
   });
+
+  describe('getEnhanceTriggerProfile', () => {
+    it('should return conservative by default', () => {
+      writeSettingsFile(testDir);
+      expect(manager.getEnhanceTriggerProfile()).toBe('conservative');
+    });
+
+    it('should return saved trigger profile', () => {
+      writeSettingsFile(testDir);
+      manager.set('skillEnhance.triggerProfile', 'neutral');
+      expect(manager.getEnhanceTriggerProfile()).toBe('neutral');
+    });
+  });
 });

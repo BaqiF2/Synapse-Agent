@@ -78,6 +78,27 @@ const PROMPT_TEMPLATE_PATH = path.join(import.meta.dirname, 'skill-enhance-hook-
 const SKILL_MARKER_PATTERN = /\[Skill\][\s\S]*$/m;
 const SKILL_HEADER_PATTERN = /^\[Skill\]\s*(Created:|Enhanced:|No enhancement needed\b)/i;
 const JSON_FENCE_PATTERN = /```(?:json)?\s*([\s\S]*?)```/i;
+const ERROR_TEXT_PATTERN = /\b(error|failed|failure|exception|timeout|stderr|exit code)\b/i;
+const CLARIFICATION_CLASSIFIER_SYSTEM_PROMPT = [
+  'You are a strict classifier.',
+  'Given user turns from one completed task, count how many turns are clarification/correction turns.',
+  'Clarification/correction means refining, correcting, or changing previous requirements.',
+  'Return ONLY JSON: {"clarification_count": <non-negative integer>}.',
+].join(' ');
+
+const TRIGGER_PROFILE_THRESHOLDS = {
+  conservative: 3,
+  neutral: 2,
+  aggressive: 1,
+} as const;
+
+const TRIGGER_SIGNAL_WEIGHTS = {
+  toolCalls: 1,
+  uniqueTools: 1,
+  errorRecovered: 2,
+  writeOrEdit: 1,
+  clarifications: 1,
+} as const;
 
 // ========== 类型 ==========
 
@@ -98,6 +119,31 @@ export interface SkillExecutionResult {
 export interface MetaSkillContent {
   skillCreator: string | null;
   skillEnhance: string | null;
+}
+
+export type TriggerProfile = keyof typeof TRIGGER_PROFILE_THRESHOLDS;
+
+export type TriggerReasonCode =
+  | 'AUTO_ENHANCE_OFF'
+  | 'SESSION_NOT_FOUND'
+  | 'LOW_SCORE'
+  | 'SCORE_REACHED';
+
+export interface TriggerSignals {
+  toolCallCount: number;
+  uniqueToolCount: number;
+  hasErrorRecovered: boolean;
+  hasWriteOrEdit: boolean;
+  userClarificationCount: number;
+}
+
+export interface TriggerDecision {
+  shouldTrigger: boolean;
+  totalScore: number;
+  threshold: number;
+  signalHits: string[];
+  reasonCode: TriggerReasonCode;
+  profile: TriggerProfile;
 }
 
 // ========== 工具函数: 命令检测 ==========
@@ -320,29 +366,231 @@ async function executeAndNormalize(
 }
 
 /**
- * 检测会话中是否调用过 TodoWrite
- *
- * TodoWrite 是 Agent Shell Command，通过 Bash 工具路由，
- * 因此需要解析 Bash 工具的 arguments 来检测。
+ * 解析文本消息内容
  */
-function hasTodoWriteCall(messages: readonly Message[]): boolean {
+function extractTextContent(message: Message): string {
+  return message.content
+    .filter((part): part is { type: 'text'; text: string } => part.type === 'text')
+    .map(part => part.text)
+    .join('\n')
+    .trim();
+}
+
+function parseBashCommand(argumentsText: string): string | null {
+  try {
+    const args = JSON.parse(argumentsText) as { command?: string };
+    if (typeof args.command === 'string') {
+      return args.command.trim();
+    }
+  } catch {
+    // ignore parse errors and fall back to other signals
+  }
+  return null;
+}
+
+function isWriteOrEditCommand(command: string): boolean {
+  return /^(write|edit)\b/i.test(command.trimStart());
+}
+
+function parseClarificationCount(raw: string): number | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+
+  const candidates = [trimmed];
+  const fenced = trimmed.match(JSON_FENCE_PATTERN)?.[1];
+  if (fenced) {
+    candidates.unshift(fenced.trim());
+  }
+
+  for (const candidate of candidates) {
+    try {
+      const parsed = JSON.parse(candidate) as { clarification_count?: unknown };
+      if (typeof parsed.clarification_count === 'number' && Number.isFinite(parsed.clarification_count)) {
+        return Math.max(0, Math.floor(parsed.clarification_count));
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  return null;
+}
+
+function detectLooseErrorRecovery(messages: readonly Message[]): boolean {
+  let hasSeenError = false;
+  for (const message of messages) {
+    if (message.role !== 'tool') continue;
+    const text = extractTextContent(message);
+    if (!text) continue;
+    const isError = ERROR_TEXT_PATTERN.test(text);
+    if (isError) {
+      hasSeenError = true;
+      continue;
+    }
+    if (hasSeenError) {
+      return true;
+    }
+  }
+  return false;
+}
+
+export function collectTriggerSignals(
+  messages: readonly Message[],
+  userClarificationCount: number = 0
+): TriggerSignals {
+  let toolCallCount = 0;
+  const uniqueTools = new Set<string>();
+  let hasWriteOrEdit = false;
+
   for (const message of messages) {
     if (message.role !== 'assistant' || !message.toolCalls) continue;
 
     for (const toolCall of message.toolCalls) {
-      if (toolCall.name !== 'Bash') continue;
+      toolCallCount++;
+      uniqueTools.add(toolCall.name.toLowerCase());
 
-      try {
-        const args = JSON.parse(toolCall.arguments) as { command?: string };
-        if (typeof args.command === 'string' && args.command.trimStart().startsWith('TodoWrite')) {
-          return true;
+      const toolName = toolCall.name.toLowerCase();
+      if (toolName === 'write' || toolName === 'edit') {
+        hasWriteOrEdit = true;
+      }
+
+      if (toolName === 'bash') {
+        const command = parseBashCommand(toolCall.arguments);
+        if (command && isWriteOrEditCommand(command)) {
+          hasWriteOrEdit = true;
         }
-      } catch {
-        // 忽略 JSON 解析失败的情况
       }
     }
   }
-  return false;
+
+  return {
+    toolCallCount,
+    uniqueToolCount: uniqueTools.size,
+    hasErrorRecovered: detectLooseErrorRecovery(messages),
+    hasWriteOrEdit,
+    userClarificationCount: Math.max(0, Math.floor(userClarificationCount)),
+  };
+}
+
+export function resolveTriggerProfile(raw: unknown): TriggerProfile {
+  if (raw === 'conservative' || raw === 'neutral' || raw === 'aggressive') {
+    return raw;
+  }
+  return 'conservative';
+}
+
+export function evaluateTriggerDecision(
+  messages: readonly Message[],
+  profile: TriggerProfile,
+  userClarificationCount: number = 0
+): TriggerDecision {
+  const signals = collectTriggerSignals(messages, userClarificationCount);
+  const signalHits: string[] = [];
+  let totalScore = 0;
+
+  if (signals.toolCallCount >= 3) {
+    totalScore += TRIGGER_SIGNAL_WEIGHTS.toolCalls;
+    signalHits.push('TOOL_CALLS_GTE_3');
+  }
+  if (signals.uniqueToolCount >= 2) {
+    totalScore += TRIGGER_SIGNAL_WEIGHTS.uniqueTools;
+    signalHits.push('UNIQUE_TOOLS_GTE_2');
+  }
+  if (signals.hasErrorRecovered) {
+    totalScore += TRIGGER_SIGNAL_WEIGHTS.errorRecovered;
+    signalHits.push('ERROR_RECOVERED');
+  }
+  if (signals.hasWriteOrEdit) {
+    totalScore += TRIGGER_SIGNAL_WEIGHTS.writeOrEdit;
+    signalHits.push('HAS_WRITE_OR_EDIT');
+  }
+  if (signals.userClarificationCount >= 2) {
+    totalScore += TRIGGER_SIGNAL_WEIGHTS.clarifications;
+    signalHits.push('USER_CLARIFICATIONS_GTE_2');
+  }
+
+  const threshold = TRIGGER_PROFILE_THRESHOLDS[profile];
+  const shouldTrigger = totalScore >= threshold;
+  return {
+    shouldTrigger,
+    totalScore,
+    threshold,
+    signalHits,
+    reasonCode: shouldTrigger ? 'SCORE_REACHED' : 'LOW_SCORE',
+    profile,
+  };
+}
+
+function collectUserTurns(messages: readonly Message[]): string[] {
+  const turns: string[] = [];
+  for (const message of messages) {
+    if (message.role !== 'user') continue;
+    const text = extractTextContent(message);
+    if (!text) continue;
+    turns.push(text);
+  }
+  return turns;
+}
+
+async function inferClarificationCountWithLlm(
+  messages: readonly Message[],
+  settings: SettingsManager
+): Promise<number> {
+  const userTurns = collectUserTurns(messages);
+  if (userTurns.length < 2) {
+    return 0;
+  }
+
+  const prompt = [
+    'User turns (ordered):',
+    ...userTurns.map((turn, idx) => `[${idx + 1}] ${turn}`),
+    '',
+    'Count clarification/correction turns only.',
+    'Return JSON only.',
+  ].join('\n');
+
+  try {
+    const { AnthropicClient } = await import('../../providers/anthropic/anthropic-client.ts');
+    const { generate } = await import('../../providers/generate.ts');
+
+    const client = new AnthropicClient({ settings: settings.getLlmConfig() }).withThinking('off');
+    const result = await generate(
+      client,
+      CLARIFICATION_CLASSIFIER_SYSTEM_PROMPT,
+      [],
+      [{ role: 'user', content: [{ type: 'text', text: prompt }] }],
+      {}
+    );
+    const raw = extractTextContent(result.message);
+    const parsed = parseClarificationCount(raw);
+    return parsed ?? 0;
+  } catch (error) {
+    logger.warn('Failed to infer clarification count with LLM, fallback to 0', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return 0;
+  }
+}
+
+export async function evaluateTriggerDecisionWithLlm(
+  messages: readonly Message[],
+  profile: TriggerProfile,
+  settings: SettingsManager
+): Promise<TriggerDecision> {
+  const baseDecision = evaluateTriggerDecision(messages, profile, 0);
+
+  if (baseDecision.shouldTrigger) {
+    return baseDecision;
+  }
+
+  const clarificationWeight = TRIGGER_SIGNAL_WEIGHTS.clarifications;
+  const couldFlipByClarification = baseDecision.totalScore + clarificationWeight >= baseDecision.threshold;
+  if (!couldFlipByClarification) {
+    return baseDecision;
+  }
+
+  const clarificationCount = await inferClarificationCountWithLlm(messages, settings);
+  return evaluateTriggerDecision(messages, profile, clarificationCount);
 }
 
 // ========== 主 Hook 函数 ==========
@@ -353,7 +601,7 @@ function hasTodoWriteCall(messages: readonly Message[]): boolean {
  * 分析已完成的对话并在条件满足时触发技能增强：
  * 1. autoEnhance 已启用
  * 2. sessionId 可用
- * 3. 对话中调用过 TodoWrite
+ * 3. 评分模型达到阈值
  * 4. 会话文件存在且可读
  * 5. Meta-skills 可用
  */
@@ -362,19 +610,36 @@ export async function skillEnhanceHook(context: StopHookContext): Promise<HookRe
 
   // Step 1: 检查是否启用自动增强
   if (!settings.isAutoEnhanceEnabled()) {
-    logger.debug('Auto-enhance disabled, skipping skill enhancement');
+    logger.debug('Auto-enhance disabled, skipping skill enhancement', { reasonCode: 'AUTO_ENHANCE_OFF' });
     return;
   }
 
   // Step 2: 检查 sessionId 是否存在
   if (!context.sessionId) {
-    logger.warn('Enhancement skipped: session not found');
+    logger.warn('Enhancement skipped: session not found', { reasonCode: 'SESSION_NOT_FOUND' });
     return { message: 'Enhancement skipped: session not found' };
   }
 
-  // Step 2.5: 检查是否调用过 TodoWrite
-  if (!hasTodoWriteCall(context.messages)) {
-    logger.debug('No TodoWrite call found, skipping skill enhancement');
+  // Step 2.5: 基于评分模型决定是否触发增强
+  const profile = resolveTriggerProfile(settings.getEnhanceTriggerProfile());
+  const decision = await evaluateTriggerDecisionWithLlm(context.messages, profile, settings);
+  logger.info('Skill enhancement trigger decision', {
+    sessionId: context.sessionId,
+    reasonCode: decision.reasonCode,
+    totalScore: decision.totalScore,
+    threshold: decision.threshold,
+    signalHits: decision.signalHits,
+    profile: decision.profile,
+  });
+
+  if (!decision.shouldTrigger) {
+    logger.debug('Skill enhancement skipped due to low score', {
+      sessionId: context.sessionId,
+      reasonCode: decision.reasonCode,
+      totalScore: decision.totalScore,
+      threshold: decision.threshold,
+      signalHits: decision.signalHits,
+    });
     return;
   }
 

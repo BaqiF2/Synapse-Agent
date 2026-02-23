@@ -1,0 +1,77 @@
+[
+  {
+    "category": "functional",
+    "feature": "F-004 阈值档位配置",
+    "description": "Support conservative, neutral and aggressive trigger profiles with deterministic threshold mapping.",
+    "overallPass": false,
+    "bdd": [
+      {
+        "scenario": "Default profile is conservative",
+        "description": "When no profile is configured, threshold should default to 3.",
+        "steps": {
+          "given": [
+            "settings.skillEnhance.triggerProfile is missing"
+          ],
+          "when": [
+            "System resolves trigger profile"
+          ],
+          "then": [
+            "Resolved profile is conservative",
+            "Resolved threshold is 3"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "Neutral profile maps to threshold 2",
+        "description": "Configured neutral profile should reduce trigger threshold to 2.",
+        "steps": {
+          "given": [
+            "settings.skillEnhance.triggerProfile is neutral"
+          ],
+          "when": [
+            "System resolves trigger profile"
+          ],
+          "then": [
+            "Resolved threshold is 2"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "Aggressive profile maps to threshold 1",
+        "description": "Configured aggressive profile should reduce trigger threshold to 1.",
+        "steps": {
+          "given": [
+            "settings.skillEnhance.triggerProfile is aggressive"
+          ],
+          "when": [
+            "System resolves trigger profile"
+          ],
+          "then": [
+            "Resolved threshold is 1"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "Unknown profile falls back safely",
+        "description": "Invalid profile value should not crash and must fallback to conservative.",
+        "steps": {
+          "given": [
+            "settings.skillEnhance.triggerProfile is invalid string"
+          ],
+          "when": [
+            "System resolves trigger profile"
+          ],
+          "then": [
+            "Resolved profile is conservative",
+            "Resolved threshold is 3",
+            "A warning log is emitted"
+          ]
+        },
+        "passes": false
+      }
+    ]
+  }
+]

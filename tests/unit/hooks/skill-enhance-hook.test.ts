@@ -1,7 +1,7 @@
 /**
  * SkillEnhanceHook Tests
  *
- * 测试 SkillEnhanceHook 的配置检查、SessionId 检查、TodoWrite 调用检测、
+ * 测试 SkillEnhanceHook 的配置检查、SessionId 检查、评分触发判定、
  * 会话读取与压缩、Meta-skill 加载、Sub-agent 执行和超时处理功能。
  */
 
@@ -34,21 +34,34 @@ mock.module('../../../src/core/sub-agents/sub-agent-manager.ts', () => ({
 }));
 
 /**
- * 创建包含 TodoWrite 调用的默认消息列表
+ * 创建默认高分消息列表（保守档 >=3 分）
  *
- * 用于测试需要通过 TodoWrite 检测的场景
+ * 命中信号：
+ * - toolCallCount >= 3 (+1)
+ * - uniqueToolCount >= 2 (+1)
+ * - hasWriteOrEdit (+1)
  */
-function createMessagesWithTodoWrite(): Message[] {
+function createDefaultScoringMessages(): Message[] {
   return [
-    { role: 'user', content: [{ type: 'text', text: 'Create tasks' }] },
+    { role: 'user', content: [{ type: 'text', text: '请帮我处理这个任务' }] },
     {
       role: 'assistant',
-      content: [{ type: 'text', text: 'Creating tasks...' }],
+      content: [{ type: 'text', text: '开始处理...' }],
       toolCalls: [
         {
           id: 'tool-1',
           name: 'Bash',
-          arguments: JSON.stringify({ command: 'TodoWrite \'{"todos":[{"content":"Test"}]}\'' }),
+          arguments: JSON.stringify({ command: 'read README.md' }),
+        },
+        {
+          id: 'tool-2',
+          name: 'Read',
+          arguments: JSON.stringify({ path: 'README.md' }),
+        },
+        {
+          id: 'tool-3',
+          name: 'Bash',
+          arguments: JSON.stringify({ command: 'write notes.md \"done\"' }),
         },
       ],
     },
@@ -60,8 +73,8 @@ function createTestContext(overrides: Partial<StopHookContext> = {}): StopHookCo
   return {
     sessionId: 'test-session-123',
     cwd: '/tmp/test',
-    // 默认包含 TodoWrite 调用，以通过检测
-    messages: createMessagesWithTodoWrite(),
+    // 默认使用高分消息，确保通过评分触发
+    messages: createDefaultScoringMessages(),
     finalResponse: 'Test response',
     ...overrides,
   };
@@ -577,7 +590,7 @@ describe('SkillEnhanceHook - 模块加载时自动注册 (Feature 15)', () => {
   });
 });
 
-describe('SkillEnhanceHook - TodoWrite 调用检测', () => {
+describe('SkillEnhanceHook - 评分触发判定', () => {
   let tempDir: string;
 
   beforeEach(() => {
@@ -592,7 +605,7 @@ describe('SkillEnhanceHook - TodoWrite 调用检测', () => {
     delete process.env.SYNAPSE_SESSIONS_DIR;
   });
 
-  it('无 TodoWrite 调用时应跳过增强', async () => {
+  it('低分场景应跳过增强', async () => {
     const { SettingsManager } = await import('../../../src/shared/config/settings-manager.ts');
     const { skillEnhanceHook } = await import('../../../src/core/hooks/skill-enhance-hook.ts');
 
@@ -613,17 +626,27 @@ describe('SkillEnhanceHook - TodoWrite 调用检测', () => {
     settingsProto.getMaxEnhanceContextChars = () => 50000;
 
     try {
-      // 创建不包含 TodoWrite 调用的 context
+      // 低分消息：仅 1 个工具调用，无写入编辑、无澄清、无恢复
       const context = createTestContext({
-        sessionId: 'no-todo-write',
+        sessionId: 'low-score',
         messages: [
           { role: 'user', content: [{ type: 'text', text: 'Hello' }] },
-          { role: 'assistant', content: [{ type: 'text', text: 'Hi!' }] },
+          {
+            role: 'assistant',
+            content: [{ type: 'text', text: 'Hi!' }],
+            toolCalls: [
+              {
+                id: 'tool-1',
+                name: 'Bash',
+                arguments: JSON.stringify({ command: 'read README.md' }),
+              },
+            ],
+          },
         ],
       });
       const result = await skillEnhanceHook(context);
 
-      // 应该直接返回 undefined（跳过增强）
+      // 低于保守阈值（>=3）时应跳过
       expect(result).toBeUndefined();
     } finally {
       settingsProto.isAutoEnhanceEnabled = originalIsAutoEnhanceEnabled;
@@ -631,16 +654,16 @@ describe('SkillEnhanceHook - TodoWrite 调用检测', () => {
     }
   });
 
-  it('有 TodoWrite 调用时应继续增强流程', async () => {
+  it('达到阈值时应继续增强流程', async () => {
     const { SettingsManager } = await import('../../../src/shared/config/settings-manager.ts');
     const { skillEnhanceHook } = await import('../../../src/core/hooks/skill-enhance-hook.ts');
 
     // 创建会话文件
-    const sessionPath = path.join(tempDir, 'with-todo-write.jsonl');
+    const sessionPath = path.join(tempDir, 'score-reached.jsonl');
     fs.writeFileSync(
       sessionPath,
-      '{"id":"msg-1","timestamp":"2025-01-01T00:00:00Z","role":"user","content":"Create a task list"}\n' +
-        '{"id":"msg-2","timestamp":"2025-01-01T00:00:01Z","role":"assistant","content":"Creating tasks..."}\n'
+      '{"id":"msg-1","timestamp":"2025-01-01T00:00:00Z","role":"user","content":"Create output file"}\n' +
+        '{"id":"msg-2","timestamp":"2025-01-01T00:00:01Z","role":"assistant","content":"Working..."}\n'
     );
 
     // Mock settings
@@ -652,9 +675,9 @@ describe('SkillEnhanceHook - TodoWrite 调用检测', () => {
     settingsProto.getMaxEnhanceContextChars = () => 50000;
 
     try {
-      // 创建包含 TodoWrite 调用的 context
+      // 高分消息：工具调用>=3, unique>=2, write/edit 命中
       const context = createTestContext({
-        sessionId: 'with-todo-write',
+        sessionId: 'score-reached',
         messages: [
           { role: 'user', content: [{ type: 'text', text: 'Create a task list' }] },
           {
@@ -664,7 +687,17 @@ describe('SkillEnhanceHook - TodoWrite 调用检测', () => {
               {
                 id: 'tool-1',
                 name: 'Bash',
-                arguments: JSON.stringify({ command: 'TodoWrite \'{"todos":[{"content":"Test task"}]}\'' }),
+                arguments: JSON.stringify({ command: 'read README.md' }),
+              },
+              {
+                id: 'tool-2',
+                name: 'Read',
+                arguments: JSON.stringify({ path: 'README.md' }),
+              },
+              {
+                id: 'tool-3',
+                name: 'Bash',
+                arguments: JSON.stringify({ command: 'write out.txt "ok"' }),
               },
             ],
           },
@@ -674,19 +707,18 @@ describe('SkillEnhanceHook - TodoWrite 调用检测', () => {
 
       // 应该继续执行并返回结果（不是 undefined）
       expect(result).toBeDefined();
-      // 不应该因为缺少 TodoWrite 而跳过
     } finally {
       settingsProto.isAutoEnhanceEnabled = originalIsAutoEnhanceEnabled;
       settingsProto.getMaxEnhanceContextChars = originalGetMaxEnhanceContextChars;
     }
   });
 
-  it('TodoWrite 命令前有空格时也应检测成功', async () => {
+  it('宽松错误恢复信号应加分并触发', async () => {
     const { SettingsManager } = await import('../../../src/shared/config/settings-manager.ts');
     const { skillEnhanceHook } = await import('../../../src/core/hooks/skill-enhance-hook.ts');
 
     // 创建会话文件
-    const sessionPath = path.join(tempDir, 'with-space-todo-write.jsonl');
+    const sessionPath = path.join(tempDir, 'error-recovered.jsonl');
     fs.writeFileSync(
       sessionPath,
       '{"id":"msg-1","timestamp":"2025-01-01T00:00:00Z","role":"user","content":"Test"}\n'
@@ -701,74 +733,47 @@ describe('SkillEnhanceHook - TodoWrite 调用检测', () => {
     settingsProto.getMaxEnhanceContextChars = () => 50000;
 
     try {
-      // 创建包含带前导空格的 TodoWrite 调用的 context
+      // 仅靠错误恢复(+2) + 工具调用>=3(+1) 触发保守阈值
       const context = createTestContext({
-        sessionId: 'with-space-todo-write',
+        sessionId: 'error-recovered',
         messages: [
+          { role: 'user', content: [{ type: 'text', text: 'Test' }] },
           {
             role: 'assistant',
-            content: [],
+            content: [{ type: 'text', text: 'run commands' }],
             toolCalls: [
               {
                 id: 'tool-1',
                 name: 'Bash',
-                arguments: JSON.stringify({ command: '  TodoWrite \'{"todos":[]}\'' }),
+                arguments: JSON.stringify({ command: 'read a.txt' }),
               },
-            ],
-          },
-        ],
-      });
-      const result = await skillEnhanceHook(context);
-
-      // 应该继续执行并返回结果
-      expect(result).toBeDefined();
-    } finally {
-      settingsProto.isAutoEnhanceEnabled = originalIsAutoEnhanceEnabled;
-      settingsProto.getMaxEnhanceContextChars = originalGetMaxEnhanceContextChars;
-    }
-  });
-
-  it('非 Bash 工具调用时不应误判为 TodoWrite', async () => {
-    const { SettingsManager } = await import('../../../src/shared/config/settings-manager.ts');
-    const { skillEnhanceHook } = await import('../../../src/core/hooks/skill-enhance-hook.ts');
-
-    // 创建会话文件
-    const sessionPath = path.join(tempDir, 'other-tool.jsonl');
-    fs.writeFileSync(
-      sessionPath,
-      '{"id":"msg-1","timestamp":"2025-01-01T00:00:00Z","role":"user","content":"Test"}\n'
-    );
-
-    // Mock settings
-    const settingsProto = SettingsManager.prototype;
-    const originalIsAutoEnhanceEnabled = settingsProto.isAutoEnhanceEnabled;
-    const originalGetMaxEnhanceContextChars = settingsProto.getMaxEnhanceContextChars;
-
-    settingsProto.isAutoEnhanceEnabled = () => true;
-    settingsProto.getMaxEnhanceContextChars = () => 50000;
-
-    try {
-      // 创建包含其他工具调用的 context
-      const context = createTestContext({
-        sessionId: 'other-tool',
-        messages: [
-          {
-            role: 'assistant',
-            content: [],
-            toolCalls: [
               {
-                id: 'tool-1',
-                name: 'Read',
-                arguments: JSON.stringify({ path: '/some/file.txt' }),
+                id: 'tool-2',
+                name: 'Bash',
+                arguments: JSON.stringify({ command: 'read b.txt' }),
+              },
+              {
+                id: 'tool-3',
+                name: 'Bash',
+                arguments: JSON.stringify({ command: 'read c.txt' }),
               },
             ],
+          },
+          {
+            role: 'tool',
+            toolCallId: 'tool-1',
+            content: [{ type: 'text', text: 'Command failed with exit code 1\n[stderr]\nboom' }],
+          },
+          {
+            role: 'tool',
+            toolCallId: 'tool-2',
+            content: [{ type: 'text', text: 'ok' }],
           },
         ],
       });
       const result = await skillEnhanceHook(context);
 
-      // 应该跳过增强（返回 undefined）
-      expect(result).toBeUndefined();
+      expect(result).toBeDefined();
     } finally {
       settingsProto.isAutoEnhanceEnabled = originalIsAutoEnhanceEnabled;
       settingsProto.getMaxEnhanceContextChars = originalGetMaxEnhanceContextChars;

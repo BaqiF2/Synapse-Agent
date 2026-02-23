@@ -1,0 +1,131 @@
+[
+  {
+    "category": "functional",
+    "feature": "F-001 综合评分触发判定",
+    "description": "Use fixed weighted signals to decide trigger by comparing total score and threshold.",
+    "overallPass": false,
+    "bdd": [
+      {
+        "scenario": "Score reaches threshold and triggers enhancement",
+        "description": "When total score is equal to or greater than threshold, trigger must be true.",
+        "steps": {
+          "given": [
+            "autoEnhanceEnabled is true",
+            "completedNormally is true",
+            "sessionId is not null",
+            "toolCallCount is 3",
+            "uniqueToolCount is 2",
+            "hasErrorRecovered is false",
+            "hasWriteOrEdit is true",
+            "userClarificationCount is 0",
+            "profile is conservative"
+          ],
+          "when": [
+            "System evaluates trigger score"
+          ],
+          "then": [
+            "totalScore is 3",
+            "threshold is 3",
+            "shouldTrigger is true",
+            "reasonCode is SCORE_REACHED"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "Score below threshold does not trigger",
+        "description": "When total score is lower than threshold, trigger must be false.",
+        "steps": {
+          "given": [
+            "autoEnhanceEnabled is true",
+            "completedNormally is true",
+            "sessionId is not null",
+            "toolCallCount is 2",
+            "uniqueToolCount is 1",
+            "hasErrorRecovered is false",
+            "hasWriteOrEdit is true",
+            "userClarificationCount is 0",
+            "profile is conservative"
+          ],
+          "when": [
+            "System evaluates trigger score"
+          ],
+          "then": [
+            "totalScore is 1",
+            "threshold is 3",
+            "shouldTrigger is false",
+            "reasonCode is LOW_SCORE"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "Loose error recovery contributes +2 score",
+        "description": "A previous tool error followed by any later successful tool result should count as recovered.",
+        "steps": {
+          "given": [
+            "autoEnhanceEnabled is true",
+            "completedNormally is true",
+            "sessionId is not null",
+            "Task has at least one failed tool result",
+            "Task has at least one later successful tool result",
+            "Other signal score subtotal is 1",
+            "profile is conservative"
+          ],
+          "when": [
+            "System detects hasErrorRecovered using loose rule and evaluates score"
+          ],
+          "then": [
+            "hasErrorRecovered is true",
+            "totalScore is 3",
+            "shouldTrigger is true"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "Precondition gate short-circuits scoring",
+        "description": "If auto-enhance is off or session is missing, system must skip trigger regardless of signals.",
+        "steps": {
+          "given": [
+            "autoEnhanceEnabled is false",
+            "completedNormally is true",
+            "sessionId is not null",
+            "Signal combination would otherwise score 5"
+          ],
+          "when": [
+            "System evaluates trigger decision"
+          ],
+          "then": [
+            "shouldTrigger is false",
+            "reasonCode is AUTO_ENHANCE_OFF",
+            "No enhancement execution is started"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "Invalid profile falls back to conservative threshold",
+        "description": "Unknown profile value should use threshold 3 safely.",
+        "steps": {
+          "given": [
+            "autoEnhanceEnabled is true",
+            "completedNormally is true",
+            "sessionId is not null",
+            "profile value is unknown",
+            "totalScore is 2"
+          ],
+          "when": [
+            "System resolves profile and evaluates score"
+          ],
+          "then": [
+            "threshold is 3",
+            "shouldTrigger is false",
+            "reasonCode is LOW_SCORE"
+          ]
+        },
+        "passes": false
+      }
+    ]
+  }
+]
