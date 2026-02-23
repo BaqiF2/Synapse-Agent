@@ -349,7 +349,7 @@ export async function step(
 
   const emitTaskSummaryEnd = (
     toolCallId: string,
-    options: { success: boolean; errorSummary?: string }
+    options: { success: boolean; errorSummary?: string; resultOutput?: string }
   ): void => {
     if (completedTaskSummaries.has(toolCallId)) {
       return;
@@ -371,6 +371,9 @@ export async function step(
       endedAt,
       durationMs: Math.max(0, endedAt - startEvent.startedAt),
       success: options.success,
+      ...(options.resultOutput
+        ? { resultOutput: options.resultOutput }
+        : {}),
       ...(options.success
         ? {}
         : { errorSummary: options.errorSummary ?? 'Unknown error' }),
@@ -422,6 +425,7 @@ export async function step(
       (result) => {
         emitTaskSummaryEnd(result.toolCallId, {
           success: !result.returnValue.isError,
+          resultOutput: result.returnValue.output,
           errorSummary: result.returnValue.isError
             ? summarizeTaskError(result.returnValue.output, result.returnValue.message)
             : undefined,

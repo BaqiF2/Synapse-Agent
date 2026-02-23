@@ -288,6 +288,27 @@ describe('TerminalRenderer', () => {
     expect(output).toContain('reason: line1 line2');
   });
 
+  it('should render task result output after task summary end in TTY mode', () => {
+    const renderer = new TerminalRenderer();
+    renderer.renderTaskSummaryEnd({
+      taskCallId: 'task-4',
+      taskType: 'skill:search',
+      description: 'Search skills',
+      startedAt: Date.now() - 900,
+      endedAt: Date.now(),
+      durationMs: 900,
+      success: true,
+      resultOutput: '找到技能: roadtrip-planner\n下一步: skill:load roadtrip-planner',
+    });
+
+    const logs = (console.log as unknown as { mock: { calls: unknown[][] } }).mock.calls;
+    const output = logs.map((call) => stripAnsi(String(call[0] ?? ''))).join('\n');
+    expect(output).toContain('Task(skill:search)');
+    expect(output).toContain('completed [0.9s]');
+    expect(output).toContain('找到技能: roadtrip-planner');
+    expect(output).toContain('下一步: skill:load roadtrip-planner');
+  });
+
   it('should skip task summary rendering when stdout is not TTY', () => {
     (process.stdout as { isTTY?: boolean }).isTTY = false;
     const renderer = new TerminalRenderer();

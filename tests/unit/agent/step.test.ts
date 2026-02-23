@@ -298,7 +298,7 @@ describe('step', () => {
 
   it('should emit task summary start/end callbacks for task commands', async () => {
     const starts: Array<{ id: string; type: string; description: string }> = [];
-    const ends: Array<{ id: string; success: boolean; durationMs: number }> = [];
+    const ends: Array<{ id: string; success: boolean; durationMs: number; resultOutput?: string }> = [];
 
     const client = createMockClient([
       { type: 'tool_call', id: 'call-task', name: 'Bash', input: { command: 'task:explore --prompt "x" --description "Explore files"' } },
@@ -312,7 +312,12 @@ describe('step', () => {
         starts.push({ id: event.taskCallId, type: event.taskType, description: event.description });
       },
       onTaskSummaryEnd: (event) => {
-        ends.push({ id: event.taskCallId, success: event.success, durationMs: event.durationMs });
+        ends.push({
+          id: event.taskCallId,
+          success: event.success,
+          durationMs: event.durationMs,
+          resultOutput: event.resultOutput,
+        });
       },
     });
 
@@ -322,6 +327,7 @@ describe('step', () => {
     expect(ends).toHaveLength(1);
     expect(ends[0]?.id).toBe('call-task');
     expect(ends[0]?.success).toBe(true);
+    expect(ends[0]?.resultOutput).toBe('done');
     expect((ends[0]?.durationMs ?? -1)).toBeGreaterThanOrEqual(0);
   });
 

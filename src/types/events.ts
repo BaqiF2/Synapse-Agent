@@ -244,4 +244,6 @@ export interface TaskSummaryEndEvent {
   success: boolean;
   /** 失败时的单行错误摘要 */
   errorSummary?: string;
+  /** task 返回结果（用于终端展示详细输出） */
+  resultOutput?: string;
 }

@@ -22,6 +22,9 @@ import { AnimationController } from './animation-controller.ts';
 import { ToolCallRenderer } from './tool-call-renderer.ts';
 import { SubAgentRenderer } from './sub-agent-renderer.ts';
 import type { ActiveSubAgentState } from './renderer-types.ts';
+import { parseEnvInt } from '../../shared/env.ts';
+
+const MAX_OUTPUT_LINES = parseEnvInt(process.env.SYNAPSE_MAX_OUTPUT_LINES, 5);
 
 /**
  * TerminalRenderer - 终端渲染 Facade
@@ -139,12 +142,14 @@ export class TerminalRenderer {
     const durationSec = (event.durationMs / 1000).toFixed(1);
     if (event.success) {
       console.log(`${chalk.green('✓')} ${chalk.yellow(`Task(${event.taskType})`)} ${chalk.gray(`completed [${durationSec}s]`)}`);
+      this.renderTaskResultOutput(event.resultOutput, true);
       return;
     }
 
     console.log(`${chalk.red('✗')} ${chalk.yellow(`Task(${event.taskType})`)} ${chalk.red(`failed [${durationSec}s]`)}`);
     const reason = this.normalizeReason(event.errorSummary);
     console.log(chalk.red(`  reason: ${reason}`));
+    this.renderTaskResultOutput(event.resultOutput, false);
   }
 
   private normalizeReason(reason?: string): string {
@@ -154,6 +159,24 @@ export class TerminalRenderer {
       return singleLine;
     }
     return `${singleLine.slice(0, maxLength - 3)}...`;
+  }
+
+  private renderTaskResultOutput(output: string | undefined, success: boolean): void {
+    const normalizedOutput = output?.trim();
+    if (!normalizedOutput) {
+      return;
+    }
+
+    const outputColor = success ? chalk.gray : chalk.red;
+    const lines = normalizedOutput.split('\n');
+    const displayLines = lines.slice(0, MAX_OUTPUT_LINES);
+    for (const lineText of displayLines) {
+      console.log(outputColor(`  ${lineText}`));
+    }
+    const omitted = lines.length - displayLines.length;
+    if (omitted > 0) {
+      console.log(outputColor(`  ...[omit ${omitted} lines]`));
+    }
   }
 }
 
