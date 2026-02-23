@@ -1,0 +1,121 @@
+[
+  {
+    "category": "functional",
+    "feature": "TaskReturnSummary",
+    "description": "task:* 返回结果在进入主 Agent 前必须被压缩为单句，并满足 4096 token 硬限制。",
+    "overallPass": true,
+    "bdd": [
+      {
+        "scenario": "Always summarize task success result",
+        "description": "task:* 成功返回时，不允许原文直通，必须返回单句摘要。",
+        "steps": {
+          "given": [
+            "存在一个 task:general 调用，并产生多段原始文本结果",
+            "系统启用了 Task 返回摘要机制"
+          ],
+          "when": [
+            "SubAgentExecutor 准备将结果返回给主 Agent"
+          ],
+          "then": [
+            "返回文本为单句摘要",
+            "返回文本不是原始全文",
+            "主 Agent history 中仅写入该单句摘要"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "Always summarize task failure result",
+        "description": "task:* 失败返回也必须单句化，不能写入完整错误全文。",
+        "steps": {
+          "given": [
+            "存在一个 task:* 调用并返回失败文本",
+            "失败文本包含多行错误详情"
+          ],
+          "when": [
+            "SubAgentExecutor 返回结果"
+          ],
+          "then": [
+            "返回文本为单句失败摘要",
+            "返回文本满足 token 上限",
+            "主 Agent history 不包含原始多行错误全文"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "Enforce hard token limit with truncation",
+        "description": "摘要文本超过 4096 token 时必须直接截断，并追加省略号。",
+        "steps": {
+          "given": [
+            "摘要阶段产出的单句文本 token 数大于 4096",
+            "token 计数口径使用 countTokens"
+          ],
+          "when": [
+            "系统执行返回前硬校验"
+          ],
+          "then": [
+            "最终返回文本 token 数小于等于 4096",
+            "最终返回文本末尾包含 …"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "LLM summary failure fallback to local summary",
+        "description": "LLM 摘要失败时应自动降级本地首句提取并继续返回。",
+        "steps": {
+          "given": [
+            "task:* 原始结果可用",
+            "LLM 摘要阶段发生异常或超时"
+          ],
+          "when": [
+            "系统执行降级流程"
+          ],
+          "then": [
+            "系统使用本地规则生成单句",
+            "返回流程不中断",
+            "返回文本满足 token 上限"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "Local summary failure fallback to final message",
+        "description": "本地摘要也失败时，必须返回固定兜底文案并控长。",
+        "steps": {
+          "given": [
+            "LLM 摘要失败",
+            "本地首句提取失败或得到空结果"
+          ],
+          "when": [
+            "系统触发最终兜底"
+          ],
+          "then": [
+            "返回文本格式为 [Task摘要失败] 原因: <极短原因>",
+            "返回文本 token 数小于等于 4096"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "Apply only to task commands",
+        "description": "摘要机制仅作用于 task:*，其他工具保持原有行为。",
+        "steps": {
+          "given": [
+            "存在 task:* 与 read/write/edit/bash 两类工具返回",
+            "系统进入 tool result 写回阶段"
+          ],
+          "when": [
+            "系统判定是否应用 Task 摘要机制"
+          ],
+          "then": [
+            "task:* 返回应用强制单句摘要",
+            "read/write/edit/bash 返回不经过该摘要机制"
+          ]
+        },
+        "passes": true
+      }
+    ]
+  }
+]

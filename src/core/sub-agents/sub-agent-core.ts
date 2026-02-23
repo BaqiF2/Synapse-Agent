@@ -25,6 +25,10 @@ import type {
 import { getConfig } from './configs/index.ts';
 import { createLogger } from '../../shared/file-logger.ts';
 import { isAbortError } from '../../shared/abort.ts';
+import {
+  DEFAULT_TASK_RESULT_MAX_TOKENS,
+  summarizeTaskResult,
+} from './task-return-summary.ts';
 
 /**
  * CallableTool 最小抽象接口 — 用于 callableToolToAgentTool 适配。
@@ -52,6 +56,21 @@ const DEFAULT_FAILURE_THRESHOLD = parseInt(
   process.env.SYNAPSE_FAILURE_THRESHOLD ?? '3',
   10,
 );
+const DEFAULT_TASK_SUMMARIZER_MAX_TOKENS = parsePositiveInt(
+  process.env.SYNAPSE_TASK_SUMMARIZER_MAX_TOKENS,
+  256,
+);
+const TASK_RETURN_MAX_TOKENS = parsePositiveInt(
+  process.env.SYNAPSE_TASK_RETURN_MAX_TOKENS,
+  DEFAULT_TASK_RESULT_MAX_TOKENS,
+);
+const TASK_SUMMARY_SYSTEM_PROMPT = [
+  'You compress sub-agent output into exactly one sentence.',
+  'Rules:',
+  '1) Return only one sentence.',
+  '2) Keep the most critical outcome or failure reason.',
+  '3) Never include markdown, bullet points, or extra commentary.',
+].join('\n');
 
 /**
  * 不同 SubAgent 类型的工具权限映射。
@@ -257,6 +276,17 @@ async function consumeEventStream(stream: EventStream): Promise<string> {
   return textParts.join('');
 }
 
+function parsePositiveInt(value: string | undefined, fallback: number): number {
+  if (!value) {
+    return fallback;
+  }
+  const parsed = parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return fallback;
+  }
+  return parsed;
+}
+
 /**
  * SubAgentExecutor — 基于 runAgentLoop() + EventStream 的 ISubAgentExecutor 实现。
  *
@@ -331,12 +361,14 @@ export class SubAgentExecutor implements ISubAgentExecutor {
     });
 
     let result: string;
+    let executionFailed = false;
     try {
       result = await consumeEventStream(stream);
     } catch (err) {
       if (options?.signal?.aborted || isAbortError(err)) {
         throw err;
       }
+      executionFailed = true;
       const message = err instanceof Error ? err.message : String(err);
       logger.error('Sub agent execution failed', { subAgentId, error: message });
       result = message;
@@ -344,15 +376,28 @@ export class SubAgentExecutor implements ISubAgentExecutor {
       cleanup?.();
     }
 
+    const summaryResult = await summarizeTaskResult(result, {
+      isError: executionFailed,
+      maxTokens: TASK_RETURN_MAX_TOKENS,
+      signal: options?.signal,
+      llmSummarizer: (rawResult, context) =>
+        this.summarizeTaskResultWithProvider(rawResult, context.isError, context.signal),
+    });
+
     const duration = Date.now() - startTime;
     logger.info('Sub agent task completed', {
       type,
       subAgentId,
       duration,
       resultLength: result.length,
+      summaryLength: summaryResult.summary.length,
+      rawTokens: summaryResult.metrics.rawTokens,
+      summaryTokens: summaryResult.metrics.summaryTokens,
+      truncated: summaryResult.metrics.truncated,
+      fallbackUsed: summaryResult.metrics.fallbackUsed,
     });
 
-    return result;
+    return summaryResult.summary;
   }
 
   /**
@@ -365,5 +410,46 @@ export class SubAgentExecutor implements ISubAgentExecutor {
   private generateSubAgentId(): string {
     this.subAgentCounter++;
     return `subagent-${this.subAgentCounter}-${Date.now()}`;
+  }
+
+  private async summarizeTaskResultWithProvider(
+    rawResult: string,
+    isError: boolean,
+    signal?: AbortSignal,
+  ): Promise<string> {
+    const summaryStream = this.provider.generate({
+      systemPrompt: TASK_SUMMARY_SYSTEM_PROMPT,
+      messages: [{
+        role: 'user',
+        content: [{
+          type: 'text',
+          text: [
+            `Task status: ${isError ? 'failed' : 'succeeded'}`,
+            'Generate a single-sentence summary for the following result.',
+            rawResult || '(empty result)',
+          ].join('\n\n'),
+        }],
+      }],
+      maxTokens: DEFAULT_TASK_SUMMARIZER_MAX_TOKENS,
+      temperature: 0,
+      abortSignal: signal,
+    });
+
+    for await (const _chunk of summaryStream) {
+      // consume stream
+    }
+
+    const response = await summaryStream.result;
+    const text = response.content
+      .filter((block): block is { type: 'text'; text: string } => block.type === 'text')
+      .map((block) => block.text)
+      .join(' ')
+      .trim();
+
+    if (!text) {
+      throw new Error('Task summary model returned empty response');
+    }
+
+    return text;
   }
 }

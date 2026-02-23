@@ -11,6 +11,8 @@ import type { BashSession } from '../../../src/tools/bash-session.ts';
 import type { CancelablePromise } from '../../../src/tools/callable-tool.ts';
 import { McpClient, McpConfigParser } from '../../../src/tools/converters/mcp/index.ts';
 import type { SandboxManager } from '../../../src/shared/sandbox/sandbox-manager.ts';
+import { SubAgentExecutor } from '../../../src/core/sub-agents/sub-agent-core.ts';
+import type { LLMProviderLike, LLMResponse, LLMStream, LLMStreamChunk } from '../../../src/types/provider.ts';
 
 type SessionMock = {
   execute: ReturnType<typeof mock>;
@@ -29,6 +31,23 @@ function createSessionStub() {
 
 function asSessionMock(session: BashSession): SessionMock {
   return session as unknown as SessionMock;
+}
+
+function createFixedResponseProvider(responses: LLMResponse[]): LLMProviderLike {
+  let callIndex = 0;
+  return {
+    name: 'mock-provider',
+    model: 'mock-model',
+    generate() {
+      const response = responses[callIndex] ?? responses[responses.length - 1]!;
+      callIndex++;
+      const stream: LLMStream = {
+        async *[Symbol.asyncIterator](): AsyncGenerator<LLMStreamChunk> {},
+        result: Promise.resolve(response),
+      };
+      return stream;
+    },
+  };
 }
 
 describe('BashRouter', () => {
@@ -116,6 +135,42 @@ describe('BashRouter', () => {
 
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain('Task commands require SubAgent executor');
+  });
+
+  it('should apply forced summary only to task commands and keep read output unchanged', async () => {
+    const session = createSessionStub();
+    const provider = createFixedResponseProvider([
+      {
+        content: [{ type: 'text', text: '原始任务输出第一句。\n原始任务输出第二句。' }],
+        stopReason: 'end_turn',
+        usage: { inputTokens: 10, outputTokens: 5 },
+      },
+      {
+        content: [{ type: 'text', text: '任务摘要单句。额外句子。' }],
+        stopReason: 'end_turn',
+        usage: { inputTokens: 10, outputTokens: 5 },
+      },
+    ]);
+    const subAgentExecutor = new SubAgentExecutor({ provider, parentTools: [] });
+    const router = new BashRouter(session, {
+      subAgentExecutorFactory: () => subAgentExecutor,
+    });
+
+    const taskResult = await router.route('task:general --prompt "test prompt" --description "test task"');
+    expect(taskResult.exitCode).toBe(0);
+    expect(taskResult.stdout).toBe('任务摘要单句。');
+    expect(taskResult.stdout).not.toContain('原始任务输出第二句');
+
+    const tempFilePath = path.join(os.tmpdir(), `synapse-task-scope-${Date.now()}.txt`);
+    fs.writeFileSync(tempFilePath, 'line1\nline2', 'utf8');
+    try {
+      const readResult = await router.route(`read ${tempFilePath}`);
+      expect(readResult.exitCode).toBe(0);
+      expect(readResult.stdout).toContain('line1');
+      expect(readResult.stdout).toContain('line2');
+    } finally {
+      fs.rmSync(tempFilePath, { force: true });
+    }
   });
 
   it('should allow echo redirection file writes', async () => {
