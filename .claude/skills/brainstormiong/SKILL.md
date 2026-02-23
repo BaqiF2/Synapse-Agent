@@ -3,13 +3,13 @@ name: brainstorming
 description: "You MUST use this before any creative work - creating features, building components, adding functionality, or modifying behavior. Explores user intent, requirements and design before implementation."
 ---
 
-# Brainstorming Ideas Into Designs
+# Brainstorming Ideas Into Requirements
 
 ## Overview
 
-Help turn ideas into fully formed designs and specs through natural collaborative dialogue.
+Help turn ideas into validated, testable requirement specifications through natural collaborative dialogue. The process starts by understanding user intent, explores approaches, refines design through incremental validation, and produces formal PRD and BDD acceptance documents.
 
-Start by understanding the current project context, then ask questions one at a time to refine the idea. Once you understand what you're building, present the design in small sections (200-300 words), checking after each section whether it looks right so far.
+Start by understanding the current project context, then ask questions one at a time to refine the idea. Once the design is validated, produce a formal PRD and BDD acceptance criteria — all before any technical implementation begins.
 
 ## The Process
 
@@ -54,15 +54,52 @@ After the full design is presented and validated, run every design point through
 
 ## After the Design
 
-**Documentation:**
-- Write the validated design to `docs/plans/YYYY-MM-DD-<topic>-design.md`
-- Use elements-of-style:writing-clearly-and-concisely skill if available
-- Commit the design document to git
+### Phase 1: PRD Specification
 
-**Implementation (if continuing):**
+**Goal**: Transform the validated design into a formal, testable PRD.
+
+Read `references/prd-template.md` for the document template.
+
+**Execution rules**:
+1. Write the PRD based on conversation history and the validated design
+2. Write to: `docs/requirements/YYYY-MM-DD-<topic>-prd.md`
+3. Present the PRD to the user section by section (300-500 words per section), confirming each before moving on
+4. **Cross-check**: Verify every design point is captured in the PRD — flag any gaps
+5. If gaps exist, present them to the user for resolution before proceeding
+6. Run the **BDD readiness check** (see checklist above) on every functional requirement
+7. Any dimension that fails → go back to the user with a targeted question. Do NOT silently assume defaults.
+
+### Phase 2: BDD Acceptance Documents
+
+**Goal**: Generate machine-parseable BDD acceptance criteria that map 1:1 to PRD requirements.
+
+Read `references/bdd-template.md` for the JSON schema and writing guide.
+
+**Execution rules**:
+1. Create directory: `docs/requirements/YYYY-MM-DD-<topic>-bdd/`
+2. Generate one JSON file per feature: `<feature-name>.json`
+3. Each JSON file follows the schema defined in `references/bdd-template.md`
+4. Set all `passes` and `overallPass` to `false` (not yet tested)
+5. Cover: normal flows, error flows, boundary conditions for each feature
+6. **Cross-check**: Compare every PRD functional requirement against BDD scenarios — ensure complete coverage
+7. If coverage gaps found, add missing scenarios
+8. Present the coverage mapping to the user for final validation
+
+### Phase 3: Summary Report
+
+After all documents are complete, present a summary to the user:
+
+1. **Design decisions** made during brainstorming (key choices and reasoning)
+2. **PRD** file path and requirement count (Must/Should/Could breakdown)
+3. **BDD** directory path, feature count, and total scenario count
+4. **Open questions** still unresolved (if any)
+5. **Coverage status**: Confirm PRD ↔ BDD alignment is complete
+
+### Continuing to Implementation (optional)
+
 - Ask: "Ready to set up for implementation?"
-- Use superpowers:using-git-worktrees to create isolated workspace
-- Use superpowers:writing-plans to create detailed implementation plan
+- Use superpowers:using-git-worktrees to create isolated workspace if available
+- Use superpowers:writing-plans to create detailed implementation plan if available
 
 ## Key Principles
 
@@ -72,3 +109,5 @@ After the full design is presented and validated, run every design point through
 - **Explore alternatives** - Always propose 2-3 approaches before settling
 - **Incremental validation** - Present design in sections, validate each
 - **Be flexible** - Go back and clarify when something doesn't make sense
+- **No silent assumptions** - If ambiguous, ask; never fill in defaults
+- **Separate problem from solution** - Requirements describe WHAT, not HOW
