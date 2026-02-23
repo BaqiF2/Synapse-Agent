@@ -11,7 +11,14 @@
  */
 
 import type { LLMClient } from '../../types/llm-client.ts';
-import { type OnToolCall, type OnToolResult, type StepResult, step as runAgentStep } from './step.ts';
+import {
+  type OnToolCall,
+  type OnToolResult,
+  type OnTaskSummaryStart,
+  type OnTaskSummaryEnd,
+  type StepResult,
+  step as runAgentStep,
+} from './step.ts';
 import type { OnMessagePart, OnUsage, GenerateFunction } from '../../types/generate.ts';
 import type { Message } from '../../types/message.ts';
 import { createTextMessage, extractText, toolResultToMessage } from '../../shared/message-utils.ts';
@@ -57,6 +64,8 @@ export interface AgentRunnerOptions {
   onMessagePart?: OnMessagePart;
   onToolCall?: OnToolCall;
   onToolResult?: OnToolResult;
+  onTaskSummaryStart?: OnTaskSummaryStart;
+  onTaskSummaryEnd?: OnTaskSummaryEnd;
   onUsage?: OnUsage;
   sessionId?: string;
   session?: Session;
@@ -92,6 +101,8 @@ export class AgentRunner extends EventEmitter {
   private onMessagePart?: OnMessagePart;
   private onToolCall?: OnToolCall;
   private onToolResult?: OnToolResult;
+  private onTaskSummaryStart?: OnTaskSummaryStart;
+  private onTaskSummaryEnd?: OnTaskSummaryEnd;
   private todoStore?: ITodoStore;
   private sm: AgentSessionManager;
   private contextOrchestrator: ContextOrchestrator;
@@ -109,6 +120,8 @@ export class AgentRunner extends EventEmitter {
     this.onMessagePart = options.onMessagePart;
     this.onToolCall = options.onToolCall;
     this.onToolResult = options.onToolResult;
+    this.onTaskSummaryStart = options.onTaskSummaryStart;
+    this.onTaskSummaryEnd = options.onTaskSummaryEnd;
     this.todoStore = options.todoStore;
     this.sm = new AgentSessionManager({
       client: options.client, session: options.session,
@@ -207,7 +220,11 @@ export class AgentRunner extends EventEmitter {
       const result = await runAgentStep(this.client, this.systemPrompt, this.toolset, this.sm.history, {
         generateFn: this.generateFn,
         onMessagePart: this.onMessagePart, onToolCall: this.onToolCall,
-        onToolResult: this.onToolResult, onUsage: (u, m) => this.sm.handleUsage(u, m), signal,
+        onToolResult: this.onToolResult,
+        onTaskSummaryStart: this.onTaskSummaryStart,
+        onTaskSummaryEnd: this.onTaskSummaryEnd,
+        onUsage: (u, m) => this.sm.handleUsage(u, m),
+        signal,
       });
 
       // 无工具调用 — 尝试停止

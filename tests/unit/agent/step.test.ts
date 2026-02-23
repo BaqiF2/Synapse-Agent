@@ -295,4 +295,74 @@ describe('step', () => {
       inputCacheCreation: 0,
     });
   });
+
+  it('should emit task summary start/end callbacks for task commands', async () => {
+    const starts: Array<{ id: string; type: string; description: string }> = [];
+    const ends: Array<{ id: string; success: boolean; durationMs: number }> = [];
+
+    const client = createMockClient([
+      { type: 'tool_call', id: 'call-task', name: 'Bash', input: { command: 'task:explore --prompt "x" --description "Explore files"' } },
+    ]);
+    const toolset = new CallableToolset([createMockCallableTool(() =>
+      Promise.resolve(ToolOk({ output: 'done' }))
+    )]);
+
+    const result = await step(client, 'System', toolset, [createTextMessage('user', 'run')], {
+      onTaskSummaryStart: (event) => {
+        starts.push({ id: event.taskCallId, type: event.taskType, description: event.description });
+      },
+      onTaskSummaryEnd: (event) => {
+        ends.push({ id: event.taskCallId, success: event.success, durationMs: event.durationMs });
+      },
+    });
+
+    await result.toolResults();
+
+    expect(starts).toEqual([{ id: 'call-task', type: 'explore', description: 'Explore files' }]);
+    expect(ends).toHaveLength(1);
+    expect(ends[0]?.id).toBe('call-task');
+    expect(ends[0]?.success).toBe(true);
+    expect((ends[0]?.durationMs ?? -1)).toBeGreaterThanOrEqual(0);
+  });
+
+  it('should emit failed task summary end when aborted', async () => {
+    const starts: string[] = [];
+    const ends: Array<{ id: string; success: boolean; errorSummary?: string }> = [];
+    const cancel = mock(() => {});
+
+    const client = createMockClient([
+      { type: 'tool_call', id: 'call-abort-task', name: 'Bash', input: { command: 'task:general --prompt "x" --description "Abort case"' } },
+    ]);
+    const toolset: Toolset = {
+      tools: [MockBashToolDef],
+      handle: mock(() => {
+        const pending = new Promise<ToolResult>(() => {}) as Promise<ToolResult> & { cancel: () => void };
+        pending.cancel = cancel;
+        return pending;
+      }),
+    };
+    const controller = new AbortController();
+
+    const result = await step(client, 'System', toolset, [createTextMessage('user', 'Run')], {
+      signal: controller.signal,
+      onTaskSummaryStart: (event) => starts.push(event.taskCallId),
+      onTaskSummaryEnd: (event) => {
+        ends.push({ id: event.taskCallId, success: event.success, errorSummary: event.errorSummary });
+      },
+    });
+
+    const toolResultsPromise = result.toolResults();
+    controller.abort();
+
+    await expect(toolResultsPromise).rejects.toMatchObject({ name: 'AbortError' });
+    expect(cancel).toHaveBeenCalled();
+    expect(starts).toEqual(['call-abort-task']);
+    expect(ends).toEqual([
+      {
+        id: 'call-abort-task',
+        success: false,
+        errorSummary: 'Task execution interrupted.',
+      },
+    ]);
+  });
 });

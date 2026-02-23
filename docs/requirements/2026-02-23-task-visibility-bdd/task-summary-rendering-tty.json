@@ -1,0 +1,84 @@
+[
+  {
+    "category": "functional",
+    "feature": "F-002 TTY Task Summary Rendering",
+    "description": "Render concise task summary lines in TTY for all task:* command types.",
+    "overallPass": false,
+    "bdd": [
+      {
+        "scenario": "Render start summary for all supported task types",
+        "description": "TTY should show a start line for skill:search, skill:enhance, explore, and general.",
+        "steps": {
+          "given": [
+            "process.stdout.isTTY is true",
+            "A TaskSummaryStart event is emitted for each supported task type",
+            "Each event has description text"
+          ],
+          "when": [
+            "Terminal renderer handles TaskSummaryStart events"
+          ],
+          "then": [
+            "A line matching Task(<taskType>) <description> is printed for each task",
+            "The line does not include prompt or action details"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "Render successful end summary with duration",
+        "description": "Successful task completion should be visible with completed status and elapsed time.",
+        "steps": {
+          "given": [
+            "process.stdout.isTTY is true",
+            "TaskSummaryEnd event has success true and durationMs"
+          ],
+          "when": [
+            "Terminal renderer handles TaskSummaryEnd"
+          ],
+          "then": [
+            "A completed summary line is printed",
+            "The line contains duration formatted in seconds"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "Render failed end summary and one-line reason",
+        "description": "Failure must include status and one short reason line.",
+        "steps": {
+          "given": [
+            "process.stdout.isTTY is true",
+            "TaskSummaryEnd event has success false and errorSummary"
+          ],
+          "when": [
+            "Terminal renderer handles TaskSummaryEnd"
+          ],
+          "then": [
+            "A failed summary line is printed",
+            "Exactly one additional reason line is printed",
+            "The reason line is truncated to short single-line output"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "Do not enforce task summary output in non-TTY mode",
+        "description": "Non-TTY behavior remains backward-compatible and not force-enabled by this feature.",
+        "steps": {
+          "given": [
+            "process.stdout.isTTY is false",
+            "TaskSummaryStart and TaskSummaryEnd events are emitted"
+          ],
+          "when": [
+            "Renderer handles those events"
+          ],
+          "then": [
+            "No mandatory new task-summary output contract is imposed",
+            "Existing non-TTY behavior remains unchanged"
+          ]
+        },
+        "passes": false
+      }
+    ]
+  }
+]

@@ -8,12 +8,15 @@
  * - TerminalRenderer: 主渲染器 Facade 类，提供工具调用和 SubAgent 的终端渲染功能
  */
 
+import chalk from 'chalk';
 import type {
   ToolCallEvent,
   ToolResultEvent,
   SubAgentEvent,
   SubAgentToolCallEvent,
   SubAgentCompleteEvent,
+  TaskSummaryStartEvent,
+  TaskSummaryEndEvent,
 } from '../../types/events.ts';
 import { AnimationController } from './animation-controller.ts';
 import { ToolCallRenderer } from './tool-call-renderer.ts';
@@ -112,6 +115,45 @@ export class TerminalRenderer {
    */
   getStoredCommand(id: string): string | undefined {
     return this.toolCallRenderer.getStoredCommand(id);
+  }
+
+  /**
+   * Render task summary start (TTY only)
+   */
+  renderTaskSummaryStart(event: TaskSummaryStartEvent): void {
+    if (!process.stdout.isTTY) {
+      return;
+    }
+    const description = event.description.trim() || 'Unnamed task';
+    console.log(`${chalk.cyan('•')} ${chalk.yellow(`Task(${event.taskType})`)} ${chalk.gray(description)}`);
+  }
+
+  /**
+   * Render task summary end (TTY only)
+   */
+  renderTaskSummaryEnd(event: TaskSummaryEndEvent): void {
+    if (!process.stdout.isTTY) {
+      return;
+    }
+
+    const durationSec = (event.durationMs / 1000).toFixed(1);
+    if (event.success) {
+      console.log(`${chalk.green('✓')} ${chalk.yellow(`Task(${event.taskType})`)} ${chalk.gray(`completed [${durationSec}s]`)}`);
+      return;
+    }
+
+    console.log(`${chalk.red('✗')} ${chalk.yellow(`Task(${event.taskType})`)} ${chalk.red(`failed [${durationSec}s]`)}`);
+    const reason = this.normalizeReason(event.errorSummary);
+    console.log(chalk.red(`  reason: ${reason}`));
+  }
+
+  private normalizeReason(reason?: string): string {
+    const singleLine = (reason ?? 'Unknown error').replace(/\s+/g, ' ').trim();
+    const maxLength = 120;
+    if (singleLine.length <= maxLength) {
+      return singleLine;
+    }
+    return `${singleLine.slice(0, maxLength - 3)}...`;
   }
 }
 

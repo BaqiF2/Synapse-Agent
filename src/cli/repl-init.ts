@@ -13,6 +13,7 @@
 import chalk from 'chalk';
 
 import { AnthropicClient } from '../providers/anthropic/anthropic-client.ts';
+import { createAnthropicProvider } from '../providers/anthropic/anthropic-provider.ts';
 import { generate } from '../providers/generate.ts';
 import { buildSystemPrompt } from '../core/system-prompt.ts';
 import type { Session } from '../core/session/session.ts';
@@ -30,6 +31,7 @@ import { SkillManager } from '../skills/manager/skill-manager.ts';
 import { SkillMetadataService } from '../skills/manager/metadata-service.ts';
 import { createLogger } from '../shared/file-logger.ts';
 import { parseEnvInt } from '../shared/env.ts';
+import { parseTaskSummaryCommand } from '../shared/task-summary.ts';
 import { SettingsManager } from '../shared/config/settings-manager.ts';
 import { TerminalRenderer } from './terminal-renderer.ts';
 import { formatStreamText } from './commands/index.ts';
@@ -82,15 +84,23 @@ export function initializeAgent(
   options: { shouldRenderTurn: () => boolean }
 ): AgentRunner | null {
   try {
-    const llmClient = new AnthropicClient({ settings: SettingsManager.getInstance().getLlmConfig() });
+    const llmSettings = SettingsManager.getInstance().getLlmConfig();
+    const llmClient = new AnthropicClient({ settings: llmSettings });
+    const llmProvider = createAnthropicProvider({
+      apiKey: llmSettings.apiKey,
+      baseURL: llmSettings.baseURL,
+      model: llmSettings.model,
+    });
 
     // 先创建 TerminalRenderer，以便传递回调给 BashTool
     const terminalRenderer = new TerminalRenderer();
 
     const bashTool = new BashTool({
+      provider: llmProvider,
       getConversationPath: () => session?.historyPath ?? null,
       skillCommandHandlerFactory: createSkillCommandHandlerFactory,
     });
+    const activeTaskSummaryIds = new Set<string>();
 
     const toolset = new CallableToolset([bashTool]);
     const systemPrompt = buildSystemPrompt({ cwd: process.cwd() });
@@ -123,8 +133,8 @@ export function initializeAgent(
           }
         }
 
-        // 跳过 task:* 命令的主层级渲染，由 SubAgent 渲染接管
-        if (command.startsWith('task:')) {
+        const taskSummaryMeta = parseTaskSummaryCommand(command);
+        if (taskSummaryMeta && activeTaskSummaryIds.has(toolCall.id)) {
           return;
         }
 
@@ -139,11 +149,24 @@ export function initializeAgent(
       },
       onToolResult: (result) => {
         if (!options.shouldRenderTurn()) return;
+        if (activeTaskSummaryIds.has(result.toolCallId)) {
+          return;
+        }
         terminalRenderer.renderToolEnd({
           id: result.toolCallId,
           success: !result.returnValue.isError,
           output: result.returnValue.output,
         });
+      },
+      onTaskSummaryStart: (event) => {
+        if (!options.shouldRenderTurn()) return;
+        activeTaskSummaryIds.add(event.taskCallId);
+        terminalRenderer.renderTaskSummaryStart(event);
+      },
+      onTaskSummaryEnd: (event) => {
+        if (!options.shouldRenderTurn()) return;
+        terminalRenderer.renderTaskSummaryEnd(event);
+        activeTaskSummaryIds.delete(event.taskCallId);
       },
     });
     return runner;

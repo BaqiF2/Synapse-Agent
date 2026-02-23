@@ -18,9 +18,11 @@ import type { OnMessagePart, OnUsage, GenerateFunction } from '../../types/gener
 import type { Message, ToolCall, ToolResult } from '../../types/message.ts';
 import type { Toolset, CancelablePromise } from '../../types/toolset.ts';
 import type { ToolReturnValue } from '../../types/tool.ts';
+import type { TaskSummaryStartEvent, TaskSummaryEndEvent } from '../../types/events.ts';
 import { createLogger } from '../../shared/file-logger.ts';
 import { createAbortError, isAbortError, throwIfAborted } from '../../shared/abort.ts';
 import { parseEnvPositiveInt } from '../../shared/env.ts';
+import { parseTaskSummaryCommand, summarizeTaskError } from '../../shared/task-summary.ts';
 
 const logger = createLogger('step');
 const TASK_COMMAND_PREFIX = 'task:';
@@ -139,9 +141,10 @@ function createToolResultTask(toolset: Toolset, toolCall: ToolCall): ToolResultT
 function notifyToolResult(
   promise: Promise<ToolResult>,
   onToolResult: OnToolResult | undefined,
-  isCancelled: () => boolean
+  isCancelled: () => boolean,
+  onTaskSummaryEnd: ((result: ToolResult) => void) | undefined,
 ): void {
-  if (!onToolResult) {
+  if (!onToolResult && !onTaskSummaryEnd) {
     return;
   }
 
@@ -150,11 +153,22 @@ function notifyToolResult(
       if (isCancelled()) {
         return;
       }
-      return Promise.resolve()
-        .then(() => onToolResult(result))
-        .catch((error) => {
-          logger.warn('onToolResult callback failed', { error });
-        });
+
+      if (onToolResult) {
+        Promise.resolve()
+          .then(() => onToolResult(result))
+          .catch((error) => {
+            logger.warn('onToolResult callback failed', { error });
+          });
+      }
+
+      if (onTaskSummaryEnd) {
+        try {
+          onTaskSummaryEnd(result);
+        } catch (error) {
+          logger.warn('onTaskSummaryEnd callback failed', { error });
+        }
+      }
     })
     .catch((error) => {
       logger.warn('Tool result promise rejected', { error });
@@ -221,6 +235,16 @@ export type OnToolCall = (toolCall: ToolCall) => void;
 export type OnToolResult = (result: ToolResult) => void;
 
 /**
+ * Callback for task summary start events
+ */
+export type OnTaskSummaryStart = (event: TaskSummaryStartEvent) => void;
+
+/**
+ * Callback for task summary end events
+ */
+export type OnTaskSummaryEnd = (event: TaskSummaryEndEvent) => void;
+
+/**
  * Step options
  */
 export interface StepOptions {
@@ -229,6 +253,8 @@ export interface StepOptions {
   onMessagePart?: OnMessagePart;
   onToolCall?: OnToolCall;
   onToolResult?: OnToolResult;
+  onTaskSummaryStart?: OnTaskSummaryStart;
+  onTaskSummaryEnd?: OnTaskSummaryEnd;
   onUsage?: OnUsage;
   signal?: AbortSignal;
 }
@@ -275,13 +301,96 @@ export async function step(
   history: readonly Message[],
   options?: StepOptions
 ): Promise<StepResult> {
-  const { generateFn: providedGenerateFn, onMessagePart, onToolCall, onToolResult, onUsage, signal } = options ?? {};
+  const {
+    generateFn: providedGenerateFn,
+    onMessagePart,
+    onToolCall,
+    onToolResult,
+    onTaskSummaryStart,
+    onTaskSummaryEnd,
+    onUsage,
+    signal,
+  } = options ?? {};
   const generateFn = await resolveGenerateFn(providedGenerateFn);
   throwIfAborted(signal);
 
   const toolCalls: ToolCall[] = [];
   const startedTasks: Map<string, ToolResultTask> = new Map();
+  const activeTaskSummaries = new Map<string, TaskSummaryStartEvent>();
+  const completedTaskSummaries = new Set<string>();
   let isCancelled = false;
+
+  const emitTaskSummaryStart = (toolCall: ToolCall): void => {
+    const command = parseBashCommand(toolCall);
+    if (!command) {
+      return;
+    }
+    const parsed = parseTaskSummaryCommand(command);
+    if (!parsed) {
+      return;
+    }
+
+    const event: TaskSummaryStartEvent = {
+      taskCallId: toolCall.id,
+      taskType: parsed.taskType,
+      description: parsed.description,
+      startedAt: Date.now(),
+    };
+    activeTaskSummaries.set(toolCall.id, event);
+
+    if (onTaskSummaryStart) {
+      try {
+        onTaskSummaryStart(event);
+      } catch (error) {
+        logger.warn('onTaskSummaryStart callback failed', { error });
+      }
+    }
+  };
+
+  const emitTaskSummaryEnd = (
+    toolCallId: string,
+    options: { success: boolean; errorSummary?: string }
+  ): void => {
+    if (completedTaskSummaries.has(toolCallId)) {
+      return;
+    }
+
+    const startEvent = activeTaskSummaries.get(toolCallId);
+    if (!startEvent) {
+      return;
+    }
+    completedTaskSummaries.add(toolCallId);
+    activeTaskSummaries.delete(toolCallId);
+
+    const endedAt = Date.now();
+    const event: TaskSummaryEndEvent = {
+      taskCallId: toolCallId,
+      taskType: startEvent.taskType,
+      description: startEvent.description,
+      startedAt: startEvent.startedAt,
+      endedAt,
+      durationMs: Math.max(0, endedAt - startEvent.startedAt),
+      success: options.success,
+      ...(options.success
+        ? {}
+        : { errorSummary: options.errorSummary ?? 'Unknown error' }),
+    };
+
+    if (onTaskSummaryEnd) {
+      try {
+        onTaskSummaryEnd(event);
+      } catch (error) {
+        logger.warn('onTaskSummaryEnd callback failed', { error });
+      }
+    }
+  };
+
+  const failPendingTaskSummaries = (errorSummary: string): void => {
+    const pendingIds = [...activeTaskSummaries.keys()];
+    for (const toolCallId of pendingIds) {
+      emitTaskSummaryEnd(toolCallId, { success: false, errorSummary });
+    }
+  };
 
   const cancelTasks = (tasks: Iterable<ToolResultTask>): void => {
     for (const task of tasks) {
@@ -289,13 +398,12 @@ export async function step(
     }
   };
 
-  const markCancelledAndCancelTasks = (tasks: Iterable<ToolResultTask>): void => {
+  const markCancelledAndCancelTasks = (tasks: Iterable<ToolResultTask>, errorSummary?: string): void => {
     isCancelled = true;
     cancelTasks(tasks);
-  };
-
-  const cancelStartedTasks = () => {
-    markCancelledAndCancelTasks(startedTasks.values());
+    if (errorSummary) {
+      failPendingTaskSummaries(errorSummary);
+    }
   };
 
   const startToolTask = (toolCall: ToolCall): ToolResultTask => {
@@ -307,7 +415,19 @@ export async function step(
     const task = createToolResultTask(toolset, toolCall);
 
     startedTasks.set(toolCall.id, task);
-    notifyToolResult(task.promise, onToolResult, () => isCancelled);
+    notifyToolResult(
+      task.promise,
+      onToolResult,
+      () => isCancelled,
+      (result) => {
+        emitTaskSummaryEnd(result.toolCallId, {
+          success: !result.returnValue.isError,
+          errorSummary: result.returnValue.isError
+            ? summarizeTaskError(result.returnValue.output, result.returnValue.message)
+            : undefined,
+        });
+      }
+    );
     return task;
   };
 
@@ -321,7 +441,9 @@ export async function step(
       const chunkTasks = chunkToolCalls.map((toolCall) => startToolTask(toolCall));
 
       const chunkPromise = waitForSettledResults(chunkToolCalls, chunkTasks);
-      const chunkResults = await guardWithAbort(signal, chunkPromise, () => markCancelledAndCancelTasks(chunkTasks));
+      const chunkResults = await guardWithAbort(signal, chunkPromise, () =>
+        markCancelledAndCancelTasks(chunkTasks, 'Task execution interrupted.')
+      );
 
       results.push(...chunkResults);
     }
@@ -349,7 +471,9 @@ export async function step(
 
       const task = startToolTask(toolCall);
       const singlePromise = waitForSettledResults([toolCall], [task]);
-      const [singleResult] = await guardWithAbort(signal, singlePromise, () => markCancelledAndCancelTasks([task]));
+      const [singleResult] = await guardWithAbort(signal, singlePromise, () =>
+        markCancelledAndCancelTasks([task], 'Task execution interrupted.')
+      );
 
       if (singleResult) {
         results.push(singleResult);
@@ -363,6 +487,7 @@ export async function step(
   const handleToolCall = (toolCall: ToolCall) => {
     logger.debug('Tool call received', { id: toolCall.id, name: toolCall.name });
     toolCalls.push(toolCall);
+    emitTaskSummaryStart(toolCall);
 
     // 触发外部回调（工具执行前）
     if (onToolCall) {
@@ -384,7 +509,13 @@ export async function step(
       signal,
     });
   } catch (error) {
-    cancelStartedTasks();
+    const interrupted = isAbortError(error) || signal?.aborted;
+    if (interrupted) {
+      markCancelledAndCancelTasks(startedTasks.values(), 'Task execution interrupted.');
+    } else {
+      markCancelledAndCancelTasks(startedTasks.values(), 'Task execution failed.');
+    }
+
     if (isAbortError(error) || signal?.aborted) {
       throw createAbortError();
     }
@@ -414,6 +545,7 @@ export async function step(
       } catch (error) {
         if (isAbortError(error) || signal?.aborted) {
           aborted = true;
+          failPendingTaskSummaries('Task execution interrupted.');
           throw createAbortError();
         }
         throw error;

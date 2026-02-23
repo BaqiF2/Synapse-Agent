@@ -204,3 +204,44 @@ export interface SubAgentCompleteEvent {
   /** 失败时的错误信息 */
   error?: string;
 }
+
+/**
+ * task:* 摘要类型
+ */
+export type TaskSummaryType = 'skill:search' | 'skill:enhance' | 'explore' | 'general';
+
+/**
+ * task:* 生命周期开始事件（终端摘要渲染）
+ */
+export interface TaskSummaryStartEvent {
+  /** 对应 ToolCall.id */
+  taskCallId: string;
+  /** task 类型 */
+  taskType: TaskSummaryType;
+  /** 简短描述（来自 --description） */
+  description: string;
+  /** 开始时间戳（毫秒） */
+  startedAt: number;
+}
+
+/**
+ * task:* 生命周期结束事件（终端摘要渲染）
+ */
+export interface TaskSummaryEndEvent {
+  /** 对应 ToolCall.id */
+  taskCallId: string;
+  /** task 类型 */
+  taskType: TaskSummaryType;
+  /** 简短描述（来自 --description） */
+  description: string;
+  /** 开始时间戳（毫秒） */
+  startedAt: number;
+  /** 结束时间戳（毫秒） */
+  endedAt: number;
+  /** 耗时（毫秒） */
+  durationMs: number;
+  /** 是否成功 */
+  success: boolean;
+  /** 失败时的单行错误摘要 */
+  errorSummary?: string;
+}
