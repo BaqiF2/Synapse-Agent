@@ -135,7 +135,6 @@ export interface AgentRunnerCreateParams {
   toolset: unknown;
   maxIterations: number;
   enableStopHooks: boolean;
-  enableSkillSearchInstruction: boolean;
   onToolCall?: (toolCall: { id: string; name: string; arguments: string }) => void;
   onToolResult?: (toolResult: { toolCallId: string; returnValue: { isError: boolean; output?: string } }) => void;
   onUsage?: (usage: TokenUsage, model: string) => void | Promise<void>;

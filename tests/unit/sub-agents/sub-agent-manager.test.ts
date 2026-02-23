@@ -30,7 +30,6 @@ function createManagerOptions(base: { client: AnthropicClient; bashTool: BashToo
         generateFn: generate,
         maxIterations: params.maxIterations,
         enableStopHooks: params.enableStopHooks,
-        enableSkillSearchInstruction: params.enableSkillSearchInstruction,
         onToolCall: params.onToolCall,
         onToolResult: params.onToolResult,
         onUsage: params.onUsage,

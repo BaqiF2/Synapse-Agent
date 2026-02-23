@@ -954,7 +954,7 @@ describe('AgentRunner', () => {
       expect(runner.getSessionUsage()).toBeNull();
     });
 
-    it('should prepend English skill-search instruction loaded from prompt file before execution', async () => {
+    it('should pass user message through without modification', async () => {
       const client = createMockClient([[{ type: 'text', text: 'Done' }]]);
       const toolset = new CallableToolset([createMockCallableTool(() =>
         Promise.resolve(ToolOk({ output: '' }))
@@ -974,41 +974,8 @@ describe('AgentRunner', () => {
       expect(firstMessage?.role).toBe('user');
       expect(firstMessage?.content[0]?.type).toBe('text');
       const userText = (firstMessage?.content[0] as { text: string }).text;
-      const [instructionBlock = ''] = userText.split('\n\nOriginal user request:\n');
-      // 验证 skill-search-priority.md 的关键内容
-      expect(instructionBlock).toContain('Skill Search Priority');
-      expect(instructionBlock).toContain('Never guess skill names');
-      expect(instructionBlock).toContain('task:skill:search');
-      expect(instructionBlock).toContain('skill:load');
-      expect(instructionBlock).toContain('command:search');
-      expect(instructionBlock).not.toContain('请');
-      expect(userText).toContain(input);
-    });
-
-    it('should skip prepending skill-search instruction when disabled', async () => {
-      const client = createMockClient([[{ type: 'text', text: 'Done' }]]);
-      const toolset = new CallableToolset([createMockCallableTool(() =>
-        Promise.resolve(ToolOk({ output: '' }))
-      )]);
-
-      const runner = new AgentRunner({
-        client,
-        systemPrompt: 'Test',
-        toolset,
-        enableStopHooks: false,
-        enableSkillSearchInstruction: false,
-      });
-
-      const input = '保持原始用户输入';
-      await runner.run(input);
-
-      const firstMessage = runner.getHistory()[0];
-      expect(firstMessage?.role).toBe('user');
-      expect(firstMessage?.content[0]?.type).toBe('text');
-      const userText = (firstMessage?.content[0] as { text: string }).text;
+      // 用户消息不再被前置注入修改，保持原样
       expect(userText).toBe(input);
-      expect(userText).not.toContain('Skill Search Priority');
-      expect(userText).not.toContain('task:skill:search');
     });
 
     it('should maintain history across calls', async () => {

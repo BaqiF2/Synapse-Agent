@@ -8,7 +8,6 @@
  * - buildSystemPrompt(): Build the complete system prompt
  * - SystemPromptOptions: System prompt configuration options
  * - AUTO_ENHANCE_PROMPT: Auto-enhance prompt for dynamic injection after task completion
- * - prependSkillSearchInstruction(): Prepend skill-search instruction to user messages
  */
 
 import path from 'node:path';
@@ -34,45 +33,32 @@ export interface SystemPromptOptions {
 
 /**
  * Build the system prompt for the LLM
+ *
+ * 加载顺序：Role → Tool Usage → Command Reference → Skills → Execution Principles
+ * 技能搜索规则已合并入 skills.md，不再单独加载或双重注入
  */
 export function buildSystemPrompt(options?: SystemPromptOptions): string {
   const sections: string[] = [];
 
-  // 1. Role
+  // 1. 角色定义
   sections.push(loadDesc(path.join(PROMPTS_DIR, 'role.md')));
 
-  // 2. Command System (merged tools + shell-commands)
-  sections.push(loadDesc(path.join(PROMPTS_DIR, 'command-system.md')));
+  // 2. 工具使用指南（统一工具调用规则的唯一来源）
+  sections.push(loadDesc(path.join(PROMPTS_DIR, 'tool-usage.md')));
 
-  // 3. Skills
+  // 3. 命令参考
+  sections.push(loadDesc(path.join(PROMPTS_DIR, 'command-reference.md')));
+
+  // 4. 技能系统（已包含搜索优先规则）
   sections.push(loadDesc(path.join(PROMPTS_DIR, 'skills.md')));
 
-  // 4. Skill Search Priority (reinforces search-first rule)
-  sections.push(loadDesc(path.join(PROMPTS_DIR, 'skill-search-priority.md')));
+  // 5. 执行原则
+  sections.push(loadDesc(path.join(PROMPTS_DIR, 'execution-principles.md')));
 
-  // 5. Ultimate Reminders
-  sections.push(loadDesc(path.join(PROMPTS_DIR, 'ultimate-reminders.md')));
-
-  // Current working directory (if provided)
+  // 当前工作目录
   if (options?.cwd) {
     sections.push(`# Current Working Directory\n\n\`${options.cwd}\``);
   }
 
   return sections.join('\n\n');
-}
-
-/**
- * 技能搜索优先指令前缀（从 prompts 目录加载）
- */
-const SKILL_SEARCH_INSTRUCTION_PREFIX = loadDesc(
-  path.join(PROMPTS_DIR, 'skill-search-priority.md')
-);
-
-/**
- * 在用户消息前添加技能搜索优先指令
- *
- * 主 Agent 启用此功能以引导 LLM 优先搜索可复用技能
- */
-export function prependSkillSearchInstruction(userMessage: string): string {
-  return `${SKILL_SEARCH_INSTRUCTION_PREFIX}\n\nOriginal user request:\n${userMessage}`;
 }

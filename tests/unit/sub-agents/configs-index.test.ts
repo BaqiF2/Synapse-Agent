@@ -34,15 +34,15 @@ describe('Sub-agent configs index', () => {
     const config = await getConfig('explore');
 
     expect(config.systemPrompt).toContain('path-scoped');
-    expect(config.systemPrompt).toContain('ONLY inspect the assigned path');
-    expect(config.systemPrompt).toContain('do not run repository-wide semantic exploration');
+    expect(config.systemPrompt).toContain('Only inspect the filesystem paths explicitly assigned');
+    expect(config.systemPrompt).toContain('Do not drift into unrelated directories');
   });
 
   it('should keep general sub-agent as semantic research mode', async () => {
     const config = await getConfig('general');
 
-    expect(config.systemPrompt).toContain('semantic');
-    expect(config.systemPrompt).toContain('broad synthesis');
+    expect(config.systemPrompt).toContain('semantic research');
+    expect(config.systemPrompt).toContain('Synthesize findings');
   });
 
   it('should build skill search config with empty permissions', async () => {

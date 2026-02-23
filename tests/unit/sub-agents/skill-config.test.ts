@@ -61,7 +61,7 @@ describe('Skill Sub Agent Config', () => {
       expect(prompt).toContain('1. skill-a: Description A');
       expect(prompt).toContain('2. skill-b: Description B');
       expect(prompt).toContain('Skill Search Agent');
-      expect(prompt).toContain('Available Skills');
+      expect(prompt).toContain('available_skills');
     });
 
     test('should handle skills without description', () => {
@@ -79,7 +79,7 @@ describe('Skill Sub Agent Config', () => {
 
       // 应该返回有效的 prompt，SKILL_LIST 被替换为空字符串
       expect(prompt).toContain('Skill Search Agent');
-      expect(prompt).toContain('Available Skills');
+      expect(prompt).toContain('available_skills');
       // 没有编号列表项
       expect(prompt).not.toMatch(/\d+\.\s+\w+:/);
     });
@@ -103,7 +103,7 @@ describe('Skill Sub Agent Config', () => {
 
       const prompt = buildSearchSystemPrompt(metadata);
 
-      expect(prompt).toContain('NO access to any tools');
+      expect(prompt).toContain('no access to tools');
     });
   });
 
@@ -116,11 +116,10 @@ describe('Skill Sub Agent Config', () => {
       const prompt = buildEnhanceSystemPrompt(metadata);
 
       expect(prompt).toContain('Skill Enhancement Agent');
-      expect(prompt).toContain('Enhancement Decision Policy');
+      expect(prompt).toContain('decision_policy');
       expect(prompt).toContain('Prefer enhancing existing skills');
-      expect(prompt).toContain('Only create a new skill when no meaningful overlap exists');
-      expect(prompt).toContain('LLM semantic reasoning');
-      expect(prompt).toContain('Do not use deterministic keyword scoring');
+      expect(prompt).toContain('no meaningful overlap exists');
+      expect(prompt).toContain('semantic reasoning');
     });
 
     test('should include available capabilities', () => {
@@ -155,10 +154,10 @@ describe('Skill Sub Agent Config', () => {
       const config = await createSkillSearchConfig();
 
       expect(config.systemPrompt).toContain('Skill Search Agent');
-      expect(config.systemPrompt).toContain('Available Skills');
-      expect(config.systemPrompt).toContain('Output Format');
+      expect(config.systemPrompt).toContain('available_skills');
+      expect(config.systemPrompt).toContain('output_format');
       expect(config.systemPrompt).toContain('matched_skills');
-      expect(config.systemPrompt).toContain('NO access to any tools');
+      expect(config.systemPrompt).toContain('no access to tools');
     });
   });
 
@@ -181,7 +180,7 @@ describe('Skill Sub Agent Config', () => {
       const config = await createSkillEnhanceConfig();
 
       expect(config.systemPrompt).toContain('Skill Enhancement Agent');
-      expect(config.systemPrompt).toContain('Enhancement Decision Policy');
+      expect(config.systemPrompt).toContain('decision_policy');
     });
   });
 

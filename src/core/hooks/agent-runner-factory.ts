@@ -37,7 +37,6 @@ export async function createPreloadedAgentRunnerFactory(
       generateFn: deps.generateFn,
       maxIterations: params.maxIterations,
       enableStopHooks: params.enableStopHooks,
-      enableSkillSearchInstruction: params.enableSkillSearchInstruction,
       onToolCall: params.onToolCall,
       onToolResult: params.onToolResult,
       onUsage: deps.onUsage,

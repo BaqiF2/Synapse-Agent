@@ -282,7 +282,6 @@ export class SubAgentManager implements ISubAgentExecutor {
       toolset,
       maxIterations: config.maxIterations ?? this.maxIterations,
       enableStopHooks: false,
-      enableSkillSearchInstruction: false,
       onToolCall,
       onToolResult: wrappedOnToolResult,
       onUsage: this.onUsage,

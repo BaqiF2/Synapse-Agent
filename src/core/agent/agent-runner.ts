@@ -25,7 +25,6 @@ import type { TokenUsage } from '../../types/usage.ts';
 import { throwIfAborted } from '../../shared/abort.ts';
 import { stripSelfDescription, countConsecutiveFailures } from './agent-runner-utils.ts';
 import { countMessageTokens } from '../../shared/token-counter.ts';
-import { prependSkillSearchInstruction } from '../system-prompt.ts';
 import { ContextOrchestrator, type AgentRunnerContextOptions, type ContextStats, type OffloadEventPayload, type CompactEventPayload } from '../context/context-orchestrator.ts';
 import type { CompactResult } from '../context/context-compactor.ts';
 import { StopHookExecutor } from '../hooks/stop-hook.ts';
@@ -64,8 +63,6 @@ export interface AgentRunnerOptions {
   sessionsDir?: string;
   enableStopHooks?: boolean;
   context?: AgentRunnerContextOptions;
-  /** 主 Agent 启用技能搜索指令；子 Agent 应禁用 */
-  enableSkillSearchInstruction?: boolean;
   /** Todo 状态存储（注入，仅主 Agent 使用） */
   todoStore?: ITodoStore;
 }
@@ -95,7 +92,6 @@ export class AgentRunner extends EventEmitter {
   private onMessagePart?: OnMessagePart;
   private onToolCall?: OnToolCall;
   private onToolResult?: OnToolResult;
-  private enableSkillSearchInstruction: boolean;
   private todoStore?: ITodoStore;
   private sm: AgentSessionManager;
   private contextOrchestrator: ContextOrchestrator;
@@ -113,7 +109,6 @@ export class AgentRunner extends EventEmitter {
     this.onMessagePart = options.onMessagePart;
     this.onToolCall = options.onToolCall;
     this.onToolResult = options.onToolResult;
-    this.enableSkillSearchInstruction = options.enableSkillSearchInstruction ?? true;
     this.todoStore = options.todoStore;
     this.sm = new AgentSessionManager({
       client: options.client, session: options.session,
@@ -199,8 +194,7 @@ export class AgentRunner extends EventEmitter {
     await this.sm.sanitize('before run');
     throwIfAborted(signal);
 
-    const enhanced = this.enableSkillSearchInstruction ? prependSkillSearchInstruction(userMessage) : userMessage;
-    await this.sm.append(createTextMessage('user', enhanced));
+    await this.sm.append(createTextMessage('user', userMessage));
 
     let consecutiveFailures = 0;
     for (let i = 0; i < this.maxIterations; i++) {
