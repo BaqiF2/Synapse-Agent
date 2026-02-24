@@ -61,7 +61,7 @@ function createDefaultScoringMessages(): Message[] {
         {
           id: 'tool-3',
           name: 'Bash',
-          arguments: JSON.stringify({ command: 'write notes.md \"done\"' }),
+          arguments: JSON.stringify({ command: 'write notes.md "done"' }),
         },
       ],
     },

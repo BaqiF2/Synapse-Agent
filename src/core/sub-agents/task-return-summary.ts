@@ -132,7 +132,7 @@ function keepSingleSentence(text: string): string {
     return '';
   }
 
-  const sentenceMatch = normalized.match(/^(.+?[。！？!?；;\.])/);
+  const sentenceMatch = normalized.match(/^(.+?[。！？!?；;.])/);
   if (sentenceMatch?.[1]) {
     return sentenceMatch[1].trim();
   }
