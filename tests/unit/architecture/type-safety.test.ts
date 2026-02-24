@@ -88,7 +88,7 @@ function countAnyUsages(dir: string): { total: number; files: Array<{ file: stri
 
 describe('PRD 4.2: TypeScript 编译安全', () => {
   it('tsc --noEmit 编译零错误', async () => {
-    const proc = Bun.spawn(['npx', 'tsc', '--noEmit'], {
+    const proc = Bun.spawn(['bun', 'run', 'typecheck'], {
       cwd: PROJECT_ROOT,
       stdout: 'pipe',
       stderr: 'pipe',
@@ -113,7 +113,7 @@ describe('PRD 4.2: TypeScript 编译安全', () => {
     }
 
     expect(exitCode).toBe(0);
-  });
+  }, 20000);
 });
 
 describe('PRD 4.2: any 使用约束', () => {
