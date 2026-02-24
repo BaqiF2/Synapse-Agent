@@ -74,4 +74,12 @@ describe('buildSystemPrompt', () => {
     expect(prompt).toContain('skill_search_rule');
     expect(prompt).toContain('search before loading a skill');
   });
+
+  it('should include TodoWrite mandatory usage policy for complex tasks', () => {
+    const prompt = buildSystemPrompt();
+
+    expect(prompt).toContain('todo_usage_policy');
+    expect(prompt).toContain('MUST use `TodoWrite`');
+    expect(prompt).toContain('3 or more distinct execution steps');
+  });
 });

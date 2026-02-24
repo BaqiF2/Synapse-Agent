@@ -42,6 +42,25 @@ Prefer agent commands over native equivalents for file operations:
 Native shell (find, grep, rg) is preferred for file discovery and content search.
 </agent_command_preferences>
 
+## TodoWrite Policy
+
+<todo_usage_policy>
+Use exact command casing: `TodoWrite` (capital T + W).
+
+MUST use `TodoWrite` when any condition is true:
+- Task requires 3 or more distinct execution steps
+- Task is expected to modify 3 or more files
+- User asks for plan/checklist/step-by-step/in-order execution
+
+When `TodoWrite` is required, follow this loop:
+1. Create initial todo list (one `in_progress`, others `pending`)
+2. Execute current `in_progress` item
+3. Update list after each meaningful step completion
+4. Repeat until all items are `completed`
+
+Skip `TodoWrite` for single, obvious operations (for example: read one file or fix one typo).
+</todo_usage_policy>
+
 ## Layer 3: Extension Commands
 
 Dynamically mounted via MCP servers or Skill scripts. Run `--help` before first use.
