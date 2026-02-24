@@ -11,7 +11,7 @@
 import { McpClient, ConnectionState } from './mcp-client.js';
 import type { McpConnectionOptions, McpToolInfo, McpConnectionResult } from './mcp-client.js';
 import type { McpServerEntry } from './config-parser.js';
-import { createLogger } from '../../../utils/logger.ts';
+import { createLogger } from '../../../shared/file-logger.ts';
 
 const logger = createLogger('mcp-client-manager');
 

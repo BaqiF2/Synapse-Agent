@@ -2,8 +2,8 @@
  * REPL 交互模式实现
  *
  * 功能：提供命令行交互式对话界面的主循环入口。
- *       命令处理、显示函数和初始化逻辑已分别提取到
- *       repl-commands.ts、repl-display.ts 和 repl-init.ts。
+ *       命令处理位于 commands/ 子目录，显示函数位于 renderer/repl-display.ts，
+ *       初始化逻辑位于 repl-init.ts。
  *
  * 核心导出：
  * - startRepl(): 启动 REPL 循环
@@ -12,10 +12,10 @@
 import * as readline from 'node:readline';
 import chalk from 'chalk';
 
-import { Session } from '../agent/session.ts';
+import { Session } from '../core/session/session.ts';
 import { FixedBottomRenderer } from './fixed-bottom-renderer.ts';
 import { extractHookOutput } from './hook-output.ts';
-import { todoStore } from '../tools/handlers/agent-bash/todo/todo-store.ts';
+import { todoStore } from '../tools/commands/todo-handler.ts';
 import {
   executeShellCommand,
   handleSpecialCommand,
@@ -26,7 +26,7 @@ import {
   type SpecialCommandOptions,
 } from './commands/index.ts';
 import { initializeAgent, initializeMcp, initializeSkills, showWelcomeBanner } from './repl-init.ts';
-import { createLogger } from '../utils/logger.ts';
+import { createLogger } from '../shared/file-logger.ts';
 
 // re-export 供外部使用（测试等）
 export { executeShellCommand, handleSpecialCommand, handleSigint, formatStreamText };

@@ -13,9 +13,9 @@ import {
   generateBestPractices,
   generateUpdates,
   parseEnhancementsFromLLM,
-} from '../../../src/skills/skill-spec-builder.ts';
-import type { ConversationAnalysis } from '../../../src/skills/skill-enhancer.ts';
-import type { ConversationTurn } from '../../../src/skills/conversation-reader.ts';
+} from '../../../src/skills/generator/skill-analysis.ts';
+import type { ConversationAnalysis } from '../../../src/skills/generator/skill-enhancer.ts';
+import type { ConversationTurn } from '../../../src/skills/generator/conversation-reader.ts';
 
 describe('buildSkillSpec', () => {
   it('should build complete spec from analysis', () => {

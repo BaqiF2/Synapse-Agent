@@ -6,7 +6,7 @@ import { describe, expect, it, beforeEach, afterEach } from 'bun:test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
-import { EditHandler } from '../../../../../src/tools/handlers/agent-bash/edit.ts';
+import { EditHandler } from '../../../../../src/tools/commands/edit-handler.ts';
 
 describe('EditHandler', () => {
   let testDir: string;

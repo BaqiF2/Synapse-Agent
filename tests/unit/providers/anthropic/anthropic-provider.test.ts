@@ -290,7 +290,7 @@ describe('AnthropicProvider', () => {
         '../../../../src/providers/anthropic/anthropic-provider.ts'
       );
       const { AuthenticationError } = await import(
-        '../../../../src/common/errors.ts'
+        '../../../../src/shared/errors.ts'
       );
 
       const provider = new AnthropicProvider({
@@ -331,7 +331,7 @@ describe('AnthropicProvider', () => {
         '../../../../src/providers/anthropic/anthropic-provider.ts'
       );
       const { RateLimitError } = await import(
-        '../../../../src/common/errors.ts'
+        '../../../../src/shared/errors.ts'
       );
 
       const provider = new AnthropicProvider({

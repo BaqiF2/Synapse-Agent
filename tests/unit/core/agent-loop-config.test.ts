@@ -8,8 +8,8 @@ import {
   type AgentLoopConfig,
   validateAgentLoopConfig,
   freezeConfig,
-} from '../../../src/core/agent-loop-config.ts';
-import { ConfigurationError } from '../../../src/common/errors.ts';
+} from '../../../src/core/agent/agent-loop-config.ts';
+import { ConfigurationError } from '../../../src/shared/errors.ts';
 
 // ========== 测试辅助 ==========
 

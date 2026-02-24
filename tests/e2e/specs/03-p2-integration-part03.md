@@ -89,20 +89,20 @@
 
 ## Feature: 处理器依赖注入
 
-### Scenario: 缺少 llm/tool 依赖时 task handler 降级为固定错误
-**Given** `BashRouter` 未注入 `llmClient` 或 `toolExecutor`  
-**When** 执行 `router.route('task:general --prompt "x" --description "y"')`  
-**Then** 退出码应为 `1`  
-**And** 错误信息包含 `Task commands require LLM client and tool executor`
+### Scenario: 缺少 subAgentExecutorFactory 依赖时 task handler 降级为固定错误
+**Given** `BashRouter` 未注入 `subAgentExecutorFactory`
+**When** 执行 `router.route('task:general --prompt "x" --description "y"')`
+**Then** 退出码应为 `1`
+**And** 错误信息包含 `Task commands require SubAgent executor`
 
-### Scenario: 通过 `setToolExecutor` 延迟注入后 task 路由恢复可用
-**Given** 初始 router 未绑定 tool executor  
-**When** 调用 `setToolExecutor(executor)` 后再执行 task 命令  
-**Then** task handler 应重新初始化并按新依赖执行
+### Scenario: 注入 subAgentExecutorFactory 后 task 路由可用
+**Given** 创建 router 时传入 `subAgentExecutorFactory`
+**When** 执行 task 命令
+**Then** task handler 应通过工厂获取 executor 并执行
 
-### Scenario: 注入 llm/tool 依赖后 skill merger 启用 SubAgentManager
-**Given** 创建 router 时传入 `llmClient` 与 `toolExecutor`  
-**When** 执行一个 `skill:*` 管理命令触发 handler 初始化  
+### Scenario: 注入 subAgentExecutorFactory 后 skill merger 启用 SubAgentManager
+**Given** 创建 router 时传入 `subAgentExecutorFactory`
+**When** 执行一个 `skill:*` 管理命令触发 handler 初始化
 **Then** handler 内部 `SkillMerger.getSubAgentManager()` 不应为 `null`
 
 ## Feature: MCP 参数映射一致性

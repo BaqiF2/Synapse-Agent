@@ -7,8 +7,8 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { BashTool } from '../../../src/tools/bash-tool.ts';
-import type { CommandResult } from '../../../src/tools/handlers/native-command-handler.ts';
-import type { SandboxManager } from '../../../src/sandbox/sandbox-manager.ts';
+import type { CommandResult } from '../../../src/types/tool.ts';
+import type { SandboxManager } from '../../../src/shared/sandbox/sandbox-manager.ts';
 
 type RouterResult = CommandResult & {
   blocked?: boolean;

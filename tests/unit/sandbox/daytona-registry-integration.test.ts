@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, mock } from 'bun:test';
-import { SandboxProviderRegistry } from '../../../src/sandbox/provider-registry.ts';
-import { SandboxManager } from '../../../src/sandbox/sandbox-manager.ts';
-import { DaytonaSandboxProvider } from '../../../src/sandbox/providers/daytona/index.ts';
-import type { SandboxConfig } from '../../../src/sandbox/types.ts';
+import { SandboxProviderRegistry } from '../../../src/shared/sandbox/provider-registry.ts';
+import { SandboxManager } from '../../../src/shared/sandbox/sandbox-manager.ts';
+import { DaytonaSandboxProvider } from '../../../src/shared/sandbox/providers/daytona.ts';
+import type { SandboxConfig } from '../../../src/shared/sandbox/types.ts';
 
 function createDaytonaConfig(): SandboxConfig {
   return {

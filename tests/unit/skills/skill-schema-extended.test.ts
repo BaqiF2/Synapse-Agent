@@ -10,7 +10,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
-import { SkillDocParser, SkillDocSchema, SKILL_DOMAINS, parseSkillMd } from '../../../src/skills/skill-schema.ts';
+import { SkillDocParser, SkillDocSchema, SKILL_DOMAINS, parseSkillMd } from '../../../src/skills/schema/skill-doc-parser.ts';
 
 describe('SkillDocParser - Extended', () => {
   let tempDir: string;
@@ -279,10 +279,9 @@ Also useful for monitoring dashboards.
       expect(doc.executionSteps).toHaveLength(3);
     });
 
-    it('should not collect code blocks due to codeBlockStart regex competing with codeBlockEnd', () => {
-      // 注意：当前实现中 codeBlockStart (/^```(\w*)$/) 也匹配关闭的 ```
-      // 导致 code block 内容实际不会被收集到 examples 中
-      // 这是已知的行为限制
+    it('should collect code blocks in Examples section', () => {
+      // F-010 修复：codeBlockStart 仅在非代码块状态下匹配，
+      // code block 内容正确收集到 examples 中
       const content = `# My Skill
 
 ## Examples
@@ -293,8 +292,9 @@ grep ERROR log.txt
 `;
       const doc = parser.parseContent(content, '/tmp/SKILL.md', 'examples-skill');
 
-      // 由于 codeBlockStart 先匹配关闭的 ```，code block 内容不会被收集
-      expect(doc.examples).toHaveLength(0);
+      expect(doc.examples).toHaveLength(1);
+      expect(doc.examples[0]).toContain('echo "hello world"');
+      expect(doc.examples[0]).toContain('grep ERROR log.txt');
     });
 
     it('should handle multiple code blocks in Examples section', () => {
@@ -311,8 +311,10 @@ print("second")
 `;
       const doc = parser.parseContent(content, '/tmp/SKILL.md', 'multi-examples');
 
-      // 由于 codeBlockStart/End 竞争，code block 不被收集
-      expect(doc.examples).toEqual([]);
+      // 修复后代码块正确收集
+      expect(doc.examples).toHaveLength(2);
+      expect(doc.examples[0]).toContain('echo "first"');
+      expect(doc.examples[1]).toContain('print("second")');
     });
 
     it('should parse Tools section with backtick references', () => {
@@ -524,8 +526,9 @@ Some plain text example
 `;
       const doc = parser.parseContent(content, '/tmp/SKILL.md', 'code-outside');
 
-      // 由于 codeBlockStart/End 正则竞争，所有 code block 内容都不会被收集
-      expect(doc.examples).toEqual([]);
+      // Usage Scenarios 中的代码块不会被收集到 examples
+      // Examples 中的纯文本行会被收集
+      expect(doc.examples).toEqual(['Some plain text example']);
     });
 
     it('should handle multiple sections without content', () => {

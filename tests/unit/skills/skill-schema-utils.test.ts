@@ -14,8 +14,8 @@ import {
   parseSectionContent,
   stripWrappingQuotes,
   PATTERNS,
-} from '../../../src/skills/skill-schema-utils.ts';
-import type { SkillDoc } from '../../../src/skills/skill-schema.ts';
+} from '../../../src/skills/schema/skill-doc-schema.ts';
+import type { SkillDoc } from '../../../src/skills/schema/skill-doc-parser.ts';
 
 describe('PATTERNS', () => {
   it('should match key-value pattern', () => {

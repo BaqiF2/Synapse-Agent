@@ -4,10 +4,10 @@
  */
 
 import { describe, it, expect } from 'bun:test';
-import { runAgentLoop } from '../../../src/core/agent-loop.ts';
+import { runAgentLoop } from '../../../src/core/agent/agent-loop.ts';
 import type { AgentEvent, LLMProviderLike, AgentTool, ToolResult, LLMProviderMessage } from '../../../src/core/types.ts';
-import type { AgentLoopConfig } from '../../../src/core/agent-loop-config.ts';
-import type { LLMResponse } from '../../../src/providers/types.ts';
+import type { AgentLoopConfig } from '../../../src/core/agent/agent-loop-config.ts';
+import type { LLMResponse, LLMStream, LLMStreamChunk } from '../../../src/types/provider.ts';
 
 // ========== 测试辅助 ==========
 
@@ -20,14 +20,15 @@ function createMockProvider(
   return {
     name: 'mock-provider',
     model: 'mock-model',
-    generate(params: unknown): AsyncIterable<unknown> & { result: Promise<unknown> } {
+    generate(params) {
       options?.onGenerate?.(params);
       const response = responses[callIndex] ?? responses[responses.length - 1]!;
       callIndex++;
-      return {
-        async *[Symbol.asyncIterator]() {},
+      const stream: LLMStream = {
+        async *[Symbol.asyncIterator](): AsyncGenerator<LLMStreamChunk> {},
         result: Promise.resolve(response),
       };
+      return stream;
     },
   };
 }

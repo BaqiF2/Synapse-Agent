@@ -1,0 +1,107 @@
+[
+  {
+    "category": "functional",
+    "feature": "F-002 达标自动增强执行",
+    "description": "Automatically run enhancement when trigger decision is true and keep failure isolated from main task output.",
+    "overallPass": false,
+    "bdd": [
+      {
+        "scenario": "Auto execute enhancement after trigger reached",
+        "description": "A passing trigger decision should directly start skill enhancement without user confirmation.",
+        "steps": {
+          "given": [
+            "Trigger decision shouldTrigger is true",
+            "session file exists and is readable",
+            "meta-skills skill-creator and skill-enhance are available"
+          ],
+          "when": [
+            "Stop hook runs post-task enhancement flow"
+          ],
+          "then": [
+            "Skill sub-agent is executed with action enhance",
+            "Output message starts with [Skill]",
+            "No user confirmation prompt is required"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "No dedupe cooldown for repeated eligible tasks",
+        "description": "Consecutive tasks that both meet threshold should both execute enhancement.",
+        "steps": {
+          "given": [
+            "Task A reaches trigger threshold",
+            "Task B reaches trigger threshold shortly after Task A",
+            "Both tasks have valid sessions"
+          ],
+          "when": [
+            "System processes post-task hooks for Task A and Task B"
+          ],
+          "then": [
+            "Enhancement execution runs for Task A",
+            "Enhancement execution also runs for Task B",
+            "No cooldown or dedupe block is applied"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "Timeout failure is reported and isolated",
+        "description": "Sub-agent timeout should produce explicit failure message while preserving main task result.",
+        "steps": {
+          "given": [
+            "Trigger decision shouldTrigger is true",
+            "Skill sub-agent execution exceeds configured timeout"
+          ],
+          "when": [
+            "Enhancement flow waits for sub-agent result"
+          ],
+          "then": [
+            "Hook output contains Enhancement failed: execution timeout",
+            "Main task final response remains available",
+            "Process does not crash"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "Invalid output retries once then falls back",
+        "description": "If sub-agent output format is invalid twice, return fallback skill message.",
+        "steps": {
+          "given": [
+            "Trigger decision shouldTrigger is true",
+            "First sub-agent output is invalid format",
+            "Second sub-agent output is also invalid format"
+          ],
+          "when": [
+            "Enhancement flow normalizes output"
+          ],
+          "then": [
+            "System performs exactly one retry",
+            "Final hook output equals fallback no-enhancement message",
+            "No third retry occurs"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "Missing meta-skills returns explicit failure",
+        "description": "If required meta-skills are missing, enhancement should fail fast with clear reason.",
+        "steps": {
+          "given": [
+            "Trigger decision shouldTrigger is true",
+            "skill-creator or skill-enhance meta-skill cannot be loaded"
+          ],
+          "when": [
+            "Enhancement flow loads meta-skills"
+          ],
+          "then": [
+            "Hook output contains Enhancement failed: meta-skills not found",
+            "Main task final response remains available"
+          ]
+        },
+        "passes": false
+      }
+    ]
+  }
+]

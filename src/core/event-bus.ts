@@ -11,7 +11,7 @@
  */
 
 import type { AgentEvent } from './types.ts';
-import { createLogger } from '../utils/logger.ts';
+import { createLogger } from '../shared/file-logger.ts';
 
 const logger = createLogger('event-bus');
 

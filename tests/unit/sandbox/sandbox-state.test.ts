@@ -2,11 +2,11 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { SandboxManager } from '../../../src/sandbox/sandbox-manager.ts';
-import type { SandboxConfig } from '../../../src/sandbox/types.ts';
-import { LocalSandboxProvider } from '../../../src/sandbox/providers/local/index.ts';
-import type { PlatformAdapter } from '../../../src/sandbox/providers/local/platforms/platform-adapter.ts';
-import { addPermanentWhitelist, loadSandboxConfig } from '../../../src/sandbox/sandbox-config.ts';
+import { SandboxManager } from '../../../src/shared/sandbox/sandbox-manager.ts';
+import type { SandboxConfig } from '../../../src/shared/sandbox/types.ts';
+import { LocalSandboxProvider } from '../../../src/shared/sandbox/providers/local.ts';
+import type { PlatformAdapter } from '../../../src/shared/sandbox/providers/local.ts';
+import { addPermanentWhitelist, loadSandboxConfig } from '../../../src/shared/sandbox/sandbox-config.ts';
 
 function createConfig(): SandboxConfig {
   return {

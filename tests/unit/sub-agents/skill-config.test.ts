@@ -21,12 +21,12 @@ import {
   createSkillConfig,
   createSkillSearchConfig,
   createSkillEnhanceConfig,
-} from '../../../src/sub-agents/configs/skill.js';
+} from '../../../src/core/sub-agents/configs/skill.js';
 
 describe('Skill Sub Agent Config', () => {
   describe('loadAllSkillMetadata', () => {
-    test('should return array of skill metadata', () => {
-      const metadata = loadAllSkillMetadata();
+    test('should return array of skill metadata', async () => {
+      const metadata = await loadAllSkillMetadata();
 
       expect(Array.isArray(metadata)).toBe(true);
       // 每个元素应该有 name 字段
@@ -36,8 +36,8 @@ describe('Skill Sub Agent Config', () => {
       }
     });
 
-    test('should only extract name and description fields', () => {
-      const metadata = loadAllSkillMetadata();
+    test('should only extract name and description fields', async () => {
+      const metadata = await loadAllSkillMetadata();
 
       for (const skill of metadata) {
         // 应该只有 name 和 description 字段
@@ -61,7 +61,7 @@ describe('Skill Sub Agent Config', () => {
       expect(prompt).toContain('1. skill-a: Description A');
       expect(prompt).toContain('2. skill-b: Description B');
       expect(prompt).toContain('Skill Search Agent');
-      expect(prompt).toContain('Available Skills');
+      expect(prompt).toContain('available_skills');
     });
 
     test('should handle skills without description', () => {
@@ -79,7 +79,7 @@ describe('Skill Sub Agent Config', () => {
 
       // 应该返回有效的 prompt，SKILL_LIST 被替换为空字符串
       expect(prompt).toContain('Skill Search Agent');
-      expect(prompt).toContain('Available Skills');
+      expect(prompt).toContain('available_skills');
       // 没有编号列表项
       expect(prompt).not.toMatch(/\d+\.\s+\w+:/);
     });
@@ -103,7 +103,7 @@ describe('Skill Sub Agent Config', () => {
 
       const prompt = buildSearchSystemPrompt(metadata);
 
-      expect(prompt).toContain('NO access to any tools');
+      expect(prompt).toContain('no access to tools');
     });
   });
 
@@ -116,11 +116,10 @@ describe('Skill Sub Agent Config', () => {
       const prompt = buildEnhanceSystemPrompt(metadata);
 
       expect(prompt).toContain('Skill Enhancement Agent');
-      expect(prompt).toContain('Enhancement Decision Policy');
+      expect(prompt).toContain('decision_policy');
       expect(prompt).toContain('Prefer enhancing existing skills');
-      expect(prompt).toContain('Only create a new skill when no meaningful overlap exists');
-      expect(prompt).toContain('LLM semantic reasoning');
-      expect(prompt).toContain('Do not use deterministic keyword scoring');
+      expect(prompt).toContain('no meaningful overlap exists');
+      expect(prompt).toContain('semantic reasoning');
     });
 
     test('should include available capabilities', () => {
@@ -137,80 +136,80 @@ describe('Skill Sub Agent Config', () => {
   });
 
   describe('createSkillSearchConfig', () => {
-    test('should return config with empty permissions (no tools)', () => {
-      const config = createSkillSearchConfig();
+    test('should return config with empty permissions (no tools)', async () => {
+      const config = await createSkillSearchConfig();
 
       expect(config.type).toBe('skill');
       expect(config.permissions.include).toEqual([]);
       expect(config.permissions.exclude).toEqual([]);
     });
 
-    test('should have maxIterations=1 for single-turn inference', () => {
-      const config = createSkillSearchConfig();
+    test('should have maxIterations=1 for single-turn inference', async () => {
+      const config = await createSkillSearchConfig();
 
       expect(config.maxIterations).toBe(1);
     });
 
-    test('should have search mode systemPrompt', () => {
-      const config = createSkillSearchConfig();
+    test('should have search mode systemPrompt', async () => {
+      const config = await createSkillSearchConfig();
 
       expect(config.systemPrompt).toContain('Skill Search Agent');
-      expect(config.systemPrompt).toContain('Available Skills');
-      expect(config.systemPrompt).toContain('Output Format');
+      expect(config.systemPrompt).toContain('available_skills');
+      expect(config.systemPrompt).toContain('output_format');
       expect(config.systemPrompt).toContain('matched_skills');
-      expect(config.systemPrompt).toContain('NO access to any tools');
+      expect(config.systemPrompt).toContain('no access to tools');
     });
   });
 
   describe('createSkillEnhanceConfig', () => {
-    test('should return config with full permissions except task:*', () => {
-      const config = createSkillEnhanceConfig();
+    test('should return config with full permissions except task:*', async () => {
+      const config = await createSkillEnhanceConfig();
 
       expect(config.type).toBe('skill');
       expect(config.permissions.include).toBe('all');
       expect(config.permissions.exclude).toContain('task:');
     });
 
-    test('should not have maxIterations limit (uses default)', () => {
-      const config = createSkillEnhanceConfig();
+    test('should not have maxIterations limit (uses default)', async () => {
+      const config = await createSkillEnhanceConfig();
 
       expect(config.maxIterations).toBeUndefined();
     });
 
-    test('should have enhance mode systemPrompt', () => {
-      const config = createSkillEnhanceConfig();
+    test('should have enhance mode systemPrompt', async () => {
+      const config = await createSkillEnhanceConfig();
 
       expect(config.systemPrompt).toContain('Skill Enhancement Agent');
-      expect(config.systemPrompt).toContain('Enhancement Decision Policy');
+      expect(config.systemPrompt).toContain('decision_policy');
     });
   });
 
   describe('createSkillConfig', () => {
-    test('should return search config when action=search', () => {
-      const config = createSkillConfig('search');
+    test('should return search config when action=search', async () => {
+      const config = await createSkillConfig('search');
 
       expect(config.permissions.include).toEqual([]);
       expect(config.maxIterations).toBe(1);
     });
 
-    test('should return enhance config when action=enhance', () => {
-      const config = createSkillConfig('enhance');
+    test('should return enhance config when action=enhance', async () => {
+      const config = await createSkillConfig('enhance');
 
       expect(config.permissions.include).toBe('all');
       expect(config.permissions.exclude).toContain('task:');
     });
 
-    test('should return enhance config when action is undefined', () => {
-      const config = createSkillConfig();
+    test('should return enhance config when action is undefined', async () => {
+      const config = await createSkillConfig();
 
       expect(config.permissions.include).toBe('all');
       expect(config.permissions.exclude).toContain('task:');
     });
 
-    test('should have type=skill for all actions', () => {
-      expect(createSkillConfig('search').type).toBe('skill');
-      expect(createSkillConfig('enhance').type).toBe('skill');
-      expect(createSkillConfig().type).toBe('skill');
+    test('should have type=skill for all actions', async () => {
+      expect((await createSkillConfig('search')).type).toBe('skill');
+      expect((await createSkillConfig('enhance')).type).toBe('skill');
+      expect((await createSkillConfig()).type).toBe('skill');
     });
   });
 });

@@ -11,8 +11,8 @@ import {
   multiWordTextSearch,
   searchWithProvider,
   searchWithProviderDetailed,
-} from '../../../src/skills/skill-search.ts';
-import type { SkillLevel1 } from '../../../src/skills/skill-loader.ts';
+} from '../../../src/skills/loader/skill-search.ts';
+import type { SkillLevel1 } from '../../../src/skills/loader/skill-loader.ts';
 import type { LLMProvider, LLMStream, LLMResponse, GenerateParams } from '../../../src/providers/types.ts';
 import type { EmbeddingProvider } from '../../../src/providers/types.ts';
 

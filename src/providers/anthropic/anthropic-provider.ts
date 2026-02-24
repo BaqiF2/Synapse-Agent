@@ -17,15 +17,15 @@ import type {
   LLMResponse,
   LLMResponseContentBlock,
 } from '../types.ts';
-import { AuthenticationError, RateLimitError } from '../../common/errors.ts';
+import { AuthenticationError, RateLimitError } from '../../shared/errors.ts';
 import {
   toAnthropicParams,
   mapAnthropicStreamEvent,
   mapStopReason,
 } from './anthropic-mapper.ts';
-import { createLogger } from '../../common/index.ts';
+import { createLogger } from '../../shared/file-logger.ts';
 
-const logger = createLogger({ name: 'anthropic-provider' });
+const logger = createLogger('anthropic-provider');
 
 /** AnthropicProvider 构造选项 */
 export interface AnthropicProviderOptions {

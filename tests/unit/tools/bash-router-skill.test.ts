@@ -11,6 +11,9 @@ import * as path from 'node:path';
 import * as os from 'node:os';
 import { BashRouter, CommandType } from '../../../src/tools/bash-router.ts';
 import { BashSession } from '../../../src/tools/bash-session.ts';
+import { SkillLoader } from '../../../src/skills/loader/skill-loader.ts';
+import { SkillMetadataService } from '../../../src/skills/manager/metadata-service.ts';
+import { SkillIndexer } from '../../../src/skills/loader/indexer.ts';
 
 describe('BashRouter Skill Commands', () => {
   let testDir: string;
@@ -44,7 +47,14 @@ description: A test skill
     );
 
     session = new BashSession();
-    router = new BashRouter(session, { synapseDir });
+    router = new BashRouter(session, {
+      synapseDir,
+      skillCommandHandlerFactory: (homeDir) => ({
+        homeDir,
+        skillLoader: new SkillLoader(homeDir),
+        metadataService: new SkillMetadataService(skillsDir, new SkillIndexer(homeDir)),
+      }),
+    });
   });
 
   afterEach(() => {
@@ -184,10 +194,22 @@ description: A test skill
     });
 
     it('createSkillHandler should pass llm/tool dependencies', async () => {
+      const mockExecutor = {
+        execute: async () => '',
+        shutdown: () => {},
+      };
       const routerWithDeps = new BashRouter(session, {
         synapseDir,
-        llmClient: {} as any,
-        toolExecutor: {} as any,
+        subAgentExecutorFactory: () => mockExecutor,
+        skillCommandHandlerFactory: (homeDir, createSubAgentManager) => ({
+          homeDir,
+          skillLoader: new SkillLoader(homeDir),
+          metadataService: new SkillMetadataService(skillsDir, new SkillIndexer(homeDir)),
+          createSubAgentManager,
+          skillMergerFactory: (subAgent) => ({
+            getSubAgentManager: () => subAgent,
+          }),
+        }),
       });
 
       try {

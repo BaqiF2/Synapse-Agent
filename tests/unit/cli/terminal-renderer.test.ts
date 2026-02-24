@@ -252,4 +252,83 @@ describe('TerminalRenderer', () => {
     // 不应崩溃，正常输出
     expect(process.stdout.write).toHaveBeenCalled();
   });
+
+  it('should render task summary start in TTY mode', () => {
+    const renderer = new TerminalRenderer();
+    renderer.renderTaskSummaryStart({
+      taskCallId: 'task-1',
+      taskType: 'skill:search',
+      description: 'Search skills',
+      startedAt: Date.now(),
+    });
+
+    const logs = (console.log as unknown as { mock: { calls: unknown[][] } }).mock.calls;
+    const output = logs.map((call) => stripAnsi(String(call[0] ?? ''))).join('\n');
+    expect(output).toContain('Task(skill:search)');
+    expect(output).toContain('Search skills');
+  });
+
+  it('should render failed task summary end with one-line reason in TTY mode', () => {
+    const renderer = new TerminalRenderer();
+    renderer.renderTaskSummaryEnd({
+      taskCallId: 'task-2',
+      taskType: 'general',
+      description: 'General task',
+      startedAt: Date.now() - 1100,
+      endedAt: Date.now(),
+      durationMs: 1100,
+      success: false,
+      errorSummary: 'line1\nline2',
+    });
+
+    const logs = (console.log as unknown as { mock: { calls: unknown[][] } }).mock.calls;
+    const output = logs.map((call) => stripAnsi(String(call[0] ?? ''))).join('\n');
+    expect(output).toContain('Task(general)');
+    expect(output).toContain('failed [1.1s]');
+    expect(output).toContain('reason: line1 line2');
+  });
+
+  it('should render task result output after task summary end in TTY mode', () => {
+    const renderer = new TerminalRenderer();
+    renderer.renderTaskSummaryEnd({
+      taskCallId: 'task-4',
+      taskType: 'skill:search',
+      description: 'Search skills',
+      startedAt: Date.now() - 900,
+      endedAt: Date.now(),
+      durationMs: 900,
+      success: true,
+      resultOutput: '找到技能: roadtrip-planner\n下一步: skill:load roadtrip-planner',
+    });
+
+    const logs = (console.log as unknown as { mock: { calls: unknown[][] } }).mock.calls;
+    const output = logs.map((call) => stripAnsi(String(call[0] ?? ''))).join('\n');
+    expect(output).toContain('Task(skill:search)');
+    expect(output).toContain('completed [0.9s]');
+    expect(output).toContain('找到技能: roadtrip-planner');
+    expect(output).toContain('下一步: skill:load roadtrip-planner');
+  });
+
+  it('should skip task summary rendering when stdout is not TTY', () => {
+    (process.stdout as { isTTY?: boolean }).isTTY = false;
+    const renderer = new TerminalRenderer();
+
+    renderer.renderTaskSummaryStart({
+      taskCallId: 'task-3',
+      taskType: 'explore',
+      description: 'Explore code',
+      startedAt: Date.now(),
+    });
+    renderer.renderTaskSummaryEnd({
+      taskCallId: 'task-3',
+      taskType: 'explore',
+      description: 'Explore code',
+      startedAt: Date.now() - 100,
+      endedAt: Date.now(),
+      durationMs: 100,
+      success: true,
+    });
+
+    expect(console.log).not.toHaveBeenCalled();
+  });
 });

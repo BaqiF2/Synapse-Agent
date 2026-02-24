@@ -2,10 +2,13 @@ import { describe, expect, it, beforeEach, afterEach, mock } from 'bun:test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
-import { SkillCommandHandler } from '../../../../src/tools/handlers/skill-command-handler.ts';
-import type { SkillLoader } from '../../../../src/skills/skill-loader.ts';
-import type { SkillManager } from '../../../../src/skills/skill-manager.ts';
+import { SkillCommandHandler } from '../../../../src/tools/commands/skill-mgmt.ts';
+import type { SkillLoader } from '../../../../src/skills/loader/skill-loader.ts';
+import type { SkillManager } from '../../../../src/skills/manager/skill-manager.ts';
 import type { ImportResult, SkillMeta, VersionInfo } from '../../../../src/skills/types.ts';
+import { SkillMetadataService } from '../../../../src/skills/manager/metadata-service.ts';
+import { SkillIndexer } from '../../../../src/skills/loader/indexer.ts';
+import { SkillLoader as RealSkillLoader } from '../../../../src/skills/loader/skill-loader.ts';
 
 function createSkillContent(name: string, description: string): string {
   return `# ${name}
@@ -86,6 +89,15 @@ function createImportResult(overrides: Partial<ImportResult> = {}): ImportResult
     similar: [],
     ...overrides,
   };
+}
+
+/** 创建带有真实 SkillMetadataService 的 handler（用于磁盘发现测试） */
+function createHandlerWithRealDeps(testDir: string): SkillCommandHandler {
+  const skillsDir = path.join(testDir, '.synapse', 'skills');
+  const indexer = new SkillIndexer(testDir);
+  const metadataService = new SkillMetadataService(skillsDir, indexer);
+  const skillLoader = new RealSkillLoader(testDir);
+  return new SkillCommandHandler({ homeDir: testDir, metadataService, skillLoader });
 }
 
 describe('SkillCommandHandler', () => {
@@ -245,6 +257,9 @@ describe('SkillCommandHandler', () => {
           execute: () => Promise.resolve(''),
           shutdown: () => {},
         }),
+        skillMergerFactory: (subAgent) => ({
+          getSubAgentManager: () => subAgent,
+        }),
       });
 
       const merger = (handler as any).getSkillMerger();
@@ -252,7 +267,12 @@ describe('SkillCommandHandler', () => {
     });
 
     it('缺少依赖时降级为无 SubAgentManager', () => {
-      const handler = new SkillCommandHandler({ homeDir: testDir });
+      const handler = new SkillCommandHandler({
+        homeDir: testDir,
+        skillMergerFactory: (subAgent) => ({
+          getSubAgentManager: () => subAgent,
+        }),
+      });
       const merger = (handler as any).getSkillMerger();
       expect(merger.getSubAgentManager()).toBeNull();
     });
@@ -263,7 +283,7 @@ describe('SkillCommandHandler', () => {
       writeSkill(skillsDir, 'git-commit', { versions: 3 });
       writeSkill(skillsDir, 'code-review', { versions: 5 });
 
-      const handler = new SkillCommandHandler({ homeDir: testDir });
+      const handler = createHandlerWithRealDeps(testDir);
       const result = await handler.execute('skill:list');
 
       expect(result.exitCode).toBe(0);
@@ -298,7 +318,7 @@ describe('SkillCommandHandler', () => {
         versions: 2,
       });
 
-      const handler = new SkillCommandHandler({ homeDir: testDir });
+      const handler = createHandlerWithRealDeps(testDir);
       const result = await handler.execute('skill:info git-commit');
 
       expect(result.exitCode).toBe(0);
@@ -327,7 +347,7 @@ domain: general
         'utf-8',
       );
 
-      const handler = new SkillCommandHandler({ homeDir: testDir });
+      const handler = createHandlerWithRealDeps(testDir);
       const result = await handler.execute('skill:info conversation-memory-tracker');
 
       expect(result.exitCode).toBe(0);
@@ -360,7 +380,7 @@ domain: general
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain('Conflicts');
       expect(result.stdout).toContain('git-commit');
-      expect(result.stdout).toContain('修改源目录中的名称后重新导入');
+      expect(result.stdout).toContain('Please rename the conflicting skills in the source directory and re-import');
     });
 
     it('发现相似时提示 --continue 或 --merge', async () => {
@@ -446,7 +466,7 @@ domain: general
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain('Available versions for git-commit');
       expect(result.stdout).toContain('2026-02-03-001');
-      expect(result.stdout).toContain('请选择版本号重新执行');
+      expect(result.stdout).toContain('Select a version and re-run');
     });
 
     it('skill:rollback 指定版本时执行回滚', async () => {
@@ -760,15 +780,26 @@ domain: general
     });
 
     it('getSkillManager 返回 SkillManager 实例', () => {
-      const handler = new SkillCommandHandler({ homeDir: testDir });
+      const mockManager = {
+        list: mock(async () => []),
+        info: mock(async () => null),
+        getVersions: mock(async () => []),
+        import: mock(async () => createImportResult()),
+        rollback: mock(async () => {}),
+        delete: mock(async () => {}),
+      } as unknown as SkillManager;
+      const handler = new SkillCommandHandler({
+        homeDir: testDir,
+        skillManagerFactory: () => mockManager,
+      });
       const manager = handler.getSkillManager();
       expect(manager).toBeDefined();
     });
 
-    it('getSkillMerger 返回 SkillMerger 实例', () => {
+    it('getSkillMerger 返回 null 当未提供 merger 或 factory 时', () => {
       const handler = new SkillCommandHandler({ homeDir: testDir });
       const merger = handler.getSkillMerger();
-      expect(merger).toBeDefined();
+      expect(merger).toBeNull();
     });
   });
 });

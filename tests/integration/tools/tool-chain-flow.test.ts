@@ -15,7 +15,7 @@ import { LocalFileOperations } from '../../../src/tools/operations/local-file-op
 import { LocalBashOperations } from '../../../src/tools/operations/local-bash-ops.ts';
 import { BashRouter, CommandType } from '../../../src/tools/bash-router.ts';
 import { BashSession } from '../../../src/tools/bash-session.ts';
-import { ReadHandler } from '../../../src/tools/handlers/agent-bash/read.ts';
+import { ReadHandler } from '../../../src/tools/commands/read-handler.ts';
 
 /**
  * 创建一个 Mock FileOperations 实例

@@ -1,0 +1,198 @@
+<< 'EOF'
+{
+  "version": "1.0.0",
+  "evaluation": {
+    "name": "Synapse Agent 评估配置",
+    "description": "用于配置 Synapse Agent 的评估参数和目标"
+  },
+  "dimensions": {
+    "core_capabilities": {
+      "weight": 0.35,
+      "metrics": {
+        "task_success_rate": {
+          "target": 85,
+          "min_acceptable": 80,
+          "description": "任务成功率"
+        },
+        "task_completion_rate": {
+          "target": 80,
+          "min_acceptable": 70,
+          "description": "任务完成率"
+        },
+        "first_try_success_rate": {
+          "target": 70,
+          "min_acceptable": 60,
+          "description": "首次成功率"
+        },
+        "tool_selection_accuracy": {
+          "target": 90,
+          "min_acceptable": 85,
+          "description": "工具选择准确率"
+        },
+        "tool_call_efficiency": {
+          "target": 85,
+          "min_acceptable": 80,
+          "description": "工具调用效率"
+        },
+        "skill_acquisition_rate": {
+          "target": 50,
+          "min_acceptable": 40,
+          "description": "技能获取率"
+        }
+      }
+    },
+    "quality": {
+      "weight": 0.20,
+      "metrics": {
+        "code_quality": {
+          "target": 95,
+          "min_acceptable": 90,
+          "description": "代码规范符合度"
+        },
+        "response_relevance": {
+          "target": 4,
+          "min_acceptable": 3.5,
+          "description": "响应相关性 (1-5分)"
+        },
+        "explanation_completeness": {
+          "target": 4,
+          "min_acceptable": 3.5,
+          "description": "解释完整性 (1-5分)"
+        },
+        "format_correctness": {
+          "target": 95,
+          "min_acceptable": 90,
+          "description": "格式规范性"
+        }
+      }
+    },
+    "reliability": {
+      "weight": 0.20,
+      "metrics": {
+        "error_detection_rate": {
+          "target": 95,
+          "min_acceptable": 90,
+          "description": "错误检测率"
+        },
+        "error_recovery_rate": {
+          "target": 80,
+          "min_acceptable": 70,
+          "description": "错误恢复率"
+        },
+        "system_availability": {
+          "target": 99.9,
+          "min_acceptable": 99,
+          "description": "系统可用性"
+        },
+        "crash_rate": {
+          "target": 1,
+          "max_acceptable": 2,
+          "description": "崩溃率"
+        },
+        "security_check": {
+          "target": "pass",
+          "description": "安全检查"
+        }
+      }
+    },
+    "performance": {
+      "weight": 0.10,
+      "metrics": {
+        "first_response_time": {
+          "target": 2,
+          "max_acceptable": 5,
+          "unit": "seconds",
+          "description": "首次响应时间"
+        },
+        "tool_execution_time": {
+          "target": 5,
+          "max_acceptable": 10,
+          "unit": "seconds",
+          "description": "工具执行时间"
+        },
+        "cpu_usage": {
+          "target": 80,
+          "max_acceptable": 90,
+          "unit": "percent",
+          "description": "CPU 使用率"
+        },
+        "memory_usage": {
+          "target": 500,
+          "max_acceptable": 800,
+          "unit": "MB",
+          "description": "内存使用"
+        }
+      }
+    },
+    "usability": {
+      "weight": 0.10,
+      "metrics": {
+        "user_experience": {
+          "target": 4,
+          "min_acceptable": 3.5,
+          "description": "用户体验 (1-5分)"
+        },
+        "observability": {
+          "target": "good",
+          "description": "可观测性"
+        }
+      }
+    },
+    "extensibility": {
+      "weight": 0.05,
+      "metrics": {
+        "skill_coverage": {
+          "target": 80,
+          "min_acceptable": 70,
+          "description": "技能覆盖率"
+        },
+        "skill_quality": {
+          "target": 70,
+          "min_acceptable": 60,
+          "description": "技能质量"
+        },
+        "sub_agent_capability": {
+          "target": "good",
+          "description": "子代理能力"
+        }
+      }
+    }
+  },
+  "scoring": {
+    "grade_thresholds": {
+      "A": 90,
+      "B": 80,
+      "C": 70,
+      "D": 60,
+      "F": 0
+    },
+    "pass_criteria": {
+      "min_overall_score": 70,
+      "critical_metrics": [
+        "task_success_rate",
+        "tool_selection_accuracy",
+        "error_recovery_rate",
+        "system_availability",
+        "security_check"
+      ]
+    }
+  },
+  "tasks": {
+    "quick_evaluation": {
+      "count": 10,
+      "difficulty_distribution": {
+        "L1": 2,
+        "L2": 3,
+        "L3": 3,
+        "L4": 2
+      },
+      "category_coverage": ["文件操作", "代码开发", "信息检索", "复杂任务"]
+    },
+    "full_evaluation": {
+      "count": 50,
+      "include_all_difficulties": true,
+      "include_all_categories": true
+    }
+  }
+}
+EOF

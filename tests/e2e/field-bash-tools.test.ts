@@ -14,7 +14,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
 
-import { CommandSearchHandler } from '../../src/tools/handlers/extend-bash/command-search.js';
+import { CommandSearchHandler } from '../../src/tools/commands/search-handler.ts';
 import { McpConfigParser } from '../../src/tools/converters/mcp/config-parser.js';
 import { McpInstaller } from '../../src/tools/converters/mcp/installer.js';
 

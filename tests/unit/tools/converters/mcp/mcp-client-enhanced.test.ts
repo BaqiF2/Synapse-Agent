@@ -8,9 +8,9 @@
 import { describe, it, expect, mock, beforeEach, afterAll } from 'bun:test';
 import {
   McpClient,
-  McpClientManager,
   ConnectionState,
 } from '../../../../../src/tools/converters/mcp/mcp-client.ts';
+import { McpClientManager } from '../../../../../src/tools/converters/mcp/mcp-client-manager.ts';
 import type { McpServerEntry } from '../../../../../src/tools/converters/mcp/config-parser.ts';
 
 // ===== 测试数据 =====

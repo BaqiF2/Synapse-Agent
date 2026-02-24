@@ -6,7 +6,7 @@
 
 import { describe, test, expect, beforeAll, afterAll } from 'bun:test';
 import { BashTool } from '../../../src/tools/bash-tool.ts';
-import type { SandboxManager } from '../../../src/sandbox/sandbox-manager.ts';
+import type { SandboxManager } from '../../../src/shared/sandbox/sandbox-manager.ts';
 
 describe('BashTool Error Hint', () => {
   let bashTool: BashTool;

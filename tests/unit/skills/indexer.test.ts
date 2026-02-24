@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
-import { SkillIndexer } from '../../../src/skills/indexer.ts';
+import { SkillIndexer } from '../../../src/skills/loader/indexer.ts';
 
 function writeSkill(baseDir: string, name: string, content?: string): void {
   const skillDir = path.join(baseDir, name);

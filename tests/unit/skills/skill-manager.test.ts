@@ -2,18 +2,18 @@ import { describe, it, expect, beforeEach, afterEach, mock, spyOn } from 'bun:te
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
-import { SkillIndexer } from '../../../src/skills/indexer.ts';
+import { SkillIndexer } from '../../../src/skills/loader/indexer.ts';
 import {
   SkillManager,
   MAX_VERSIONS_DEFAULT,
   IMPORT_TIMEOUT_DEFAULT,
   getConfiguredMaxVersions,
   getConfiguredImportTimeout,
-} from '../../../src/skills/skill-manager.ts';
-import { SkillVersionManager } from '../../../src/skills/skill-version-manager.ts';
-import { SkillImportExport } from '../../../src/skills/skill-import-export.ts';
-import { SkillMetadataService } from '../../../src/skills/skill-metadata-service.ts';
-import type { SkillMerger } from '../../../src/skills/skill-merger.ts';
+} from '../../../src/skills/manager/skill-manager.ts';
+import { SkillVersionManager } from '../../../src/skills/manager/version-manager.ts';
+import { SkillImportExport } from '../../../src/skills/manager/import-export.ts';
+import { SkillMetadataService } from '../../../src/skills/manager/metadata-service.ts';
+import type { SkillMerger } from '../../../src/skills/manager/skill-merger.ts';
 import type { ImportResult, MergeCandidate } from '../../../src/skills/types.ts';
 
 interface MockMerger {

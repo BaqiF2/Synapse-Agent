@@ -106,10 +106,8 @@ export function getTokenUsageTotal(usage: TokenUsage): number {
 
 // ===== Thinking Effort =====
 
-/**
- * Thinking effort level
- */
-export type ThinkingEffort = 'off' | 'low' | 'medium' | 'high';
+// 从共享类型层 re-export
+export type { ThinkingEffort } from '../../types/llm-client.ts';
 
 // ===== Generation Parameters =====
 

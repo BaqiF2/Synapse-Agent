@@ -7,7 +7,7 @@ import type {
   SandboxInfo,
   SandboxPolicy,
   SandboxProvider,
-} from '../../../src/sandbox/types.ts';
+} from '../../../src/shared/sandbox/types.ts';
 
 class MockSandboxBackend implements SandboxBackend {
   readonly id: string;

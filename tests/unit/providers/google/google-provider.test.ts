@@ -267,7 +267,7 @@ describe('GoogleProvider', () => {
         '../../../../src/providers/google/google-provider.ts'
       );
       const { AuthenticationError } = await import(
-        '../../../../src/common/errors.ts'
+        '../../../../src/shared/errors.ts'
       );
 
       const provider = new GoogleProvider({
@@ -303,7 +303,7 @@ describe('GoogleProvider', () => {
         '../../../../src/providers/google/google-provider.ts'
       );
       const { RateLimitError } = await import(
-        '../../../../src/common/errors.ts'
+        '../../../../src/shared/errors.ts'
       );
 
       const provider = new GoogleProvider({

@@ -1,0 +1,344 @@
+/**
+ * Conversation Reader
+ *
+ * Reads and parses conversation history files for skill enhancement analysis.
+ *
+ * @module conversation-reader
+ *
+ * Core Exports:
+ * - ConversationReader: Class for reading conversation history
+ * - ConversationTurn: Parsed conversation turn type
+ * - ConversationSummary: Summary statistics type
+ * - ToolCall / ToolResult: 工具调用/结果类型
+ */
+
+import * as fs from 'node:fs';
+import { createLogger } from '../../shared/file-logger.ts';
+import { parseEnvInt } from '../../shared/env.ts';
+
+const logger = createLogger('conversation-reader');
+
+/**
+ * Estimated characters per token (rough approximation)
+ */
+const CHARS_PER_TOKEN = parseEnvInt(process.env.SYNAPSE_CHARS_PER_TOKEN, 4);
+
+/**
+ * Tool result summary character limit
+ * 用于 compact() 时截断工具结果内容
+ */
+const DEFAULT_TOOL_RESULT_SUMMARY_LIMIT = 200;
+const TOOL_RESULT_SUMMARY_LIMIT = parseEnvInt(
+  process.env.SYNAPSE_TOOL_RESULT_SUMMARY_LIMIT,
+  DEFAULT_TOOL_RESULT_SUMMARY_LIMIT
+);
+
+/**
+ * Tool call information
+ */
+export interface ToolCall {
+  id: string;
+  name: string;
+  input: Record<string, unknown>;
+}
+
+/**
+ * Tool result information
+ */
+export interface ToolResult {
+  toolUseId: string;
+  content: string;
+}
+
+/**
+ * Parsed conversation turn
+ */
+export interface ConversationTurn {
+  id: string;
+  timestamp: string;
+  role: 'user' | 'assistant';
+  content: string;
+  toolCalls?: ToolCall[];
+  toolResults?: ToolResult[];
+  rawContent?: unknown;
+}
+
+/**
+ * Conversation summary statistics
+ */
+export interface ConversationSummary {
+  totalTurns: number;
+  userTurns: number;
+  assistantTurns: number;
+  toolCalls: number;
+  uniqueTools: string[];
+  estimatedTokens: number;
+}
+
+/**
+ * ConversationReader - Reads and parses conversation history
+ *
+ * Usage:
+ * ```typescript
+ * const reader = new ConversationReader();
+ * const turns = reader.read('/path/to/session.jsonl');
+ * const summary = reader.summarize(turns);
+ * ```
+ */
+export class ConversationReader {
+  /**
+   * Read all turns from a conversation file
+   *
+   * @param filePath - Path to JSONL conversation file
+   * @returns Array of conversation turns
+   */
+  read(filePath: string): ConversationTurn[] {
+    if (!fs.existsSync(filePath)) {
+      logger.warn('Conversation file not found', { path: filePath });
+      return [];
+    }
+
+    const content = fs.readFileSync(filePath, 'utf-8');
+    const lines = content.split('\n').filter(line => line.trim());
+
+    return lines.map(line => this.parseLine(line)).filter((t): t is ConversationTurn => t !== null);
+  }
+
+  /**
+   * Read turns with character limit (reads from end)
+   *
+   * @param filePath - Path to JSONL conversation file
+   * @param maxChars - Maximum characters to include (counted from end)
+   * @returns Array of conversation turns (truncated)
+   */
+  readTruncated(filePath: string, maxChars: number): ConversationTurn[] {
+    if (!fs.existsSync(filePath)) {
+      logger.warn('Conversation file not found', { path: filePath });
+      return [];
+    }
+
+    if (maxChars <= 0) {
+      return [];
+    }
+
+    const content = fs.readFileSync(filePath, 'utf-8');
+    if (!content.trim()) {
+      return [];
+    }
+
+    let truncated = content;
+    if (content.length > maxChars) {
+      const startIndex = content.length - maxChars;
+      truncated = content.slice(startIndex);
+      if (startIndex > 0 && content[startIndex - 1] !== '\n') {
+        const firstNewline = truncated.indexOf('\n');
+        if (firstNewline !== -1) {
+          truncated = truncated.slice(firstNewline + 1);
+        }
+      }
+    }
+
+    const lines = truncated.split('\n').filter(line => line.trim());
+    return lines.map(line => this.parseLine(line)).filter((t): t is ConversationTurn => t !== null);
+  }
+
+  /**
+   * Parse a single JSONL line into a conversation turn
+   */
+  private parseLine(line: string): ConversationTurn | null {
+    try {
+      const data = JSON.parse(line) as {
+        id?: string;
+        timestamp?: string;
+        role?: string;
+        content?: unknown;
+      };
+
+      if (!data.role || (data.role !== 'user' && data.role !== 'assistant')) {
+        return null;
+      }
+
+      const turn: ConversationTurn = {
+        id: data.id || `turn-${Date.now()}`,
+        timestamp: data.timestamp || new Date().toISOString(),
+        role: data.role,
+        content: '',
+        rawContent: data.content,
+      };
+
+      // Parse content
+      if (typeof data.content === 'string') {
+        turn.content = data.content;
+      } else if (Array.isArray(data.content)) {
+        turn.toolCalls = [];
+        turn.toolResults = [];
+        const textParts: string[] = [];
+
+        for (const block of data.content) {
+          if (typeof block !== 'object' || block === null) continue;
+
+          const typedBlock = block as { type?: string; text?: string; id?: string; name?: string; input?: Record<string, unknown>; tool_use_id?: string; content?: string };
+
+          if (typedBlock.type === 'text' && typedBlock.text) {
+            textParts.push(typedBlock.text);
+          } else if (typedBlock.type === 'tool_use' && typedBlock.id && typedBlock.name) {
+            turn.toolCalls.push({
+              id: typedBlock.id,
+              name: typedBlock.name,
+              input: typedBlock.input || {},
+            });
+          } else if (typedBlock.type === 'tool_result' && typedBlock.tool_use_id) {
+            turn.toolResults.push({
+              toolUseId: typedBlock.tool_use_id,
+              content: typeof typedBlock.content === 'string' ? typedBlock.content : JSON.stringify(typedBlock.content),
+            });
+          }
+        }
+
+        turn.content = textParts.join('\n');
+      }
+
+      return turn;
+    } catch (error) {
+      logger.warn('Failed to parse conversation line', { error });
+      return null;
+    }
+  }
+
+  /**
+   * Extract tool call sequence from turns
+   *
+   * @param turns - Array of conversation turns
+   * @returns Array of tool names in order
+   */
+  extractToolSequence(turns: ConversationTurn[]): string[] {
+    return turns.flatMap((turn) => turn.toolCalls?.map((call) => call.name) ?? []);
+  }
+
+  /**
+   * Generate summary statistics for conversation
+   *
+   * @param turns - Array of conversation turns
+   * @returns Summary statistics
+   */
+  summarize(turns: ConversationTurn[]): ConversationSummary {
+    const userTurns = turns.filter((t) => t.role === 'user').length;
+    const toolSet = new Set<string>();
+    let toolCalls = 0;
+    let estimatedTokens = 0;
+
+    for (const turn of turns) {
+      if (turn.toolCalls) {
+        toolCalls += turn.toolCalls.length;
+        turn.toolCalls.forEach((call) => toolSet.add(call.name));
+      }
+
+      estimatedTokens += Math.ceil(
+        JSON.stringify(turn.rawContent || turn.content).length / CHARS_PER_TOKEN
+      );
+    }
+
+    return {
+      totalTurns: turns.length,
+      userTurns,
+      assistantTurns: turns.length - userTurns,
+      toolCalls,
+      uniqueTools: Array.from(toolSet),
+      estimatedTokens,
+    };
+  }
+
+  /**
+   * Compact conversation turns into a concise text format
+   *
+   * @param turns - Array of conversation turns
+   * @param maxChars - Optional maximum total characters (0 = unlimited)
+   * @returns Compacted conversation string
+   */
+  compact(turns: ConversationTurn[], maxChars: number = 0): string {
+    if (turns.length === 0) {
+      return '';
+    }
+
+    const parts: string[] = [];
+
+    for (const turn of turns) {
+      // 处理 user 消息
+      if (turn.role === 'user') {
+        if (turn.toolResults && turn.toolResults.length > 0) {
+          for (const result of turn.toolResults) {
+            const truncatedContent = this.truncateToolResult(result.content);
+            parts.push(`[Result] ${truncatedContent}`);
+          }
+        } else {
+          parts.push(`[User] ${turn.content}`);
+        }
+      }
+
+      // 处理 assistant 消息
+      if (turn.role === 'assistant') {
+        if (turn.content) {
+          parts.push(`[Assistant] ${turn.content}`);
+        }
+
+        if (turn.toolCalls && turn.toolCalls.length > 0) {
+          for (const call of turn.toolCalls) {
+            parts.push(`[Tool] ${call.name}`);
+          }
+        }
+      }
+    }
+
+    let result = parts.join('\n\n');
+
+    // 如果设置了 maxChars 且超过限制，从尾部截断
+    if (maxChars > 0 && result.length > maxChars) {
+      result = result.slice(result.length - maxChars);
+      const firstNewline = result.indexOf('\n');
+      if (firstNewline !== -1 && firstNewline < result.length - 1) {
+        result = result.slice(firstNewline + 1);
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * Truncate tool result content to configured limit
+   */
+  private truncateToolResult(content: string): string {
+    const limit = TOOL_RESULT_SUMMARY_LIMIT;
+    const ellipsis = '...';
+    const ellipsisLen = ellipsis.length;
+
+    if (content.length <= limit) {
+      return content;
+    }
+
+    // 尝试在换行符处截断，保持行完整性
+    if (content.includes('\n')) {
+      const lines = content.split('\n');
+      const resultLines: string[] = [];
+      let usedLength = 0;
+
+      for (const line of lines) {
+        const separatorLen = resultLines.length > 0 ? 1 : 0;
+        const neededLength = separatorLen + line.length;
+
+        if (usedLength + neededLength + ellipsisLen + 1 > limit) {
+          break;
+        }
+
+        resultLines.push(line);
+        usedLength += neededLength;
+      }
+
+      if (resultLines.length > 0 && resultLines.length < lines.length) {
+        return resultLines.join('\n') + '\n' + ellipsis;
+      }
+    }
+
+    // fallback：直接字符截断
+    return content.slice(0, limit - ellipsisLen) + ellipsis;
+  }
+}

@@ -14,22 +14,19 @@
 import * as path from 'node:path';
 import * as os from 'node:os';
 import type { BashSession } from './bash-session.ts';
-import { NativeShellCommandHandler, type CommandResult } from './handlers/native-command-handler.ts';
-import { ReadHandler, WriteHandler, EditHandler, BashWrapperHandler, TodoWriteHandler } from './handlers/agent-bash/index.ts';
-import { CommandSearchHandler, McpCommandHandler, SkillToolHandler } from './handlers/extend-bash/index.ts';
-import { SkillCommandHandler } from './handlers/skill-command-handler.ts';
-import { TaskCommandHandler } from './handlers/task-command-handler.ts';
-import type { LLMClient } from '../providers/llm-client.ts';
-import type { OnUsage } from '../providers/generate.ts';
+import { NativeShellCommandHandler } from './commands/native-handler.ts';
+import type { CommandResult } from '../types/tool.ts';
+import {
+  ReadHandler, WriteHandler, EditHandler, BashWrapperHandler, TodoWriteHandler,
+  CommandSearchHandler, McpCommandHandler, SkillToolHandler,
+} from './commands/index.ts';
+import { SkillCommandHandler, type SkillCommandHandlerOptions } from './commands/skill-mgmt.ts';
+import { TaskCommandHandler } from './commands/task-handler.ts';
 import { asCancelablePromise, type CancelablePromise } from './callable-tool.ts';
-import type { ISubAgentExecutor } from '../sub-agents/sub-agent-types.ts';
-import type { SandboxManager } from '../sandbox/sandbox-manager.ts';
-import type { ExecuteResult } from '../sandbox/types.ts';
-import type {
-  ToolResultEvent,
-  SubAgentCompleteEvent,
-  SubAgentToolCallEvent,
-} from '../cli/terminal-renderer-types.ts';
+import type { ISubAgentExecutor } from '../types/sub-agent.ts';
+import type { SandboxManager } from '../shared/sandbox/sandbox-manager.ts';
+import type { ExecuteResult } from '../shared/sandbox/types.ts';
+import { matchesExact, isSkillToolCommand, normalizeSlashSkillCommand, errorResult } from './bash-router-utils.ts';
 
 /** 三层 Bash 架构中的命令类型 */
 export enum CommandType {
@@ -43,16 +40,15 @@ const DEFAULT_SYNAPSE_DIR = path.join(os.homedir(), '.synapse');
 /** BashRouter 配置选项 */
 export interface BashRouterOptions {
   synapseDir?: string;
-  llmClient?: LLMClient;
-  /** BashTool 实例，类型为 unknown 以避免 bash-tool ↔ bash-router 循环依赖 */
-  toolExecutor?: unknown;
+  /**
+   * SubAgent 执行器工厂 — 惰性创建 ISubAgentExecutor 实例。
+   */
+  subAgentExecutorFactory?: () => ISubAgentExecutor;
   sandboxManager?: SandboxManager;
   getCwd?: () => string;
   getConversationPath?: () => string | null;
-  onSubAgentToolStart?: (event: SubAgentToolCallEvent) => void;
-  onSubAgentToolEnd?: (event: ToolResultEvent) => void;
-  onSubAgentComplete?: (event: SubAgentCompleteEvent) => void;
-  onSubAgentUsage?: OnUsage;
+  /** SkillCommandHandler 配置工厂 — 由调用方注入技能服务依赖 */
+  skillCommandHandlerFactory?: (homeDir: string, createSubAgentManager?: () => ISubAgentExecutor) => SkillCommandHandlerOptions;
 }
 
 export type BashRouterCommandResult = CommandResult & Partial<Pick<ExecuteResult, 'blocked' | 'blockedReason' | 'blockedResource'>>;
@@ -81,34 +77,8 @@ export interface RouteDefinition {
 interface HandlerEntry {
   type: CommandType;
   handler: CommandHandler | null;
-  /** 惰性初始化工厂，首次调用时创建 handler */
   factory?: () => CommandHandler | null;
-  /** 前缀匹配模式：'exact' 匹配 cmd 或 cmd+空格，'prefix' 匹配 startsWith */
   matchMode: 'exact' | 'prefix';
-}
-
-// 辅助函数
-function matchesExact(trimmed: string, cmd: string): boolean {
-  return trimmed === cmd || trimmed.startsWith(cmd + ' ');
-}
-
-function isSkillToolCommand(value: string): boolean {
-  const commandToken = value.trim().split(/\s+/, 1)[0] ?? '';
-  return commandToken.startsWith('skill:') && commandToken.split(':').length >= 3;
-}
-
-function normalizeSlashSkillCommand(command: string): string {
-  const trimmedStart = command.trimStart();
-  if (!trimmedStart.startsWith('/skill:')) {
-    return command;
-  }
-
-  const leadingWhitespace = command.slice(0, command.length - trimmedStart.length);
-  return `${leadingWhitespace}${trimmedStart.slice(1)}`;
-}
-
-function errorResult(message: string): CommandResult {
-  return { stdout: '', stderr: message, exitCode: 1 };
 }
 
 /**
@@ -180,23 +150,11 @@ export class BashRouter {
     this.handlerRegistry.set(prefix, { type, handler, factory, matchMode });
   }
 
-  /** 设置 BashTool 实例（延迟绑定，避免循环依赖） */
-  setToolExecutor(executor: unknown): void {
-    this.options.toolExecutor = executor;
-
-    // 重置 task handler 以使用新的 executor
-    const taskEntry = this.handlerRegistry.get('task:');
-    if (taskEntry?.handler) {
-      (taskEntry.handler as TaskCommandHandler).shutdown();
-      taskEntry.handler = null;
-    }
-
-    // 重置 skill command handler
-    const skillEntry = this.handlerRegistry.get('skill:');
-    if (skillEntry?.handler) {
-      (skillEntry.handler as SkillCommandHandler).shutdown();
-      skillEntry.handler = null;
-    }
+  /**
+   * 检查 SubAgent 执行器是否可用
+   */
+  hasSubAgentExecutor(): boolean {
+    return !!this.options.subAgentExecutorFactory;
   }
 
   /** 关闭并清理资源 */
@@ -313,49 +271,30 @@ export class BashRouter {
 
   /** 创建 TaskCommandHandler（惰性） */
   private createTaskHandler(): CommandHandler {
-    const { llmClient, toolExecutor } = this.options;
-    if (!llmClient || !toolExecutor) {
+    const { subAgentExecutorFactory } = this.options;
+    if (!subAgentExecutorFactory) {
       // 缺少依赖时返回一个固定错误的处理器
-      return { execute: () => Promise.resolve(errorResult('Task commands require LLM client and tool executor')) };
+      return { execute: () => Promise.resolve(errorResult('Task commands require SubAgent executor')) };
     }
 
-    // 延迟创建 SubAgentManager 并注入到 handler，打破循环依赖
-    const manager = this.createSubAgentManager();
+    const manager = subAgentExecutorFactory();
     return new TaskCommandHandler({ manager });
   }
 
   /** 创建 SkillCommandHandler（惰性） */
   private createSkillHandler(): SkillCommandHandler {
-    // 构建 SubAgentManager 工厂函数，由 SkillCommandHandler 按需调用
-    const createSubAgentManager = this.options.llmClient && this.options.toolExecutor
-      ? () => this.createSubAgentManager()
-      : undefined;
+    const { subAgentExecutorFactory, skillCommandHandlerFactory } = this.options;
+    const homeDir = path.dirname(this.options.synapseDir ?? DEFAULT_SYNAPSE_DIR);
 
+    if (skillCommandHandlerFactory) {
+      const handlerOptions = skillCommandHandlerFactory(homeDir, subAgentExecutorFactory);
+      return new SkillCommandHandler(handlerOptions);
+    }
+
+    // 无工厂时使用空实现（技能命令将返回默认空结果）
     return new SkillCommandHandler({
-      homeDir: path.dirname(this.options.synapseDir ?? DEFAULT_SYNAPSE_DIR),
-      createSubAgentManager,
-    });
-  }
-
-  /**
-   * 创建 SubAgentManager 实例
-   *
-   * 使用动态 require 延迟加载 sub-agent-manager 模块，
-   * 打破 bash-router → handler → sub-agent-manager → bash-tool → bash-router 循环依赖。
-   * 此方法仅在惰性工厂中调用（首次 task:/skill: 命令时），安全且高效。
-   */
-  private createSubAgentManager(): ISubAgentExecutor {
-    const { llmClient, toolExecutor, onSubAgentToolStart, onSubAgentToolEnd, onSubAgentComplete, onSubAgentUsage } =
-      this.options;
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { SubAgentManager } = require('../sub-agents/sub-agent-manager.ts');
-    return new SubAgentManager({
-      client: llmClient,
-      bashTool: toolExecutor,
-      onToolStart: onSubAgentToolStart,
-      onToolEnd: onSubAgentToolEnd,
-      onComplete: onSubAgentComplete,
-      onUsage: onSubAgentUsage,
+      homeDir,
+      createSubAgentManager: subAgentExecutorFactory,
     });
   }
 }

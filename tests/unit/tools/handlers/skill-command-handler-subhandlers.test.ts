@@ -9,10 +9,10 @@ import { describe, it, expect, beforeEach, afterEach, mock } from 'bun:test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
-import { SkillCommandHandler } from '../../../../src/tools/handlers/skill-command-handler.ts';
-import type { SkillLoader } from '../../../../src/skills/skill-loader.ts';
-import type { SkillManager } from '../../../../src/skills/skill-manager.ts';
-import type { ISkillMetadataService } from '../../../../src/skills/skill-metadata-service.ts';
+import { SkillCommandHandler } from '../../../../src/tools/commands/skill-mgmt.ts';
+import type { SkillLoader } from '../../../../src/skills/loader/skill-loader.ts';
+import type { SkillManager } from '../../../../src/skills/manager/skill-manager.ts';
+import type { ISkillMetadataService } from '../../../../src/skills/manager/metadata-service.ts';
 import type { ImportResult, SkillMeta, VersionInfo } from '../../../../src/skills/types.ts';
 
 function createVersion(version: string, createdAt?: Date): VersionInfo {
@@ -573,7 +573,18 @@ describe('SkillCommandHandler Sub-handlers', () => {
     });
 
     it('should create SkillManager on first write operation (import)', async () => {
-      const handler = new SkillCommandHandler({ homeDir: testDir });
+      const mockManager = {
+        list: mock(async () => []),
+        info: mock(async () => null),
+        getVersions: mock(async () => []),
+        import: mock(async () => ({ imported: [], skipped: [], conflicts: [], similar: [] })),
+        rollback: mock(async () => {}),
+        delete: mock(async () => {}),
+      } as unknown as SkillManager;
+      const handler = new SkillCommandHandler({
+        homeDir: testDir,
+        skillManagerFactory: () => mockManager,
+      });
 
       // 触发 import（write 操作）
       await handler.execute('skill:import /tmp/nonexistent');
@@ -583,7 +594,18 @@ describe('SkillCommandHandler Sub-handlers', () => {
     });
 
     it('should create SkillManager on delete operation', async () => {
-      const handler = new SkillCommandHandler({ homeDir: testDir });
+      const mockManager = {
+        list: mock(async () => []),
+        info: mock(async () => null),
+        getVersions: mock(async () => []),
+        import: mock(async () => ({ imported: [], skipped: [], conflicts: [], similar: [] })),
+        rollback: mock(async () => {}),
+        delete: mock(async () => {}),
+      } as unknown as SkillManager;
+      const handler = new SkillCommandHandler({
+        homeDir: testDir,
+        skillManagerFactory: () => mockManager,
+      });
 
       await handler.execute('skill:delete some-skill');
 
@@ -591,7 +613,18 @@ describe('SkillCommandHandler Sub-handlers', () => {
     });
 
     it('should reuse SkillManager across multiple write operations', async () => {
-      const handler = new SkillCommandHandler({ homeDir: testDir });
+      const mockManager = {
+        list: mock(async () => []),
+        info: mock(async () => null),
+        getVersions: mock(async () => []),
+        import: mock(async () => ({ imported: [], skipped: [], conflicts: [], similar: [] })),
+        rollback: mock(async () => {}),
+        delete: mock(async () => {}),
+      } as unknown as SkillManager;
+      const handler = new SkillCommandHandler({
+        homeDir: testDir,
+        skillManagerFactory: () => mockManager,
+      });
 
       await handler.execute('skill:delete first-skill');
       const firstManager = (handler as any).skillManager;

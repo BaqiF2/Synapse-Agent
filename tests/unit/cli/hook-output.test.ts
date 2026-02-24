@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { STOP_HOOK_MARKER } from '../../../src/hooks/stop-hook-constants.ts';
+import { STOP_HOOK_MARKER } from '../../../src/core/hooks/stop-hook-constants.ts';
 import { extractHookOutput } from '../../../src/cli/hook-output.ts';
 
 describe('extractHookOutput', () => {

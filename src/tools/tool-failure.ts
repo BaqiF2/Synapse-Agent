@@ -28,11 +28,6 @@ const INVALID_USAGE_HINTS = [
   'invalid parameters',
 ];
 
-const COUNTABLE_FAILURE_CATEGORIES = new Set<ToolFailureCategory>([
-  TOOL_FAILURE_CATEGORIES.commandNotFound,
-  TOOL_FAILURE_CATEGORIES.invalidUsage,
-]);
-
 function includesAnyKeyword(text: string, keywords: readonly string[]): boolean {
   return keywords.some((keyword) => text.includes(keyword));
 }
@@ -61,19 +56,5 @@ export function shouldAttachToolSelfDescription(category: ToolFailureCategory): 
   return category !== TOOL_FAILURE_CATEGORIES.executionError;
 }
 
-/**
- * 是否计入连续失败次数
- *
- * 优先使用结构化 category；如果缺失则回退到文本启发式判断。
- */
-export function shouldCountToolFailure(category: unknown, hintText: string): boolean {
-  if (typeof category === 'string') {
-    return COUNTABLE_FAILURE_CATEGORIES.has(category as ToolFailureCategory);
-  }
-
-  const normalized = hintText.toLowerCase();
-  return (
-    includesAnyKeyword(normalized, COMMAND_NOT_FOUND_HINTS) ||
-    includesAnyKeyword(normalized, INVALID_USAGE_HINTS)
-  );
-}
+// shouldCountToolFailure 已提取到 shared 层，此处保持 re-export 向后兼容
+export { shouldCountToolFailure } from '../shared/tool-failure-utils.ts';

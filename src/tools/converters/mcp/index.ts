@@ -28,12 +28,13 @@ export {
 
 export {
   McpClient,
-  McpClientManager,
   ConnectionState,
   type McpConnectionOptions,
   type McpToolInfo,
   type McpConnectionResult,
 } from './mcp-client.js';
+
+export { McpClientManager } from './mcp-client-manager.js';
 
 export {
   McpWrapperGenerator,

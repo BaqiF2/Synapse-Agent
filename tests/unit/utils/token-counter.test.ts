@@ -5,7 +5,7 @@ import {
   countMessageTokens,
   countTokens,
   setTokenCounterForTesting,
-} from '../../../src/utils/token-counter.ts';
+} from '../../../src/shared/token-counter.ts';
 
 describe('token-counter', () => {
   it('countTokens 计算单个字符串 token 数量', () => {

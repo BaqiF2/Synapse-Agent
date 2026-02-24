@@ -9,8 +9,8 @@
  */
 
 import chalk from 'chalk';
-import { TreeBuilder } from '../tree-builder.ts';
-import type { ToolCallEvent, ToolResultEvent } from '../terminal-renderer-types.ts';
+import { TreeBuilder } from './tree-builder.ts';
+import type { ToolCallEvent, ToolResultEvent } from '../../types/events.ts';
 import type { ActiveCall } from './renderer-types.ts';
 import type { AnimationController } from './animation-controller.ts';
 import {
@@ -18,7 +18,7 @@ import {
   getLineRows,
   formatCommandDisplay,
 } from './render-utils.ts';
-import { parseEnvInt } from '../../utils/env.ts';
+import { parseEnvInt } from '../../shared/env.ts';
 
 /** 最多显示的输出行数 */
 const MAX_OUTPUT_LINES = parseEnvInt(process.env.SYNAPSE_MAX_OUTPUT_LINES, 5);

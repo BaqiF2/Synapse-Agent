@@ -12,8 +12,8 @@
 
 import chalk from 'chalk';
 
-import type { AgentRunner } from '../../agent/agent-runner.ts';
-import { formatCostOutput } from '../../agent/session-usage.ts';
+import type { AgentRunner } from '../../core/agent/agent-runner.ts';
+import { formatCostOutput } from '../../core/session/session-usage.ts';
 import { showContextStats } from '../repl-display.ts';
 
 // ===== 内部工具函数 =====

@@ -6,8 +6,8 @@
  */
 
 import { describe, it, expect } from 'bun:test';
-import { generateSkillMd, yamlSafeValue } from '../../../src/skills/skill-template.ts';
-import type { SkillSpec } from '../../../src/skills/skill-generator.ts';
+import { generateSkillMd, yamlSafeValue } from '../../../src/skills/schema/skill-template.ts';
+import type { SkillSpec } from '../../../src/skills/generator/skill-generator.ts';
 
 /** 创建最小化 SkillSpec */
 function createSpec(overrides: Partial<SkillSpec> = {}): SkillSpec {

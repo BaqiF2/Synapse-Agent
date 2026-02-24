@@ -1,0 +1,81 @@
+[
+  {
+    "category": "reliability",
+    "feature": "F-003 决策可观测与原因码",
+    "description": "Emit structured logs for trigger decisions and execution outcomes with standardized reason codes.",
+    "overallPass": false,
+    "bdd": [
+      {
+        "scenario": "Log decision details when trigger is reached",
+        "description": "Triggered decisions must include score, threshold, profile, signal hits and reason code.",
+        "steps": {
+          "given": [
+            "A task evaluation results in shouldTrigger true"
+          ],
+          "when": [
+            "System writes trigger decision log"
+          ],
+          "then": [
+            "Log contains reasonCode SCORE_REACHED",
+            "Log contains totalScore and threshold",
+            "Log contains signalHits and profile"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "Log reason code when trigger is skipped",
+        "description": "Non-triggered decisions must carry a specific reason code.",
+        "steps": {
+          "given": [
+            "A task evaluation results in shouldTrigger false"
+          ],
+          "when": [
+            "System writes trigger decision log"
+          ],
+          "then": [
+            "Log contains one reasonCode from allowed enum",
+            "Reason code explains skip cause without ambiguity"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "Logging failure does not break task flow",
+        "description": "Logger errors should be isolated and not affect main agent output.",
+        "steps": {
+          "given": [
+            "Trigger evaluation is executed",
+            "Logger throws an exception while writing logs"
+          ],
+          "when": [
+            "System handles logging operation"
+          ],
+          "then": [
+            "Trigger decision result is still returned",
+            "Main task flow continues without interruption"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "Decision logs avoid sensitive full prompt content",
+        "description": "Observability must not dump entire conversation or full enhancement prompt into decision logs.",
+        "steps": {
+          "given": [
+            "Trigger evaluation and enhancement execution have run"
+          ],
+          "when": [
+            "System emits structured logs"
+          ],
+          "then": [
+            "Logs contain decision metadata only",
+            "Logs do not include full conversation body",
+            "Logs do not include full enhancement prompt"
+          ]
+        },
+        "passes": false
+      }
+    ]
+  }
+]

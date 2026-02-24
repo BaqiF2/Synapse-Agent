@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it, beforeEach, afterEach, mock } from 'bun:test';
-import { AgentRunner } from '../../../src/agent/agent-runner.ts';
+import { AgentRunner } from '../../../src/core/agent/agent-runner.ts';
 import { CallableToolset } from '../../../src/tools/toolset.ts';
 import { ToolOk } from '../../../src/tools/callable-tool.ts';
 import type { CallableTool, ToolReturnValue } from '../../../src/tools/callable-tool.ts';
@@ -17,8 +17,8 @@ const MockBashToolDef = {
 };
 import type { AnthropicClient } from '../../../src/providers/anthropic/anthropic-client.ts';
 import type { StreamedMessagePart } from '../../../src/providers/anthropic/anthropic-types.ts';
-import { StopHookRegistry, stopHookRegistry } from '../../../src/hooks/stop-hook-registry.ts';
-import type { StopHookContext } from '../../../src/hooks/types.ts';
+import { StopHookRegistry, stopHookRegistry } from '../../../src/core/hooks/stop-hook-registry.ts';
+import type { StopHookContext } from '../../../src/core/hooks/types.ts';
 
 function createMockCallableTool(handler: (args: unknown) => Promise<ToolReturnValue>): CallableTool<unknown> {
   return {

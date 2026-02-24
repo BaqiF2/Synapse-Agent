@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect } from 'bun:test';
-import { runAgentLoop } from '../../../src/core/agent-loop.ts';
+import { runAgentLoop } from '../../../src/core/agent/agent-loop.ts';
 import { EventStream } from '../../../src/core/event-stream.ts';
 import type {
   AgentEvent,
@@ -14,7 +14,7 @@ import type {
   TodoReminderEvent,
   ContextCompactEvent,
 } from '../../../src/core/types.ts';
-import type { AgentLoopConfig } from '../../../src/core/agent-loop-config.ts';
+import type { AgentLoopConfig } from '../../../src/core/agent/agent-loop-config.ts';
 import type { LLMResponse } from '../../../src/providers/types.ts';
 
 // ========== 测试辅助 ==========

@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect } from 'bun:test';
-import { SkillCache } from '../../../src/skills/skill-cache.ts';
+import { SkillCache } from '../../../src/skills/loader/skill-cache.ts';
 
 describe('SkillCache', () => {
   describe('get/set', () => {

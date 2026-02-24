@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect } from 'bun:test';
-import { parseSkillMdToSpec, parseSkillSpecFromLLM } from '../../../src/skills/skill-md-parser.ts';
+import { parseSkillMdToSpec, parseSkillSpecFromLLM } from '../../../src/skills/schema/skill-md-compat.ts';
 
 describe('parseSkillMdToSpec', () => {
   it('should parse minimal SKILL.md with just name', () => {

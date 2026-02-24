@@ -17,7 +17,7 @@ import type {
   LLMResponse,
   LLMResponseContentBlock,
 } from '../types.ts';
-import { AuthenticationError, RateLimitError } from '../../common/errors.ts';
+import { AuthenticationError, RateLimitError } from '../../shared/errors.ts';
 import { toGoogleParams, mapGoogleFinishReason } from './google-mapper.ts';
 
 /** GoogleProvider 构造选项 */

@@ -32,32 +32,37 @@
 ┌──────────────────────────────────────────────────────────────┐
 │                         cli (REPL)                           │
 │                     消费 EventStream                         │
-├──────────┬───────────┬───────────┬───────────┬──────────────┤
-│sub-agents│  skills   │   tools   │  config   │              │
-│          │           │ BashRouter│           │              │
-│          │           │ 三层路由   │           │              │
-├──────────┴─────┬─────┴─────┬─────┴───────────┴──────────────┤
-│     core       │ providers │                                │
-│  EventStream   │ Anthropic │                                │
-│  Agent Loop    │ OpenAI    │                                │
-│  Messages      │ Google    │                                │
-├────────────────┴───────────┴────────────────────────────────┤
-│                        common                                │
-│                  logger, errors, constants                    │
+├──────────────┬───────────┬───────────────────────────────────┤
+│    skills    │   tools   │                                   │
+│ loader/gen/  │ BashRouter│                                   │
+│ manager      │ 三层路由   │                                   │
+├──────────────┴─────┬─────┴───────────────────────────────────┤
+│     core           │ providers                               │
+│  Agent Loop        │ Anthropic / OpenAI / Google             │
+│  Session/Context   │                                         │
+│  Sub-Agents/Hooks  │                                         │
+├────────────────────┴─────────────────────────────────────────┤
+│                       shared                                  │
+│              logger, errors, constants, config                │
+├──────────────────────────────────────────────────────────────┤
+│                       types                                   │
+│         message, tool, events, provider, skill, usage         │
 └──────────────────────────────────────────────────────────────┘
 ```
 
 ### 模块依赖规则
 
+依赖方向：`types ← shared ← core ← providers ← tools ← skills ← cli`
+
 | 模块 | 允许依赖 | 说明 |
 |------|---------|------|
-| `core` | `common` | 事件系统、Agent Loop、消息转换 |
-| `providers` | `common` | LLM Provider 适配器（Anthropic/OpenAI/Google） |
-| `tools` | `core`(types), `common` | 三层工具系统、可插拔操作 |
-| `skills` | `core`, `providers`, `common` | 技能生成与增强 |
-| `sub-agents` | `core`, `providers`, `tools`, `common` | 子智能体生命周期管理 |
-| `cli` | 所有模块 | 顶层消费者 |
-| `common` | （无） | 公共工具 |
+| `types` | （无） | 共享类型定义（message, tool, events, provider） |
+| `shared` | `types` | 日志、错误、常量、配置、bash-session |
+| `core` | `types`, `shared` | Agent 循环、会话、上下文、子智能体、Hook |
+| `providers` | `types`, `shared` | LLM Provider 适配器（Anthropic/OpenAI/Google） |
+| `tools` | `types`, `shared`, `core`, `providers` | 三层工具系统、可插拔操作 |
+| `skills` | `types`, `shared`, `tools` | 技能加载、生成与管理 |
+| `cli` | 所有模块 | 顶层消费者（REPL、终端渲染） |
 
 ## 安装与配置
 
@@ -263,30 +268,42 @@ bun run chat
 
 ```text
 ├── src/
-│   ├── core/               # Agent Core：EventStream、Agent Loop、消息系统
-│   ├── providers/           # LLM Provider 适配器（Anthropic/OpenAI/Google）
+│   ├── types/               # 共享类型定义（message, tool, events, provider, skill）
+│   ├── shared/              # 共享工具层（日志、错误、常量、配置、bash-session）
+│   ├── core/                # Agent 核心
+│   │   ├── agent/           # Agent 循环、运行器、步骤执行
+│   │   ├── session/         # 会话管理与持久化
+│   │   ├── context/         # 上下文管理与压缩
+│   │   ├── sub-agents/      # 子智能体生命周期管理
+│   │   ├── hooks/           # Hook 系统（停止钩子、技能增强）
+│   │   └── prompts/         # 系统提示词模板
+│   ├── providers/           # LLM Provider 适配器
 │   │   ├── anthropic/
 │   │   ├── openai/
 │   │   └── google/
 │   ├── tools/               # 三层工具系统
+│   │   ├── commands/        # Agent Shell 命令处理器（read, write, edit, bash 等）
 │   │   ├── operations/      # 可插拔操作（FileOps/BashOps）
-│   │   ├── handlers/        # Agent Shell 命令处理器
 │   │   └── converters/      # MCP/Skill 转换器
-│   ├── skills/              # 技能生成与增强
-│   ├── sub-agents/          # 子智能体生命周期管理
-│   ├── common/              # 日志、错误、常量
+│   ├── skills/              # 技能系统
+│   │   ├── loader/          # 技能加载与搜索
+│   │   ├── generator/       # 技能生成与增强
+│   │   ├── manager/         # 技能管理（导入、版本、元数据）
+│   │   └── schema/          # 技能文档解析与模板
 │   ├── cli/                 # REPL 与终端 UI
-│   ├── config/              # 配置管理
-│   ├── agent/               # 旧版 Agent Runner
-│   ├── utils/               # 工具函数
-│   └── resource/            # 系统提示词
+│   │   ├── commands/        # CLI 命令处理器
+│   │   └── renderer/        # 终端渲染组件
+│   └── resource/            # 资源文件（meta-skill 模板）
 ├── tests/
 │   ├── unit/                # 单元测试（镜像 src/ 结构）
 │   ├── integration/         # 集成测试
-│   └── e2e/                 # 端到端 CLI 测试
+│   ├── e2e/                 # 端到端 CLI 测试
+│   └── fixtures/            # 测试夹具
 ├── docs/
-│   ├── architecture/        # 架构设计与 ADR
-│   └── requirements/        # PRD 与 BDD 验收标准
+│   ├── requirements/        # PRD 和需求文档
+│   ├── reports/             # 测试与交付报告
+│   ├── plans/               # 开发计划
+│   └── archive/             # 归档文档
 ├── assets/
 │   └── logo.png
 ├── README.md

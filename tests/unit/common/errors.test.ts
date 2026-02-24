@@ -15,7 +15,7 @@ import {
   FileNotFoundError,
   PermissionError,
   ConfigurationError,
-} from '../../../src/common/errors.ts';
+} from '../../../src/shared/errors.ts';
 
 describe('SynapseError', () => {
   it('should create a base error with code', () => {

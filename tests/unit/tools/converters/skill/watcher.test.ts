@@ -333,6 +333,261 @@ print("running")
     });
   });
 
+  // ===== 文件变更事件处理测试（覆盖私有事件链）=====
+
+  describe('file change event handling', () => {
+    /**
+     * 通过类型断言访问私有方法 handleEvent，
+     * 直接触发事件处理链（parseScriptPath → debounceEvent → processEvent）
+     */
+    function triggerEvent(
+      w: SkillWatcher,
+      type: 'add' | 'change' | 'unlink',
+      filePath: string
+    ): void {
+      (w as any).handleEvent(type, filePath);
+    }
+
+    /** 等待去抖完成 */
+    function waitDebounce(ms: number): Promise<void> {
+      return new Promise((resolve) => setTimeout(resolve, ms + 50));
+    }
+
+    it('should trigger onAdd handler for valid script path', async () => {
+      watcher = new SkillWatcher({ homeDir: testDir, debounceMs: 20 });
+
+      const events: WatchEvent[] = [];
+      watcher.onAdd((event) => {
+        events.push(event);
+      });
+
+      // 模拟 chokidar 触发的事件路径
+      const scriptPath = path.join(skillsDir, 'my-skill', 'scripts', 'tool.py');
+      triggerEvent(watcher, 'add', scriptPath);
+
+      await waitDebounce(20);
+
+      expect(events.length).toBe(1);
+      expect(events[0]!.type).toBe('add');
+      expect(events[0]!.skillName).toBe('my-skill');
+      expect(events[0]!.scriptName).toBe('tool');
+      expect(events[0]!.extension).toBe('.py');
+      expect(events[0]!.scriptPath).toBe(scriptPath);
+      expect(events[0]!.timestamp).toBeInstanceOf(Date);
+    });
+
+    it('should trigger onChange handler for script modification', async () => {
+      watcher = new SkillWatcher({ homeDir: testDir, debounceMs: 20 });
+
+      const events: WatchEvent[] = [];
+      watcher.onChange((event) => {
+        events.push(event);
+      });
+
+      const scriptPath = path.join(skillsDir, 'test-skill', 'scripts', 'run.sh');
+      triggerEvent(watcher, 'change', scriptPath);
+
+      await waitDebounce(20);
+
+      expect(events.length).toBe(1);
+      expect(events[0]!.type).toBe('change');
+      expect(events[0]!.skillName).toBe('test-skill');
+      expect(events[0]!.scriptName).toBe('run');
+      expect(events[0]!.extension).toBe('.sh');
+    });
+
+    it('should trigger onUnlink handler for script deletion', async () => {
+      watcher = new SkillWatcher({ homeDir: testDir, debounceMs: 20 });
+
+      const events: WatchEvent[] = [];
+      watcher.onUnlink((event) => {
+        events.push(event);
+      });
+
+      const scriptPath = path.join(skillsDir, 'del-skill', 'scripts', 'old.ts');
+      triggerEvent(watcher, 'unlink', scriptPath);
+
+      await waitDebounce(20);
+
+      expect(events.length).toBe(1);
+      expect(events[0]!.type).toBe('unlink');
+      expect(events[0]!.skillName).toBe('del-skill');
+    });
+
+    it('should ignore files with unsupported extensions', async () => {
+      watcher = new SkillWatcher({ homeDir: testDir, debounceMs: 20 });
+
+      const events: WatchEvent[] = [];
+      watcher.onAdd((event) => { events.push(event); });
+
+      // 不受支持的扩展名
+      triggerEvent(watcher, 'add', path.join(skillsDir, 'sk', 'scripts', 'readme.md'));
+      triggerEvent(watcher, 'add', path.join(skillsDir, 'sk', 'scripts', 'config.yaml'));
+      triggerEvent(watcher, 'add', path.join(skillsDir, 'sk', 'scripts', 'app.rb'));
+
+      await waitDebounce(20);
+
+      expect(events.length).toBe(0);
+    });
+
+    it('should ignore files outside scripts/ directory', async () => {
+      watcher = new SkillWatcher({ homeDir: testDir, debounceMs: 20 });
+
+      const events: WatchEvent[] = [];
+      watcher.onAdd((event) => { events.push(event); });
+
+      // 不在 scripts/ 子目录
+      triggerEvent(watcher, 'add', path.join(skillsDir, 'sk', 'tool.py'));
+      // 路径太短
+      triggerEvent(watcher, 'add', path.join(skillsDir, 'tool.py'));
+
+      await waitDebounce(20);
+
+      expect(events.length).toBe(0);
+    });
+
+    it('should ignore files in wrong subdirectory', async () => {
+      watcher = new SkillWatcher({ homeDir: testDir, debounceMs: 20 });
+
+      const events: WatchEvent[] = [];
+      watcher.onAdd((event) => { events.push(event); });
+
+      // 在 docs/ 而非 scripts/ 目录
+      triggerEvent(watcher, 'add', path.join(skillsDir, 'sk', 'docs', 'tool.py'));
+
+      await waitDebounce(20);
+
+      expect(events.length).toBe(0);
+    });
+
+    it('should call onError handler when event handler throws', async () => {
+      watcher = new SkillWatcher({ homeDir: testDir, debounceMs: 20 });
+
+      const errors: Error[] = [];
+      watcher.onAdd(() => {
+        throw new Error('Handler error');
+      });
+      watcher.onError((err) => {
+        errors.push(err);
+      });
+
+      triggerEvent(watcher, 'add', path.join(skillsDir, 'sk', 'scripts', 'fail.py'));
+
+      await waitDebounce(20);
+
+      expect(errors.length).toBe(1);
+      expect(errors[0]!.message).toBe('Handler error');
+    });
+
+    it('should call onError with non-Error objects converted to Error', async () => {
+      watcher = new SkillWatcher({ homeDir: testDir, debounceMs: 20 });
+
+      const errors: Error[] = [];
+      watcher.onAdd(() => {
+        throw 'string error';
+      });
+      watcher.onError((err) => {
+        errors.push(err);
+      });
+
+      triggerEvent(watcher, 'add', path.join(skillsDir, 'sk', 'scripts', 'fail.py'));
+
+      await waitDebounce(20);
+
+      expect(errors.length).toBe(1);
+      expect(errors[0]!).toBeInstanceOf(Error);
+      expect(errors[0]!.message).toBe('string error');
+    });
+
+    it('should debounce rapid events for same path', async () => {
+      watcher = new SkillWatcher({ homeDir: testDir, debounceMs: 100 });
+
+      const events: WatchEvent[] = [];
+      watcher.onChange((event) => {
+        events.push(event);
+      });
+
+      const scriptPath = path.join(skillsDir, 'sk', 'scripts', 'tool.py');
+
+      // 快速连续触发 3 次
+      triggerEvent(watcher, 'change', scriptPath);
+      triggerEvent(watcher, 'change', scriptPath);
+      triggerEvent(watcher, 'change', scriptPath);
+
+      // 等待去抖
+      await waitDebounce(100);
+
+      // 由于去抖，应该只有 1 次回调
+      expect(events.length).toBe(1);
+    });
+
+    it('should not debounce events for different paths', async () => {
+      watcher = new SkillWatcher({ homeDir: testDir, debounceMs: 50 });
+
+      const events: WatchEvent[] = [];
+      watcher.onAdd((event) => {
+        events.push(event);
+      });
+
+      // 不同路径的事件不应合并
+      triggerEvent(watcher, 'add', path.join(skillsDir, 'sk', 'scripts', 'a.py'));
+      triggerEvent(watcher, 'add', path.join(skillsDir, 'sk', 'scripts', 'b.py'));
+
+      await waitDebounce(50);
+
+      expect(events.length).toBe(2);
+    });
+
+    it('should call multiple handlers for same event type', async () => {
+      watcher = new SkillWatcher({ homeDir: testDir, debounceMs: 20 });
+
+      let count = 0;
+      watcher.onAdd(() => { count += 1; });
+      watcher.onAdd(() => { count += 1; });
+      watcher.onAdd(() => { count += 1; });
+
+      triggerEvent(watcher, 'add', path.join(skillsDir, 'sk', 'scripts', 'tool.py'));
+
+      await waitDebounce(20);
+
+      expect(count).toBe(3);
+    });
+
+    it('should handle .js extension in event path', async () => {
+      watcher = new SkillWatcher({ homeDir: testDir, debounceMs: 20 });
+
+      const events: WatchEvent[] = [];
+      watcher.onAdd((event) => { events.push(event); });
+
+      triggerEvent(watcher, 'add', path.join(skillsDir, 'sk', 'scripts', 'util.js'));
+
+      await waitDebounce(20);
+
+      expect(events.length).toBe(1);
+      expect(events[0]!.extension).toBe('.js');
+      expect(events[0]!.scriptName).toBe('util');
+    });
+
+    it('should clear debounced events on stop', async () => {
+      watcher = new SkillWatcher({ homeDir: testDir, debounceMs: 5000 });
+
+      const events: WatchEvent[] = [];
+      watcher.onAdd((event) => { events.push(event); });
+
+      await watcher.start();
+
+      // 触发事件（长去抖，不会立即回调）
+      triggerEvent(watcher, 'add', path.join(skillsDir, 'sk', 'scripts', 'tool.py'));
+
+      // 立即停止 — 应该清理去抖 timer
+      await watcher.stop();
+
+      // 等待确认去抖不会触发
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      expect(events.length).toBe(0);
+    });
+  });
+
   // ===== removeSkillWrappers 测试 =====
 
   describe('removeSkillWrappers', () => {

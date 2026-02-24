@@ -2,12 +2,40 @@ import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { SubAgentManager } from '../../../src/sub-agents/sub-agent-manager.ts';
+import { SubAgentManager } from '../../../src/core/sub-agents/sub-agent-manager.ts';
 import { BashTool } from '../../../src/tools/bash-tool.ts';
+import { createSubAgentToolsetFactory } from '../../../src/tools/sub-agent-toolset-factory.ts';
+import { generate } from '../../../src/providers/generate.ts';
+import { AgentRunner } from '../../../src/core/agent/agent-runner.ts';
 import type { AnthropicClient } from '../../../src/providers/anthropic/anthropic-client.ts';
 import type { StreamedMessagePart } from '../../../src/providers/anthropic/anthropic-types.ts';
 import type { SubAgentCompleteEvent } from '../../../src/cli/terminal-renderer-types.ts';
 import type { Message } from '../../../src/providers/message.ts';
+import type { AgentRunnerCreateParams } from '../../../src/core/sub-agents/sub-agent-types.ts';
+import type { Toolset } from '../../../src/types/toolset.ts';
+
+/**
+ * 创建包含必需工厂函数的 SubAgentManager 选项
+ */
+function createManagerOptions(base: { client: AnthropicClient; bashTool: BashTool; [key: string]: unknown }) {
+  return {
+    ...base,
+    toolsetFactory: createSubAgentToolsetFactory(),
+    generateFn: generate,
+    agentRunnerFactory: (params: AgentRunnerCreateParams) =>
+      new AgentRunner({
+        client: base.client,
+        systemPrompt: params.systemPrompt,
+        toolset: params.toolset as Toolset,
+        generateFn: generate,
+        maxIterations: params.maxIterations,
+        enableStopHooks: params.enableStopHooks,
+        onToolCall: params.onToolCall,
+        onToolResult: params.onToolResult,
+        onUsage: params.onUsage,
+      }),
+  };
+}
 
 function createMockClient(responses: StreamedMessagePart[][]): AnthropicClient {
   let callIndex = 0;
@@ -126,7 +154,7 @@ describe('SubAgentManager', () => {
 
   it('should execute task successfully', async () => {
     const client = createMockClient([[{ type: 'text', text: 'Hello!' }]]);
-    const manager = new SubAgentManager({ client, bashTool });
+    const manager = new SubAgentManager(createManagerOptions({ client, bashTool }));
 
     const result = await manager.execute('general', { prompt: 'Hi', description: 'Test' });
     expect(result).toBe('Hello!');
@@ -137,7 +165,7 @@ describe('SubAgentManager', () => {
       [{ type: 'text', text: 'First!' }],
       [{ type: 'text', text: 'Second!' }],
     ]);
-    const manager = new SubAgentManager({ client, bashTool });
+    const manager = new SubAgentManager(createManagerOptions({ client, bashTool }));
 
     const first = await manager.execute('general', { prompt: 'Hi', description: 'Test 1' });
     expect(first).toBe('First!');
@@ -150,11 +178,11 @@ describe('SubAgentManager', () => {
     const client = createMockClient([[{ type: 'text', text: 'Done!' }]]);
     const completedEvents: SubAgentCompleteEvent[] = [];
 
-    const manager = new SubAgentManager({
+    const manager = new SubAgentManager(createManagerOptions({
       client,
       bashTool,
-      onComplete: (event) => completedEvents.push(event),
-    });
+      onComplete: (event: SubAgentCompleteEvent) => completedEvents.push(event),
+    }));
 
     await manager.execute('general', { prompt: 'Hi', description: 'Test' });
 
@@ -169,13 +197,13 @@ describe('SubAgentManager', () => {
     const client = createMockClient([[{ type: 'text', text: 'Done!' }]]);
     const usageEvents: Array<{ model: string; usage: unknown }> = [];
 
-    const manager = new SubAgentManager({
+    const manager = new SubAgentManager(createManagerOptions({
       client,
       bashTool,
-      onUsage: (usage, model) => {
+      onUsage: (usage: unknown, model: string) => {
         usageEvents.push({ usage, model });
       },
-    });
+    }));
 
     await manager.execute('general', { prompt: 'Hi', description: 'Usage test' });
 
@@ -191,7 +219,7 @@ describe('SubAgentManager', () => {
 
   it('should shutdown and cleanup', async () => {
     const client = createMockClient([[{ type: 'text', text: 'Hello!' }]]);
-    const manager = new SubAgentManager({ client, bashTool });
+    const manager = new SubAgentManager(createManagerOptions({ client, bashTool }));
 
     await manager.execute('general', { prompt: 'Hi', description: 'Test' });
 
@@ -201,7 +229,7 @@ describe('SubAgentManager', () => {
 
   it('should isolate bash execution for parallel sub-agent tasks', async () => {
     const client = createParallelToolClient();
-    const manager = new SubAgentManager({ client, bashTool });
+    const manager = new SubAgentManager(createManagerOptions({ client, bashTool }));
 
     const [alphaResult, betaResult] = await Promise.all([
       manager.execute('general', { prompt: 'alpha', description: 'Alpha task' }),
@@ -217,11 +245,11 @@ describe('SubAgentManager', () => {
       [{ type: 'tool_call', id: 'abort-call', name: 'Bash', input: { command: 'sleep 2' } }],
     ]);
     const completedEvents: SubAgentCompleteEvent[] = [];
-    const manager = new SubAgentManager({
+    const manager = new SubAgentManager(createManagerOptions({
       client,
       bashTool,
-      onComplete: (event) => completedEvents.push(event),
-    });
+      onComplete: (event: SubAgentCompleteEvent) => completedEvents.push(event),
+    }));
     const controller = new AbortController();
 
     const execution = manager.execute(
@@ -240,7 +268,7 @@ describe('SubAgentManager', () => {
   it('should not prepend skill-search instruction for skill enhance sub-agent', async () => {
     const capture: { userText?: string } = {};
     const client = createPromptCaptureClient(capture);
-    const manager = new SubAgentManager({ client, bashTool });
+    const manager = new SubAgentManager(createManagerOptions({ client, bashTool }));
 
     const prompt = 'Only analyze this enhancement context';
     const result = await manager.execute('skill', {

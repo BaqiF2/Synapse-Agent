@@ -1,5 +1,5 @@
 import { describe, expect, it, mock } from 'bun:test';
-import { AgentRunner } from '../../../src/agent/agent-runner.ts';
+import { AgentRunner } from '../../../src/core/agent/agent-runner.ts';
 import type { Toolset } from '../../../src/tools/toolset.ts';
 import { ToolOk, asCancelablePromise } from '../../../src/tools/callable-tool.ts';
 import type { StreamedMessagePart } from '../../../src/providers/anthropic/anthropic-types.ts';

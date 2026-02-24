@@ -9,7 +9,7 @@ import { describe, expect, it, beforeEach, afterEach } from 'bun:test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
-import { SkillGenerator } from '../../../src/skills/skill-generator.ts';
+import { SkillGenerator } from '../../../src/skills/generator/skill-generator.ts';
 import type { LLMProvider, LLMStream, LLMResponse, GenerateParams } from '../../../src/providers/types.ts';
 
 /**

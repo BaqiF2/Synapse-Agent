@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from 'bun:test';
 import { LocalBashOperations } from '../../../../src/tools/operations/local-bash-ops.ts';
-import { TimeoutError } from '../../../../src/common/errors.ts';
+import { TimeoutError } from '../../../../src/shared/errors.ts';
 
 describe('LocalBashOperations', () => {
   describe('Scenario: LocalBashOperations 执行命令', () => {

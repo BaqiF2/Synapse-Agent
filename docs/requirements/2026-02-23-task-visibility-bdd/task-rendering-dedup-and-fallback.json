@@ -1,0 +1,64 @@
+[
+  {
+    "category": "functional",
+    "feature": "F-003 Task Rendering Dedup and Fallback",
+    "description": "Prevent duplicate rendering for task:* and ensure safe fallback to default renderer when parsing fails.",
+    "overallPass": false,
+    "bdd": [
+      {
+        "scenario": "Task commands are rendered only once via task summary path",
+        "description": "task:* should not appear both in top-level tool renderer and task summary renderer.",
+        "steps": {
+          "given": [
+            "A Bash command is parsed as task:*",
+            "Task summary rendering is enabled"
+          ],
+          "when": [
+            "Tool call start and end are processed"
+          ],
+          "then": [
+            "Task summary lines are printed",
+            "Top-level tool call lines for the same task are not printed"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "Fallback to default rendering when task parsing fails",
+        "description": "Malformed Bash arguments or unrecognized task syntax must not swallow output.",
+        "steps": {
+          "given": [
+            "A Bash tool call cannot be parsed into valid task metadata"
+          ],
+          "when": [
+            "Renderer processes this tool call"
+          ],
+          "then": [
+            "The default top-level tool rendering path is used",
+            "No task summary state is created for this call"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "Still show task summary for task with zero internal tools",
+        "description": "Pure-reasoning task (such as skill search) must remain visible.",
+        "steps": {
+          "given": [
+            "A task:skill:search command emits no internal sub-tool calls",
+            "Task execution returns a final text result"
+          ],
+          "when": [
+            "Task lifecycle start and end are processed"
+          ],
+          "then": [
+            "Start summary line is shown",
+            "End summary line is shown",
+            "Visibility does not depend on internal sub-tool events"
+          ]
+        },
+        "passes": false
+      }
+    ]
+  }
+]

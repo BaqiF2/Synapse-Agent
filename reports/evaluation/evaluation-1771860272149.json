@@ -1,0 +1,157 @@
+{
+  "timestamp": "2026-02-23T15:24:32.149Z",
+  "summary": {
+    "totalTasks": 10,
+    "successCount": 7,
+    "avgScore": 91.1675777783382,
+    "totalDuration": 1
+  },
+  "results": [
+    {
+      "taskId": "A1",
+      "success": false,
+      "score": 75,
+      "metrics": {
+        "successRate": 0,
+        "toolAccuracy": 0.8545963213803391,
+        "responseQuality": 3.5625755359409443,
+        "errorRecovery": 0.8038828160221554
+      },
+      "issues": [
+        "执行过程中出现错误"
+      ],
+      "duration": 0,
+      "notes": []
+    },
+    {
+      "taskId": "A2",
+      "success": true,
+      "score": 104.45359875904896,
+      "metrics": {
+        "successRate": 1,
+        "toolAccuracy": 0.8580549208003414,
+        "responseQuality": 3.88168895804716,
+        "errorRecovery": 0.7669220740582503
+      },
+      "issues": [],
+      "duration": 0,
+      "notes": []
+    },
+    {
+      "taskId": "A3",
+      "success": true,
+      "score": 96.49601401470476,
+      "metrics": {
+        "successRate": 1,
+        "toolAccuracy": 0.9347054003249256,
+        "responseQuality": 3.5408074199405375,
+        "errorRecovery": 0.8115165192320919
+      },
+      "issues": [],
+      "duration": 0,
+      "notes": []
+    },
+    {
+      "taskId": "B1",
+      "success": true,
+      "score": 102.42108432951514,
+      "metrics": {
+        "successRate": 1,
+        "toolAccuracy": 0.9043776759557339,
+        "responseQuality": 4.540132907156922,
+        "errorRecovery": 0.7175459405802569
+      },
+      "issues": [],
+      "duration": 0,
+      "notes": []
+    },
+    {
+      "taskId": "B2",
+      "success": true,
+      "score": 104.95529669744082,
+      "metrics": {
+        "successRate": 1,
+        "toolAccuracy": 0.9253873941884623,
+        "responseQuality": 3.0153608933682774,
+        "errorRecovery": 0.9712856990400642
+      },
+      "issues": [],
+      "duration": 0,
+      "notes": []
+    },
+    {
+      "taskId": "C1",
+      "success": false,
+      "score": 70,
+      "metrics": {
+        "successRate": 0,
+        "toolAccuracy": 0.8858779207758227,
+        "responseQuality": 4.8964295784661775,
+        "errorRecovery": 0.9219806133300936
+      },
+      "issues": [
+        "执行过程中出现错误"
+      ],
+      "duration": 0,
+      "notes": []
+    },
+    {
+      "taskId": "C2",
+      "success": true,
+      "score": 104.36812461267093,
+      "metrics": {
+        "successRate": 1,
+        "toolAccuracy": 0.8814726556113988,
+        "responseQuality": 4.000005325568577,
+        "errorRecovery": 0.9690412178423379
+      },
+      "issues": [],
+      "duration": 0,
+      "notes": []
+    },
+    {
+      "taskId": "D1",
+      "success": false,
+      "score": 70,
+      "metrics": {
+        "successRate": 0,
+        "toolAccuracy": 0.852397657964238,
+        "responseQuality": 3.5885528863862843,
+        "errorRecovery": 0.8261703567940065
+      },
+      "issues": [
+        "执行过程中出现错误"
+      ],
+      "duration": 0,
+      "notes": []
+    },
+    {
+      "taskId": "E1",
+      "success": true,
+      "score": 93.94144368413899,
+      "metrics": {
+        "successRate": 1,
+        "toolAccuracy": 0.8791194033187968,
+        "responseQuality": 4.567275300358019,
+        "errorRecovery": 0.7448878567097592
+      },
+      "issues": [],
+      "duration": 0,
+      "notes": []
+    },
+    {
+      "taskId": "E2",
+      "success": true,
+      "score": 90.04021568586225,
+      "metrics": {
+        "successRate": 1,
+        "toolAccuracy": 0.8792346907155513,
+        "responseQuality": 4.440265303302979,
+        "errorRecovery": 0.7747144066293904
+      },
+      "issues": [],
+      "duration": 0,
+      "notes": []
+    }
+  ]
+}

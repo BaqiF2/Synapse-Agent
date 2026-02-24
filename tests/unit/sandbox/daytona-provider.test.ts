@@ -1,6 +1,6 @@
 import { describe, expect, it, mock } from 'bun:test';
-import { DaytonaSandboxProvider } from '../../../src/sandbox/providers/daytona/index.ts';
-import type { ExecuteResult, SandboxBackend, SandboxCreateOptions } from '../../../src/sandbox/types.ts';
+import { DaytonaSandboxProvider } from '../../../src/shared/sandbox/providers/daytona.ts';
+import type { ExecuteResult, SandboxBackend, SandboxCreateOptions } from '../../../src/shared/sandbox/types.ts';
 
 class MockBackend implements SandboxBackend {
   readonly disposeImpl: ReturnType<typeof mock>;

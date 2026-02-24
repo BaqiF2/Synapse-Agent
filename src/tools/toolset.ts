@@ -11,26 +11,16 @@
  */
 
 import type { LLMTool } from '../types/tool.ts';
-import type { ToolCall, ToolResult } from '../providers/message.ts';
+import type { ToolCall, ToolResult } from '../types/message.ts';
 import type { CallableTool, CancelablePromise } from './callable-tool.ts';
 import { ToolError, asCancelablePromise } from './callable-tool.ts';
 import { TOOL_FAILURE_CATEGORIES } from './tool-failure.ts';
 
+// 从共享类型层 re-export Toolset 接口和 ToolResult
+export type { Toolset } from '../types/toolset.ts';
 export type { ToolResult };
 
-/**
- * Toolset interface for managing and executing tools
- */
-export interface Toolset {
-  /** Tool definitions for LLM */
-  readonly tools: LLMTool[];
-
-  /** Handle a tool call, returns result promise */
-  handle(toolCall: ToolCall): CancelablePromise<ToolResult>;
-
-  /** 可选：按名称获取工具实例 */
-  getTool?(name: string): CallableTool<unknown> | undefined;
-}
+import type { Toolset } from '../types/toolset.ts';
 
 /**
  * Toolset implementation backed by CallableTool instances.

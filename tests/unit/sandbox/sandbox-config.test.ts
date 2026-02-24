@@ -2,15 +2,15 @@ import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { Logger } from '../../../src/utils/logger.ts';
+import { Logger } from '../../../src/shared/file-logger.ts';
 import {
   DEFAULT_SANDBOX_CONFIG,
   addPermanentWhitelist,
   buildPolicy,
   loadSandboxConfig,
   validateSandboxConfig,
-} from '../../../src/sandbox/sandbox-config.ts';
-import type { SandboxPolicy } from '../../../src/sandbox/types.ts';
+} from '../../../src/shared/sandbox/sandbox-config.ts';
+import type { SandboxPolicy } from '../../../src/shared/sandbox/types.ts';
 
 function createTempDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'synapse-sandbox-config-test-'));

@@ -8,8 +8,8 @@ import { describe, expect, it, beforeEach, afterEach } from 'bun:test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
-import { SettingsManager } from '../../../src/config/settings-manager.ts';
-import { DEFAULT_SETTINGS } from '../../../src/config/settings-schema.ts';
+import { SettingsManager } from '../../../src/shared/config/settings-manager.ts';
+import { DEFAULT_SETTINGS } from '../../../src/shared/config/settings-schema.ts';
 
 describe('SettingsManager', () => {
   let testDir: string;
@@ -151,6 +151,19 @@ describe('SettingsManager', () => {
       const config = manager.getLlmConfig();
       expect(config.baseURL).toBe('https://api.anthropic.com');
       expect(config.model).toBe('claude-sonnet-4-5');
+    });
+  });
+
+  describe('getEnhanceTriggerProfile', () => {
+    it('should return conservative by default', () => {
+      writeSettingsFile(testDir);
+      expect(manager.getEnhanceTriggerProfile()).toBe('conservative');
+    });
+
+    it('should return saved trigger profile', () => {
+      writeSettingsFile(testDir);
+      manager.set('skillEnhance.triggerProfile', 'neutral');
+      expect(manager.getEnhanceTriggerProfile()).toBe('neutral');
     });
   });
 });

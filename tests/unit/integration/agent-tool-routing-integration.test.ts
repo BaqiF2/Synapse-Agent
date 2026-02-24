@@ -6,16 +6,17 @@
  */
 
 import { describe, it, expect, mock, afterEach } from 'bun:test';
-import { AgentRunner, type AgentRunnerOptions } from '../../../src/agent/agent-runner.ts';
+import { AgentRunner, type AgentRunnerOptions } from '../../../src/core/agent/agent-runner.ts';
 import { CallableToolset } from '../../../src/tools/toolset.ts';
 import { ToolOk, ToolError, asCancelablePromise } from '../../../src/tools/callable-tool.ts';
 import type { CallableTool, CancelablePromise, ToolReturnValue } from '../../../src/tools/callable-tool.ts';
 import { createTextMessage } from '../../../src/providers/message.ts';
 import type { AnthropicClient } from '../../../src/providers/anthropic/anthropic-client.ts';
 import type { StreamedMessagePart } from '../../../src/providers/anthropic/anthropic-types.ts';
-import { runAgentLoop } from '../../../src/core/agent-loop.ts';
-import type { AgentLoopConfig } from '../../../src/core/agent-loop-config.ts';
-import type { AgentTool, AgentEvent, LLMProviderLike, LLMResponse } from '../../../src/core/types.ts';
+import { runAgentLoop } from '../../../src/core/agent/agent-loop.ts';
+import type { AgentLoopConfig } from '../../../src/core/agent/agent-loop-config.ts';
+import type { AgentTool, AgentEvent, LLMProviderLike } from '../../../src/core/types.ts';
+import type { LLMResponse, LLMStream, LLMStreamChunk } from '../../../src/types/provider.ts';
 
 const MockBashToolDef = {
   name: 'Bash',
@@ -233,13 +234,13 @@ describe('Integration: core/agent-loop complete flow', () => {
     return {
       name: 'mock-provider',
       model: 'mock-model',
-      generate: () => {
+      generate: (_params) => {
         const response = responses[callIndex++] ?? {
-          content: [{ type: 'text', text: 'default' }],
-          stopReason: 'end_turn',
+          content: [{ type: 'text' as const, text: 'default' }],
+          stopReason: 'end_turn' as const,
           usage: { inputTokens: 10, outputTokens: 5 },
         };
-        const chunks: unknown[] = [];
+        const chunks: LLMStreamChunk[] = [];
         // 将 content 转换为 stream chunks
         for (const block of response.content) {
           if (block.type === 'text') {
@@ -251,14 +252,14 @@ describe('Integration: core/agent-loop complete flow', () => {
         let resultResolve!: (value: LLMResponse) => void;
         const resultPromise = new Promise<LLMResponse>((resolve) => { resultResolve = resolve; });
 
-        const stream = {
+        const stream: LLMStream = {
           async *[Symbol.asyncIterator]() {
             for (const chunk of chunks) yield chunk;
             resultResolve(response);
           },
           result: resultPromise,
         };
-        return stream as AsyncIterable<unknown> & { result: Promise<unknown> };
+        return stream;
       },
     };
   }

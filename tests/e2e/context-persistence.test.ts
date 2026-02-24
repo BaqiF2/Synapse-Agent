@@ -13,7 +13,7 @@ import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
-import { Session } from '../../src/agent/session.ts';
+import { Session } from '../../src/core/session/session.ts';
 
 describe('E2E: Session Management', () => {
   let testDir: string;

@@ -49,7 +49,7 @@ import type {
   StreamedMessagePart,
 } from '../types/message.ts';
 
-import { createLogger } from '../utils/logger.ts';
+import { createLogger } from '../shared/file-logger.ts';
 
 const logger = createLogger('message');
 

@@ -13,18 +13,30 @@
 import chalk from 'chalk';
 
 import { AnthropicClient } from '../providers/anthropic/anthropic-client.ts';
-import { buildSystemPrompt } from '../agent/system-prompt.ts';
-import type { Session } from '../agent/session.ts';
-import { AgentRunner } from '../agent/agent-runner.ts';
+import { createAnthropicProvider } from '../providers/anthropic/anthropic-provider.ts';
+import { generate } from '../providers/generate.ts';
+import { buildSystemPrompt } from '../core/system-prompt.ts';
+import type { Session } from '../core/session/session.ts';
+import { AgentRunner } from '../core/agent/agent-runner.ts';
 import { CallableToolset } from '../tools/toolset.ts';
 import { BashTool } from '../tools/bash-tool.ts';
+import { todoStore } from '../tools/commands/todo-handler.ts';
 import { initializeMcpTools } from '../tools/converters/mcp/index.ts';
 import { initializeSkillTools } from '../tools/converters/skill/index.ts';
-import { createLogger } from '../utils/logger.ts';
-import { parseEnvInt } from '../utils/env.ts';
-import { SettingsManager } from '../config/settings-manager.ts';
+import { MetaSkillInstaller } from '../skills/manager/meta-skill-installer.ts';
+import { SkillLoader } from '../skills/loader/skill-loader.ts';
+import { SkillIndexer } from '../skills/loader/indexer.ts';
+import { SkillMerger } from '../skills/manager/skill-merger.ts';
+import { SkillManager } from '../skills/manager/skill-manager.ts';
+import { SkillMetadataService } from '../skills/manager/metadata-service.ts';
+import { createLogger } from '../shared/file-logger.ts';
+import { parseEnvInt } from '../shared/env.ts';
+import { parseTaskSummaryCommand } from '../shared/task-summary.ts';
+import { SettingsManager } from '../shared/config/settings-manager.ts';
 import { TerminalRenderer } from './terminal-renderer.ts';
 import { formatStreamText } from './commands/index.ts';
+import type { SkillCommandHandlerOptions } from '../tools/commands/skill-mgmt.ts';
+import type { ISubAgentExecutor } from '../core/sub-agents/sub-agent-types.ts';
 
 const cliLogger = createLogger('cli');
 const MAX_TOOL_ITERATIONS = parseEnvInt(process.env.SYNAPSE_MAX_TOOL_ITERATIONS, 50);
@@ -33,6 +45,33 @@ const MAX_TOOL_ITERATIONS = parseEnvInt(process.env.SYNAPSE_MAX_TOOL_ITERATIONS,
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'Unknown error';
+}
+
+/**
+ * 创建 SkillCommandHandler 配置工厂 — 在 cli 层注入 skills 具体实现。
+ * 消除 tools→skills 跨层依赖：BashRouter 不再直接导入 skills/ 模块。
+ */
+function createSkillCommandHandlerFactory(
+  homeDir: string,
+  createSubAgentManager?: () => ISubAgentExecutor,
+): SkillCommandHandlerOptions {
+  const skillLoader = new SkillLoader(homeDir);
+  const skillsDir = `${homeDir}/.synapse/skills`;
+  const indexer = new SkillIndexer(homeDir);
+  const metadataService = new SkillMetadataService(skillsDir, indexer);
+
+  // 构建 merger（需要 SubAgent 执行器）
+  const subAgentExecutor = createSubAgentManager?.() ?? null;
+  const skillMerger = new SkillMerger(subAgentExecutor);
+
+  return {
+    homeDir,
+    skillLoader,
+    metadataService,
+    skillMerger,
+    createSubAgentManager,
+    skillManagerFactory: () => new SkillManager(skillsDir, indexer, skillMerger),
+  };
 }
 
 // ===== 导出函数 =====
@@ -45,34 +84,23 @@ export function initializeAgent(
   options: { shouldRenderTurn: () => boolean }
 ): AgentRunner | null {
   try {
-    const llmClient = new AnthropicClient({ settings: SettingsManager.getInstance().getLlmConfig() });
-    let runnerRef: AgentRunner | null = null;
+    const llmSettings = SettingsManager.getInstance().getLlmConfig();
+    const llmClient = new AnthropicClient({ settings: llmSettings });
+    const llmProvider = createAnthropicProvider({
+      apiKey: llmSettings.apiKey,
+      baseURL: llmSettings.baseURL,
+      model: llmSettings.model,
+    });
 
     // 先创建 TerminalRenderer，以便传递回调给 BashTool
     const terminalRenderer = new TerminalRenderer();
 
     const bashTool = new BashTool({
-      llmClient,
+      provider: llmProvider,
       getConversationPath: () => session?.historyPath ?? null,
-      onSubAgentToolStart: (event) => {
-        if (!options.shouldRenderTurn()) return;
-        terminalRenderer.renderSubAgentToolStart(event);
-      },
-      onSubAgentToolEnd: (event) => {
-        if (!options.shouldRenderTurn()) return;
-        terminalRenderer.renderSubAgentToolEnd(event);
-      },
-      onSubAgentComplete: (event) => {
-        if (!options.shouldRenderTurn()) return;
-        terminalRenderer.renderSubAgentComplete(event);
-      },
-      onSubAgentUsage: async (usage, model) => {
-        if (!runnerRef) {
-          return;
-        }
-        await runnerRef.recordUsage(usage, model);
-      },
+      skillCommandHandlerFactory: createSkillCommandHandlerFactory,
     });
+    const activeTaskSummaryIds = new Set<string>();
 
     const toolset = new CallableToolset([bashTool]);
     const systemPrompt = buildSystemPrompt({ cwd: process.cwd() });
@@ -81,8 +109,10 @@ export function initializeAgent(
       client: llmClient,
       systemPrompt,
       toolset,
+      generateFn: generate,
       maxIterations: MAX_TOOL_ITERATIONS,
       session,
+      todoStore,
       onMessagePart: (part) => {
         if (!options.shouldRenderTurn()) return;
         if (part.type === 'text' && part.text.trim()) {
@@ -103,8 +133,8 @@ export function initializeAgent(
           }
         }
 
-        // 跳过 task:* 命令的主层级渲染，由 SubAgent 渲染接管
-        if (command.startsWith('task:')) {
+        const taskSummaryMeta = parseTaskSummaryCommand(command);
+        if (taskSummaryMeta && activeTaskSummaryIds.has(toolCall.id)) {
           return;
         }
 
@@ -119,14 +149,26 @@ export function initializeAgent(
       },
       onToolResult: (result) => {
         if (!options.shouldRenderTurn()) return;
+        if (activeTaskSummaryIds.has(result.toolCallId)) {
+          return;
+        }
         terminalRenderer.renderToolEnd({
           id: result.toolCallId,
           success: !result.returnValue.isError,
           output: result.returnValue.output,
         });
       },
+      onTaskSummaryStart: (event) => {
+        if (!options.shouldRenderTurn()) return;
+        activeTaskSummaryIds.add(event.taskCallId);
+        terminalRenderer.renderTaskSummaryStart(event);
+      },
+      onTaskSummaryEnd: (event) => {
+        if (!options.shouldRenderTurn()) return;
+        terminalRenderer.renderTaskSummaryEnd(event);
+        activeTaskSummaryIds.delete(event.taskCallId);
+      },
     });
-    runnerRef = runner;
     return runner;
   } catch (error) {
     const message = getErrorMessage(error);
@@ -166,7 +208,9 @@ export async function initializeMcp(): Promise<void> {
  */
 export async function initializeSkills(): Promise<void> {
   try {
-    const skillResult = await initializeSkillTools();
+    const skillResult = await initializeSkillTools({
+      metaSkillInstaller: new MetaSkillInstaller(),
+    });
     if (skillResult.totalToolsInstalled > 0) {
       console.log(
         chalk.green(

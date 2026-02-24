@@ -7,7 +7,7 @@
 import { describe, test, expect, beforeAll, afterAll, mock } from 'bun:test';
 import { RestrictedBashTool, isCommandBlocked } from '../../../src/tools/restricted-bash-tool.ts';
 import { BashTool } from '../../../src/tools/bash-tool.ts';
-import type { ToolPermissions } from '../../../src/sub-agents/sub-agent-types.ts';
+import type { ToolPermissions } from '../../../src/core/sub-agents/sub-agent-types.ts';
 import type { CancelablePromise, ToolReturnValue } from '../../../src/tools/callable-tool.ts';
 import { ToolError, ToolOk, asCancelablePromise } from '../../../src/tools/callable-tool.ts';
 

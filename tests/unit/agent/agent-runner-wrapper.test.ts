@@ -9,7 +9,7 @@ import { describe, it, expect, mock } from 'bun:test';
 import {
   AgentRunner,
   type AgentRunnerOptions,
-} from '../../../src/agent/agent-runner.ts';
+} from '../../../src/core/agent/agent-runner.ts';
 import { CallableToolset } from '../../../src/tools/toolset.ts';
 import { ToolOk, asCancelablePromise } from '../../../src/tools/callable-tool.ts';
 import type { CallableTool, CancelablePromise, ToolReturnValue } from '../../../src/tools/callable-tool.ts';

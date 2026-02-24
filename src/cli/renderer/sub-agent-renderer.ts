@@ -14,8 +14,8 @@ import type {
   ToolResultEvent,
   SubAgentToolCallEvent,
   SubAgentCompleteEvent,
-} from '../terminal-renderer-types.ts';
-import { TreeBuilder } from '../tree-builder.ts';
+} from '../../types/events.ts';
+import { TreeBuilder } from './tree-builder.ts';
 import type { ActiveSubAgentState } from './renderer-types.ts';
 import type { AnimationController } from './animation-controller.ts';
 import { buildSubAgentToolLine } from './render-utils.ts';
@@ -28,7 +28,7 @@ import {
   shouldScroll,
   closeOpenToolLine,
 } from './render-tree-builder.ts';
-import { parseEnvInt } from '../../utils/env.ts';
+import { parseEnvInt } from '../../shared/env.ts';
 
 /** SubAgent 渲染时最多显示的最近工具数 */
 const MAX_RECENT_TOOLS = parseEnvInt(process.env.SYNAPSE_MAX_RECENT_TOOLS, 5);

@@ -3,6 +3,7 @@
  *
  * CallableTool subclass for the unified Bash tool. Routes commands through
  * BashRouter (three-layer architecture) and returns structured ToolReturnValue.
+ * 通过 subAgentExecutorFactory 注入 SubAgent 能力，消除与 BashRouter 的循环依赖。
  *
  * Core Exports:
  * - BashTool: The Bash tool implementation
@@ -23,24 +24,24 @@ import { BashToolParamsSchema, type BashToolParams } from './schemas.ts';
 export type { BashToolParams } from './schemas.ts';
 import { BashRouter } from './bash-router.ts';
 import { BashSession } from './bash-session.ts';
-import { loadDesc } from '../utils/load-desc.js';
-import type { LLMClient } from '../providers/llm-client.ts';
+import type { SkillCommandHandlerOptions } from './commands/skill-mgmt.ts';
+import { loadDesc } from '../shared/load-desc.js';
+import type { LLMProviderLike } from '../types/provider.ts';
 import { extractBaseCommand } from './constants.ts';
 import {
   classifyToolFailure,
   shouldAttachToolSelfDescription,
   TOOL_FAILURE_CATEGORIES,
 } from './tool-failure.ts';
-import { isSynapseError } from '../common/errors.ts';
-import type { OnUsage } from '../providers/generate.ts';
-import type {
-  ToolResultEvent,
-  SubAgentCompleteEvent,
-  SubAgentToolCallEvent,
-} from '../cli/terminal-renderer-types.ts';
-import { addPermanentWhitelist, loadSandboxConfig } from '../sandbox/sandbox-config.ts';
-import { SandboxManager } from '../sandbox/sandbox-manager.ts';
-import type { ExecuteResult, SandboxConfig } from '../sandbox/types.ts';
+import { isSynapseError } from '../shared/errors.ts';
+import { addPermanentWhitelist, loadSandboxConfig } from '../shared/sandbox/sandbox-config.ts';
+import { SandboxManager } from '../shared/sandbox/sandbox-manager.ts';
+import type { ExecuteResult, SandboxConfig } from '../shared/sandbox/types.ts';
+import {
+  SubAgentExecutor,
+  callableToolToAgentTool,
+} from '../core/sub-agents/sub-agent-core.ts';
+import type { ISubAgentExecutor } from '../types/sub-agent.ts';
 
 const COMMAND_TIMEOUT_MARKER = 'Command execution timeout';
 const BASH_TOOL_MISUSE_REGEX = /^Bash(?:\s|\(|$)/;
@@ -70,22 +71,18 @@ function isBashToolMisuse(command: string): boolean {
  * Options for constructing BashTool
  */
 export interface BashToolOptions {
-  /** LLM client for semantic skill search */
-  llmClient?: LLMClient;
+  /** LLM Provider，用于创建 SubAgentExecutor */
+  provider?: LLMProviderLike;
   /** Callback to get current conversation path */
   getConversationPath?: () => string | null;
-  /** SubAgent 工具调用开始回调 */
-  onSubAgentToolStart?: (event: SubAgentToolCallEvent) => void;
-  /** SubAgent 工具调用结束回调 */
-  onSubAgentToolEnd?: (event: ToolResultEvent) => void;
-  /** SubAgent 完成回调 */
-  onSubAgentComplete?: (event: SubAgentCompleteEvent) => void;
-  /** SubAgent usage 回调 */
-  onSubAgentUsage?: OnUsage;
   /** 测试或外部注入的 SandboxManager */
   sandboxManager?: SandboxManager;
   /** 沙箱配置（createIsolatedCopy 时继承，优先于 loadSandboxConfig()） */
   sandboxConfig?: SandboxConfig;
+  /** 预创建的 SubAgent 执行器（测试注入，优先于 provider） */
+  subAgentExecutor?: ISubAgentExecutor;
+  /** SkillCommandHandler 配置工厂 — 由调用方注入技能服务依赖 */
+  skillCommandHandlerFactory?: (homeDir: string, createSubAgentManager?: () => ISubAgentExecutor) => SkillCommandHandlerOptions;
 }
 
 /**
@@ -111,16 +108,16 @@ export class BashTool extends CallableTool<BashToolParams> {
     this.session = new BashSession();
     this.sandboxManager = options.sandboxManager
       ?? new SandboxManager(options.sandboxConfig ?? loadSandboxConfig());
+
+    // 构建 subAgentExecutorFactory：惰性创建 SubAgentExecutor
+    const subAgentExecutorFactory = this.buildSubAgentExecutorFactory(options);
+
     this.router = new BashRouter(this.session, {
-      llmClient: options.llmClient,
+      subAgentExecutorFactory,
       sandboxManager: this.sandboxManager,
       getConversationPath: options.getConversationPath,
-      onSubAgentToolStart: options.onSubAgentToolStart,
-      onSubAgentToolEnd: options.onSubAgentToolEnd,
-      onSubAgentComplete: options.onSubAgentComplete,
-      onSubAgentUsage: options.onSubAgentUsage,
+      skillCommandHandlerFactory: options.skillCommandHandlerFactory,
     });
-    this.router.setToolExecutor(this);
   }
 
   protected execute(params: BashToolParams): CancelablePromise<ToolReturnValue> {
@@ -235,6 +232,50 @@ export class BashTool extends CallableTool<BashToolParams> {
     } catch {
       // Best-effort restart; ignore errors to avoid masking the original failure.
     }
+  }
+
+  /**
+   * 构建 SubAgent 执行器工厂。
+   *
+   * 返回一个惰性工厂函数：首次调用创建 SubAgentExecutor，后续调用复用同一实例。
+   * 如果缺少 provider，则返回 undefined（task: 命令将报错提示缺少依赖）。
+   */
+  private buildSubAgentExecutorFactory(
+    options: BashToolOptions,
+  ): (() => ISubAgentExecutor) | undefined {
+    // 预注入的 executor（测试场景）
+    if (options.subAgentExecutor) {
+      return () => options.subAgentExecutor!;
+    }
+
+    // 需要 provider 才能创建 SubAgentExecutor
+    if (!options.provider) {
+      return undefined;
+    }
+
+    const provider = options.provider;
+    // eslint-disable-next-line @typescript-eslint/no-this-alias -- 闭包捕获 BashTool 实例
+    const bashTool = this;
+    let cachedExecutor: SubAgentExecutor | null = null;
+
+    return () => {
+      if (cachedExecutor) return cachedExecutor;
+
+      cachedExecutor = new SubAgentExecutor({
+        provider,
+        toolFactory: () => {
+          // 为每个 SubAgent 创建隔离 BashTool 副本
+          const isolatedBashTool = bashTool.createIsolatedCopy();
+          const agentTool = callableToolToAgentTool(isolatedBashTool);
+          return {
+            tools: [agentTool],
+            cleanup: () => isolatedBashTool.cleanup(),
+          };
+        },
+      });
+
+      return cachedExecutor;
+    };
   }
 
   /**

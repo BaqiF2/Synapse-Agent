@@ -12,7 +12,7 @@
 import type Anthropic from '@anthropic-ai/sdk';
 import type { ContentPart, ImageUrlPart, Message, ToolCall } from '../message.ts';
 import { ChatProviderError } from './anthropic-types.ts';
-import { createLogger } from '../../utils/logger.ts';
+import { createLogger } from '../../shared/file-logger.ts';
 
 const logger = createLogger('anthropic-message-converter');
 

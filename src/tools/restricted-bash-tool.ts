@@ -17,7 +17,7 @@ import {
 } from './callable-tool.ts';
 import { BashToolParamsSchema, type BashToolParams } from './schemas.ts';
 import type { BashTool } from './bash-tool.ts';
-import type { ToolPermissions } from '../sub-agents/sub-agent-types.ts';
+import type { ToolPermissions } from '../types/sub-agent.ts';
 import { extractBaseCommand } from './constants.ts';
 
 /**

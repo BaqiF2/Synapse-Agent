@@ -8,7 +8,7 @@ import { describe, expect, it } from 'bun:test';
 import {
   SlidingWindowFailureDetector,
   type FailureCategory,
-} from '../../../src/core/sliding-window-failure.ts';
+} from '../../../src/core/agent/sliding-window-failure.ts';
 
 describe('SlidingWindowFailureDetector', () => {
   // 场景 1: 窗口内失败达到阈值时退出

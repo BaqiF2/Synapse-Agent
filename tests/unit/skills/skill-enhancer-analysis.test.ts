@@ -9,8 +9,8 @@ import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
-import { SkillEnhancer, type ConversationAnalysis, type EnhanceDecision } from '../../../src/skills/skill-enhancer.ts';
-import type { SkillSpec } from '../../../src/skills/skill-generator.ts';
+import { SkillEnhancer, type ConversationAnalysis, type EnhanceDecision } from '../../../src/skills/generator/skill-enhancer.ts';
+import type { SkillSpec } from '../../../src/skills/generator/skill-generator.ts';
 import type { LLMProvider, LLMStream, LLMResponse, GenerateParams } from '../../../src/providers/types.ts';
 
 /**
@@ -190,7 +190,7 @@ describe('SkillEnhancer - Analysis & Enhancement Flow', () => {
       fs.writeFileSync(path.join(scriptsDir, 'read.sh'), '#!/bin/bash\necho read', 'utf-8');
 
       // 重建索引让 loader 能找到它
-      const { SkillIndexer } = await import('../../../src/skills/indexer.ts');
+      const { SkillIndexer } = await import('../../../src/skills/loader/indexer.ts');
       const indexer = new SkillIndexer(testDir);
       indexer.rebuild();
 

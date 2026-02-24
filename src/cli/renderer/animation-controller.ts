@@ -8,7 +8,7 @@
  */
 
 import chalk from 'chalk';
-import { parseEnvInt } from '../../utils/env.ts';
+import { parseEnvInt } from '../../shared/env.ts';
 import { buildSubAgentToolLine } from './render-utils.ts';
 import type { ActiveSubAgentState, ToolLineBuilder, LineInPlaceRenderer } from './renderer-types.ts';
 

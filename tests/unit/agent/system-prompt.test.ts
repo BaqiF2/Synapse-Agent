@@ -1,37 +1,42 @@
 /**
  * System Prompt Tests
  *
- * Tests for the restructured system prompt with 4-section structure.
+ * Tests for the restructured system prompt with 5-section structure.
  *
  * Core Tests:
  * - buildSystemPrompt section order verification
- * - Deprecated section exclusion
+ * - Key content inclusion
+ * - CWD injection
  */
 
 import { describe, it, expect } from 'bun:test';
-import { buildSystemPrompt } from '../../../src/agent/system-prompt.js';
+import { buildSystemPrompt } from '../../../src/core/system-prompt.js';
 
 describe('buildSystemPrompt', () => {
-  it('should include all 4 sections in correct order', () => {
+  it('should include all 5 sections in correct order', () => {
     const prompt = buildSystemPrompt();
 
-    // Check section order (matching actual prompt structure)
+    // 新的 5 段加载顺序：Role → Tool Usage → Command Reference → Skills → Execution Principles
     const roleIndex = prompt.indexOf('# Role');
-    const commandSystemIndex = prompt.indexOf('# Command System');
+    const toolUsageIndex = prompt.indexOf('# Tool Usage');
+    const commandRefIndex = prompt.indexOf('# Command Reference');
     const skillsIndex = prompt.indexOf('# Skill System');
-    const remindersIndex = prompt.indexOf('# Core Principles');
+    const principlesIndex = prompt.indexOf('# Execution Principles');
 
     expect(roleIndex).toBeGreaterThan(-1);
-    expect(commandSystemIndex).toBeGreaterThan(roleIndex);
-    expect(skillsIndex).toBeGreaterThan(commandSystemIndex);
-    expect(remindersIndex).toBeGreaterThan(skillsIndex);
+    expect(toolUsageIndex).toBeGreaterThan(roleIndex);
+    expect(commandRefIndex).toBeGreaterThan(toolUsageIndex);
+    expect(skillsIndex).toBeGreaterThan(commandRefIndex);
+    expect(principlesIndex).toBeGreaterThan(skillsIndex);
   });
 
-  it('should not include deprecated sections', () => {
+  it('should not include removed sections', () => {
     const prompt = buildSystemPrompt();
 
-    expect(prompt).not.toContain('Three-Layer Bash Architecture');
-    expect(prompt).not.toContain('Execution Principles');
+    // 旧的文件已被删除/合并，不应出现旧标题
+    expect(prompt).not.toContain('# Command System');
+    expect(prompt).not.toContain('# Core Principles');
+    expect(prompt).not.toContain('# Skill Search Priority');
   });
 
   it('should include current working directory when provided', () => {
@@ -41,19 +46,40 @@ describe('buildSystemPrompt', () => {
     expect(prompt).toContain('`/tmp/test-dir`');
   });
 
-  it('should include explore path-parallel routing rule in command system section', () => {
+  it('should include sub-agent routing guidelines in command reference', () => {
     const prompt = buildSystemPrompt();
 
-    expect(prompt).toContain('Parallel Path Routing for task:explore');
+    expect(prompt).toContain('sub_agent_guidelines');
     expect(prompt).toContain('one task:explore per path');
-    expect(prompt).toContain('in the same response');
+    expect(prompt).toContain('same response');
   });
 
-  it('should require cleanup of temporary test/debug files before delivery', () => {
+  it('should include verification gate in execution principles', () => {
     const prompt = buildSystemPrompt();
 
-    expect(prompt).toContain('Before delivery, clean up temporary files created during testing or debugging');
-    expect(prompt).toContain('keep only files required for final deliverables');
+    expect(prompt).toContain('verification_gate');
+    expect(prompt).toContain('Clean up before delivery');
   });
 
+  it('should include tool invocation rule as single source of truth', () => {
+    const prompt = buildSystemPrompt();
+
+    expect(prompt).toContain('tool_invocation_rule');
+    expect(prompt).toContain('not separate tools');
+  });
+
+  it('should include skill search rule merged from former skill-search-priority', () => {
+    const prompt = buildSystemPrompt();
+
+    expect(prompt).toContain('skill_search_rule');
+    expect(prompt).toContain('search before loading a skill');
+  });
+
+  it('should include TodoWrite mandatory usage policy for complex tasks', () => {
+    const prompt = buildSystemPrompt();
+
+    expect(prompt).toContain('todo_usage_policy');
+    expect(prompt).toContain('MUST use `TodoWrite`');
+    expect(prompt).toContain('3 or more distinct execution steps');
+  });
 });

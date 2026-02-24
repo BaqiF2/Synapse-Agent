@@ -16,8 +16,8 @@ import * as os from 'node:os';
 
 import { BashSession } from '../../src/tools/bash-session.js';
 import { BashRouter } from '../../src/tools/bash-router.js';
-import { SkillIndexer } from '../../src/skills/indexer.js';
-import { SkillLoader } from '../../src/skills/skill-loader.js';
+import { SkillIndexer } from '../../src/skills/loader/indexer.js';
+import { SkillLoader } from '../../src/skills/loader/skill-loader.js';
 
 // Test configuration
 const TEST_HOME = path.join(os.tmpdir(), `synapse-skill-e2e-${Date.now()}`);

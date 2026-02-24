@@ -1,0 +1,87 @@
+[
+  {
+    "category": "functional",
+    "feature": "F-001 Task Lifecycle Summary Events",
+    "description": "Emit start/end summary semantics for all task:* commands with strict toolCallId correlation.",
+    "overallPass": false,
+    "bdd": [
+      {
+        "scenario": "Emit start and end for a successful task",
+        "description": "A task command should always produce one start and one successful end event.",
+        "steps": {
+          "given": [
+            "A Bash tool call command starts with task:skill:search and has a valid toolCallId",
+            "The task execution path completes successfully"
+          ],
+          "when": [
+            "The runtime processes onToolCall then onToolResult for that toolCallId"
+          ],
+          "then": [
+            "Exactly one TaskSummaryStart event is emitted for the toolCallId",
+            "Exactly one TaskSummaryEnd event is emitted for the same toolCallId",
+            "TaskSummaryEnd.success is true",
+            "TaskSummaryEnd.durationMs is greater than or equal to 0"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "Emit failed end event when task execution fails",
+        "description": "Task failures must still produce end event with short error summary.",
+        "steps": {
+          "given": [
+            "A Bash tool call command starts with task:explore and has a valid toolCallId",
+            "The task execution returns an error"
+          ],
+          "when": [
+            "The runtime receives tool result with isError true"
+          ],
+          "then": [
+            "TaskSummaryEnd is emitted for the same toolCallId",
+            "TaskSummaryEnd.success is false",
+            "TaskSummaryEnd.errorSummary exists and is single-line short text"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "Emit failed end event when task is interrupted",
+        "description": "Interruptions must close lifecycle and avoid dangling task state.",
+        "steps": {
+          "given": [
+            "A task command has emitted TaskSummaryStart",
+            "Execution is interrupted by abort signal"
+          ],
+          "when": [
+            "The runtime finalizes the task result"
+          ],
+          "then": [
+            "TaskSummaryEnd.success is false",
+            "TaskSummaryEnd.errorSummary equals Task execution interrupted.",
+            "In-memory task state for that toolCallId is removed"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "Correlate concurrent tasks by toolCallId",
+        "description": "Parallel task commands must not mismatch start/end pairs.",
+        "steps": {
+          "given": [
+            "Two or more task commands execute concurrently with different toolCallIds",
+            "Their completion order is interleaved"
+          ],
+          "when": [
+            "Start and end events are emitted during processing"
+          ],
+          "then": [
+            "Each TaskSummaryEnd maps to the exact same toolCallId as its TaskSummaryStart",
+            "No task misses an end event",
+            "No task receives duplicated end event"
+          ]
+        },
+        "passes": false
+      }
+    ]
+  }
+]

@@ -15,11 +15,11 @@ import {
   createSubAgent,
   filterToolsByPermissions,
   type SubAgentOptions,
-} from '../../../src/sub-agents/sub-agent-core.ts';
+} from '../../../src/core/sub-agents/sub-agent-core.ts';
 import { EventStream } from '../../../src/core/event-stream.ts';
-import { MAX_TOOL_ITERATIONS } from '../../../src/common/constants.ts';
+import { MAX_TOOL_ITERATIONS } from '../../../src/shared/constants.ts';
 import type { AgentTool, ToolResult, AgentEvent, LLMProviderLike } from '../../../src/core/types.ts';
-import type { LLMResponse } from '../../../src/providers/types.ts';
+import type { LLMResponse, LLMStream, LLMStreamChunk } from '../../../src/types/provider.ts';
 
 // ========== 测试辅助工厂 ==========
 
@@ -29,13 +29,14 @@ function createMockProvider(responses: LLMResponse[]): LLMProviderLike {
   return {
     name: 'mock-provider',
     model: 'mock-model',
-    generate(_params: unknown): AsyncIterable<unknown> & { result: Promise<unknown> } {
+    generate(_params) {
       const response = responses[callIndex] ?? responses[responses.length - 1]!;
       callIndex++;
-      return {
-        async *[Symbol.asyncIterator]() {},
+      const stream: LLMStream = {
+        async *[Symbol.asyncIterator](): AsyncGenerator<LLMStreamChunk> {},
         result: Promise.resolve(response),
       };
+      return stream;
     },
   };
 }
@@ -45,10 +46,10 @@ function createDelayedProvider(delayMs: number): LLMProviderLike {
   return {
     name: 'delayed-provider',
     model: 'delayed-model',
-    generate(_params: unknown): AsyncIterable<unknown> & { result: Promise<unknown> } {
-      return {
-        async *[Symbol.asyncIterator]() {},
-        result: new Promise<LLMResponse>((resolve, reject) => {
+    generate(_params) {
+      const stream: LLMStream = {
+        async *[Symbol.asyncIterator](): AsyncGenerator<LLMStreamChunk> {},
+        result: new Promise<LLMResponse>((resolve) => {
           const timer = setTimeout(
             () =>
               resolve({
@@ -64,6 +65,7 @@ function createDelayedProvider(delayMs: number): LLMProviderLike {
           }
         }),
       };
+      return stream;
     },
   };
 }
@@ -77,7 +79,7 @@ function createMultiTurnSlowProvider(): LLMProviderLike {
   return {
     name: 'multi-turn-provider',
     model: 'multi-turn-model',
-    generate(_params: unknown): AsyncIterable<unknown> & { result: Promise<unknown> } {
+    generate(_params) {
       callIndex++;
       const FIRST_CALL = 1;
       const response: LLMResponse = callIndex === FIRST_CALL
@@ -92,10 +94,11 @@ function createMultiTurnSlowProvider(): LLMProviderLike {
             usage: { inputTokens: 10, outputTokens: 5 },
           };
 
-      return {
-        async *[Symbol.asyncIterator]() {},
+      const stream: LLMStream = {
+        async *[Symbol.asyncIterator](): AsyncGenerator<LLMStreamChunk> {},
         result: Promise.resolve(response),
       };
+      return stream;
     },
   };
 }
